@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';  // ✅ Use Expo Vector Icons
 
-export default function Example({ navigation, route }) {
-  const { email, accessToken, phone, name, gender } = route?.params || {};
+export default function Example() {
   const [form, setForm] = useState({});
   const [input, setInput] = useState('');
 
@@ -113,30 +112,9 @@ export default function Example({ navigation, route }) {
         {/* Button */}
         <TouchableOpacity
           onPress={() => {
+            // handle Next press
             if (form.dateOfBirth) {
-              const year = parseInt(form.dateOfBirth.slice(0, 4), 10);
-              const nowYear = new Date().getFullYear();
-              const age = nowYear - year;
-              Alert.alert(
-                'Confirm your age',
-                `You are ${age} years old.`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Confirm',
-                    onPress: () => {
-                      navigation?.navigate?.('MemberInterests', {
-                        email,
-                        accessToken,
-                        phone,
-                        name,
-                        gender,
-                        dob: form.dateOfBirth,
-                      });
-                    },
-                  },
-                ]
-              );
+              Alert.alert('DOB Saved', `Your DOB: ${form.dateOfBirth}`);
             } else {
               Alert.alert('Please enter a valid date');
             }
@@ -183,7 +161,7 @@ const styles = StyleSheet.create({
   },
   headerBack: {
     padding: 8,
-    paddingTop: 70,
+    paddingTop: 0,
     position: 'relative',
     marginLeft: -16,
   },
@@ -196,7 +174,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingHorizontal: 16,
     borderRadius: 12,
-    fontSize: 1,
+    fontSize: 15,
+    fontWeight: '500',
     color: 'transparent', // hides text
     borderWidth: 1,
     borderColor: '#C9D3DB',

@@ -49,6 +49,8 @@ async function ensureTables() {
         bio TEXT NOT NULL,
         logo_url TEXT,
         email TEXT UNIQUE NOT NULL,
+        phone TEXT,
+        requirements TEXT,
         interests JSONB,
         cities JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -71,8 +73,8 @@ async function ensureTables() {
         bio TEXT NOT NULL,
         logo_url TEXT,
         email TEXT UNIQUE NOT NULL,
-        phone TEXT NOT NULL,
-        requirements TEXT NOT NULL,
+        phone TEXT,
+        requirements TEXT,
         interests JSONB,
         cities JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

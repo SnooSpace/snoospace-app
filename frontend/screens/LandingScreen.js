@@ -120,7 +120,22 @@ const LandingScreen = ({ navigation }) => {
     setSelectedRole(role);
     console.log(`Selected role: ${role}`);
     // Navigate to role-specific signup form
-    navigation.navigate("MemberSignup", { selectedRole: role });
+    switch (role) {
+      case "member":
+        navigation.navigate("MemberSignup", { selectedRole: role });
+        break;
+      case "community":
+        navigation.navigate("CommunitySignup", { selectedRole: role });
+        break;
+      case "sponsor":
+        navigation.navigate("SponsorSignup", { selectedRole: role });
+        break;
+      case "venue":
+        navigation.navigate("VenueSignup", { selectedRole: role });
+        break;
+      default:
+        console.log("Unknown role:", role);
+    }
   };
 
   return (

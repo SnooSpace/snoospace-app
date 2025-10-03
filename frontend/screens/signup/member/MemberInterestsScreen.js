@@ -17,22 +17,26 @@ const TEXT_COLOR = '#1e1e1e'; // Dark text color
 const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for subtitle and unselected chips
 const BACKGROUND_COLOR = '#ffffff'; // White background
 const MIN_SELECTIONS = 3; // Requirement from the design text
+const MAX_SELECTIONS = 7; // Maximum selections allowed
 
 // --- Reusable Interest Chip Component ---
-const InterestChip = ({ label, isSelected, onPress }) => {
+const InterestChip = ({ label, isSelected, onPress, isDisabled }) => {
   return (
     <TouchableOpacity
       style={[
         styles.chip,
         isSelected ? styles.chipSelected : styles.chipUnselected,
+        isDisabled && styles.chipDisabled,
       ]}
-      onPress={() => onPress(label)}
-      activeOpacity={0.7}
+      onPress={() => !isDisabled && onPress(label)}
+      activeOpacity={isDisabled ? 1 : 0.7}
+      disabled={isDisabled}
     >
       <Text
         style={[
           styles.chipText,
           isSelected ? styles.chipTextSelected : styles.chipTextUnselected,
+          isDisabled && styles.chipTextDisabled,
         ]}
       >
         {label}
@@ -60,8 +64,11 @@ const InterestsScreen = ({ navigation, route }) => {
         // Deselect
         return prev.filter((i) => i !== interest);
       } else {
-        // Select
-        return [...prev, interest];
+        // Select - but only if we haven't reached the maximum
+        if (prev.length < MAX_SELECTIONS) {
+          return [...prev, interest];
+        }
+        return prev; // Don't add if at maximum
       }
     });
   };
@@ -104,19 +111,25 @@ const InterestsScreen = ({ navigation, route }) => {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>What are you interested in?</Text>
           <Text style={styles.subtitle}>
-            Select at least {MIN_SELECTIONS} interests to personalize your experience.
+            Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize your experience.
           </Text>
 
           {/* Interest Chips Container */}
           <View style={styles.chipsContainer}>
-            {allInterests.map((interest) => (
-              <InterestChip
-                key={interest}
-                label={interest}
-                isSelected={selectedInterests.includes(interest)}
-                onPress={toggleInterest}
-              />
-            ))}
+            {allInterests.map((interest) => {
+              const isSelected = selectedInterests.includes(interest);
+              const isDisabled = !isSelected && selectedInterests.length >= MAX_SELECTIONS;
+              
+              return (
+                <InterestChip
+                  key={interest}
+                  label={interest}
+                  isSelected={isSelected}
+                  isDisabled={isDisabled}
+                  onPress={toggleInterest}
+                />
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -240,6 +253,14 @@ const styles = StyleSheet.create({
   },
   chipTextUnselected: {
     color: TEXT_COLOR,
+  },
+  chipDisabled: {
+    backgroundColor: '#f8f9fa',
+    borderColor: '#e9ecef',
+    opacity: 0.5,
+  },
+  chipTextDisabled: {
+    color: LIGHT_TEXT_COLOR,
   },
 
   // --- Footer/Button Styles ---

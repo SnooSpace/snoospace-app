@@ -8,8 +8,11 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // Used for icons
+import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
 
 // --- Design Constants ---
 const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button and selected elements
@@ -24,11 +27,37 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   const { email, accessToken, phone, name, gender, dob, interests, city } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
 
-  const handleAddPhoto = () => {
-    // Logic to open the image picker (e.g., using 'expo-image-picker' or 'react-native-image-crop-picker')
-    console.log('Open image picker');
-    // For demonstration, we'll pretend an image was selected
-    // setImageUri('some/local/uri/or/link.jpg'); 
+  const handleAddPhoto = async () => {
+    console.log('handleAddPhoto called'); // Debug log
+    try {
+      console.log('Requesting permissions...'); // Debug log
+      // Request permission to access media library
+      const permissionResult = await requestMediaLibraryPermissionsAsync();
+      console.log('Permission result:', permissionResult); // Debug log
+      
+      if (permissionResult.granted === false) {
+        Alert.alert("Permission Required", "Permission to access camera roll is required!");
+        return;
+      }
+
+      console.log('Launching image picker...'); // Debug log
+      // Launch image picker
+      const result = await launchImageLibraryAsync({
+        mediaTypes: MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // Square aspect ratio for profile picture
+        quality: 0.8,
+      });
+
+      console.log('Image picker result:', result); // Debug log
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+        console.log('Image selected:', result.assets[0].uri); // Debug log
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert("Error", `Failed to pick image: ${error.message}`);
+    }
   };
 
   const handleNext = async () => {
@@ -100,9 +129,13 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                   <Text style={styles.uploadText}>Add Photo</Text>
                 </View>
               )}
-              {/* Content when photo IS uploaded (Placeholder: Replace with Image component) */}
+              {/* Content when photo IS uploaded */}
               {imageUri && (
-                <Text style={styles.imagePlaceholderText}>Image Preview Here</Text>
+                <Image 
+                  source={{ uri: imageUri }} 
+                  style={styles.profileImage}
+                  resizeMode="cover"
+                />
               )}
             </View>
           </TouchableOpacity>
@@ -225,6 +258,11 @@ const styles = StyleSheet.create({
   },
   imagePlaceholderText: {
     color: PRIMARY_COLOR,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: CIRCLE_SIZE / 2,
   },
 
   // --- Footer/Button Styles ---

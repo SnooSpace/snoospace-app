@@ -30,6 +30,78 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+// Check if email exists in any user table
+router.post("/auth/check-email", async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const pool = req.app.locals.pool;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Check in all user tables
+    const queries = [
+      pool.query("SELECT email FROM members WHERE email = $1", [email]),
+      pool.query("SELECT email FROM communities WHERE email = $1", [email]),
+      pool.query("SELECT email FROM sponsors WHERE email = $1", [email]),
+      pool.query("SELECT email FROM venues WHERE contact_email = $1", [email])
+    ];
+
+    const results = await Promise.all(queries);
+    const exists = results.some(result => result.rows.length > 0);
+
+    res.json({ exists });
+  } catch (err) {
+    console.error("/auth/check-email error:", err);
+    res.status(500).json({ error: "Failed to check email" });
+  }
+});
+
+// Get user profile and role
+router.post("/auth/get-user-profile", async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const pool = req.app.locals.pool;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Check in all user tables to find the user's role
+    const queries = [
+      { table: 'members', role: 'member' },
+      { table: 'communities', role: 'community' },
+      { table: 'sponsors', role: 'sponsor' },
+      { table: 'venues', role: 'venue' }
+    ];
+
+    for (const { table, role } of queries) {
+      let emailColumn = 'email';
+      if (table === 'venues') {
+        emailColumn = 'contact_email';
+      }
+
+      const result = await pool.query(
+        `SELECT * FROM ${table} WHERE ${emailColumn} = $1`,
+        [email]
+      );
+
+      if (result.rows.length > 0) {
+        return res.json({
+          role,
+          profile: result.rows[0]
+        });
+      }
+    }
+
+    res.status(404).json({ error: "User not found" });
+  } catch (err) {
+    console.error("/auth/get-user-profile error:", err);
+    res.status(500).json({ error: "Failed to get user profile" });
+  }
+});
+
 // Health check
 router.get("/health", (req, res) => {
   res.json({ status: "ok" });
@@ -196,86 +268,11 @@ router.get("/me", authMiddleware, async (req, res) => {
 router.post("/communities/signup", async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { name, bio, logo_url, email, head_name, head_email, head_phone, interests, cities } = req.body || {};
+    const { name, bio, email, phone, requirements } = req.body || {};
     
     // Required fields validation
-    if (!name || !bio || !email || !head_name || !head_email || !head_phone) {
-      return res.status(400).json({ error: "All fields are required: name, bio, email, head_name, head_email, head_phone" });
-    }
-    
-    // Phone validation
-    if (!/^\d{10}$/.test(head_phone)) {
-      return res.status(400).json({ error: "head_phone must be 10 digits" });
-    }
-    
-    // Interests and cities validation
-    if (!Array.isArray(interests) || interests.length < 1) {
-      return res.status(400).json({ error: "interests must be a non-empty array" });
-    }
-    if (!Array.isArray(cities) || cities.length < 1) {
-      return res.status(400).json({ error: "cities must be a non-empty array" });
-    }
-    
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Create community
-      const communityResult = await client.query(
-        `INSERT INTO communities (name, bio, logo_url, email)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (email) DO UPDATE SET
-           name = EXCLUDED.name,
-           bio = EXCLUDED.bio,
-           logo_url = EXCLUDED.logo_url
-         RETURNING *`,
-        [name, bio, logo_url || null, email]
-      );
-      
-      const community = communityResult.rows[0];
-      
-      // Create community head
-      await client.query(
-        `INSERT INTO community_heads (community_id, name, email, phone)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (community_id) DO UPDATE SET
-           name = EXCLUDED.name,
-           email = EXCLUDED.email,
-           phone = EXCLUDED.phone`,
-        [community.id, head_name, head_email, head_phone]
-      );
-      
-      // Add interests and cities (simplified - just store as JSON for now)
-      await client.query(
-        `UPDATE communities SET 
-         interests = $1, cities = $2
-         WHERE id = $3`,
-        [JSON.stringify(interests), JSON.stringify(cities), community.id]
-      );
-      
-      await client.query('COMMIT');
-      res.json({ community });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error("/communities/signup error:", err);
-    res.status(500).json({ error: "Failed to signup community" });
-  }
-});
-
-// Sponsor signup
-router.post("/sponsors/signup", async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const { brand_name, bio, logo_url, email, phone, requirements, interests, cities } = req.body || {};
-    
-    // Required fields validation
-    if (!brand_name || !bio || !email || !phone || !requirements) {
-      return res.status(400).json({ error: "All fields are required: brand_name, bio, email, phone, requirements" });
+    if (!name || !bio || !email || !phone || !requirements) {
+      return res.status(400).json({ error: "All fields are required: name, bio, email, phone, requirements" });
     }
     
     // Phone validation
@@ -283,33 +280,71 @@ router.post("/sponsors/signup", async (req, res) => {
       return res.status(400).json({ error: "phone must be 10 digits" });
     }
     
-    // Interests and cities validation
-    if (!Array.isArray(interests) || interests.length < 1) {
-      return res.status(400).json({ error: "interests must be a non-empty array" });
+    const result = await pool.query(
+      `INSERT INTO communities (name, bio, email, phone, requirements)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email) DO UPDATE SET
+         name = EXCLUDED.name,
+         bio = EXCLUDED.bio,
+         phone = EXCLUDED.phone,
+         requirements = EXCLUDED.requirements
+       RETURNING *`,
+      [name, bio, email, phone, requirements]
+    );
+    
+    res.json({ community: result.rows[0] });
+  } catch (err) {
+    console.error("/communities/signup error:", err);
+    res.status(500).json({
+      error: "Failed to signup community",
+      message: err.message,
+      code: err.code,
+      detail: err.detail,
+      hint: err.hint,
+      position: err.position,
+    });
+  }
+});
+
+// Sponsor signup
+router.post("/sponsors/signup", async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { brandName, bio, email, phone, requirements } = req.body || {};
+    
+    // Required fields validation
+    if (!brandName || !bio || !email || !phone || !requirements) {
+      return res.status(400).json({ error: "All fields are required: brandName, bio, email, phone, requirements" });
     }
-    if (!Array.isArray(cities) || cities.length < 1) {
-      return res.status(400).json({ error: "cities must be a non-empty array" });
+    
+    // Phone validation
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ error: "phone must be 10 digits" });
     }
     
     const result = await pool.query(
-      `INSERT INTO sponsors (brand_name, bio, logo_url, email, phone, requirements, interests, cities)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO sponsors (brand_name, bio, email, phone, requirements)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (email) DO UPDATE SET
          brand_name = EXCLUDED.brand_name,
          bio = EXCLUDED.bio,
-         logo_url = EXCLUDED.logo_url,
          phone = EXCLUDED.phone,
-         requirements = EXCLUDED.requirements,
-         interests = EXCLUDED.interests,
-         cities = EXCLUDED.cities
+         requirements = EXCLUDED.requirements
        RETURNING *`,
-      [brand_name, bio, logo_url || null, email, phone, requirements, JSON.stringify(interests), JSON.stringify(cities)]
+      [brandName, bio, email, phone, requirements]
     );
     
     res.json({ sponsor: result.rows[0] });
   } catch (err) {
     console.error("/sponsors/signup error:", err);
-    res.status(500).json({ error: "Failed to signup sponsor" });
+    res.status(500).json({
+      error: "Failed to signup sponsor",
+      message: err.message,
+      code: err.code,
+      detail: err.detail,
+      hint: err.hint,
+      position: err.position,
+    });
   }
 });
 
