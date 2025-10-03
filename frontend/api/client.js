@@ -1,4 +1,4 @@
-export const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:5000";
+export const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://192.168.1.11:5000";
 
 function withTimeout(promise, ms = 15000) {
   return Promise.race([
