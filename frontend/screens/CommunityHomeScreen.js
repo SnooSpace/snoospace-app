@@ -1,0 +1,117 @@
+import React from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+} from "react-native";
+
+// --- CONSTANTS DEFINED LOCALLY ---
+const COLORS = {
+  primary: "#5E17EB",
+  textDark: "#282C35",
+  textLight: "#808080",
+  background: "#FFFFFF",
+  white: "#fff",
+};
+
+const FONT_SIZES = {
+  largeHeader: 28,
+  body: 16,
+  small: 13,
+};
+
+const SPACING = {
+  horizontal: 24,
+  vertical: 20,
+};
+// ---------------------------------
+
+const CommunityHomeScreen = ({ navigation }) => {
+  const handleLogout = () => {
+    // TODO: Clear auth token and navigate to landing
+    navigation.navigate("Landing");
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome, Community!</Text>
+          <Text style={styles.subtitle}>You're logged in as a Community</Text>
+        </View>
+
+        <View style={styles.content}>
+          <Text style={styles.description}>
+            This is your community dashboard. Here you can:
+          </Text>
+          <Text style={styles.feature}>• Create and manage events</Text>
+          <Text style={styles.feature}>• Add promotional posts/videos</Text>
+          <Text style={styles.feature}>• View sponsors & other communities</Text>
+          <Text style={styles.feature}>• Send collaboration requests</Text>
+          <Text style={styles.feature}>• Browse & book venues for events</Text>
+        </View>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.buttonText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: SPACING.horizontal,
+    paddingVertical: SPACING.vertical,
+  },
+  header: {
+    marginBottom: 40,
+  },
+  title: {
+    fontSize: FONT_SIZES.largeHeader,
+    fontWeight: "800",
+    color: COLORS.textDark,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textLight,
+  },
+  content: {
+    flex: 1,
+  },
+  description: {
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textDark,
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  feature: {
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textDark,
+    marginBottom: 12,
+    paddingLeft: 10,
+  },
+  logoutButton: {
+    backgroundColor: COLORS.primary,
+    height: 56,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  buttonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.body,
+    fontWeight: "700",
+  },
+});
+
+export default CommunityHomeScreen;
