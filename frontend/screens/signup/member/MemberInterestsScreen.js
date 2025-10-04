@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,14 +8,15 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+import ProgressBar from "../../../components/Progressbar";
 
 // --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button and selected chips
-const TEXT_COLOR = '#1e1e1e'; // Dark text color
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for subtitle and unselected chips
-const BACKGROUND_COLOR = '#ffffff'; // White background
+const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected chips
+const TEXT_COLOR = "#1e1e1e"; // Dark text color
+const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for subtitle and unselected chips
+const BACKGROUND_COLOR = "#ffffff"; // White background
 const MIN_SELECTIONS = 3; // Requirement from the design text
 const MAX_SELECTIONS = 7; // Maximum selections allowed
 
@@ -51,11 +52,21 @@ const InterestsScreen = ({ navigation, route }) => {
 
   // All available interests as shown in the design
   const allInterests = [
-    'Sports', 'Music', 'Technology',
-    'Travel', 'Food & Drink', 'Art & Culture',
-    'Fitness', 'Gaming', 'Movies',
-    'Books', 'Fashion', 'Photography',
-    'Outdoors', 'Volunteering', 'Networking',
+    "Sports",
+    "Music",
+    "Technology",
+    "Travel",
+    "Food & Drink",
+    "Art & Culture",
+    "Fitness",
+    "Gaming",
+    "Movies",
+    "Books",
+    "Fashion",
+    "Photography",
+    "Outdoors",
+    "Volunteering",
+    "Networking",
   ];
 
   const toggleInterest = (interest) => {
@@ -74,7 +85,15 @@ const InterestsScreen = ({ navigation, route }) => {
   };
 
   const handleFinish = () => {
-    navigation.navigate('MemberLocation', { email, accessToken, phone, name, gender, dob, interests: selectedInterests });
+    navigation.navigate("MemberLocation", {
+      email,
+      accessToken,
+      phone,
+      name,
+      gender,
+      dob,
+      interests: selectedInterests,
+    });
   };
 
   // Check if the selection requirement is met
@@ -86,24 +105,23 @@ const InterestsScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Back Button, Title, Progress Bar) */}
+        {/* Header Section (Only Back Button) */}
         <View style={styles.header}>
-          {/* Top Row: Back Button and Title */}
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => console.log('Go back')} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Interests</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+        </View>
 
-          {/* Step Text and Progress Bar */}
-          <View style={styles.progressSection}>
-            <Text style={styles.stepText}>Step 3 of 3</Text>
-            <Text style={styles.percentageText}>100%</Text>
-            <View style={styles.progressBarContainer}>
-              {/* 100% filled since it's Step 3 of 3 */}
-              <View style={[styles.progressBarActive, { width: '100%' }]} />
-            </View>
+        {/* Header Section (Progress Bar and Step Text) */}
+        <View style={styles.header}>
+          <Text style={styles.stepText}>Step 5 of 7</Text>
+
+          {/* Progress Bar Container */}
+          <View style={styles.progressBarContainer}>
+            <ProgressBar progress={71} />
           </View>
         </View>
 
@@ -111,15 +129,17 @@ const InterestsScreen = ({ navigation, route }) => {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>What are you interested in?</Text>
           <Text style={styles.subtitle}>
-            Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize your experience.
+            Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize
+            your experience.
           </Text>
 
           {/* Interest Chips Container */}
           <View style={styles.chipsContainer}>
             {allInterests.map((interest) => {
               const isSelected = selectedInterests.includes(interest);
-              const isDisabled = !isSelected && selectedInterests.length >= MAX_SELECTIONS;
-              
+              const isDisabled =
+                !isSelected && selectedInterests.length >= MAX_SELECTIONS;
+
               return (
                 <InterestChip
                   key={interest}
@@ -137,11 +157,14 @@ const InterestsScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.finishButton, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.finishButton,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleFinish}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Finish</Text>
+          <Text style={styles.buttonText}>Next</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -154,7 +177,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -164,8 +187,8 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
   backButton: {
@@ -173,10 +196,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     marginLeft: -40, // Visual centering adjustment
   },
   progressSection: {
@@ -188,22 +211,22 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   percentageText: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 5,
     fontSize: 14,
     color: TEXT_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   progressBarContainer: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e9ecef',
-    overflow: 'hidden',
-    flexDirection: 'row',
+    backgroundColor: "#e9ecef",
+    overflow: "hidden",
+    flexDirection: "row",
   },
   progressBarActive: {
-    height: '100%',
+    height: "100%",
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 2,
   },
@@ -214,7 +237,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 10,
   },
@@ -226,8 +249,8 @@ const styles = StyleSheet.create({
 
   // --- Chip Styles ---
   chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10, // Use gap for modern RN, or margin/padding if gap is not supported
   },
   chip: {
@@ -242,11 +265,11 @@ const styles = StyleSheet.create({
   },
   chipUnselected: {
     backgroundColor: BACKGROUND_COLOR,
-    borderColor: LIGHT_TEXT_COLOR + '80', // Lighter border for unselected
+    borderColor: LIGHT_TEXT_COLOR + "80", // Lighter border for unselected
   },
   chipText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   chipTextSelected: {
     color: BACKGROUND_COLOR, // White text on purple background
@@ -255,8 +278,8 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
   },
   chipDisabled: {
-    backgroundColor: '#f8f9fa',
-    borderColor: '#e9ecef',
+    backgroundColor: "#f8f9fa",
+    borderColor: "#e9ecef",
     opacity: 0.5,
   },
   chipTextDisabled: {
@@ -267,21 +290,26 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     backgroundColor: BACKGROUND_COLOR,
+    marginBottom: 50,
   },
   finishButton: {
     backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  backButton: {
+    padding: 15, // Increase this value to make the touch area larger
+    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
   },
 });
 

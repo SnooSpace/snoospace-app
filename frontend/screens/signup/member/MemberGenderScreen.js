@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the radio button icon
+import ProgressBar from "../../../components/Progressbar";
 
 // --- Design Constants ---
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button, progress bar, and selected state
@@ -54,7 +55,13 @@ const GenderSelectionScreen = ({ navigation, route }) => {
   const genderOptions = ["Male", "Female", "Non-binary"];
 
   const handleNext = () => {
-    navigation.navigate('MemberAge', { email, accessToken, phone, name, gender: selectedGender });
+    navigation.navigate("MemberAge", {
+      email,
+      accessToken,
+      phone,
+      name,
+      gender: selectedGender,
+    });
   };
 
   // Button is enabled only when an option is selected
@@ -66,15 +73,23 @@ const GenderSelectionScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Header Section (Only Back Button) */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+          {/* Progress bar and Skip button removed as per request */}
+        </View>
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 1 of 5</Text>
+          <Text style={styles.stepText}>Step 3 of 7</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            {/* 20% filled since it's Step 1 of 5 */}
-            <View style={[styles.progressBarActive, { width: "20%" }]} />
-            <View style={styles.progressBarInactive} />
+            <ProgressBar progress={42} />
           </View>
         </View>
 
@@ -191,6 +206,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: BACKGROUND_COLOR,
     borderTopWidth: 0,
+    marginBottom: 50,
   },
   nextButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -206,6 +222,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
+  },
+  backButton: {
+    padding: 15, // Increase this value to make the touch area larger
+    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
   },
 });
 

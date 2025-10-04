@@ -11,8 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
-// Assuming you have an image component or library for flags, 
-// for simplicity and platform-independence, I'll use text/emoji for the flag.
+import ProgressBar from '../../../components/Progressbar';
 
 // --- Design Constants ---
 const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
@@ -45,12 +44,14 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
+          <Text style={styles.stepText}>Step 1 of 7</Text>
+
+          {/* Progress Bar Container */}
+          <View style={styles.progressBarContainer}>
+            <ProgressBar progress={14} />
+          </View>
         </View>
 
         {/* Content Section */}
@@ -114,15 +115,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-  },
-  backButton: {
-    paddingRight: 15,
-  },
-  // Progress bar removed
   contentContainer: {
     flex: 1,
     marginTop: 50,
@@ -178,6 +170,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: BACKGROUND_COLOR,
     borderTopWidth: 0,
+    marginBottom: 50,
   },
   continueButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -193,6 +186,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+    progressBarContainer: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e9ecef",
+    overflow: "hidden",
+    flexDirection: "row",
+  },
+  progressBarActive: {
+    height: "100%",
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 2,
+  },
+  progressBarInactive: {
+    flex: 1,
+    height: "100%",
+  },
+   stepText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 5,
+    marginTop: 5,
+    marginLeft: 0,
+  },
+   header: {
+    paddingVertical: 60,
   },
 });
 

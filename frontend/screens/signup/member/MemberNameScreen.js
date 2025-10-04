@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,20 +9,22 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
+} from "react-native";
+import ProgressBar from "../../../components/Progressbar";
+import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 
 // --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button and progress bar
-const TEXT_COLOR = '#1e1e1e'; // Dark text color
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for step text
-const BACKGROUND_COLOR = '#ffffff'; // White background
+const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
+const TEXT_COLOR = "#1e1e1e"; // Dark text color
+const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
+const BACKGROUND_COLOR = "#ffffff"; // White background
 
 const NameInputScreen = ({ navigation, route }) => {
   const { email, accessToken, phone } = route.params || {};
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
 
   const handleNext = () => {
-    navigation.navigate('MemberGender', { email, accessToken, phone, name });
+    navigation.navigate("MemberGender", { email, accessToken, phone, name });
   };
 
   // Determine if the button should be disabled (e.g., if the name is empty)
@@ -34,16 +36,24 @@ const NameInputScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Header Section (Only Back Button) */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+          {/* Progress bar and Skip button removed as per request */}
+        </View>
+
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 1 of 4</Text>
+          <Text style={styles.stepText}>Step 2 of 7</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            {/* Active part (25% filled since it's Step 1 of 4) */}
-            <View style={styles.progressBarActive} />
-            {/* The rest of the bar */}
-            <View style={styles.progressBarInactive} />
+            <ProgressBar progress={28} />
           </View>
         </View>
 
@@ -87,7 +97,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
     // Add padding top for Android
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -104,20 +114,20 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e9ecef', // Very light grey for the background of the bar
-    overflow: 'hidden',
-    flexDirection: 'row',
+    backgroundColor: "#e9ecef", // Very light grey for the background of the bar
+    overflow: "hidden",
+    flexDirection: "row",
   },
   progressBarActive: {
     // 25% for Step 1 of 4
-    width: '25%', 
-    height: '100%',
+    width: "25%",
+    height: "100%",
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 2,
   },
   progressBarInactive: {
     flex: 1,
-    height: '100%',
+    height: "100%",
   },
   contentContainer: {
     flex: 1,
@@ -126,39 +136,44 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 40,
   },
   input: {
     height: 50,
-    backgroundColor: '#f8f9fa', // Light background for the input field
+    backgroundColor: "#f8f9fa", // Light background for the input field
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ced4da', // Light border
+    borderColor: "#ced4da", // Light border
     color: TEXT_COLOR,
   },
   footer: {
+    backgroundColor: BACKGROUND_COLOR,
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR, // Ensure the footer background matches
+    marginBottom: 50,
     borderTopWidth: 0,
   },
   nextButton: {
     backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6, // Dim the button when disabled
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  backButton: {
+    padding: 15, // Increase this value to make the touch area larger
+    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
   },
 });
 

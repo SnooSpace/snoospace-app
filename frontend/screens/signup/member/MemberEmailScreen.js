@@ -10,25 +10,33 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Assuming you are using Expo or have installed react-native-vector-icons
+import { Ionicons } from '@expo/vector-icons'; 
 
 // --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button and progress bar
-const TEXT_COLOR = '#1e1e1e'; // Dark text color
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for smaller text
-const BACKGROUND_COLOR = '#ffffff'; // White background
+const PRIMARY_COLOR = '#5f27cd'; 
+const TEXT_COLOR = '#1e1e1e'; 
+const LIGHT_TEXT_COLOR = '#6c757d'; 
+const BACKGROUND_COLOR = '#ffffff'; 
 
 import { apiPost } from "../../../api/client";
 
 const EmailInputScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
+  const [isValidEmail, setIsValidEmail] = useState(false);
+  const [touched, setTouched] = useState(false); // track if user has typed
+
+  const validateEmail = (text) => {
+    setEmail(text);
+    setTouched(true);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setIsValidEmail(emailRegex.test(text));
+  };
 
   const handleContinue = async () => {
     navigation.navigate("MemberOtp", { email });
     try {
       await apiPost("/auth/send-otp", { email }, 8000);
     } catch (e) {
-      // Show a non-blocking toast/alert, stay on OTP screen
       console.log('send-otp error:', e.message);
     }
   };
@@ -41,18 +49,9 @@ const EmailInputScreen = ({ navigation }) => {
       >
         {/* Header Section */}
         <View style={styles.header}>
-          {/* Back Button */}
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
-
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
-            {/* Active part (33% filled visually based on design) */}
-            <View style={[styles.progressBarActive, { width: '33%' }]} />
-            {/* The rest of the bar */}
-            <View style={styles.progressBarInactive} />
-          </View>
         </View>
 
         {/* Content Section */}
@@ -62,18 +61,22 @@ const EmailInputScreen = ({ navigation }) => {
             We'll use it to keep you updated on events.
           </Text>
 
-          {/* Email Input */}
           <TextInput
             style={styles.input}
-            onChangeText={setEmail}
+            onChangeText={validateEmail}
             value={email}
             placeholder="Enter your email"
             placeholderTextColor="#adb5bd"
             keyboardType="email-address"
             autoCapitalize="none"
-            textContentType="emailAddress" // iOS specific
-            autoComplete="email" // Android specific
+            textContentType="emailAddress"
+            autoComplete="email"
           />
+
+          {/* Error message if invalid */}
+          {touched && email.length > 0 && !isValidEmail && (
+            <Text style={styles.errorText}>Please enter a valid email address</Text>
+          )}
 
           <Text style={styles.infoText}>
             Email will be used to send code for your login.
@@ -84,9 +87,9 @@ const EmailInputScreen = ({ navigation }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, email.length === 0 && styles.disabledButton]}
+          style={[styles.continueButton, !isValidEmail && styles.disabledButton]}
           onPress={handleContinue}
-          disabled={email.length === 0}
+          disabled={!isValidEmail}
         >
           <Text style={styles.buttonText}>Get Code</Text>
         </TouchableOpacity>
@@ -96,16 +99,14 @@ const EmailInputScreen = ({ navigation }) => {
 };
 
 // --- Styles ---
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
-    // Add padding top for Android
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
-    flexGrow: 1, // Allows the content to expand and scroll if needed
+    flexGrow: 1,
     paddingHorizontal: 20,
   },
   header: {
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e9ecef', // Very light grey for the background of the bar
+    backgroundColor: '#e9ecef',
     overflow: 'hidden',
     flexDirection: 'row',
   },
@@ -151,13 +152,19 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    backgroundColor: '#f8f9fa', // Light background for the input field
+    backgroundColor: '#f8f9fa',
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ced4da', // Light border
+    borderColor: '#ced4da',
     color: TEXT_COLOR,
+  },
+  errorText: {
+    fontSize: 12,
+    color: 'red',
+    marginTop: 5,
+    marginLeft: 5,
   },
   infoText: {
     fontSize: 12,
@@ -167,8 +174,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR, // Ensure the footer background matches
-    borderTopWidth: 0, // Remove any unnecessary line
+    backgroundColor: BACKGROUND_COLOR,
   },
   continueButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -177,10 +183,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 200,
-
   },
   disabledButton: {
-    opacity: 0.6, // Dim the button when disabled
+    opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
