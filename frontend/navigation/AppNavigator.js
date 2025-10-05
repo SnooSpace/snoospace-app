@@ -7,8 +7,8 @@ import MemberSignupNavigator from "../screens/signup/member/MemberSignupNavigato
 import CommunitySignupNavigator from "../screens/signup/community/CommunitySignupNavigator";
 import SponsorSignupNavigator from "../screens/signup/sponsor/SponsorSignupNavigator";
 import VenueSignupNavigator from "../screens/signup/venue/VenueSignupNavigator";
-import LoginScreen from "../screens/LoginScreen";
-import LoginOtpScreen from "../screens/LoginOtpScreen";
+import LoginScreen from "../screens/signin/LoginScreen";
+import LoginOtpScreen from "../screens/signin/LoginOtpScreen";
 import MemberHomeScreen from "../screens/MemberHomeScreen";
 import CommunityHomeScreen from "../screens/CommunityHomeScreen";
 import SponsorHomeScreen from "../screens/SponsorHomeScreen";
@@ -16,9 +16,9 @@ import VenueHomeScreen from "../screens/VenueHomeScreen";
 
 const Stack = createStackNavigator();
 
-export default function AppNavigator() {
+export default function AppNavigator({ initialRouteName }) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
       <Stack.Screen name="Landing" component={LandingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="LoginOtp" component={LoginOtpScreen} />

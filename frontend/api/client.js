@@ -7,10 +7,12 @@ function withTimeout(promise, ms = 15000) {
   ]);
 }
 
-export async function apiPost(path, body, timeoutMs) {
+export async function apiPost(path, body, timeoutMs, token) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   }), timeoutMs);
   const data = await res.json().catch(() => ({}));
@@ -21,8 +23,10 @@ export async function apiPost(path, body, timeoutMs) {
   return data;
 }
 
-export async function apiGet(path, timeoutMs) {
-  const res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`), timeoutMs);
+export async function apiGet(path, timeoutMs, token) {
+  const headers = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, { headers }), timeoutMs);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = data?.error || "Request failed";

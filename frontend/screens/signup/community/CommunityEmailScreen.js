@@ -27,30 +27,20 @@ const CommunityEmailScreen = ({ navigation, route }) => {
     setError("");
     
     try {
-      // First check if email already exists
-      const checkResult = await apiPost("/auth/check-email", { email }, 8000);
-      
-      if (checkResult.exists) {
-        // Email exists, ask user to login instead
-        Alert.alert(
-          "Account Exists",
-          "An account with this email already exists. Would you like to login instead?",
-          [
-            { text: "Cancel", style: "cancel" },
-            { 
-              text: "Login", 
-              onPress: () => navigation.navigate("Login", { email }) 
-            }
-          ]
-        );
-        return;
-      }
-
-      // Email doesn't exist, proceed with OTP
+      // Directly start signup OTP; backend blocks existing accounts
       await apiPost("/auth/send-otp", { email }, 8000);
       navigation.navigate("CommunityOtp", { email });
     } catch (e) {
-      setError(e.message || "Failed to check email.");
+      const msg = (e.message || '').toLowerCase();
+      if (msg.includes('account already exists')) {
+        Alert.alert(
+          "Email exists",
+          "An account with this email already exists.",
+          [ { text: "OK", onPress: () => navigation.navigate("Login", { email }) } ]
+        );
+      } else {
+        setError(e.message || "Failed to check email.");
+      }
     } finally {
       setLoading(false);
     }

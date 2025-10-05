@@ -9,6 +9,7 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -33,11 +34,22 @@ const EmailInputScreen = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
-    navigation.navigate("MemberOtp", { email });
     try {
       await apiPost("/auth/send-otp", { email }, 8000);
+      navigation.navigate("MemberOtp", { email });
     } catch (e) {
       console.log('send-otp error:', e.message);
+      const msg = (e.message || '').toLowerCase();
+      if (msg.includes('account already exists')) {
+        Alert.alert(
+          "Email exists",
+          "An account with this email already exists.",
+          [
+            { text: "OK", onPress: () => navigation.navigate("Login", { email }) }
+          ]
+        );
+        return;
+      }
     }
   };
 
