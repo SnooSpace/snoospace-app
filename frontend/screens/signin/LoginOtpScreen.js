@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,20 +8,22 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { apiPost } from '../../api/client';
-import { setAuthSession } from '../../api/auth';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { apiPost } from "../../api/client";
+import { setAuthSession, clearPendingOtp } from "../../api/auth";
+
+const TEXT_COLOR = "#1e1e1e";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
 const LoginOtpScreen = ({ navigation, route }) => {
   const { email } = route.params || {};
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -38,33 +40,45 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
     setLoading(true);
     setError("");
-    
+
     try {
-      const result = await apiPost("/auth/verify-otp", { email, token: otp }, 8000);
+      const result = await apiPost(
+        "/auth/verify-otp",
+        { email, token: otp },
+        8000
+      );
       const accessToken = result?.data?.session?.access_token;
       if (accessToken) {
         await setAuthSession(accessToken, email);
       }
-      const profileResult = await apiPost("/auth/get-user-profile", { email }, 8000, accessToken);
+      await clearPendingOtp();
+      const profileResult = await apiPost(
+        "/auth/get-user-profile",
+        { email },
+        8000,
+        accessToken
+      );
       const userRole = profileResult.role;
       switch (userRole) {
-        case 'member':
-          navigation.reset({ index: 0, routes: [{ name: 'MemberHome' }] });
+        case "member":
+          navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
           break;
-        case 'community':
-          navigation.reset({ index: 0, routes: [{ name: 'CommunityHome' }] });
+        case "community":
+          navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
           break;
-        case 'sponsor':
-          navigation.reset({ index: 0, routes: [{ name: 'SponsorHome' }] });
+        case "sponsor":
+          navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
           break;
-        case 'venue':
-          navigation.reset({ index: 0, routes: [{ name: 'VenueHome' }] });
+        case "venue":
+          navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
           break;
         default:
           Alert.alert("Error", "Unknown user role. Please contact support.");
       }
     } catch (e) {
-      setError(e.message || "Invalid verification code or failed to get user profile.");
+      setError(
+        e.message || "Invalid verification code or failed to get user profile."
+      );
     } finally {
       setLoading(false);
     }
@@ -88,21 +102,19 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1D2A32" />
+          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verify Login</Text>
       </View>
 
       <View style={styles.content}>
         <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to {email}
-        </Text>
+        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
         <View style={styles.inputContainer}>
           <TextInput
@@ -139,7 +151,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
             <ActivityIndicator color="#5f27cd" size="small" />
           ) : (
             <Text style={styles.resendText}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
             </Text>
           )}
         </TouchableOpacity>
@@ -151,22 +163,23 @@ const LoginOtpScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 50,
     paddingBottom: 10,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 15,
+    marginLeft: -15,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1D2A32',
+    fontWeight: "600",
+    color: "#1D2A32",
   },
   content: {
     flex: 1,
@@ -175,13 +188,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1D2A32',
+    fontWeight: "bold",
+    color: "#1D2A32",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: "#6c757d",
     marginBottom: 40,
   },
   inputContainer: {
@@ -189,46 +202,44 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     letterSpacing: 4,
   },
   button: {
-    backgroundColor: '#5f27cd',
+    backgroundColor: "#5f27cd",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   resendText: {
-    color: '#5f27cd',
+    color: "#5f27cd",
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   errorText: {
-    color: '#dc3545',
+    color: "#dc3545",
     fontSize: 14,
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
 
 export default LoginOtpScreen;
-
-

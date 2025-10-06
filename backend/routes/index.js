@@ -35,7 +35,7 @@ router.post("/auth/verify-otp", normalizeEmail, validateBody(['email','token']),
 router.get("/auth/callback", AuthController.callback);
 router.get("/me", authMiddleware, AuthController.me);
 router.post("/auth/check-email", normalizeEmail, validateBody(['email']), AuthController.checkEmail);
-router.post("/auth/get-user-profile", normalizeEmail, validateBody(['email']), AuthController.getUserProfile);
+router.post("/auth/get-user-profile", authMiddleware, normalizeEmail, validateBody(['email']), AuthController.getUserProfile);
 router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthController.loginStart);
 
 // Members

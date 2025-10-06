@@ -179,7 +179,10 @@ async function checkEmail(req, res) {
 
 async function getUserProfile(req, res) {
   try {
-    const { email } = req.body || {};
+    // Prefer email from authenticated user if present
+    const emailFromToken = req.user && req.user.email;
+    const { email: emailFromBody } = req.body || {};
+    const email = emailFromToken || emailFromBody;
     const pool = req.app.locals.pool;
     if (!email) {
       return res.status(400).json({ error: "Email is required" });

@@ -3,6 +3,7 @@ import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 
 import LandingScreen from "../screens/LandingScreen";
+import AuthGate from "../screens/AuthGate";
 import MemberSignupNavigator from "../screens/signup/member/MemberSignupNavigator";
 import CommunitySignupNavigator from "../screens/signup/community/CommunitySignupNavigator";
 import SponsorSignupNavigator from "../screens/signup/sponsor/SponsorSignupNavigator";
@@ -19,6 +20,7 @@ const Stack = createStackNavigator();
 export default function AppNavigator({ initialRouteName }) {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
+      <Stack.Screen name="AuthGate" component={AuthGate} />
       <Stack.Screen name="Landing" component={LandingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="LoginOtp" component={LoginOtpScreen} />

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { apiPost } from "../../../api/client";
+import { clearPendingOtp } from "../../../api/auth";
 
 // --- CONSTANTS DEFINED LOCALLY ---
 const COLORS = {
@@ -92,6 +93,7 @@ const VerificationScreen = ({ route, navigation }) => {
     setLoading(true);
     try {
       const resp = await apiPost("/auth/verify-otp", { email, token: enteredCode }, 8000);
+      await clearPendingOtp();
       navigation.navigate("MemberPhone", { email, accessToken: resp.data?.session?.access_token });
     } catch (e) {
       setError(e.message || "Verification failed");

@@ -20,6 +20,7 @@ const LIGHT_TEXT_COLOR = '#6c757d';
 const BACKGROUND_COLOR = '#ffffff'; 
 
 import { apiPost } from "../../../api/client";
+import { setPendingOtp } from "../../../api/auth";
 
 const EmailInputScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -36,6 +37,7 @@ const EmailInputScreen = ({ navigation }) => {
   const handleContinue = async () => {
     try {
       await apiPost("/auth/send-otp", { email }, 8000);
+      await setPendingOtp('signup_member', email, 600);
       navigation.navigate("MemberOtp", { email });
     } catch (e) {
       console.log('send-otp error:', e.message);

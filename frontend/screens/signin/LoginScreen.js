@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,15 +8,18 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { apiPost } from '../../api/client';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { apiPost } from "../../api/client";
+import { setPendingOtp } from "../../api/auth";
+
+const TEXT_COLOR = "#1e1e1e";
 
 const LoginScreen = ({ navigation, route }) => {
   const { email: preFilledEmail } = route.params || {};
-  const [email, setEmail] = useState(preFilledEmail || '');
+  const [email, setEmail] = useState(preFilledEmail || "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
     if (!email) {
@@ -26,10 +29,11 @@ const LoginScreen = ({ navigation, route }) => {
 
     setLoading(true);
     setError("");
-    
+
     try {
       // Start login flow (sends OTP only if account exists)
       await apiPost("/auth/login/start", { email }, 8000);
+      await setPendingOtp('login', email, 600);
       navigation.navigate("LoginOtp", { email });
     } catch (e) {
       setError(e.message || "Failed to send login code.");
@@ -40,14 +44,14 @@ const LoginScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1D2A32" />
+          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Login</Text>
       </View>
 
       <View style={styles.content}>
@@ -87,7 +91,8 @@ const LoginScreen = ({ navigation, route }) => {
           onPress={() => navigation.navigate("Landing")}
         >
           <Text style={styles.signupText}>
-            Don't have an account? <Text style={styles.signupLinkText}>Sign up</Text>
+            Don't have an account?{" "}
+            <Text style={styles.signupLinkText}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -98,22 +103,23 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 50,
     paddingBottom: 10,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 15, 
+    marginLeft: -15, 
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1D2A32',
+    fontWeight: "600",
+    color: "#1D2A32",
   },
   content: {
     flex: 1,
@@ -122,13 +128,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1D2A32',
+    fontWeight: "bold",
+    color: "#1D2A32",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: "#6c757d",
     marginBottom: 40,
   },
   inputContainer: {
@@ -136,48 +142,46 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   button: {
-    backgroundColor: '#5f27cd',
+    backgroundColor: "#5f27cd",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   signupLink: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 30,
   },
   signupText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: "#6c757d",
   },
   signupLinkText: {
-    color: '#5f27cd',
-    fontWeight: '600',
+    color: "#5f27cd",
+    fontWeight: "600",
   },
   errorText: {
-    color: '#dc3545',
+    color: "#dc3545",
     fontSize: 14,
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
 
 export default LoginScreen;
-
-
