@@ -30,13 +30,13 @@ async function ensureTables(pool) {
       CREATE TABLE IF NOT EXISTS communities (
         id BIGSERIAL PRIMARY KEY,
         name TEXT NOT NULL,
-        bio TEXT NOT NULL,
         logo_url TEXT,
+        bio TEXT,
+        category TEXT NOT NULL,
+        location TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        phone TEXT,
-        requirements TEXT,
-        interests JSONB,
-        cities JSONB,
+        phone TEXT NOT NULL,
+        sponsor_types JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -45,8 +45,10 @@ async function ensureTables(pool) {
         id BIGSERIAL PRIMARY KEY,
         community_id BIGINT REFERENCES communities(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        phone TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        profile_pic_url TEXT,
+        is_primary BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -91,18 +93,8 @@ async function ensureTables(pool) {
         name TEXT UNIQUE NOT NULL
       );
       
-      -- Many-to-many relationships
-      CREATE TABLE IF NOT EXISTS community_interests (
-        community_id BIGINT REFERENCES communities(id) ON DELETE CASCADE,
-        interest_id BIGINT REFERENCES interests(id) ON DELETE CASCADE,
-        PRIMARY KEY (community_id, interest_id)
-      );
-      
-      CREATE TABLE IF NOT EXISTS community_cities (
-        community_id BIGINT REFERENCES communities(id) ON DELETE CASCADE,
-        city_id BIGINT REFERENCES cities(id) ON DELETE CASCADE,
-        PRIMARY KEY (community_id, city_id)
-      );
+      -- Drop deprecated lookups if exist (optional no-op if absent)
+      -- Keeping tables if already used; not dropping automatically
       
       CREATE TABLE IF NOT EXISTS sponsor_interests (
         sponsor_id BIGINT REFERENCES sponsors(id) ON DELETE CASCADE,
@@ -127,6 +119,19 @@ async function ensureTables(pool) {
         ALTER TABLE members ADD CONSTRAINT interests_len CHECK (
           jsonb_typeof(interests) = 'array' AND jsonb_array_length(interests) BETWEEN 3 AND 7
         );
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+      -- Constraints for communities
+      DO $$ BEGIN
+        ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\\d{10}$');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD CONSTRAINT sponsor_types_len CHECK (
+          jsonb_typeof(sponsor_types) = 'array' AND jsonb_array_length(sponsor_types) BETWEEN 3 AND 7
+        );
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD CONSTRAINT one_primary_head_per_community UNIQUE (community_id, is_primary) WHERE (is_primary = true);
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     `);
     console.log("✅ Ensured all tables");
