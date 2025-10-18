@@ -78,10 +78,14 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   };
 
   const handleOpenToAll = () => {
-    // Toggle 'Open to All' state, and clear specific selections if enabling it
-    setIsOpenToAll(prev => !prev);
     if (!isOpenToAll) {
+      // When enabling "Open to All", select all sponsor types
+      setSelectedTypes([...initialSponsorTypes]);
+      setIsOpenToAll(true);
+    } else {
+      // When disabling "Open to All", clear all selections
       setSelectedTypes([]);
+      setIsOpenToAll(false);
     }
   };
 
@@ -92,11 +96,6 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   const handleFinish = async () => {
     if (!isOpenToAll && selectedTypes.length < 3) {
       alert('Please select at least 3 sponsor types or choose "Open to All"');
-      return;
-    }
-    
-    if (!isOpenToAll && selectedTypes.length > 7) {
-      alert('Please select at most 7 sponsor types');
       return;
     }
     
@@ -137,8 +136,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     }
   };
 
-  // Determine the state of the Open to All button based on its state or if no chips are selected
-  const openToAllIsSelected = isOpenToAll || selectedTypes.length === 0;
+  // Determine the state of the Open to All button - only highlight when explicitly selected
+  const openToAllIsSelected = isOpenToAll;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -183,8 +182,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                   <SponsorChip
                     key={type}
                     type={type}
-                    // Chips are only selectable if 'Open to All' is not active
-                    isSelected={selectedTypes.includes(type)}
+                    // Show all chips as selected when 'Open to All' is active
+                    isSelected={isOpenToAll || selectedTypes.includes(type)}
                     onPress={toggleType}
                   />
                 ))}

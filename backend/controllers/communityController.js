@@ -13,6 +13,12 @@ async function signup(req, res) {
       sponsor_types,
       heads
     } = req.body || {};
+    
+    // Get user_id from authenticated user
+    const user_id = req.user?.id;
+    if (!user_id) {
+      return res.status(401).json({ error: "User authentication required" });
+    }
 
     console.log('Validation check:', {
       name: !!name,
@@ -31,11 +37,11 @@ async function signup(req, res) {
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: "phone must be 10 digits" });
     }
-    // Allow "Open to All" as a single item, otherwise require 3-7 items
+    // Allow "Open to All" as a single item, otherwise require minimum 3 items (no maximum)
     if (sponsor_types.length === 1 && sponsor_types[0] === 'Open to All') {
       // This is valid - "Open to All" is allowed as a single item
-    } else if (sponsor_types.length < 3 || sponsor_types.length > 7) {
-      return res.status(400).json({ error: "sponsor_types must include between 3 and 7 items, or select 'Open to All'" });
+    } else if (sponsor_types.length < 3) {
+      return res.status(400).json({ error: "sponsor_types must include at least 3 items, or select 'Open to All'" });
     }
     // Heads: expect array of up to 3 with one primary
     console.log('Heads validation:', {
@@ -59,9 +65,10 @@ async function signup(req, res) {
     try {
       await client.query('BEGIN');
       const communityResult = await client.query(
-        `INSERT INTO communities (name, logo_url, bio, category, location, email, phone, sponsor_types)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+        `INSERT INTO communities (user_id, name, logo_url, bio, category, location, email, phone, sponsor_types)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
          ON CONFLICT (email) DO UPDATE SET
+           user_id=EXCLUDED.user_id,
            name=EXCLUDED.name,
            logo_url=EXCLUDED.logo_url,
            bio=EXCLUDED.bio,
@@ -70,7 +77,7 @@ async function signup(req, res) {
            phone=EXCLUDED.phone,
            sponsor_types=EXCLUDED.sponsor_types
          RETURNING *`,
-        [name, logo_url || null, bio || null, category, location, email, phone, JSON.stringify(sponsor_types)]
+        [user_id, name, logo_url || null, bio || null, category, location, email, phone, JSON.stringify(sponsor_types)]
       );
       const community = communityResult.rows[0];
 

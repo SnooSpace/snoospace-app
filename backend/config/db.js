@@ -173,8 +173,14 @@ async function ensureTables(pool) {
         END IF;
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN
+        -- Drop existing constraint if it exists
+        ALTER TABLE communities DROP CONSTRAINT IF EXISTS sponsor_types_len;
+        -- Add new constraint that allows "Open to All" or minimum 3 items (no maximum)
         ALTER TABLE communities ADD CONSTRAINT sponsor_types_len CHECK (
-          jsonb_typeof(sponsor_types) = 'array' AND jsonb_array_length(sponsor_types) BETWEEN 3 AND 7
+          jsonb_typeof(sponsor_types) = 'array' AND (
+            (jsonb_array_length(sponsor_types) = 1 AND sponsor_types->0 = '"Open to All"') OR
+            jsonb_array_length(sponsor_types) >= 3
+          )
         );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN

@@ -69,6 +69,15 @@ const CommunityLogoScreen = ({ navigation, route }) => {
   };
 
   const handleNext = () => {
+    if (!imageUri) {
+      Alert.alert(
+        "Photo Required",
+        "Please add a community logo before proceeding.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
     navigation.navigate("CommunityBio", { 
       email, 
       accessToken, 
@@ -77,8 +86,8 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     });
   };
 
-  // Button is always enabled to allow users to skip adding a photo
-  const isButtonDisabled = false;
+  // Button is disabled if no photo is selected
+  const isButtonDisabled = !imageUri;
 
   return (
     <SafeAreaView style={styles.safeArea}>

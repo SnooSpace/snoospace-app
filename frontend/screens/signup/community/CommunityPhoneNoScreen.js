@@ -32,8 +32,8 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
       activeOpacity={0.7}
       accessibilityLabel="Select country code"
     >
-      {/* Unicode Flag placeholder */}
-      <Text style={styles.countryCodeText}>IN +91 </Text> 
+      {/* Indian Flag and Country Code */}
+      <Text style={styles.countryCodeText}>🇮🇳 +91 </Text> 
       <Text style={styles.countryCodeDropdown}>▼</Text>
     </TouchableOpacity>
 
@@ -46,7 +46,7 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
       onChangeText={onChangeText}
       keyboardType="phone-pad"
       dataDetectorTypes="phoneNumber"
-      maxLength={14} // Standard phone number length + dashes/parentheses
+      maxLength={10} // Exactly 10 digits for Indian phone numbers
       autoFocus={isRequired}
     />
   </View>
