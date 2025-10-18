@@ -1,21 +1,26 @@
 ## Backend Tasks (Node.js + Express)
 
-### P0 — Immediate
-- [ ] Express server with health endpoint
-  1. Initialize Express app with CORS and JSON parsing
-  2. Add GET /health returning app/version/status
-- [ ] Supabase auth middleware (verify OTP session)
-  1. Initialize Supabase client with service role key (server-side)
-  2. Middleware to validate bearer token and attach user
-  3. Role extraction and guard helpers
-- [ ] PostgreSQL connection and migration runner
-  1. Configure pool/ORM
-  2. Migration CLI and baseline migration
-  3. Env-based config (dev/prod)
-- [ ] Profiles CRUD (Member, Community, Sponsor, Venue)
-  1. Upsert endpoints per role
-  2. Admin-only read for community head private details
-  3. Validation schemas
+### ✅ P0 — Completed (Foundations)
+- [x] Express server with health endpoint
+  1. ✅ Initialize Express app with CORS and JSON parsing
+  2. ✅ Add GET /health returning app/version/status
+- [x] Supabase auth middleware (verify OTP session)
+  1. ✅ Initialize Supabase client with service role key (server-side)
+  2. ✅ Middleware to validate bearer token and attach user
+  3. ✅ Role extraction and guard helpers
+- [x] PostgreSQL connection and migration runner
+  1. ✅ Configure pool/ORM
+  2. ✅ Migration CLI and baseline migration
+  3. ✅ Env-based config (dev/prod)
+- [x] Profiles CRUD (Member, Community, Sponsor, Venue)
+  1. ✅ Upsert endpoints per role
+  2. ✅ Admin-only read for community head private details
+  3. ✅ Validation schemas
+- [x] Rate limiting and input validation
+  1. ✅ Add rate limiter per IP/route
+  2. ✅ Centralized zod/joi validation
+
+### 🚧 P1 — In Progress (Core Features)
 - [ ] Communities: CRUD + filters (city/theme)
   1. Create/list/update endpoints
   2. Query by city/theme with pagination
@@ -29,48 +34,42 @@
 - [ ] Signed URL endpoints for Firebase uploads
   1. POST to request signed upload URL by resource type
   2. Validate content-type and size
-- [ ] Stories create/list with 24h TTL cleanup job
-  1. Create endpoint (media_url, type)
-  2. List endpoint (feed)
-  3. Scheduled cleanup job removing expired
-- [ ] Rate limiting and input validation
-  1. Add rate limiter per IP/route
-  2. Centralized zod/joi validation
 
-### Setup
-- Express server scaffolding and health endpoint
-- Supabase auth middleware (verify email OTP sessions)
-- Configure PostgreSQL client and migrations
+### 📋 P1 — Next Priority (Core Features)
+- [ ] APIs — Communities & Events
+  1. Communities: CRUD, search, filters (city/theme)
+  2. Events: create/update with required fields and QR media URL
+  3. Event registration flow; gate exact location until registered
+- [ ] APIs — Sponsors & Venues
+  1. Sponsors: directory, filters, outreach initiation
+  2. Venues: CRUD, media, capacity, price, slot availability, inquiries
+- [ ] Media Handling
+  1. Signed URL generation for Firebase Storage uploads/downloads
+  2. Validation and content-type checks
 
-### APIs — Users & Roles
-- Create/update profiles: Member, Community, Sponsor, Venue
-- Admin-only read for private community head details
-- Role-based access control utilities
+### 🔮 P2 — Future Features
+- [ ] APIs — Stories & Moderation
+  1. Stories: create/list, 24h TTL cleanup job
+  2. Admin moderation endpoints
+- [ ] APIs — Matching & Monetization
+  1. Attendee roster endpoint per event
+  2. Like/send-like endpoints
+  3. Paid reveal endpoint (entitlement check)
 
-### APIs — Communities & Events
-- Communities: CRUD, search, filters (city/theme)
-- Events: create/update with required fields and QR media URL
-- Event registration flow; gate exact location until registered
+### ✅ Setup (Completed)
+- ✅ Express server scaffolding and health endpoint
+- ✅ Supabase auth middleware (verify email OTP sessions)
+- ✅ Configure PostgreSQL client and migrations
 
-### APIs — Sponsors & Venues
-- Sponsors: directory, filters, outreach initiation
-- Venues: CRUD, media, capacity, price, slot availability, inquiries
-
-### APIs — Stories & Moderation
-- Stories: create/list, 24h TTL cleanup job
-- Admin moderation endpoints
-
-### APIs — Matching & Monetization
-- Attendee roster endpoint per event
-- Like/send-like endpoints
-- Paid reveal endpoint (entitlement check)
-
-### Media Handling
-- Signed URL generation for Firebase Storage uploads/downloads
-- Validation and content-type checks
+### ✅ APIs — Users & Roles (Completed)
+- ✅ Create/update profiles: Member, Community, Sponsor, Venue
+- ✅ Admin-only read for private community head details
+- ✅ Role-based access control utilities
 
 ### Observability & Ops
-- Structured logging and error handling policy
-- Rate limiting and input validation
+- ✅ Structured logging and error handling policy
+- ✅ Rate limiting and input validation
+- [ ] Performance monitoring and metrics
+- [ ] Database query optimization
 
 

@@ -121,9 +121,56 @@ async function ensureTables(pool) {
         );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+      -- Add missing columns to communities table if they don't exist
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS email TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS phone TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS category TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS location TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS bio TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS sponsor_types JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- Add missing columns to community_heads table if they don't exist
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS email TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS phone TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Make email and phone nullable if they have NOT NULL constraints
+      DO $$ BEGIN
+        ALTER TABLE community_heads ALTER COLUMN email DROP NOT NULL;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ALTER COLUMN phone DROP NOT NULL;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
       -- Constraints for communities
       DO $$ BEGIN
         ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\\d{10}$');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'email_unique_comm') THEN
+          ALTER TABLE communities ADD CONSTRAINT email_unique_comm UNIQUE (email);
+        END IF;
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD CONSTRAINT sponsor_types_len CHECK (
@@ -131,8 +178,9 @@ async function ensureTables(pool) {
         );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN
-        ALTER TABLE community_heads ADD CONSTRAINT one_primary_head_per_community UNIQUE (community_id, is_primary) WHERE (is_primary = true);
-      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        CREATE UNIQUE INDEX IF NOT EXISTS one_primary_head_per_community 
+        ON community_heads (community_id) WHERE (is_primary = true);
+      EXCEPTION WHEN duplicate_table THEN NULL; END $$;
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

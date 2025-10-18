@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   StyleSheet,
 } from "react-native";
+import { clearAuthSession } from "../api/auth";
 
 // --- CONSTANTS DEFINED LOCALLY ---
 const COLORS = {
@@ -29,9 +30,17 @@ const SPACING = {
 // ---------------------------------
 
 const VenueHomeScreen = ({ navigation }) => {
-  const handleLogout = () => {
-    // TODO: Clear auth token and navigate to landing
-    navigation.navigate("Landing");
+  const handleLogout = async () => {
+    try {
+      // Clear stored authentication data
+      await clearAuthSession();
+      // Navigate to landing page
+      navigation.navigate("Landing");
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still navigate to landing even if clearing session fails
+      navigation.navigate("Landing");
+    }
   };
 
   return (

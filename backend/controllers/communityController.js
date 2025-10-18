@@ -1,5 +1,6 @@
 async function signup(req, res) {
   try {
+    console.log('Community signup request received:', req.body);
     const pool = req.app.locals.pool;
     const { 
       name, 
@@ -13,21 +14,44 @@ async function signup(req, res) {
       heads
     } = req.body || {};
 
+    console.log('Validation check:', {
+      name: !!name,
+      category: !!category,
+      location: !!location,
+      email: !!email,
+      phone: !!phone,
+      sponsor_types: Array.isArray(sponsor_types),
+      sponsor_types_value: sponsor_types
+    });
+    
     if (!name || !category || !location || !email || !phone || !Array.isArray(sponsor_types)) {
+      console.log('Validation failed - missing required fields');
       return res.status(400).json({ error: "Required: name, category, location, email, phone, sponsor_types[]" });
     }
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: "phone must be 10 digits" });
     }
-    if (sponsor_types.length < 3 || sponsor_types.length > 7) {
-      return res.status(400).json({ error: "sponsor_types must include between 3 and 7 items" });
+    // Allow "Open to All" as a single item, otherwise require 3-7 items
+    if (sponsor_types.length === 1 && sponsor_types[0] === 'Open to All') {
+      // This is valid - "Open to All" is allowed as a single item
+    } else if (sponsor_types.length < 3 || sponsor_types.length > 7) {
+      return res.status(400).json({ error: "sponsor_types must include between 3 and 7 items, or select 'Open to All'" });
     }
     // Heads: expect array of up to 3 with one primary
+    console.log('Heads validation:', {
+      heads: heads,
+      isArray: Array.isArray(heads),
+      length: heads?.length
+    });
+    
     if (!Array.isArray(heads) || heads.length === 0) {
+      console.log('Heads validation failed - not array or empty');
       return res.status(400).json({ error: "heads[] required: at least one head with name and is_primary" });
     }
     const primaryHeads = heads.filter(h => h && h.is_primary);
+    console.log('Primary heads found:', primaryHeads.length);
     if (primaryHeads.length !== 1) {
+      console.log('Heads validation failed - not exactly one primary head');
       return res.status(400).json({ error: "Exactly one primary head is required" });
     }
 

@@ -39,10 +39,11 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setError("");
     
     try {
-      const result = await apiPost("/auth/verify-otp", { email, otp }, 8000);
-      navigation.navigate("CommunityDetails", { 
+      const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 15000);
+      
+      navigation.navigate("CommunityName", { 
         email, 
-        accessToken: result.accessToken 
+        accessToken: resp.data?.session?.access_token 
       });
     } catch (e) {
       setError(e.message || "Invalid verification code.");
@@ -57,7 +58,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setResendLoading(true);
     setError("");
     try {
-      await apiPost("/auth/send-otp", { email }, 8000);
+      await apiPost("/auth/send-otp", { email }, 15000);
       Alert.alert("Success", `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
