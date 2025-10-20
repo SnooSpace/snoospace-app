@@ -100,8 +100,9 @@ frontend/
 - **Database Schema**: Core tables for all user types (members, communities, sponsors, venues)
 - **Backend API**: Auth endpoints, user profile management, signup flows
 - **Frontend Navigation**: Role-based routing and auth gates
-- **Signup Flows**: Complete multi-step signup for all user types
-- **Session Management**: Persistent auth with secure token storage
+- **Signup Flows**: Complete multi-step signup for all user types with session persistence
+- **Session Management**: Persistent auth with secure token storage across app restarts
+- **Venue Pricing**: Multiple pricing types (per head, hourly, daily) with validation
 
 #### 🚧 In Progress (P1 - Core Features)
 - **Home Screens**: Basic dashboards for each user type

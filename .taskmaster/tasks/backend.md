@@ -13,9 +13,11 @@
   2. ✅ Migration CLI and baseline migration
   3. ✅ Env-based config (dev/prod)
 - [x] Profiles CRUD (Member, Community, Sponsor, Venue)
-  1. ✅ Upsert endpoints per role
+  1. ✅ Upsert endpoints per role with comprehensive validation
   2. ✅ Admin-only read for community head private details
-  3. ✅ Validation schemas
+  3. ✅ Validation schemas with proper error handling
+  4. ✅ Venue pricing system with multiple types (per head, hourly, daily)
+  5. ✅ Database schema with proper constraints and defaults
 - [x] Rate limiting and input validation
   1. ✅ Add rate limiter per IP/route
   2. ✅ Centralized zod/joi validation

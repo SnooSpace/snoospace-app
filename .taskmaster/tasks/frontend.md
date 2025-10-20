@@ -14,10 +14,12 @@
   1. ✅ Initialize Supabase auth listener
   2. ✅ Store session securely
   3. ✅ Implement app-level gate that routes to role setup
-- [x] Minimal role setup forms: Member, Community, Sponsor, Venue
-  1. ✅ Define per-role required fields
-  2. ✅ Build forms with validation and progress
-  3. ✅ Submit to backend profile endpoints
+- [x] Complete role setup forms: Member, Community, Sponsor, Venue
+  1. ✅ Define per-role required fields with comprehensive validation
+  2. ✅ Build multi-step forms with progress indicators and reusable components
+  3. ✅ Submit to backend profile endpoints with proper error handling
+  4. ✅ Session persistence on signup completion (mirrors login behavior)
+  5. ✅ Venue pricing system with multiple types and validation
 - [x] Role-based navigation guards
   1. ✅ Central guard HOC/hook
   2. ✅ Redirect unauthorized roles

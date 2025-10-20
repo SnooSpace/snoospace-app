@@ -7,7 +7,9 @@
 - ✅ Create base PostgreSQL schema and migrations
 - ✅ Landing screen with 4 role cards (Member, Community, Sponsor, Venue)
 - ✅ Email OTP Sign In/Up flow
-- ✅ Minimal profile creation per role (required fields only)
+- ✅ Complete multi-step profile creation per role (Member, Community, Sponsor, Venue)
+- ✅ Session persistence across app restarts (signup behaves like login)
+- ✅ Venue pricing system with multiple types (per head, hourly, daily)
 
 ### 🚧 P1 — In Progress (Core Features)
 - [ ] Configure Firebase Storage buckets and security rules
