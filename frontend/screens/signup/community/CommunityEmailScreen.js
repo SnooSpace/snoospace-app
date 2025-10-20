@@ -16,10 +16,18 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   const handleContinue = async () => {
     if (!email) {
       Alert.alert("Error", "Please enter your email.");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Error", "Please enter a valid email address.");
       return;
     }
 
@@ -28,18 +36,44 @@ const CommunityEmailScreen = ({ navigation, route }) => {
     
     try {
       // Directly start signup OTP; backend blocks existing accounts
-      await apiPost("/auth/send-otp", { email }, 8000);
-      navigation.navigate("CommunityOtp", { email });
+      // Increased timeout to 15 seconds for better reliability
+      const response = await apiPost("/auth/send-otp", { email }, 15000);
+      
+      // Only navigate if we get a successful response
+      if (response) {
+        console.log("OTP sent successfully, navigating to OTP screen");
+        setRetryCount(0); // Reset retry count on success
+        navigation.navigate("CommunityOtp", { email });
+      } else {
+        setError("Failed to send verification code. Please try again.");
+      }
     } catch (e) {
+      console.error("OTP send error:", e);
       const msg = (e.message || '').toLowerCase();
+      
       if (msg.includes('account already exists')) {
         Alert.alert(
           "Email exists",
           "An account with this email already exists.",
           [ { text: "OK", onPress: () => navigation.navigate("Login", { email }) } ]
         );
+      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+        setRetryCount(prev => prev + 1);
+        if (retryCount < 2) {
+          setError(`Request timed out. Retrying... (${retryCount + 1}/3)`);
+          // Auto retry after 2 seconds
+          setTimeout(() => {
+            if (retryCount < 2) {
+              handleContinue();
+            }
+          }, 2000);
+        } else {
+          setError("Request timed out after multiple attempts. Please check your internet connection and try again.");
+        }
+      } else if (msg.includes('network') || msg.includes('fetch')) {
+        setError("Network error. Please check your internet connection and try again.");
       } else {
-        setError(e.message || "Failed to check email.");
+        setError(e.message || "Failed to send verification code. Please try again.");
       }
     } finally {
       setLoading(false);

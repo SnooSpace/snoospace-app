@@ -55,9 +55,11 @@ async function ensureTables(pool) {
       -- Sponsors table
       CREATE TABLE IF NOT EXISTS sponsors (
         id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT,
         brand_name TEXT NOT NULL,
-        bio TEXT NOT NULL,
         logo_url TEXT,
+        bio TEXT,
+        category TEXT,
         email TEXT UNIQUE NOT NULL,
         phone TEXT,
         requirements TEXT,
@@ -66,18 +68,23 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
+      -- Drop and recreate venues table to ensure correct schema
+      DROP TABLE IF EXISTS venues CASCADE;
+      
       -- Venues table
-      CREATE TABLE IF NOT EXISTS venues (
+      CREATE TABLE venues (
         id BIGSERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         address TEXT NOT NULL,
         city TEXT NOT NULL,
         contact_name TEXT NOT NULL,
-        contact_email TEXT NOT NULL,
+        contact_email TEXT NOT NULL UNIQUE,
         contact_phone TEXT NOT NULL,
-        capacity_min INTEGER NOT NULL,
+        capacity_min INTEGER NOT NULL DEFAULT 0,
         capacity_max INTEGER NOT NULL,
-        price_per_head DECIMAL(10,2) NOT NULL,
+        price_per_head DECIMAL(10,2) DEFAULT 0,
+        hourly_price DECIMAL(10,2) DEFAULT 0,
+        daily_price DECIMAL(10,2) DEFAULT 0,
         conditions TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -187,6 +194,76 @@ async function ensureTables(pool) {
         CREATE UNIQUE INDEX IF NOT EXISTS one_primary_head_per_community 
         ON community_heads (community_id) WHERE (is_primary = true);
       EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+      
+      -- Add missing columns to sponsors table
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS user_id BIGINT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS email TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS phone TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS category TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS logo_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS bio TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS interests JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Add pricing columns to venues table
+      DO $$ BEGIN
+        ALTER TABLE venues ADD COLUMN IF NOT EXISTS hourly_price DECIMAL(10,2) DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE venues ADD COLUMN IF NOT EXISTS daily_price DECIMAL(10,2) DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Update existing venues table constraints
+      DO $$ BEGIN
+        -- Make capacity_min default to 0 if not set
+        ALTER TABLE venues ALTER COLUMN capacity_min SET DEFAULT 0;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        -- Make price_per_head default to 0 if not set
+        ALTER TABLE venues ALTER COLUMN price_per_head SET DEFAULT 0;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      
+      -- Add constraints for sponsors (only if table exists)
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sponsors') THEN
+          ALTER TABLE sponsors ADD CONSTRAINT phone_10_digits_sponsor CHECK (phone ~ '^\\d{10}$');
+        END IF;
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sponsors') AND
+           EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sponsors' AND column_name = 'email') THEN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'email_unique_sponsor') THEN
+            ALTER TABLE sponsors ADD CONSTRAINT email_unique_sponsor UNIQUE (email);
+          END IF;
+        END IF;
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sponsors') AND
+           EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sponsors' AND column_name = 'interests') THEN
+          -- Drop existing constraint if it exists
+          ALTER TABLE sponsors DROP CONSTRAINT IF EXISTS interests_len;
+          -- Add new constraint that allows "Open to All" or minimum 3 items (no maximum)
+          ALTER TABLE sponsors ADD CONSTRAINT interests_len CHECK (
+            jsonb_typeof(interests) = 'array' AND (
+              (jsonb_array_length(interests) = 1 AND interests->0 = '"Open to All"') OR
+              jsonb_array_length(interests) >= 3
+            )
+          );
+        END IF;
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

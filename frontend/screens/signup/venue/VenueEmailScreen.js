@@ -16,10 +16,18 @@ const VenueEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   const handleContinue = async () => {
     if (!email) {
       Alert.alert("Error", "Please enter your email.");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Error", "Please enter a valid email address.");
       return;
     }
 
@@ -28,18 +36,44 @@ const VenueEmailScreen = ({ navigation, route }) => {
     
     try {
       // Start signup OTP; backend blocks existing accounts
-      await apiPost("/auth/send-otp", { email }, 8000);
-      navigation.navigate("VenueOtp", { email });
+      // Increased timeout to 15 seconds for better reliability
+      const response = await apiPost("/auth/send-otp", { email }, 15000);
+      
+      // Only navigate if we get a successful response
+      if (response) {
+        console.log("OTP sent successfully, navigating to OTP screen");
+        setRetryCount(0); // Reset retry count on success
+        navigation.navigate("VenueOtp", { email });
+      } else {
+        setError("Failed to send verification code. Please try again.");
+      }
     } catch (e) {
+      console.error("OTP send error:", e);
       const msg = (e.message || '').toLowerCase();
+      
       if (msg.includes('account already exists')) {
         Alert.alert(
           "Email exists",
           "An account with this email already exists.",
           [ { text: "OK", onPress: () => navigation.navigate("Login", { email }) } ]
         );
+      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+        setRetryCount(prev => prev + 1);
+        if (retryCount < 2) {
+          setError(`Request timed out. Retrying... (${retryCount + 1}/3)`);
+          // Auto retry after 2 seconds
+          setTimeout(() => {
+            if (retryCount < 2) {
+              handleContinue();
+            }
+          }, 2000);
+        } else {
+          setError("Request timed out after multiple attempts. Please check your internet connection and try again.");
+        }
+      } else if (msg.includes('network') || msg.includes('fetch')) {
+        setError("Network error. Please check your internet connection and try again.");
       } else {
-        setError(e.message || "Failed to check email.");
+        setError(e.message || "Failed to send verification code. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -76,7 +110,23 @@ const VenueEmailScreen = ({ navigation, route }) => {
           />
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            {!loading && error && !error.includes('Retrying') && (
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  setError('');
+                  setRetryCount(0);
+                  handleContinue();
+                }}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -157,11 +207,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  errorContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
   errorText: {
     color: '#dc3545',
     fontSize: 14,
-    marginTop: 10,
     textAlign: 'center',
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: '#dc3545',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

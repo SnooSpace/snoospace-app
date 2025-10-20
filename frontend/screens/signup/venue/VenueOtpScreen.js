@@ -39,10 +39,10 @@ const VenueOtpScreen = ({ navigation, route }) => {
     setError("");
     
     try {
-      const result = await apiPost("/auth/verify-otp", { email, otp }, 8000);
-      navigation.navigate("VenueDetails", { 
+      const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 15000);
+      navigation.navigate("VenueName", { 
         email, 
-        accessToken: result.accessToken 
+        accessToken: resp.data?.session?.access_token 
       });
     } catch (e) {
       setError(e.message || "Invalid verification code.");

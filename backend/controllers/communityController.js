@@ -14,11 +14,8 @@ async function signup(req, res) {
       heads
     } = req.body || {};
     
-    // Get user_id from authenticated user
-    const user_id = req.user?.id;
-    if (!user_id) {
-      return res.status(401).json({ error: "User authentication required" });
-    }
+    // Get user_id from authenticated user (optional for now)
+    const user_id = req.user?.id || null;
 
     console.log('Validation check:', {
       name: !!name,

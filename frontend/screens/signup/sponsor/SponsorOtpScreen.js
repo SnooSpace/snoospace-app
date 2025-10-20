@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,19 +8,20 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { apiPost } from '../../../api/client';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { apiPost } from "../../../api/client";
+import ProgressBar from "../../../components/Progressbar";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
 const SponsorOtpScreen = ({ navigation, route }) => {
   const { email } = route.params || {};
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -37,12 +38,20 @@ const SponsorOtpScreen = ({ navigation, route }) => {
 
     setLoading(true);
     setError("");
-    
+
     try {
-      const result = await apiPost("/auth/verify-otp", { email, otp }, 8000);
-      navigation.navigate("SponsorDetails", { 
-        email, 
-        accessToken: result.accessToken 
+      const resp = await apiPost(
+        "/auth/verify-otp",
+        { email, token: otp },
+        15000
+      );
+
+      const accessToken = resp.data?.session?.access_token;
+      console.log('SponsorOtpScreen - accessToken:', accessToken);
+      console.log('SponsorOtpScreen - resp:', resp);
+      navigation.navigate("SponsorPhone", {
+        email,
+        accessToken,
       });
     } catch (e) {
       setError(e.message || "Invalid verification code.");
@@ -57,7 +66,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
     setResendLoading(true);
     setError("");
     try {
-      await apiPost("/auth/send-otp", { email }, 8000);
+      await apiPost("/auth/send-otp", { email }, 15000);
       Alert.alert("Success", `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
@@ -80,10 +89,13 @@ const SponsorOtpScreen = ({ navigation, route }) => {
       </View>
 
       <View style={styles.content}>
+        <Text style={styles.stepText}>Step 2 of 8</Text>
+        <View style={styles.progressBarContainer}>
+          <ProgressBar progress={25} />
+        </View>
+        
         <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to {email}
-        </Text>
+        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
         <View style={styles.inputContainer}>
           <TextInput
@@ -122,7 +134,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
             <ActivityIndicator color="#5f27cd" size="small" />
           ) : (
             <Text style={styles.resendText}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
             </Text>
           )}
         </TouchableOpacity>
@@ -134,11 +146,11 @@ const SponsorOtpScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
@@ -148,8 +160,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1D2A32',
+    fontWeight: "600",
+    color: "#1D2A32",
   },
   content: {
     flex: 1,
@@ -158,13 +170,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1D2A32',
+    fontWeight: "bold",
+    color: "#1D2A32",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: "#6c757d",
     marginBottom: 40,
   },
   inputContainer: {
@@ -172,43 +184,56 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     letterSpacing: 4,
   },
   button: {
-    backgroundColor: '#5f27cd',
+    backgroundColor: "#5f27cd",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   resendText: {
-    color: '#5f27cd',
+    color: "#5f27cd",
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   errorText: {
-    color: '#dc3545',
+    color: "#dc3545",
     fontSize: 14,
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
+  },
+  stepText: {
+    fontSize: 14,
+    color: "#6c757d",
+    marginBottom: 5,
+  },
+  progressBarContainer: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e9ecef",
+    overflow: "hidden",
+    flexDirection: "row",
+    marginBottom: 20,
   },
 });
 

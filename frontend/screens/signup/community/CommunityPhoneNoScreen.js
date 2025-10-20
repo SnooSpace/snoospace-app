@@ -112,15 +112,8 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
             <Text style={styles.backIcon}>&larr;</Text> 
           </TouchableOpacity>
-          
-          {/* Empty element to push Skip to the right */}
-          <View style={{ flex: 1 }} /> 
-          
-          <TouchableOpacity onPress={handleSkip} accessibilityLabel="Skip this step" style={styles.skipButton}>
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
         </View>
-
+        
         {/* ScrollView allows content to be scrollable if the screen is small */}
         <ScrollView
           contentContainerStyle={styles.scrollContent}

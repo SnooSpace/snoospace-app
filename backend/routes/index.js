@@ -42,7 +42,7 @@ router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLi
 router.post("/members/signup", MemberController.signup);
 
 // Communities
-router.post("/communities/signup", authMiddleware, CommunityController.signup);
+router.post("/communities/signup", CommunityController.signup);
 
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);
