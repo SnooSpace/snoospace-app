@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiPost } from '../../../api/client';
+import { setAuthSession, clearPendingOtp } from '../../../api/auth';
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
@@ -40,9 +41,14 @@ const VenueOtpScreen = ({ navigation, route }) => {
     
     try {
       const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 15000);
+      const accessToken = resp.data?.session?.access_token;
+      if (accessToken) {
+        await setAuthSession(accessToken, email);
+      }
+      await clearPendingOtp();
       navigation.navigate("VenueName", { 
         email, 
-        accessToken: resp.data?.session?.access_token 
+        accessToken 
       });
     } catch (e) {
       setError(e.message || "Invalid verification code.");

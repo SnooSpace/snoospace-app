@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import ProgressBar from "../../../components/Progressbar";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
@@ -47,8 +48,10 @@ const SponsorOtpScreen = ({ navigation, route }) => {
       );
 
       const accessToken = resp.data?.session?.access_token;
-      console.log('SponsorOtpScreen - accessToken:', accessToken);
-      console.log('SponsorOtpScreen - resp:', resp);
+      if (accessToken) {
+        await setAuthSession(accessToken, email);
+      }
+      await clearPendingOtp();
       navigation.navigate("SponsorPhone", {
         email,
         accessToken,
