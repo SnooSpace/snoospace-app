@@ -9,6 +9,7 @@ import SponsorLogoScreen from "./SponsorLogoScreen";
 import SponsorBioScreen from "./SponsorBioScreen";
 import SponsorCategoryScreen from "./SponsorCategoryScreen";
 import SponsorInterestsScreen from "./SponsorInterestsScreen";
+import SponsorUsernameScreen from "./SponsorUsernameScreen";
 
 const Stack = createStackNavigator();
 
@@ -26,6 +27,7 @@ export default function SponsorSignupNavigator() {
         name="SponsorInterests"
         component={SponsorInterestsScreen}
       />
+      <Stack.Screen name="SponsorUsername" component={SponsorUsernameScreen} />
     </Stack.Navigator>
   );
 }

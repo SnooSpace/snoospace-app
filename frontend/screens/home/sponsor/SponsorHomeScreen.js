@@ -6,7 +6,7 @@ import {
   SafeAreaView,
   StyleSheet,
 } from "react-native";
-import { clearAuthSession } from "../api/auth";
+import { clearAuthSession } from "../../../api/auth";
 
 // --- CONSTANTS DEFINED LOCALLY ---
 const COLORS = {

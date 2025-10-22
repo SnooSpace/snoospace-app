@@ -12,6 +12,7 @@ import MemberAgeScreen from "./MemberAgeScreen";
 import MemberInterestsScreen from "./MemberInterestsScreen";
 import MemberLocationScreen from "./MemberLocationScreen";
 import MemberProfilePicScreen from "./MemberProfilePicScreen";
+import MemberUsernameScreen from "./MemberUsernameScreen";
 
 const Stack = createStackNavigator();
 
@@ -27,6 +28,7 @@ export default function MemberSignupNavigator() {
       <Stack.Screen name="MemberInterests" component={MemberInterestsScreen} />
       <Stack.Screen name="MemberLocation" component={MemberLocationScreen} />
       <Stack.Screen name="MemberProfilePic" component={MemberProfilePicScreen} />
+      <Stack.Screen name="MemberUsername" component={MemberUsernameScreen} />
     </Stack.Navigator>
   );
 }

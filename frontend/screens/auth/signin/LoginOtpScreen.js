@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiPost } from "../../api/client";
-import { setAuthSession, clearPendingOtp } from "../../api/auth";
+import { apiPost } from "../../../api/client";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 
 const TEXT_COLOR = "#1e1e1e";
 

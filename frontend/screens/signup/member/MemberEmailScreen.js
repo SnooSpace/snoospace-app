@@ -10,6 +10,7 @@ import {
   StatusBar,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -141,11 +142,15 @@ const EmailInputScreen = ({ navigation }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, !isValidEmail && styles.disabledButton]}
+          style={[styles.continueButton, (!isValidEmail || loading) && styles.disabledButton]}
           onPress={handleContinue}
-          disabled={!isValidEmail}
+          disabled={!isValidEmail || loading}
         >
-          <Text style={styles.buttonText}>Get Code</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Get Code</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

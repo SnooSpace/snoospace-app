@@ -131,9 +131,18 @@ export default function Example({ navigation, route }) {
         <TouchableOpacity
           onPress={() => {
             if (form.dateOfBirth) {
-              const year = parseInt(form.dateOfBirth.slice(0, 4), 10);
-              const nowYear = new Date().getFullYear();
-              const age = nowYear - year;
+              // Calculate age properly considering month and day
+              const birthDate = new Date(form.dateOfBirth);
+              const today = new Date();
+              
+              let age = today.getFullYear() - birthDate.getFullYear();
+              const monthDiff = today.getMonth() - birthDate.getMonth();
+              
+              // If birthday hasn't occurred this year yet, subtract 1
+              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+              }
+              
               Alert.alert("Confirm your age", `You are ${age} years old.`, [
                 { text: "Cancel", style: "cancel" },
                 {

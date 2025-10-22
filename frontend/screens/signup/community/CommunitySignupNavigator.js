@@ -11,6 +11,7 @@ import CommunityLocationScreen from "./CommunityLocationScreen";
 import CommunityPhoneNoScreen from "./CommunityPhoneNoScreen";
 import CommunityHeadNameScreen from "./CommunityHeadNameScreen";
 import CommunitySponsorTypeSelect from "./CommunitySponsorTypeSelect";
+import CommunityUsernameScreen from "./CommunityUsernameScreen";
 
 const Stack = createStackNavigator();
 
@@ -27,6 +28,7 @@ export default function CommunitySignupNavigator() {
       <Stack.Screen name="CommunityPhone" component={CommunityPhoneNoScreen} />
       <Stack.Screen name="CommunityHeadName" component={CommunityHeadNameScreen} />
       <Stack.Screen name="CommunitySponsorType" component={CommunitySponsorTypeSelect} />
+      <Stack.Screen name="CommunityUsername" component={CommunityUsernameScreen} />
     </Stack.Navigator>
   );
 }

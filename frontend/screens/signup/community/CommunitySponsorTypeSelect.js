@@ -128,7 +128,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
         heads,
       });
       
-      navigation.navigate("CommunityHome");
+      navigation.navigate("CommunityUsername", { userData: route.params, accessToken });
     } catch (e) {
       console.error('Community signup error:', e);
       console.error('Error details:', e.response?.data || e.message);

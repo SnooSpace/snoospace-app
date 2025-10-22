@@ -80,7 +80,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         city,
         interests,
       });
-      navigation.navigate("MemberHome");
+      navigation.navigate("MemberUsername", { userData: { name, email, phone, dob, gender, city, interests }, accessToken });
     } catch (e) {
       alert(e.message || "Failed to complete signup");
     }
@@ -111,11 +111,11 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 7 of 7</Text>
+          <Text style={styles.stepText}>Step 7 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={100} />
+            <ProgressBar progress={87.5} />
           </View>
         </View>
 

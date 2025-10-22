@@ -170,7 +170,7 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
         daily_price,
         conditions: null,
       }, 15000);
-      navigation.navigate('VenueHome');
+      navigation.navigate('VenueUsername', { userData: route.params, accessToken });
     } catch (e) {
       console.error('Venue signup error:', e);
       alert(e.message || 'Failed to create venue');

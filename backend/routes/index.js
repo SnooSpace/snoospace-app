@@ -7,6 +7,10 @@ const MemberController = require("../controllers/memberController");
 const CommunityController = require("../controllers/communityController");
 const SponsorController = require("../controllers/sponsorController");
 const VenueController = require("../controllers/venueController");
+const UsernameController = require("../controllers/usernameController");
+const PostController = require("../controllers/postController");
+const CommentController = require("../controllers/commentController");
+const FollowController = require("../controllers/followController");
 
 const router = express.Router();
 
@@ -49,6 +53,33 @@ router.post("/sponsors/signup", SponsorController.signup);
 
 // Venues
 router.post("/venues/signup", VenueController.signup);
+
+// Username management
+router.post("/username/check", UsernameController.checkUsername);
+router.post("/username/set", authMiddleware, UsernameController.setUsername);
+
+// Posts
+router.post("/posts", authMiddleware, PostController.createPost);
+router.get("/posts/feed", authMiddleware, PostController.getFeed);
+router.get("/posts/explore", authMiddleware, PostController.getExplore);
+router.get("/posts/:postId", PostController.getPost);
+router.get("/posts/user/:userId/:userType", PostController.getUserPosts);
+router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
+router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
+
+// Comments
+router.post("/posts/:postId/comments", authMiddleware, CommentController.createComment);
+router.post("/comments/:commentId/reply", authMiddleware, CommentController.replyToComment);
+router.get("/posts/:postId/comments", CommentController.getPostComments);
+router.delete("/comments/:commentId", authMiddleware, CommentController.deleteComment);
+
+// Follow system
+router.post("/follow", authMiddleware, FollowController.follow);
+router.delete("/follow", authMiddleware, FollowController.unfollow);
+router.get("/followers/:userId/:userType", FollowController.getFollowers);
+router.get("/following/:userId/:userType", FollowController.getFollowing);
+router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
+router.get("/follow/counts/:userId/:userType", FollowController.getFollowCounts);
 
 module.exports = router;
 

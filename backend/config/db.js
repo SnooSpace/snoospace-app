@@ -23,6 +23,9 @@ async function ensureTables(pool) {
         gender TEXT NOT NULL,
         city TEXT NOT NULL,
         interests JSONB NOT NULL,
+        username TEXT UNIQUE,
+        bio TEXT,
+        profile_photo_url TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -37,6 +40,7 @@ async function ensureTables(pool) {
         email TEXT UNIQUE NOT NULL,
         phone TEXT NOT NULL,
         sponsor_types JSONB NOT NULL,
+        username TEXT UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -65,6 +69,7 @@ async function ensureTables(pool) {
         requirements TEXT,
         interests JSONB,
         cities JSONB,
+        username TEXT UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -86,6 +91,7 @@ async function ensureTables(pool) {
         hourly_price DECIMAL(10,2) DEFAULT 0,
         daily_price DECIMAL(10,2) DEFAULT 0,
         conditions TEXT,
+        username TEXT UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -115,6 +121,62 @@ async function ensureTables(pool) {
         PRIMARY KEY (sponsor_id, city_id)
       );
       
+      -- Posts table
+      CREATE TABLE IF NOT EXISTS posts (
+        id BIGSERIAL PRIMARY KEY,
+        author_id BIGINT NOT NULL, -- ID of the creator
+        author_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        caption TEXT,
+        image_urls JSONB NOT NULL, -- array of image URLs
+        tagged_entities JSONB, -- array of {id, type} objects for members/communities/sponsors/venues
+        like_count INTEGER DEFAULT 0,
+        comment_count INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
+      -- Post likes table
+      CREATE TABLE IF NOT EXISTS post_likes (
+        id BIGSERIAL PRIMARY KEY,
+        post_id BIGINT REFERENCES posts(id) ON DELETE CASCADE,
+        liker_id BIGINT NOT NULL,
+        liker_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(post_id, liker_id, liker_type)
+      );
+      
+      -- Post comments table
+      CREATE TABLE IF NOT EXISTS post_comments (
+        id BIGSERIAL PRIMARY KEY,
+        post_id BIGINT REFERENCES posts(id) ON DELETE CASCADE,
+        commenter_id BIGINT NOT NULL,
+        commenter_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        parent_comment_id BIGINT REFERENCES post_comments(id) ON DELETE CASCADE, -- NULL for top-level comments
+        comment_text TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
+      -- Follows table
+      CREATE TABLE IF NOT EXISTS follows (
+        id BIGSERIAL PRIMARY KEY,
+        follower_id BIGINT NOT NULL, -- member who is following
+        follower_type TEXT NOT NULL, -- 'member'
+        following_id BIGINT NOT NULL, -- entity being followed
+        following_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(follower_id, follower_type, following_id, following_type)
+      );
+      
+      -- Add missing columns to members table
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS username TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS bio TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
       -- Add constraints
       DO $$ BEGIN
         ALTER TABLE members ADD CONSTRAINT phone_10_digits CHECK (phone ~ '^\\d{10}$');
@@ -127,6 +189,13 @@ async function ensureTables(pool) {
           jsonb_typeof(interests) = 'array' AND jsonb_array_length(interests) BETWEEN 3 AND 7
         );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        -- Ensure latest username regex: allow letters, numbers, underscores, and dots
+        ALTER TABLE members DROP CONSTRAINT IF EXISTS username_format;
+        ALTER TABLE members ADD CONSTRAINT username_format CHECK (
+          username IS NULL OR (username ~ '^[a-zA-Z0-9_.]{3,30}$')
+        );
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
       -- Add missing columns to communities table if they don't exist
       DO $$ BEGIN
@@ -146,6 +215,9 @@ async function ensureTables(pool) {
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS sponsor_types JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS username TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
       -- Add missing columns to community_heads table if they don't exist
@@ -194,6 +266,12 @@ async function ensureTables(pool) {
         CREATE UNIQUE INDEX IF NOT EXISTS one_primary_head_per_community 
         ON community_heads (community_id) WHERE (is_primary = true);
       EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities DROP CONSTRAINT IF EXISTS username_format_comm;
+        ALTER TABLE communities ADD CONSTRAINT username_format_comm CHECK (
+          username IS NULL OR (username ~ '^[a-zA-Z0-9_.]{3,30}$')
+        );
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
       
       -- Add missing columns to sponsors table
       DO $$ BEGIN
@@ -217,6 +295,9 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS interests JSONB;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS username TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Add pricing columns to venues table
       DO $$ BEGIN
@@ -225,6 +306,15 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE venues ADD COLUMN IF NOT EXISTS daily_price DECIMAL(10,2) DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE venues ADD COLUMN IF NOT EXISTS username TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE venues DROP CONSTRAINT IF EXISTS username_format_venue;
+        ALTER TABLE venues ADD CONSTRAINT username_format_venue CHECK (
+          username IS NULL OR (username ~ '^[a-zA-Z0-9_.]{3,30}$')
+        );
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
       
       -- Update existing venues table constraints
       DO $$ BEGIN
@@ -264,6 +354,14 @@ async function ensureTables(pool) {
           );
         END IF;
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sponsors') THEN
+          ALTER TABLE sponsors DROP CONSTRAINT IF EXISTS username_format_sponsor;
+          ALTER TABLE sponsors ADD CONSTRAINT username_format_sponsor CHECK (
+            username IS NULL OR (username ~ '^[a-zA-Z0-9_.]{3,30}$')
+          );
+        END IF;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

@@ -2,18 +2,18 @@
 import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 
-import LandingScreen from "../screens/LandingScreen";
-import AuthGate from "../screens/AuthGate";
+import LandingScreen from "../screens/auth/LandingScreen";
+import AuthGate from "../screens/auth/AuthGate";
 import MemberSignupNavigator from "../screens/signup/member/MemberSignupNavigator";
 import CommunitySignupNavigator from "../screens/signup/community/CommunitySignupNavigator";
 import SponsorSignupNavigator from "../screens/signup/sponsor/SponsorSignupNavigator";
 import VenueSignupNavigator from "../screens/signup/venue/VenueSignupNavigator";
-import LoginScreen from "../screens/signin/LoginScreen";
-import LoginOtpScreen from "../screens/signin/LoginOtpScreen";
-import MemberHomeScreen from "../screens/MemberHomeScreen";
-import CommunityHomeScreen from "../screens/CommunityHomeScreen";
-import SponsorHomeScreen from "../screens/SponsorHomeScreen";
-import VenueHomeScreen from "../screens/VenueHomeScreen";
+import LoginScreen from "../screens/auth/signin/LoginScreen";
+import LoginOtpScreen from "../screens/auth/signin/LoginOtpScreen";
+import MemberHomeScreen from "../screens/home/member/MemberHomeScreen";
+import CommunityHomeScreen from "../screens/home/community/CommunityHomeScreen";
+import SponsorHomeScreen from "../screens/home/sponsor/SponsorHomeScreen";
+import VenueHomeScreen from "../screens/home/venue/VenueHomeScreen";
 
 const Stack = createStackNavigator();
 

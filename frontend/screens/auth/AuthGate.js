@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { View } from "react-native";
-import { getPendingOtp, getAuthToken, getAuthEmail } from "../api/auth";
-import { apiPost } from "../api/client";
+import { getPendingOtp, getAuthToken, getAuthEmail } from "../../api/auth";
+import { apiPost } from "../../api/client";
 
 export default function AuthGate({ navigation }) {
   useEffect(() => {

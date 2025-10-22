@@ -123,7 +123,7 @@ const SponsorTypeSelect = ({ navigation, route }) => {
         interests,
       });
       
-      navigation.navigate("SponsorHome");
+      navigation.navigate("SponsorUsername", { userData: route.params, accessToken });
     } catch (e) {
       console.error('Sponsor signup error:', e);
       console.error('Error details:', e.response?.data || e.message);

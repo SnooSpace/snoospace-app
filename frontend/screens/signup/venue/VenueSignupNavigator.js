@@ -12,6 +12,7 @@ import VenueAddressScreen from "./VenueAddressScreen";
 import VenuePricingScreen from "./VenuePricingScreen";
 import VenueMaxCapScreen from "./VenueMaxCapScreen";
 import VenueHostNamePhoneScreen from "./VenueHostNamePhoneScreen";
+import VenueUsernameScreen from "./VenueUsernameScreen";
 
 const Stack = createStackNavigator();
 
@@ -29,6 +30,7 @@ export default function VenueSignupNavigator() {
       <Stack.Screen name="VenueMaxCap" component={VenueMaxCapScreen} />
       <Stack.Screen name="VenuePricing" component={VenuePricingScreen} />
       <Stack.Screen name="VenueHost" component={VenueHostNamePhoneScreen} />
+      <Stack.Screen name="VenueUsername" component={VenueUsernameScreen} />
     </Stack.Navigator>
   );
 }

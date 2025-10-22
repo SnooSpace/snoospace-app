@@ -6,7 +6,7 @@ import {
   SafeAreaView,
   StyleSheet,
 } from "react-native";
-import { clearAuthSession } from "../api/auth";
+import { clearAuthSession } from "../../../api/auth";
 
 // --- CONSTANTS DEFINED LOCALLY ---
 const COLORS = {
@@ -29,7 +29,7 @@ const SPACING = {
 };
 // ---------------------------------
 
-const CommunityHomeScreen = ({ navigation }) => {
+const MemberHomeScreen = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       // Clear stored authentication data
@@ -47,19 +47,18 @@ const CommunityHomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome, Community!</Text>
-          <Text style={styles.subtitle}>You're logged in as a Community</Text>
+          <Text style={styles.title}>Welcome, Member!</Text>
+          <Text style={styles.subtitle}>You're logged in as a Member</Text>
         </View>
 
         <View style={styles.content}>
           <Text style={styles.description}>
-            This is your community dashboard. Here you can:
+            This is your member dashboard. Here you can:
           </Text>
-          <Text style={styles.feature}>• Create and manage events</Text>
-          <Text style={styles.feature}>• Add promotional posts/videos</Text>
-          <Text style={styles.feature}>• View sponsors & other communities</Text>
-          <Text style={styles.feature}>• Send collaboration requests</Text>
-          <Text style={styles.feature}>• Browse & book venues for events</Text>
+          <Text style={styles.feature}>• Browse communities</Text>
+          <Text style={styles.feature}>• Join events</Text>
+          <Text style={styles.feature}>• Swipe to match with attendees</Text>
+          <Text style={styles.feature}>• Post and view stories</Text>
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -123,4 +122,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CommunityHomeScreen;
+export default MemberHomeScreen;
