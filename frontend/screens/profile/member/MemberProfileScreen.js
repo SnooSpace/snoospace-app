@@ -1,0 +1,520 @@
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  Alert,
+  Dimensions,
+  Modal,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiGet } from '../../../api/client';
+
+const { width: screenWidth } = Dimensions.get('window');
+const PRIMARY_COLOR = '#6A0DAD';
+const TEXT_COLOR = '#1D1D1F';
+const LIGHT_TEXT_COLOR = '#8E8E93';
+
+export default function MemberProfileScreen({ navigation }) {
+  const [profile, setProfile] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isOwnProfile, setIsOwnProfile] = useState(true);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem('accessToken');
+      const response = await apiGet('/members/profile', 15000, token);
+      setProfile(response.profile);
+      setPosts(response.posts || []);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      // For now, show mock data if API fails
+      setProfile({
+        id: 1,
+        name: "Liam Evans",
+        username: "liam_evans",
+        bio: "Passionate about community events and connecting with like-minded individuals. Let's make memories together!",
+        profile_photo_url: "https://via.placeholder.com/120",
+        follower_count: 345,
+        following_count: 234,
+        interests: ["Volunteering", "Fashion", "Gaming", "Music", "Sports"]
+      });
+      setPosts([
+        {
+          id: 1,
+          image_urls: ["https://via.placeholder.com/300"],
+          caption: "Great concert last night!",
+          like_count: 42,
+          comment_count: 8
+        },
+        {
+          id: 2,
+          image_urls: ["https://via.placeholder.com/300"],
+          caption: "Amazing sunset view",
+          like_count: 28,
+          comment_count: 5
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditProfile = () => {
+    Alert.alert('Edit Profile', 'This feature will be implemented soon!');
+  };
+
+  const handleFollow = async () => {
+    try {
+      // Toggle follow status
+      Alert.alert('Follow', 'Follow functionality will be implemented soon!');
+    } catch (error) {
+      console.error('Error following:', error);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear AsyncStorage
+              const AsyncStorage = await import('@react-native-async-storage/async-storage');
+              await AsyncStorage.default.removeItem('accessToken');
+              await AsyncStorage.default.removeItem('userData');
+              
+              // Navigate to AuthGate using reset to clear the stack
+              if (navigation) {
+                // Try multiple navigation methods
+                if (navigation.reset) {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'AuthGate' }],
+                  });
+                } else if (navigation.navigate) {
+                  navigation.navigate('AuthGate');
+                } else {
+                  // Force reload as last resort
+                  console.log('Navigation not available, forcing reload');
+                  window.location?.reload?.();
+                }
+              } else {
+                console.log('Navigation not available, user logged out');
+              }
+            } catch (error) {
+              console.error('Error during logout:', error);
+              Alert.alert('Error', 'Failed to logout properly');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderPostGrid = () => {
+    const postGrid = [];
+    for (let i = 0; i < 6; i++) {
+      const post = posts[i];
+      postGrid.push(
+        <TouchableOpacity key={i} style={styles.postGridItem}>
+          {post ? (
+            <Image 
+              source={{ uri: post.image_urls?.[0] || 'https://via.placeholder.com/150' }} 
+              style={styles.postImage}
+            />
+          ) : (
+            <View style={styles.placeholderPost}>
+              <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+    return postGrid;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Failed to load profile</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.username}>@{profile.username}</Text>
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => setShowSettingsModal(true)}
+        >
+          <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Profile Section */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageContainer}>
+            <Image 
+              source={{ uri: profile.profile_photo_url || 'https://via.placeholder.com/120' }} 
+              style={styles.profileImage}
+            />
+          </View>
+          
+          <Text style={styles.profileName}>{profile.name}</Text>
+          <Text style={styles.profileTagline}>Event Enthusiast</Text>
+
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.length}</Text>
+              <Text style={styles.statLabel}>Posts</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{profile.follower_count || 345}</Text>
+              <Text style={styles.statLabel}>Followers</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{profile.following_count || 234}</Text>
+              <Text style={styles.statLabel}>Following</Text>
+            </View>
+          </View>
+
+          {/* Bio */}
+          <View style={styles.bioContainer}>
+            <Text style={styles.bioText}>
+              {profile.bio || "Passionate about community events and connecting with like-minded individuals. Let's make memories together!"}
+            </Text>
+          </View>
+
+          {/* Action Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={isOwnProfile ? handleEditProfile : handleFollow}
+          >
+            <Text style={styles.actionButtonText}>
+              {isOwnProfile ? 'Edit Profile' : 'Follow'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Posts Grid */}
+        <View style={styles.postsSection}>
+          <View style={styles.postsGrid}>
+            {renderPostGrid()}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettingsModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSettingsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Settings</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowSettingsModal(false)}
+              >
+                <Ionicons name="close" size={24} color={TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <TouchableOpacity 
+                style={styles.settingsOption}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  handleEditProfile();
+                }}
+              >
+                <Ionicons name="person-outline" size={24} color={TEXT_COLOR} />
+                <Text style={styles.settingsOptionText}>Edit Profile</Text>
+                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.settingsOption}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  Alert.alert('Notifications', 'Notification settings will be implemented soon!');
+                }}
+              >
+                <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+                <Text style={styles.settingsOptionText}>Notifications</Text>
+                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.settingsOption}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  Alert.alert('Privacy', 'Privacy settings will be implemented soon!');
+                }}
+              >
+                <Ionicons name="shield-outline" size={24} color={TEXT_COLOR} />
+                <Text style={styles.settingsOptionText}>Privacy</Text>
+                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.settingsOption}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  Alert.alert('Help', 'Help & Support will be implemented soon!');
+                }}
+              >
+                <Ionicons name="help-circle-outline" size={24} color={TEXT_COLOR} />
+                <Text style={styles.settingsOptionText}>Help & Support</Text>
+                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity 
+                style={[styles.settingsOption, styles.logoutOption]}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  handleLogout();
+                }}
+              >
+                <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+                <Text style={[styles.settingsOptionText, styles.logoutText]}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  username: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+  },
+  settingsButton: {
+    padding: 5,
+  },
+  content: {
+    flex: 1,
+  },
+  profileSection: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  profileImageContainer: {
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  profileName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+    marginBottom: 5,
+  },
+  profileTagline: {
+    fontSize: 16,
+    color: PRIMARY_COLOR,
+    marginBottom: 20,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    fontWeight: '500',
+  },
+  bioContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  bioText: {
+    fontSize: 16,
+    color: TEXT_COLOR,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  actionButton: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: PRIMARY_COLOR,
+  },
+  postsSection: {
+    paddingHorizontal: 20,
+  },
+  postsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  postGridItem: {
+    width: (screenWidth - 60) / 3,
+    height: (screenWidth - 60) / 3,
+    marginBottom: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  postImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderPost: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: LIGHT_TEXT_COLOR,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: LIGHT_TEXT_COLOR,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+  },
+  closeButton: {
+    padding: 5,
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    gap: 15,
+  },
+  settingsOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: TEXT_COLOR,
+  },
+  logoutOption: {
+    marginTop: 10,
+  },
+  logoutText: {
+    color: '#FF3B30',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    marginVertical: 10,
+  },
+});

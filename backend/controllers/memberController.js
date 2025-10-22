@@ -42,6 +42,70 @@ async function signup(req, res) {
   }
 }
 
-module.exports = { signup };
+async function getProfile(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get member profile
+    const memberResult = await pool.query(
+      `SELECT id, name, email, phone, dob, gender, city, interests, username, bio, profile_photo_url, created_at
+       FROM members WHERE id = $1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    const member = memberResult.rows[0];
+
+    // Get follower/following counts
+    const followCountsResult = await pool.query(
+      `SELECT 
+        (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'member') as follower_count,
+        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count`,
+      [userId]
+    );
+
+    const followCounts = followCountsResult.rows[0];
+
+    // Get user's posts
+    const postsResult = await pool.query(
+      `SELECT id, caption, image_urls, like_count, comment_count, created_at
+       FROM posts 
+       WHERE author_id = $1 AND author_type = 'member'
+       ORDER BY created_at DESC
+       LIMIT 6`,
+      [userId]
+    );
+
+    const posts = postsResult.rows.map(post => ({
+      ...post,
+      image_urls: JSON.parse(post.image_urls)
+    }));
+
+    res.json({
+      profile: {
+        ...member,
+        interests: JSON.parse(member.interests),
+        follower_count: parseInt(followCounts.follower_count),
+        following_count: parseInt(followCounts.following_count)
+      },
+      posts
+    });
+
+  } catch (error) {
+    console.error("Error getting profile:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+module.exports = { signup, getProfile };
 
 

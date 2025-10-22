@@ -11,9 +11,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiPost } from "../../api/client";
-import ImageUploader from "../../components/ImageUploader";
-import EntityTagSelector from "../../components/EntityTagSelector";
+import { apiPost } from "../../../api/client";
+import ImageUploader from "../../../components/ImageUploader";
+import EntityTagSelector from "../../../components/EntityTagSelector";
 
 const COLORS = {
   primary: "#5E17EB",
@@ -86,9 +86,6 @@ const CreatePostScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={24} color={COLORS.textDark} />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Post</Text>
         <TouchableOpacity
           onPress={handleSubmit}
@@ -160,13 +157,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 50,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.textDark,
   },
   shareButton: {

@@ -44,6 +44,7 @@ router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLi
 
 // Members
 router.post("/members/signup", MemberController.signup);
+router.get("/members/profile", authMiddleware, MemberController.getProfile);
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);

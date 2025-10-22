@@ -10,7 +10,7 @@ import SponsorSignupNavigator from "../screens/signup/sponsor/SponsorSignupNavig
 import VenueSignupNavigator from "../screens/signup/venue/VenueSignupNavigator";
 import LoginScreen from "../screens/auth/signin/LoginScreen";
 import LoginOtpScreen from "../screens/auth/signin/LoginOtpScreen";
-import MemberHomeScreen from "../screens/home/member/MemberHomeScreen";
+import BottomTabNavigator from "./BottomTabNavigator";
 import CommunityHomeScreen from "../screens/home/community/CommunityHomeScreen";
 import SponsorHomeScreen from "../screens/home/sponsor/SponsorHomeScreen";
 import VenueHomeScreen from "../screens/home/venue/VenueHomeScreen";
@@ -28,7 +28,7 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="CommunitySignup" component={CommunitySignupNavigator} />
       <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
       <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
-      <Stack.Screen name="MemberHome" component={MemberHomeScreen} />
+      <Stack.Screen name="MemberHome" component={BottomTabNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="CommunityHome" component={CommunityHomeScreen} />
       <Stack.Screen name="SponsorHome" component={SponsorHomeScreen} />
       <Stack.Screen name="VenueHome" component={VenueHomeScreen} />
