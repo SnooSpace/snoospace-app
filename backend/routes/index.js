@@ -11,6 +11,7 @@ const UsernameController = require("../controllers/usernameController");
 const PostController = require("../controllers/postController");
 const CommentController = require("../controllers/commentController");
 const FollowController = require("../controllers/followController");
+const EventController = require("../controllers/eventController");
 
 const router = express.Router();
 
@@ -81,6 +82,13 @@ router.get("/followers/:userId/:userType", FollowController.getFollowers);
 router.get("/following/:userId/:userType", FollowController.getFollowing);
 router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
 router.get("/follow/counts/:userId/:userType", FollowController.getFollowCounts);
+
+// Events and matching
+router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
+router.get("/events/:eventId/attendees", authMiddleware, EventController.getEventAttendees);
+router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwipe);
+router.get("/events/:eventId/matches", authMiddleware, EventController.getEventMatches);
+router.post("/events/:eventId/request-next", authMiddleware, EventController.requestNextEvent);
 
 module.exports = router;
 

@@ -26,6 +26,7 @@ async function ensureTables(pool) {
         username TEXT UNIQUE,
         bio TEXT,
         profile_photo_url TEXT,
+        pronouns TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -166,6 +167,71 @@ async function ensureTables(pool) {
         UNIQUE(follower_id, follower_type, following_id, following_type)
       );
       
+      -- Events table
+      CREATE TABLE IF NOT EXISTS events (
+        id BIGSERIAL PRIMARY KEY,
+        community_id BIGINT REFERENCES communities(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        event_date TIMESTAMPTZ NOT NULL,
+        venue_id BIGINT REFERENCES venues(id),
+        location TEXT,
+        max_attendees INTEGER,
+        is_past BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
+      -- Event registrations
+      CREATE TABLE IF NOT EXISTS event_registrations (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
+        member_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        registration_status TEXT DEFAULT 'registered', -- registered, attended, cancelled
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(event_id, member_id)
+      );
+      
+      -- Event swipes (for matching attendees)
+      CREATE TABLE IF NOT EXISTS event_swipes (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
+        swiper_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        swiped_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        swipe_direction TEXT NOT NULL, -- 'left' or 'right'
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(event_id, swiper_id, swiped_id)
+      );
+      
+      -- Matches (when both members swipe right)
+      CREATE TABLE IF NOT EXISTS event_matches (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
+        member1_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        member2_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        match_date TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(event_id, member1_id, member2_id)
+      );
+      
+      -- Next event requests
+      CREATE TABLE IF NOT EXISTS next_event_requests (
+        id BIGSERIAL PRIMARY KEY,
+        requester_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        requested_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        current_event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
+        message TEXT,
+        status TEXT DEFAULT 'pending', -- pending, accepted, declined
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
+      -- Member photo gallery (for Hinge-like multiple photos)
+      CREATE TABLE IF NOT EXISTS member_photos (
+        id BIGSERIAL PRIMARY KEY,
+        member_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
+        photo_url TEXT NOT NULL,
+        photo_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
       -- Add missing columns to members table
       DO $$ BEGIN
         ALTER TABLE members ADD COLUMN IF NOT EXISTS username TEXT;
@@ -175,6 +241,9 @@ async function ensureTables(pool) {
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE members ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS pronouns TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
       -- Add constraints

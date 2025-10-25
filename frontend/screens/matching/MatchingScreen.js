@@ -4,19 +4,138 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   ScrollView,
   Alert,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiGet, apiPost } from '../../api/client';
+import AttendeeCard from '../../components/AttendeeCard';
+import MatchModal from '../../components/MatchModal';
+import NextEventRequestModal from '../../components/NextEventRequestModal';
 
-const { width: screenWidth } = Dimensions.get('window');
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
+
+// Mock data for testing
+const mockEvents = [
+  {
+    id: 1,
+    title: 'Tech Meetup 2024',
+    description: 'Annual technology conference',
+    event_date: '2024-01-15T18:00:00Z',
+    location: 'Convention Center, Mumbai',
+    community_name: 'Tech Mumbai',
+    venue_name: 'Mumbai Convention Center',
+    attendee_count: 25,
+    is_past: true,
+    registration_status: 'attended'
+  },
+  {
+    id: 2,
+    title: 'Startup Networking Event',
+    description: 'Connect with fellow entrepreneurs',
+    event_date: '2024-02-20T19:00:00Z',
+    location: 'Co-working Space, Bangalore',
+    community_name: 'Startup India',
+    venue_name: 'WeWork Bangalore',
+    attendee_count: 18,
+    is_past: true,
+    registration_status: 'attended'
+  },
+  {
+    id: 3,
+    title: 'Design Thinking Workshop',
+    description: 'Learn design thinking methodologies',
+    event_date: '2024-03-10T10:00:00Z',
+    location: 'Design Studio, Delhi',
+    community_name: 'Design Delhi',
+    venue_name: 'Creative Studio Delhi',
+    attendee_count: 12,
+    is_past: false,
+    registration_status: 'registered'
+  }
+];
+
+const mockAttendees = [
+  {
+    id: 1,
+    name: 'Priya Sharma',
+    age: 24,
+    city: 'Mumbai',
+    pronouns: 'she/her',
+    bio: 'Passionate about technology and innovation. Love meeting new people and exploring new ideas.',
+    interests: ['Technology', 'Innovation', 'Networking', 'Travel'],
+    username: 'priya_tech',
+    photos: [
+      { id: 1, photo_url: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400', photo_order: 0 },
+      { id: 2, photo_url: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400', photo_order: 1 },
+      { id: 3, photo_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400', photo_order: 2 }
+    ]
+  },
+  {
+    id: 2,
+    name: 'Arjun Patel',
+    age: 26,
+    city: 'Bangalore',
+    pronouns: 'he/him',
+    bio: 'Entrepreneur and startup enthusiast. Always looking for the next big idea and amazing people to work with.',
+    interests: ['Entrepreneurship', 'Startups', 'Business', 'Fitness'],
+    username: 'arjun_startup',
+    photos: [
+      { id: 4, photo_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400', photo_order: 0 },
+      { id: 5, photo_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400', photo_order: 1 }
+    ]
+  },
+  {
+    id: 3,
+    name: 'Sneha Reddy',
+    age: 23,
+    city: 'Hyderabad',
+    pronouns: 'she/her',
+    bio: 'UI/UX designer with a passion for creating beautiful and functional designs. Love coffee and good conversations.',
+    interests: ['Design', 'Art', 'Coffee', 'Photography'],
+    username: 'sneha_design',
+    photos: [
+      { id: 6, photo_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400', photo_order: 0 },
+      { id: 7, photo_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400', photo_order: 1 },
+      { id: 8, photo_url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400', photo_order: 2 },
+      { id: 9, photo_url: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400', photo_order: 3 }
+    ]
+  },
+  {
+    id: 4,
+    name: 'Rahul Kumar',
+    age: 28,
+    city: 'Delhi',
+    pronouns: 'he/him',
+    bio: 'Software engineer by day, musician by night. Love building things and meeting creative people.',
+    interests: ['Music', 'Technology', 'Gaming', 'Cooking'],
+    username: 'rahul_music',
+    photos: [
+      { id: 10, photo_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400', photo_order: 0 },
+      { id: 11, photo_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400', photo_order: 1 }
+    ]
+  },
+  {
+    id: 5,
+    name: 'Kavya Nair',
+    age: 25,
+    city: 'Chennai',
+    pronouns: 'she/her',
+    bio: 'Marketing professional with a love for digital trends and social media. Always up for new adventures!',
+    interests: ['Marketing', 'Social Media', 'Travel', 'Fashion'],
+    username: 'kavya_marketing',
+    photos: [
+      { id: 12, photo_url: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400', photo_order: 0 },
+      { id: 13, photo_url: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400', photo_order: 1 },
+      { id: 14, photo_url: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400', photo_order: 2 }
+    ]
+  }
+];
 
 export default function MatchingScreen({ navigation }) {
   const [events, setEvents] = useState([]);
@@ -24,6 +143,11 @@ export default function MatchingScreen({ navigation }) {
   const [attendees, setAttendees] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchData, setMatchData] = useState(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [selectedAttendee, setSelectedAttendee] = useState(null);
+  const [swipedAttendees, setSwipedAttendees] = useState(new Set());
 
   useEffect(() => {
     loadEvents();
@@ -32,10 +156,19 @@ export default function MatchingScreen({ navigation }) {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const response = await apiGet('/events/registered');
-      setEvents(response.events || []);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      
+      if (accessToken) {
+        const response = await apiGet('/events/my-events', accessToken);
+        setEvents(response.events || []);
+      } else {
+        // Use mock data if no token
+        setEvents(mockEvents);
+      }
     } catch (error) {
       console.error('Error loading events:', error);
+      // Fallback to mock data
+      setEvents(mockEvents);
     } finally {
       setLoading(false);
     }
@@ -44,43 +177,128 @@ export default function MatchingScreen({ navigation }) {
   const selectEvent = async (event) => {
     try {
       setSelectedEvent(event);
-      const response = await apiGet(`/events/${event.id}/attendees`);
-      setAttendees(response.attendees || []);
+      setLoading(true);
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      
+      if (accessToken) {
+        const response = await apiGet(`/events/${event.id}/attendees`, accessToken);
+        setAttendees(response.attendees || []);
+      } else {
+        // Use mock data
+        setAttendees(mockAttendees);
+      }
+      
       setCurrentIndex(0);
+      setSwipedAttendees(new Set());
     } catch (error) {
       console.error('Error loading attendees:', error);
-      Alert.alert('Error', 'Failed to load attendees');
+      // Fallback to mock data
+      setAttendees(mockAttendees);
+      setCurrentIndex(0);
+      setSwipedAttendees(new Set());
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSwipe = async (direction) => {
+  const handleSwipeLeft = async () => {
     if (currentIndex >= attendees.length) return;
 
     const attendee = attendees[currentIndex];
+    setSwipedAttendees(prev => new Set([...prev, attendee.id]));
     
     try {
-      await apiPost(`/events/${selectedEvent.id}/swipe`, {
-        liked_id: attendee.id,
-        swipe_direction: direction
-      });
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (accessToken && selectedEvent) {
+        await apiPost(`/events/${selectedEvent.id}/swipe`, {
+          swiped_id: attendee.id,
+          swipe_direction: 'left'
+        }, accessToken);
+      }
+    } catch (error) {
+      console.error('Error recording swipe:', error);
+    }
 
-      if (direction === 'right') {
-        Alert.alert('Match!', `You liked ${attendee.name}! They'll be notified.`);
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const handleSwipeRight = async () => {
+    if (currentIndex >= attendees.length) return;
+
+    const attendee = attendees[currentIndex];
+    setSwipedAttendees(prev => new Set([...prev, attendee.id]));
+    
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      let isMatch = false;
+      let matchData = null;
+
+      if (accessToken && selectedEvent) {
+        const response = await apiPost(`/events/${selectedEvent.id}/swipe`, {
+          swiped_id: attendee.id,
+          swipe_direction: 'right'
+        }, accessToken);
+        
+        isMatch = response.isMatch;
+        matchData = response.matchData;
+      } else {
+        // Mock match logic - 30% chance of match
+        isMatch = Math.random() < 0.3;
+        if (isMatch) {
+          matchData = {
+            member1_name: 'You',
+            member1_photo: 'https://via.placeholder.com/150',
+            member2_name: attendee.name,
+            member2_photo: attendee.photos[0]?.photo_url || 'https://via.placeholder.com/150'
+          };
+        }
       }
 
-      setCurrentIndex(prev => prev + 1);
+      if (isMatch && matchData) {
+        setMatchData(matchData);
+        setShowMatchModal(true);
+      }
+
     } catch (error) {
-      console.error('Error swiping:', error);
-      Alert.alert('Error', 'Failed to record swipe');
+      console.error('Error recording swipe:', error);
+    }
+
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const handleUndo = () => {
+    if (currentIndex > 0) {
+      const prevAttendee = attendees[currentIndex - 1];
+      setSwipedAttendees(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(prevAttendee.id);
+        return newSet;
+      });
+      setCurrentIndex(prev => prev - 1);
     }
   };
 
-  const requestNextEvent = () => {
-    Alert.alert(
-      'Request to Join Next Event',
-      'This feature is coming soon! You\'ll be able to request to join upcoming events.',
-      [{ text: 'OK' }]
-    );
+  const handleRequestNextEvent = (attendee) => {
+    setSelectedAttendee(attendee);
+    setShowRequestModal(true);
+  };
+
+  const sendNextEventRequest = async (message) => {
+    if (!selectedEvent || !selectedAttendee) return;
+
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      if (accessToken) {
+        await apiPost(`/events/${selectedEvent.id}/request-next`, {
+          requested_id: selectedAttendee.id,
+          message: message
+        }, accessToken);
+      }
+      // Mock success - in real app, this would send the request
+    } catch (error) {
+      console.error('Error sending next event request:', error);
+      throw error;
+    }
   };
 
   const renderEventCard = (event) => (
@@ -93,12 +311,37 @@ export default function MatchingScreen({ navigation }) {
       onPress={() => selectEvent(event)}
     >
       <View style={styles.eventInfo}>
-        <Text style={styles.eventTitle}>{event.title}</Text>
+        <View style={styles.eventHeader}>
+          <Text style={styles.eventTitle}>{event.title}</Text>
+          <View style={[
+            styles.eventStatusBadge,
+            event.is_past ? styles.pastEventBadge : styles.upcomingEventBadge
+          ]}>
+            <Text style={[
+              styles.eventStatusText,
+              event.is_past ? styles.pastEventText : styles.upcomingEventText
+            ]}>
+              {event.is_past ? 'Past' : 'Upcoming'}
+            </Text>
+          </View>
+        </View>
         <Text style={styles.eventDate}>
-          {new Date(event.event_date).toLocaleDateString()}
+          {new Date(event.event_date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+        </Text>
+        <Text style={styles.eventLocation}>
+          <Ionicons name="location-outline" size={14} color={LIGHT_TEXT_COLOR} />
+          {' '}{event.location}
         </Text>
         <Text style={styles.eventAttendees}>
-          {event.attendee_count || 0} attendees
+          <Ionicons name="people-outline" size={14} color={PRIMARY_COLOR} />
+          {' '}{event.attendee_count} attendees
         </Text>
       </View>
       <Ionicons 
@@ -107,59 +350,6 @@ export default function MatchingScreen({ navigation }) {
         color={LIGHT_TEXT_COLOR} 
       />
     </TouchableOpacity>
-  );
-
-  const renderAttendeeCard = (attendee) => (
-    <View style={styles.attendeeCard}>
-      <View style={styles.attendeeImageContainer}>
-        <Image 
-          source={{ uri: attendee.profile_photo_url || 'https://via.placeholder.com/300' }} 
-          style={styles.attendeeImage}
-        />
-        <View style={styles.attendeeInfo}>
-          <Text style={styles.attendeeName}>{attendee.name}</Text>
-          <Text style={styles.attendeeAge}>{attendee.age} years old</Text>
-        </View>
-      </View>
-      
-      <View style={styles.attendeeBio}>
-        <Text style={styles.bioText}>{attendee.bio}</Text>
-      </View>
-
-      <View style={styles.interestsContainer}>
-        <Text style={styles.interestsTitle}>Interests:</Text>
-        <View style={styles.interestsList}>
-          {attendee.interests?.slice(0, 3).map((interest, index) => (
-            <View key={index} style={styles.interestTag}>
-              <Text style={styles.interestText}>{interest}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.passButton]}
-          onPress={() => handleSwipe('left')}
-        >
-          <Ionicons name="close" size={30} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.undoButton]}
-          onPress={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
-        >
-          <Ionicons name="arrow-undo" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.likeButton]}
-          onPress={() => handleSwipe('right')}
-        >
-          <Ionicons name="heart" size={30} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </View>
   );
 
   if (selectedEvent && attendees.length > 0) {
@@ -187,10 +377,10 @@ export default function MatchingScreen({ navigation }) {
             </Text>
             
             <TouchableOpacity 
-              style={styles.nextEventButton}
-              onPress={requestNextEvent}
+              style={styles.backToEventsButton}
+              onPress={() => setSelectedEvent(null)}
             >
-              <Text style={styles.nextEventButtonText}>Request to Join Next Event</Text>
+              <Text style={styles.backToEventsButtonText}>Back to Events</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -207,14 +397,43 @@ export default function MatchingScreen({ navigation }) {
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{selectedEvent.title}</Text>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options" size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
+          <View style={styles.headerRight} />
         </View>
 
         <View style={styles.swipeContainer}>
-          {renderAttendeeCard(currentAttendee)}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+              <Text style={styles.loadingText}>Loading attendees...</Text>
+            </View>
+          ) : (
+            <AttendeeCard
+              attendee={currentAttendee}
+              onSwipeLeft={handleSwipeLeft}
+              onSwipeRight={handleSwipeRight}
+              onUndo={handleUndo}
+              onRequestNextEvent={() => handleRequestNextEvent(currentAttendee)}
+              canUndo={currentIndex > 0}
+            />
+          )}
         </View>
+
+        <MatchModal
+          visible={showMatchModal}
+          matchData={matchData}
+          onClose={() => setShowMatchModal(false)}
+          onSendMessage={() => {
+            setShowMatchModal(false);
+            Alert.alert('Coming Soon', 'Messaging feature will be available soon!');
+          }}
+        />
+
+        <NextEventRequestModal
+          visible={showRequestModal}
+          attendee={selectedAttendee}
+          onClose={() => setShowRequestModal(false)}
+          onSendRequest={sendNextEventRequest}
+        />
       </SafeAreaView>
     );
   }
@@ -238,6 +457,7 @@ export default function MatchingScreen({ navigation }) {
 
         {loading ? (
           <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
             <Text style={styles.loadingText}>Loading events...</Text>
           </View>
         ) : events.length === 0 ? (
@@ -257,13 +477,6 @@ export default function MatchingScreen({ navigation }) {
         ) : (
           events.map(renderEventCard)
         )}
-
-        <TouchableOpacity 
-          style={styles.requestButton}
-          onPress={requestNextEvent}
-        >
-          <Text style={styles.requestButtonText}>Request to Join Next Event</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -331,13 +544,45 @@ const styles = StyleSheet.create({
   eventInfo: {
     flex: 1,
   },
+  eventHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   eventTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: TEXT_COLOR,
-    marginBottom: 5,
+    flex: 1,
+  },
+  eventStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pastEventBadge: {
+    backgroundColor: '#F2F2F7',
+  },
+  upcomingEventBadge: {
+    backgroundColor: '#E8F5E8',
+  },
+  eventStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pastEventText: {
+    color: LIGHT_TEXT_COLOR,
+  },
+  upcomingEventText: {
+    color: '#34C759',
   },
   eventDate: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 5,
+  },
+  eventLocation: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
     marginBottom: 3,
@@ -345,106 +590,25 @@ const styles = StyleSheet.create({
   eventAttendees: {
     fontSize: 12,
     color: PRIMARY_COLOR,
+    fontWeight: '500',
   },
   swipeContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingVertical: 20,
   },
-  attendeeCard: {
-    width: screenWidth - 40,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  attendeeImageContainer: {
-    position: 'relative',
-    marginBottom: 20,
-  },
-  attendeeImage: {
-    width: '100%',
-    height: 300,
-    borderRadius: 16,
-  },
-  attendeeInfo: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-  },
-  attendeeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  attendeeAge: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  attendeeBio: {
-    marginBottom: 20,
-  },
-  bioText: {
-    fontSize: 16,
-    color: TEXT_COLOR,
-    lineHeight: 22,
-  },
-  interestsContainer: {
-    marginBottom: 30,
-  },
-  interestsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
-    marginBottom: 10,
-  },
-  interestsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  interestTag: {
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  interestText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '500',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 50,
   },
-  passButton: {
-    backgroundColor: '#FF3B30',
-  },
-  undoButton: {
-    backgroundColor: '#8E8E93',
-  },
-  likeButton: {
-    backgroundColor: PRIMARY_COLOR,
+  loadingText: {
+    fontSize: 16,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 10,
   },
   completeContainer: {
     flex: 1,
@@ -465,26 +629,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
   },
-  nextEventButton: {
+  backToEventsButton: {
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 12,
     paddingHorizontal: 30,
     paddingVertical: 15,
   },
-  nextEventButtonText: {
+  backToEventsButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 50,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
   },
   emptyContainer: {
     flex: 1,
@@ -516,19 +670,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  requestButton: {
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  requestButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: PRIMARY_COLOR,
   },
 });
