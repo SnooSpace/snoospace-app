@@ -101,19 +101,31 @@ async function loginStart(req, res) {
 }
 
 async function verifyOtp(req, res) {
-  const { email, token } = req.body;
-  if (!email || !token) {
-    return res.status(400).json({ error: "Email and token are required" });
+  try {
+    const { email, token } = req.body;
+    if (!email || !token) {
+      return res.status(400).json({ error: "Email and token are required" });
+    }
+
+    console.log(`Attempting to verify OTP for email: ${email}`);
+    
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      console.error("OTP verification error:", error.message);
+      return res.status(400).json({ error: error.message });
+    }
+    
+    console.log("OTP verified successfully");
+    res.json({ message: "OTP verified successfully", data });
+  } catch (err) {
+    console.error("/auth/verify-otp error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to verify OTP", message: err && err.message ? err.message : undefined });
   }
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: "email",
-  });
-
-  if (error) return res.status(400).json({ error: error.message });
-  res.json({ message: "OTP verified successfully", data });
 }
 
 function callback(req, res) {

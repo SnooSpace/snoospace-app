@@ -108,7 +108,7 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
             source={
               post.author_photo_url
                 ? { uri: post.author_photo_url }
-                : require("../../assets/icon.png")
+                : { uri: 'https://via.placeholder.com/40x40/6A0DAD/FFFFFF?text=' + (post.author_name ? post.author_name.charAt(0).toUpperCase() : 'U') }
             }
             style={styles.profileImage}
           />

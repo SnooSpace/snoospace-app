@@ -131,7 +131,7 @@ export const PhoneNumberInputScreen = ({ navigation, route }) => {
 // ----------------------------------------------------------------------
 
 const VenueHostNamePhoneScreen = ({ navigation, route }) => {
-  const { email, name: venueName, address, city, phone, capacity_max, price_per_head, hourly_price, daily_price } = route.params || {};
+  const { email, accessToken, name: venueName, address, city, phone, capacity_max, price_per_head, hourly_price, daily_price } = route.params || {};
   const [hostName, setHostName] = useState('');
   const [hostPhone, setHostPhone] = useState('');
 

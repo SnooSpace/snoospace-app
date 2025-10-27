@@ -32,11 +32,37 @@ const LoginScreen = ({ navigation, route }) => {
 
     try {
       // Start login flow (sends OTP only if account exists)
-      await apiPost("/auth/login/start", { email }, 8000);
+      // Increased timeout to 15000ms to handle slower email delivery
+      await apiPost("/auth/login/start", { email }, 15000);
       await setPendingOtp('login', email, 600);
       navigation.navigate("LoginOtp", { email });
     } catch (e) {
-      setError(e.message || "Failed to send login code.");
+      console.error("Login error:", e);
+      // Even if request times out but email was sent successfully, navigate to OTP
+      // Check if the error is specifically a timeout
+      if (e.message && e.message.includes("timed out")) {
+        Alert.alert(
+          "Request Timeout", 
+          "The request took longer than expected. If you received the code in your email, you can enter it on the next screen.",
+          [
+            {
+              text: "Enter Code Anyway",
+              onPress: () => {
+                setPendingOtp('login', email, 600);
+                navigation.navigate("LoginOtp", { email });
+              }
+            },
+            {
+              text: "Try Again",
+              onPress: () => {
+                setError("Please try again.");
+              }
+            }
+          ]
+        );
+      } else {
+        setError(e.message || "Failed to send login code.");
+      }
     } finally {
       setLoading(false);
     }

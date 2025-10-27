@@ -45,17 +45,19 @@ const LoginOtpScreen = ({ navigation, route }) => {
       const result = await apiPost(
         "/auth/verify-otp",
         { email, token: otp },
-        8000
+        20000
       );
       const accessToken = result?.data?.session?.access_token;
       if (accessToken) {
         await setAuthSession(accessToken, email);
       }
       await clearPendingOtp();
+      
+      // Get user profile with increased timeout
       const profileResult = await apiPost(
         "/auth/get-user-profile",
         { email },
-        8000,
+        15000,
         accessToken
       );
       const userRole = profileResult.role;
@@ -76,9 +78,16 @@ const LoginOtpScreen = ({ navigation, route }) => {
           Alert.alert("Error", "Unknown user role. Please contact support.");
       }
     } catch (e) {
-      setError(
-        e.message || "Invalid verification code or failed to get user profile."
-      );
+      console.error("OTP verification error:", e);
+      if (e.message && e.message.includes("timed out")) {
+        setError(
+          "Request timed out. Please check your internet connection and try again."
+        );
+      } else {
+        setError(
+          e.message || "Invalid verification code or failed to get user profile."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -90,7 +99,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setResendLoading(true);
     setError("");
     try {
-      await apiPost("/auth/login/start", { email }, 8000);
+      await apiPost("/auth/login/start", { email }, 15000);
       Alert.alert("Success", `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {

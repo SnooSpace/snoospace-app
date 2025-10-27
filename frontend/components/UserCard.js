@@ -85,7 +85,7 @@ const UserCard = ({
           source={
             getUserPhoto()
               ? { uri: getUserPhoto() }
-              : require("../assets/icon.png")
+              : { uri: 'https://via.placeholder.com/50x50/6A0DAD/FFFFFF?text=' + (getUserDisplayName() ? getUserDisplayName().charAt(0).toUpperCase() : 'U') }
           }
           style={styles.profileImage}
         />

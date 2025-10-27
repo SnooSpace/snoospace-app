@@ -13,6 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
+import { clearAuthSession } from '../../../api/auth';
 import { apiGet } from '../../../api/client';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -99,29 +101,32 @@ export default function MemberProfileScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear AsyncStorage
-              const AsyncStorage = await import('@react-native-async-storage/async-storage');
-              await AsyncStorage.default.removeItem('accessToken');
-              await AsyncStorage.default.removeItem('userData');
+              // Close settings modal first
+              setShowSettingsModal(false);
               
-              // Navigate to AuthGate using reset to clear the stack
-              if (navigation) {
-                // Try multiple navigation methods
-                if (navigation.reset) {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'AuthGate' }],
-                  });
-                } else if (navigation.navigate) {
-                  navigation.navigate('AuthGate');
-                } else {
-                  // Force reload as last resort
-                  console.log('Navigation not available, forcing reload');
-                  window.location?.reload?.();
+              // Clear all authentication data
+              await clearAuthSession();
+              await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
+              
+              // Get the root navigator by going up the navigation hierarchy
+              let rootNavigator = navigation;
+              
+              // Try to get parent navigator (go up from MemberProfileScreen to MemberBottomTabNavigator)
+              if (navigation.getParent) {
+                const parent = navigation.getParent();
+                if (parent) {
+                  // Go up one more level (from MemberBottomTabNavigator to AppNavigator)
+                  rootNavigator = parent.getParent ? parent.getParent() : parent;
                 }
-              } else {
-                console.log('Navigation not available, user logged out');
               }
+              
+              // Reset navigation stack to Landing using root navigator
+              rootNavigator.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Landing' }],
+                })
+              );
             } catch (error) {
               console.error('Error during logout:', error);
               Alert.alert('Error', 'Failed to logout properly');
@@ -314,10 +319,7 @@ export default function MemberProfileScreen({ navigation }) {
 
               <TouchableOpacity 
                 style={[styles.settingsOption, styles.logoutOption]}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  handleLogout();
-                }}
+                onPress={handleLogout}
               >
                 <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
                 <Text style={[styles.settingsOptionText, styles.logoutText]}>Logout</Text>

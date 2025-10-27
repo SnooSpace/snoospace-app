@@ -11,9 +11,10 @@ import VenueSignupNavigator from "../screens/signup/venue/VenueSignupNavigator";
 import LoginScreen from "../screens/auth/signin/LoginScreen";
 import LoginOtpScreen from "../screens/auth/signin/LoginOtpScreen";
 import BottomTabNavigator from "./BottomTabNavigator";
-import CommunityHomeScreen from "../screens/home/community/CommunityHomeScreen";
-import SponsorHomeScreen from "../screens/home/sponsor/SponsorHomeScreen";
-import VenueHomeScreen from "../screens/home/venue/VenueHomeScreen";
+import CommunityBottomTabNavigator from "./CommunityBottomTabNavigator";
+import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
+import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
+import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 
 const Stack = createStackNavigator();
 
@@ -29,9 +30,10 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
       <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
       <Stack.Screen name="MemberHome" component={BottomTabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="CommunityHome" component={CommunityHomeScreen} />
-      <Stack.Screen name="SponsorHome" component={SponsorHomeScreen} />
-      <Stack.Screen name="VenueHome" component={VenueHomeScreen} />
+      <Stack.Screen name="CommunityHome" component={CommunityBottomTabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen name="SponsorHome" component={SponsorBottomTabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen name="VenueHome" component={VenueBottomTabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen name="CommunityCreatePost" component={CommunityCreatePostScreen} options={{ headerShown: false, presentation: 'modal' }} />
     </Stack.Navigator>
   );
 }

@@ -57,7 +57,7 @@ const BackArrow = ({ color }) => (
 
 // Main Screen Component
 const EventPricingScreen = ({ navigation, route }) => {
-  const { email, name, address, city, phone, capacity_max, price_per_head: prefillPrice, category, logo_url, bio, interests } = route.params || {};
+  const { email, accessToken, name, address, city, phone, capacity_max, price_per_head: prefillPrice, category, logo_url, bio, interests } = route.params || {};
   // Use strings for state to manage decimal input cleanly
   const [pricePerHead, setPricePerHead] = useState(prefillPrice ? String(prefillPrice) : '');
   const [hourlyPrice, setHourlyPrice] = useState('');
@@ -83,6 +83,7 @@ const EventPricingScreen = ({ navigation, route }) => {
 
     navigation.navigate('VenueHost', {
       email,
+      accessToken,
       name,
       address,
       city,
