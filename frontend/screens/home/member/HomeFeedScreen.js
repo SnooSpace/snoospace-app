@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiGet } from '../../../api/client';
+import { getAuthToken } from '../../../api/auth';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -22,6 +22,7 @@ export default function HomeFeedScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     loadFeed();
@@ -30,11 +31,13 @@ export default function HomeFeedScreen({ navigation }) {
   const loadFeed = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
+      setErrorMsg("");
+      const token = await getAuthToken();
       const response = await apiGet('/posts/feed', 15000, token);
       setPosts(response.posts || []);
     } catch (error) {
       console.error('Error loading feed:', error);
+      setErrorMsg(error?.message || 'Failed to load posts');
       // For now, show mock data if API fails
       setPosts([
         {
@@ -85,7 +88,7 @@ export default function HomeFeedScreen({ navigation }) {
       );
       
       // API call
-      const token = await AsyncStorage.getItem('accessToken');
+      const token = await getAuthToken();
       await apiGet(`/posts/${postId}/like`, 15000, token);
     } catch (error) {
       console.error('Error liking post:', error);
@@ -208,6 +211,15 @@ export default function HomeFeedScreen({ navigation }) {
         </View>
       </View>
 
+      {errorMsg ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <TouchableOpacity onPress={() => { setErrorMsg(""); loadFeed(); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.greeting}>
         <Text style={styles.greetingText}>Hi Member!</Text>
         <Text style={styles.greetingSubtext}>Discover what's happening</Text>
@@ -229,6 +241,11 @@ export default function HomeFeedScreen({ navigation }) {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No posts yet</Text>
             <Text style={styles.emptySubtext}>Follow some users to see their posts here</Text>
+            {errorMsg ? (
+              <TouchableOpacity onPress={loadFeed} style={styles.retryButton}> 
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           posts.map(renderPost)
@@ -390,5 +407,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
     textAlign: 'center',
+  },
+  errorBanner: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFF2F0',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#D93025',
+    flex: 1,
+    marginRight: 10,
+  },
+  retryText: {
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
+  },
+  retryButton: {
+    marginTop: 12,
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });

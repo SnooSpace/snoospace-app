@@ -1,7 +1,7 @@
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-    const { name, email, phone, dob, gender, city, interests } = req.body || {};
+  const { name, email, phone, dob, gender, city, interests, profile_photo_url } = req.body || {};
     if (!name || !email || !phone || !dob || !gender || !city || !Array.isArray(interests)) {
       return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, city, interests[]" });
     }
@@ -16,17 +16,18 @@ async function signup(req, res) {
       return res.status(400).json({ error: "interests must include between 3 and 7 items" });
     }
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, city, interests)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
+      `INSERT INTO members (name, email, phone, dob, gender, city, interests, profile_photo_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
        ON CONFLICT (email) DO UPDATE SET
          name=EXCLUDED.name,
          phone=EXCLUDED.phone,
          dob=EXCLUDED.dob,
          gender=EXCLUDED.gender,
          city=EXCLUDED.city,
-         interests=EXCLUDED.interests
+         interests=EXCLUDED.interests,
+         profile_photo_url=COALESCE(EXCLUDED.profile_photo_url, members.profile_photo_url)
        RETURNING *`,
-      [name, email, phone, dob, gender, city, JSON.stringify(interests)]
+      [name, email, phone, dob, gender, city, JSON.stringify(interests), profile_photo_url || null]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {
@@ -106,6 +107,34 @@ async function getProfile(req, res) {
   }
 }
 
-module.exports = { signup, getProfile };
+async function updatePhoto(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { photo_url } = req.body || {};
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!photo_url) {
+      return res.status(400).json({ error: "photo_url is required" });
+    }
+
+    const r = await pool.query(
+      `UPDATE members SET profile_photo_url = $1 WHERE id = $2 RETURNING id, profile_photo_url`,
+      [photo_url, userId]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+    res.json({ success: true, profile_photo_url: r.rows[0].profile_photo_url });
+  } catch (err) {
+    console.error("/members/profile/photo error:", err);
+    res.status(500).json({ error: "Failed to update photo" });
+  }
+}
+
+module.exports = { signup, getProfile, updatePhoto };
 
 

@@ -14,7 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession } from '../../../api/auth';
+import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { apiGet, apiPost } from '../../../api/client';
+import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
+import { uploadImage } from '../../../api/cloudinary';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
 
@@ -35,16 +38,83 @@ export default function CommunityProfileScreen({ navigation }) {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      // In real app, this would be API call
-      const communityProfile = mockData.communities[0]; // First community as current user
-      const communityPosts = mockData.posts.filter(post => 
-        post.author_type === 'community' && post.author_id === communityProfile.id
-      );
-      
-      setProfile(communityProfile);
-      setPosts(communityPosts);
+      const token = await getAuthToken();
+      console.log('[CommunityProfile] token', token ? 'present' : 'missing');
+
+      // Fetch profile generically (works for member/community/sponsor/venue)
+      let role = 'community';
+      let fullProfile = null;
+      try {
+        const email = await AsyncStorage.getItem('auth_email');
+        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
+        role = profRes?.role || 'community';
+        fullProfile = profRes?.profile || null;
+        console.log('[CommunityProfile] get-user-profile role:', role, 'profile:', fullProfile ? 'present' : 'missing');
+      } catch (e) {
+        console.log('[CommunityProfile] get-user-profile failed', e?.message);
+      }
+
+      if (!fullProfile) {
+        console.log('[CommunityProfile] Falling back to mock: no profile from get-user-profile');
+        const communityProfile = mockData.communities[0];
+        const communityPosts = mockData.posts.filter(p => p.author_type === 'community' && p.author_id === communityProfile.id);
+        setProfile(communityProfile);
+        setPosts(communityPosts);
+        return;
+      }
+
+      const userId = fullProfile.id;
+      const userType = role || 'community';
+      console.log('[CommunityProfile] resolved user', userId, userType);
+
+      // Fetch follow counts
+      let followerCount = 0;
+      let followingCount = 0;
+      try {
+        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        followerCount = counts?.followers || 0;
+        followingCount = counts?.following || 0;
+      } catch (_) {}
+
+      // Fetch posts by this user
+      let userPosts = [];
+      try {
+        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
+      } catch (_) {}
+
+      // Map to UI profile shape
+      const mappedProfile = {
+        id: userId,
+        name: fullProfile?.name || currentUser.name || fullProfile?.brand_name || 'Community',
+        username: fullProfile?.username || currentUser.username || '',
+        bio: fullProfile?.bio || '',
+        category: fullProfile?.category || '',
+        location: fullProfile?.location || fullProfile?.city || '',
+        logo_url: fullProfile?.logo_url || fullProfile?.profile_photo_url || '',
+        sponsor_types: fullProfile?.sponsor_types || [],
+        follower_count: followerCount,
+        following_count: followingCount,
+        post_count: userPosts.length,
+      };
+
+      console.log('[CommunityProfile] loaded profile', {
+        id: mappedProfile.id,
+        username: mappedProfile.username,
+        followers: mappedProfile.follower_count,
+        following: mappedProfile.following_count,
+        posts: mappedProfile.post_count,
+      });
+      setProfile(mappedProfile);
+      setPosts(userPosts);
     } catch (error) {
       console.error('Error loading profile:', error);
+      // Fallback to mock
+      console.log('[CommunityProfile] Falling back to mock due to error');
+      const communityProfile = mockData.communities[0];
+      const communityPosts = mockData.posts.filter(p => p.author_type === 'community' && p.author_id === communityProfile.id);
+      setProfile(communityProfile);
+      setPosts(communityPosts);
     } finally {
       setLoading(false);
     }
@@ -128,6 +198,26 @@ export default function CommunityProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           
+          <TouchableOpacity style={styles.settingsItem} onPress={async () => {
+            try {
+              const perm = await requestMediaLibraryPermissionsAsync();
+              if (!perm.granted) { Alert.alert('Permission Required', 'Allow photo access to change logo'); return; }
+              const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
+              if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+              const uri = picker.assets[0].uri;
+              const secureUrl = await uploadImage(uri);
+              const token = await getAuthToken();
+              await apiPost('/communities/profile/logo', { logo_url: secureUrl }, 15000, token);
+              setProfile(prev => ({ ...prev, logo_url: secureUrl }));
+              Alert.alert('Updated', 'Logo updated');
+            } catch (e) {
+              Alert.alert('Update failed', e?.message || 'Could not update logo');
+            }
+          }}>
+            <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
+            <Text style={styles.settingsText}>Change Logo</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
@@ -166,7 +256,14 @@ export default function CommunityProfileScreen({ navigation }) {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
-            <Image source={{ uri: profile.logo_url }} style={styles.logo} />
+            <Image 
+              source={{ 
+                uri: profile.logo_url && /^https?:\/\//.test(profile.logo_url)
+                  ? profile.logo_url 
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Community')}&background=6A0DAD&color=FFFFFF&size=80&bold=true`
+              }} 
+              style={styles.logo} 
+            />
             <View style={styles.profileInfo}>
               <Text style={styles.communityName}>{profile.name}</Text>
               <Text style={styles.username}>@{profile.username}</Text>

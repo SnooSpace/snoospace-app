@@ -14,7 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession } from '../../../api/auth';
+import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { apiGet, apiPost } from '../../../api/client';
+import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
+import { uploadImage } from '../../../api/cloudinary';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
 
@@ -35,16 +38,58 @@ export default function SponsorProfileScreen({ navigation }) {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      // In real app, this would be API call
-      const sponsorProfile = mockData.sponsors[0]; // First sponsor as current user
-      const sponsorPosts = mockData.posts.filter(post => 
-        post.author_type === 'sponsor' && post.author_id === sponsorProfile.id
-      );
-      
-      setProfile(sponsorProfile);
-      setPosts(sponsorPosts);
-    } catch (error) {
-      console.error('Error loading profile:', error);
+      const token = await getAuthToken();
+      const email = await AsyncStorage.getItem('auth_email');
+      let role = 'sponsor';
+      let fullProfile = null;
+      try {
+        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
+        role = profRes?.role || 'sponsor';
+        fullProfile = profRes?.profile || null;
+      } catch (_) {}
+
+      if (!fullProfile || role !== 'sponsor') {
+        const sponsorProfile = mockData.sponsors[0];
+        const sponsorPosts = mockData.posts.filter(post => post.author_type === 'sponsor' && post.author_id === sponsorProfile.id);
+        setProfile(sponsorProfile);
+        setPosts(sponsorPosts);
+        return;
+      }
+
+      const userId = fullProfile.id;
+      const userType = 'sponsor';
+
+      let followerCount = 0;
+      let followingCount = 0;
+      try {
+        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        followerCount = counts?.followers || 0;
+        followingCount = counts?.following || 0;
+      } catch (_) {}
+
+      let userPosts = [];
+      try {
+        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
+      } catch (_) {}
+
+      const mapped = {
+        id: userId,
+        brand_name: fullProfile.brand_name || fullProfile.name || '',
+        username: fullProfile.username || '',
+        category: fullProfile.category || '',
+        logo_url: fullProfile.logo_url || '',
+        bio: fullProfile.bio || '',
+        interests: Array.isArray(fullProfile.interests) ? fullProfile.interests : (fullProfile.interests ? JSON.parse(fullProfile.interests) : []),
+        cities: Array.isArray(fullProfile.cities) ? fullProfile.cities : (fullProfile.cities ? JSON.parse(fullProfile.cities) : []),
+        requirements: fullProfile.requirements || '',
+        follower_count: followerCount,
+        following_count: followingCount,
+        post_count: userPosts.length,
+      };
+
+      setProfile(mapped);
+      setPosts(userPosts);
     } finally {
       setLoading(false);
     }
@@ -128,6 +173,26 @@ export default function SponsorProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           
+          <TouchableOpacity style={styles.settingsItem} onPress={async () => {
+            try {
+              const perm = await requestMediaLibraryPermissionsAsync();
+              if (!perm.granted) { Alert.alert('Permission Required', 'Allow photo access to change logo'); return; }
+              const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
+              if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+              const uri = picker.assets[0].uri;
+              const secureUrl = await uploadImage(uri);
+              const token = await getAuthToken();
+              await apiPost('/sponsors/profile/logo', { logo_url: secureUrl }, 15000, token);
+              setProfile(prev => ({ ...prev, logo_url: secureUrl }));
+              Alert.alert('Updated', 'Logo updated');
+            } catch (e) {
+              Alert.alert('Update failed', e?.message || 'Could not update logo');
+            }
+          }}>
+            <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
+            <Text style={styles.settingsText}>Change Logo</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
@@ -166,7 +231,14 @@ export default function SponsorProfileScreen({ navigation }) {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
-            <Image source={{ uri: profile.logo_url }} style={styles.logo} />
+            <Image 
+              source={{ 
+                uri: profile.logo_url && /^https?:\/\//.test(profile.logo_url)
+                  ? profile.logo_url 
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.brand_name || 'Sponsor')}&background=6A0DAD&color=FFFFFF&size=80&bold=true`
+              }} 
+              style={styles.logo} 
+            />
             <View style={styles.profileInfo}>
               <Text style={styles.brandName}>{profile.brand_name}</Text>
               <Text style={styles.username}>@{profile.username}</Text>

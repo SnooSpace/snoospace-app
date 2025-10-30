@@ -27,6 +27,7 @@ const BACKGROUND_COLOR = "#ffffff"; // White background
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
 import { apiPost } from "../../../api/client";
+import { uploadImage } from "../../../api/cloudinary";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
   const { email, accessToken, phone, name, gender, dob, interests, city } =
@@ -71,6 +72,12 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
   const handleNext = async () => {
     try {
+      let profileUrl = null;
+      if (imageUri) {
+        // Upload to Cloudinary and use secure URL
+        profileUrl = await uploadImage(imageUri, () => {});
+      }
+
       await apiPost("/members/signup", {
         name,
         email,
@@ -79,6 +86,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         gender,
         city,
         interests,
+        profile_photo_url: profileUrl || null,
       });
       navigation.navigate("MemberUsername", { userData: { name, email, phone, dob, gender, city, interests }, accessToken });
     } catch (e) {

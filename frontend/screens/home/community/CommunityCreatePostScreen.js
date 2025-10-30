@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ImageUploader from '../../../components/ImageUploader';
 import EntityTagSelector from '../../../components/EntityTagSelector';
+import { apiPost } from '../../../api/client';
+import { getAuthToken } from '../../../api/auth';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -24,9 +26,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [images, setImages] = useState([]);
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isPosting, setIsPosting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleImageSelect = (selectedImages) => {
-    setImages(selectedImages);
+  const handleImageSelect = (selectedUris) => {
+    // selectedUris is an array of strings (local URIs before upload, HTTPS URLs after upload)
+    setImages(selectedUris);
   };
 
   const handleEntityTag = (entities) => {
@@ -41,17 +45,20 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
     try {
       setIsPosting(true);
+      setErrorMsg('');
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const token = await getAuthToken();
       
-      // In real app, this would be API call
-      console.log('Creating post:', {
-        caption,
-        images,
-        taggedEntities,
-        authorType: 'community'
-      });
+      // Use provided image URLs directly (after Upload to Cloud they will be HTTPS URLs)
+      const imageUrls = images && images.length > 0 
+        ? images 
+        : [];
+      
+      const response = await apiPost('/posts', {
+        caption: caption.trim() || null,
+        imageUrls: imageUrls,
+        taggedEntities: taggedEntities.length > 0 ? taggedEntities : null
+      }, 15000, token);
       
       Alert.alert('Success', 'Post created successfully!', [
         {
@@ -61,15 +68,20 @@ export default function CommunityCreatePostScreen({ navigation }) {
             setCaption('');
             setImages([]);
             setTaggedEntities([]);
-            // Navigate back or to feed
+            // Navigate back and refresh feed
             navigation.goBack();
+            // Simple approach: use navigation events to trigger refresh
+            setTimeout(() => {
+              navigation.getParent()?.navigate('CommunityHomeFeed', { refresh: Date.now() });
+            }, 100);
           }
         }
       ]);
       
     } catch (error) {
       console.error('Error creating post:', error);
-      Alert.alert('Error', 'Failed to create post. Please try again.');
+      setErrorMsg(error?.message || 'Failed to create post');
+      Alert.alert('Error', error?.message || 'Failed to create post. Please try again.');
     } finally {
       setIsPosting(false);
     }
@@ -131,6 +143,14 @@ export default function CommunityCreatePostScreen({ navigation }) {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {errorMsg ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{errorMsg}</Text>
+              <TouchableOpacity onPress={handlePost} disabled={isPosting}>
+                <Text style={styles.retryText}>{isPosting ? 'Posting...' : 'Retry'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {/* Author Info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
@@ -159,7 +179,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           <View style={styles.imageSection}>
             <Text style={styles.sectionTitle}>Add Photos</Text>
             <ImageUploader
-              onImagesSelected={handleImageSelect}
+              onImagesChange={handleImageSelect}
               maxImages={5}
             />
           </View>

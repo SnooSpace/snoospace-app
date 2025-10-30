@@ -14,6 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import ImageUploader from "../../../components/ImageUploader";
 import EntityTagSelector from "../../../components/EntityTagSelector";
+import { getAuthToken } from "../../../api/auth";
+import { uploadMultipleImages } from "../../../api/cloudinary";
 
 const COLORS = {
   primary: "#5E17EB",
@@ -51,31 +53,41 @@ const CreatePostScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      // For now, we'll use placeholder image URLs
-      // In a real app, you'd upload to Firebase Storage first
-      const imageUrls = images.map((uri, index) => 
-        `https://via.placeholder.com/400x400/5E17EB/FFFFFF?text=Image+${index + 1}`
-      );
-
+      // 1. Upload images to Cloudinary
+      const imageUrls = await uploadMultipleImages(images);
+      
+      // 2. Prepare tagged entities data
       const taggedEntitiesData = taggedEntities.map(entity => ({
         id: entity.id,
         type: entity.type,
-        name: entity.name || entity.brand_name,
-        username: entity.username
       }));
 
+      // 3. Get auth token
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error("Authentication token not found.");
+      }
+
+      // 4. Send post data to the backend
       await apiPost("/posts", {
         caption: caption.trim(),
         imageUrls,
         taggedEntities: taggedEntitiesData,
-      });
+      }, 15000, token);
 
+      // 5. Success: navigate back and refresh previous screen
       Alert.alert("Success", "Post created successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() }
+        { 
+          text: "OK", 
+          onPress: () => {
+            // Navigate back and pass a 'refresh' param to trigger refetching
+            navigation.goBack();
+          }
+        }
       ]);
     } catch (error) {
       console.error("Error creating post:", error);
-      Alert.alert("Error", "Failed to create post. Please try again.");
+      Alert.alert("Error", error.message || "Failed to create post. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

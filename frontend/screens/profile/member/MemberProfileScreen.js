@@ -14,8 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession } from '../../../api/auth';
-import { apiGet } from '../../../api/client';
+import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { apiGet, apiPost } from '../../../api/client';
+import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
+import { uploadImage } from '../../../api/cloudinary';
+import PostCard from '../../../components/PostCard'; // Assuming PostCard exists for a full post view
 
 const { width: screenWidth } = Dimensions.get('window');
 const PRIMARY_COLOR = '#6A0DAD';
@@ -26,49 +29,67 @@ export default function MemberProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    // Add a listener for when the screen is focused
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadProfile();
+    });
+
+    // Return the function to unsubscribe from the event so it gets removed on unmount
+    return unsubscribe;
+  }, [navigation]);
 
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('accessToken');
-      const response = await apiGet('/members/profile', 15000, token);
-      setProfile(response.profile);
-      setPosts(response.posts || []);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-      // For now, show mock data if API fails
-      setProfile({
-        id: 1,
-        name: "Liam Evans",
-        username: "liam_evans",
-        bio: "Passionate about community events and connecting with like-minded individuals. Let's make memories together!",
-        profile_photo_url: "https://via.placeholder.com/120",
-        follower_count: 345,
-        following_count: 234,
-        interests: ["Volunteering", "Fashion", "Gaming", "Music", "Sports"]
-      });
-      setPosts([
-        {
-          id: 1,
-          image_urls: ["https://via.placeholder.com/300"],
-          caption: "Great concert last night!",
-          like_count: 42,
-          comment_count: 8
-        },
-        {
-          id: 2,
-          image_urls: ["https://via.placeholder.com/300"],
-          caption: "Amazing sunset view",
-          like_count: 28,
-          comment_count: 5
-        }
+      setError(null);
+      
+      const token = await getAuthToken();
+      if (!token) throw new Error("No auth token found");
+
+      const userProfileResponse = await apiPost('/auth/get-user-profile', {}, 15000, token);
+      const fullProfile = userProfileResponse?.profile;
+      const userRole = userProfileResponse?.role;
+
+      if (!fullProfile || userRole !== 'member') {
+        throw new Error("Failed to fetch member profile or incorrect role.");
+      }
+
+      const userId = fullProfile.id;
+      const userType = 'member';
+
+      // Fetch counts and posts in parallel for performance
+      const [countsResponse, postsResponse] = await Promise.all([
+        apiGet(`/follow/counts/${userId}/${userType}`, 15000, token),
+        apiGet(`/posts/user/${userId}/${userType}`, 15000, token)
       ]);
+
+      const followerCount = countsResponse?.followers || 0;
+      const followingCount = countsResponse?.following || 0;
+      const userPosts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
+
+      const mappedProfile = {
+        id: userId,
+        name: fullProfile.name || '',
+        username: fullProfile.username || '',
+        bio: fullProfile.bio || '',
+        profile_photo_url: fullProfile.profile_photo_url || '',
+        interests: Array.isArray(fullProfile.interests) 
+          ? fullProfile.interests 
+          : (fullProfile.interests ? JSON.parse(fullProfile.interests) : []),
+        follower_count: followerCount,
+        following_count: followingCount,
+      };
+
+      setProfile(mappedProfile);
+      setPosts(userPosts);
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+      setError(err.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -76,6 +97,26 @@ export default function MemberProfileScreen({ navigation }) {
 
   const handleEditProfile = () => {
     Alert.alert('Edit Profile', 'This feature will be implemented soon!');
+  };
+
+  const handleChangePhoto = async () => {
+    try {
+      const permissionResult = await requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Permission to access photos is required.');
+        return;
+      }
+      const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
+      if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+      const uri = picker.assets[0].uri;
+      const secureUrl = await uploadImage(uri);
+      const token = await getAuthToken();
+      await apiPost('/members/profile/photo', { profile_photo_url: secureUrl }, 15000, token);
+      setProfile(prev => ({ ...prev, profile_photo_url: secureUrl }));
+      Alert.alert('Updated', 'Profile photo updated');
+    } catch (e) {
+      Alert.alert('Update failed', e?.message || 'Could not update photo');
+    }
   };
 
   const handleFollow = async () => {
@@ -139,7 +180,8 @@ export default function MemberProfileScreen({ navigation }) {
 
   const renderPostGrid = () => {
     const postGrid = [];
-    for (let i = 0; i < 6; i++) {
+    // Display actual posts or placeholders up to 6
+    for (let i = 0; i < Math.max(posts.length, 0); i++) {
       const post = posts[i];
       postGrid.push(
         <TouchableOpacity key={i} style={styles.postGridItem}>
@@ -156,6 +198,18 @@ export default function MemberProfileScreen({ navigation }) {
         </TouchableOpacity>
       );
     }
+    // If no posts, show placeholders
+    if (posts.length === 0) {
+      for (let i = 0; i < 6; i++) {
+        postGrid.push(
+          <View key={`placeholder-${i}`} style={styles.postGridItem}>
+            <View style={styles.placeholderPost}>
+              <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+            </View>
+          </View>
+        );
+      }
+    }
     return postGrid;
   };
 
@@ -164,6 +218,19 @@ export default function MemberProfileScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={loadProfile} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -197,7 +264,11 @@ export default function MemberProfileScreen({ navigation }) {
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>
             <Image 
-              source={{ uri: profile.profile_photo_url || 'https://via.placeholder.com/120' }} 
+              source={{ 
+                uri: profile.profile_photo_url && /^https?:\/\//.test(profile.profile_photo_url)
+                  ? profile.profile_photo_url
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Member')}&background=6A0DAD&color=FFFFFF&size=120&bold=true`
+              }} 
               style={styles.profileImage}
             />
           </View>
@@ -212,25 +283,34 @@ export default function MemberProfileScreen({ navigation }) {
               <Text style={styles.statLabel}>Posts</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{profile.follower_count || 345}</Text>
+              <Text style={styles.statNumber}>{profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{profile.following_count || 234}</Text>
+              <Text style={styles.statNumber}>{profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>
             </View>
           </View>
 
           {/* Bio */}
-          <View style={styles.bioContainer}>
-            <Text style={styles.bioText}>
-              {profile.bio || "Passionate about community events and connecting with like-minded individuals. Let's make memories together!"}
-            </Text>
-          </View>
+          {profile.bio ? (
+            <View style={styles.bioContainer}>
+              <Text style={styles.bioText}>
+                {profile.bio}
+              </Text>
+            </View>
+          ) : null}
 
           {/* Action Button */}
           <TouchableOpacity 
             style={styles.actionButton}
+            onPress={handleChangePhoto}
+          >
+            <Text style={styles.actionButtonText}>Change Photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, { marginTop: 10 }]}
             onPress={isOwnProfile ? handleEditProfile : handleFollow}
           >
             <Text style={styles.actionButtonText}>
@@ -460,9 +540,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 30,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   errorText: {
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   // Modal styles
   modalOverlay: {

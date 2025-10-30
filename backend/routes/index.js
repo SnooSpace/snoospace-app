@@ -46,15 +46,19 @@ router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLi
 // Members
 router.post("/members/signup", MemberController.signup);
 router.get("/members/profile", authMiddleware, MemberController.getProfile);
+router.post("/members/profile/photo", authMiddleware, MemberController.updatePhoto);
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);
+router.post("/communities/profile/logo", authMiddleware, CommunityController.updateLogo);
 
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);
+router.post("/sponsors/profile/logo", authMiddleware, SponsorController.updateLogo);
 
 // Venues
 router.post("/venues/signup", VenueController.signup);
+router.post("/venues/profile/logo", authMiddleware, VenueController.updateLogo);
 
 // Username management
 router.post("/username/check", UsernameController.checkUsername);

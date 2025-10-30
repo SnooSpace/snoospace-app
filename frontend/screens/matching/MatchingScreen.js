@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiGet, apiPost } from '../../api/client';
+import { getAuthToken } from '../../api/auth';
 import AttendeeCard from '../../components/AttendeeCard';
 import MatchModal from '../../components/MatchModal';
 import NextEventRequestModal from '../../components/NextEventRequestModal';
@@ -143,6 +143,7 @@ export default function MatchingScreen({ navigation }) {
   const [attendees, setAttendees] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchData, setMatchData] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -156,10 +157,11 @@ export default function MatchingScreen({ navigation }) {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
+      setErrorMsg("");
+      const token = await getAuthToken();
       
-      if (accessToken) {
-        const response = await apiGet('/events/my-events', accessToken);
+      if (token) {
+        const response = await apiGet('/events/my-events', 15000, token);
         setEvents(response.events || []);
       } else {
         // Use mock data if no token
@@ -167,6 +169,7 @@ export default function MatchingScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading events:', error);
+      setErrorMsg(error?.message || 'Failed to load events');
       // Fallback to mock data
       setEvents(mockEvents);
     } finally {
@@ -178,10 +181,11 @@ export default function MatchingScreen({ navigation }) {
     try {
       setSelectedEvent(event);
       setLoading(true);
-      const accessToken = await AsyncStorage.getItem('accessToken');
+      setErrorMsg("");
+      const token = await getAuthToken();
       
-      if (accessToken) {
-        const response = await apiGet(`/events/${event.id}/attendees`, accessToken);
+      if (token) {
+        const response = await apiGet(`/events/${event.id}/attendees`, 15000, token);
         setAttendees(response.attendees || []);
       } else {
         // Use mock data
@@ -192,6 +196,7 @@ export default function MatchingScreen({ navigation }) {
       setSwipedAttendees(new Set());
     } catch (error) {
       console.error('Error loading attendees:', error);
+      setErrorMsg(error?.message || 'Failed to load attendees');
       // Fallback to mock data
       setAttendees(mockAttendees);
       setCurrentIndex(0);
@@ -208,12 +213,12 @@ export default function MatchingScreen({ navigation }) {
     setSwipedAttendees(prev => new Set([...prev, attendee.id]));
     
     try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      if (accessToken && selectedEvent) {
+      const token = await getAuthToken();
+      if (token && selectedEvent) {
         await apiPost(`/events/${selectedEvent.id}/swipe`, {
           swiped_id: attendee.id,
           swipe_direction: 'left'
-        }, accessToken);
+        }, 15000, token);
       }
     } catch (error) {
       console.error('Error recording swipe:', error);
@@ -229,15 +234,15 @@ export default function MatchingScreen({ navigation }) {
     setSwipedAttendees(prev => new Set([...prev, attendee.id]));
     
     try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
+      const token = await getAuthToken();
       let isMatch = false;
       let matchData = null;
 
-      if (accessToken && selectedEvent) {
+      if (token && selectedEvent) {
         const response = await apiPost(`/events/${selectedEvent.id}/swipe`, {
           swiped_id: attendee.id,
           swipe_direction: 'right'
-        }, accessToken);
+        }, 15000, token);
         
         isMatch = response.isMatch;
         matchData = response.matchData;
@@ -287,12 +292,12 @@ export default function MatchingScreen({ navigation }) {
     if (!selectedEvent || !selectedAttendee) return;
 
     try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      if (accessToken) {
+      const token = await getAuthToken();
+      if (token) {
         await apiPost(`/events/${selectedEvent.id}/request-next`, {
           requested_id: selectedAttendee.id,
           message: message
-        }, accessToken);
+        }, 15000, token);
       }
       // Mock success - in real app, this would send the request
     } catch (error) {
@@ -447,6 +452,15 @@ export default function MatchingScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {errorMsg ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <TouchableOpacity onPress={() => { setErrorMsg(""); loadEvents(); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <ScrollView style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Events</Text>
@@ -467,6 +481,14 @@ export default function MatchingScreen({ navigation }) {
             <Text style={styles.emptyText}>
               Register for events to start matching with other attendees
             </Text>
+            {errorMsg ? (
+              <TouchableOpacity 
+                style={styles.exploreButton}
+                onPress={loadEvents}
+              >
+                <Text style={styles.exploreButtonText}>Retry</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity 
               style={styles.exploreButton}
               onPress={() => navigation.navigate('Search')}
@@ -670,5 +692,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  errorBanner: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFF2F0',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#D93025',
+    flex: 1,
+    marginRight: 10,
+  },
+  retryText: {
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
   },
 });

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiDelete } from "../api/client";
+import { getAuthToken } from "../api/auth";
 
 const { width } = Dimensions.get("window");
 
@@ -35,13 +36,15 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
     
     setIsLiking(true);
     try {
+      const token = await getAuthToken();
+      
       if (isLiked) {
-        await apiDelete(`/posts/${post.id}/like`);
+        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
         setLikeCount(prev => prev - 1);
         setIsLiked(false);
         if (onLike) onLike(post.id, false);
       } else {
-        await apiPost(`/posts/${post.id}/like`);
+        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
         setLikeCount(prev => prev + 1);
         setIsLiked(true);
         if (onLike) onLike(post.id, true);
@@ -128,14 +131,20 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
           showsHorizontalScrollIndicator={false}
           style={styles.imageContainer}
         >
-          {post.image_urls.map((imageUrl, index) => (
-            <Image
-              key={index}
-              source={{ uri: imageUrl }}
-              style={styles.postImage}
-              resizeMode="cover"
-            />
-          ))}
+          {post.image_urls.flat().map((imageUrl, index) => {
+            // Ensure imageUrl is a string and is a valid URL format
+            if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+              return null;
+            }
+            return (
+              <Image
+                key={index}
+                source={{ uri: imageUrl }}
+                style={styles.postImage}
+                resizeMode="cover"
+              />
+            );
+          })}
         </ScrollView>
       )}
 

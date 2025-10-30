@@ -29,6 +29,7 @@ export default function SearchScreen({ navigation }) {
     venues: [],
   });
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues', 'Posts'];
 
@@ -49,10 +50,12 @@ export default function SearchScreen({ navigation }) {
   const performSearch = async () => {
     try {
       setLoading(true);
+      setErrorMsg('');
       const response = await apiGet(`/search?q=${encodeURIComponent(searchQuery)}`);
       setSearchResults(response);
     } catch (error) {
       console.error('Error searching:', error);
+      setErrorMsg(error?.message || 'Search failed');
       // Mock search results for now
       setSearchResults({
         members: [
@@ -225,6 +228,15 @@ export default function SearchScreen({ navigation }) {
         <Text style={styles.headerTitle}>Search</Text>
         <View style={styles.headerRight} />
       </View>
+
+      {errorMsg ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <TouchableOpacity onPress={performSearch} disabled={loading}>
+            <Text style={styles.retryText}>{loading ? 'Searching...' : 'Retry'}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>

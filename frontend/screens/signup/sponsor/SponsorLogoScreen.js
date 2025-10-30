@@ -27,6 +27,7 @@ const BACKGROUND_COLOR = "#ffffff"; // White background
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
 import { apiPost } from "../../../api/client";
+import { uploadImage } from "../../../api/cloudinary";
 
 const SponsorLogoScreen = ({ navigation, route }) => {
   const { email, accessToken, name, phone } = route.params || {};
@@ -68,7 +69,7 @@ const SponsorLogoScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!imageUri) {
       Alert.alert(
         "Photo Required",
@@ -77,15 +78,18 @@ const SponsorLogoScreen = ({ navigation, route }) => {
       );
       return;
     }
-    
-    console.log('SponsorLogoScreen - phone:', phone);
-    navigation.navigate("SponsorBio", { 
-      email, 
-      accessToken, 
-      name, 
-      phone,
-      logo_url: imageUri 
-    });
+    try {
+      const secureUrl = await uploadImage(imageUri);
+      navigation.navigate("SponsorBio", { 
+        email, 
+        accessToken, 
+        name, 
+        phone,
+        logo_url: secureUrl
+      });
+    } catch (e) {
+      Alert.alert('Upload failed', e?.message || 'Unable to upload logo. Please try again.');
+    }
   };
 
   // Button is disabled if no photo is selected

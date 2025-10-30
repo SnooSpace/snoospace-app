@@ -9,6 +9,8 @@ const createPost = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
+    console.log(`[createPost] Attempting to create post for author_id: ${userId}, author_type: ${userType}`);
+
     if (!userId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
     }
@@ -78,13 +80,16 @@ const getFeed = async (req, res) => {
     const userType = req.user?.type;
     const { page = 1, limit = 10 } = req.query;
 
+    console.log('Feed request - userId:', userId, 'userType:', userType);
+
     if (!userId || !userType) {
+      console.log('Authentication failed - missing userId or userType');
       return res.status(401).json({ error: "Authentication required" });
     }
 
     const offset = (page - 1) * limit;
 
-    // Get posts from followed entities
+    // Get posts from followed entities AND own posts
     const query = `
       SELECT 
         p.*,
@@ -112,20 +117,38 @@ const getFeed = async (req, res) => {
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
       LEFT JOIN follows f ON f.following_id = p.author_id AND f.following_type = p.author_type
-      WHERE f.follower_id = $1 AND f.follower_type = $2
+        AND f.follower_id = $1 AND f.follower_type = $2
+      WHERE (f.id IS NOT NULL OR (p.author_id = $1 AND p.author_type = $2))
       ORDER BY p.created_at DESC
       LIMIT $3 OFFSET $4
     `;
 
     const result = await pool.query(query, [userId, userType, limit, offset]);
     
+    console.log('Feed query result:', result.rows.length, 'posts found');
+    
     // Parse JSON fields
     const posts = result.rows.map(post => ({
       ...post,
-      image_urls: JSON.parse(post.image_urls),
-      tagged_entities: post.tagged_entities ? JSON.parse(post.tagged_entities) : null
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          const parsed = JSON.parse(post.image_urls);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return post.image_urls ? [post.image_urls] : [];
+        }
+      })(),
+      tagged_entities: (() => {
+        try {
+          return post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
+        } catch {
+          return null; // Fallback on parsing error
+        }
+      })()
     }));
 
+    console.log('Parsed posts:', posts.length);
     res.json({ posts });
 
   } catch (error) {
@@ -181,7 +204,14 @@ const getExplore = async (req, res) => {
     // Parse JSON fields
     const posts = result.rows.map(post => ({
       ...post,
-      image_urls: JSON.parse(post.image_urls),
+      image_urls: (() => {
+        try {
+          const parsed = JSON.parse(post.image_urls);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return post.image_urls ? [post.image_urls] : [];
+        }
+      })(),
       tagged_entities: post.tagged_entities ? JSON.parse(post.tagged_entities) : null
     }));
 
@@ -318,7 +348,12 @@ const getPost = async (req, res) => {
     const post = result.rows[0];
     
     // Parse JSON fields
-    post.image_urls = JSON.parse(post.image_urls);
+    try {
+      const parsed = JSON.parse(post.image_urls);
+      post.image_urls = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      post.image_urls = post.image_urls ? [post.image_urls] : [];
+    }
     post.tagged_entities = post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
 
     res.json({ post });
@@ -335,6 +370,8 @@ const getUserPosts = async (req, res) => {
     const { userId, userType } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
+
+    console.log(`[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`);
 
     const query = `
       SELECT 
@@ -369,11 +406,27 @@ const getUserPosts = async (req, res) => {
 
     const result = await pool.query(query, [userId, userType, limit, offset]);
     
+    console.log(`[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`);
+    
     // Parse JSON fields
     const posts = result.rows.map(post => ({
       ...post,
-      image_urls: JSON.parse(post.image_urls),
-      tagged_entities: post.tagged_entities ? JSON.parse(post.tagged_entities) : null
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          const parsed = JSON.parse(post.image_urls);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return post.image_urls ? [post.image_urls] : [];
+        }
+      })(),
+      tagged_entities: (() => {
+        try {
+          return post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
+        } catch {
+          return null; // Fallback on parsing error
+        }
+      })()
     }));
 
     res.json({ posts });

@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { apiPost, apiDelete } from "../api/client";
+import { getAuthToken } from "../api/auth";
 
 const COLORS = {
   primary: "#5E17EB",
@@ -36,18 +37,20 @@ const FollowButton = ({
     
     setIsLoading(true);
     try {
+      const token = await getAuthToken();
+      
       if (isFollowing) {
         await apiDelete("/follow", {
           followingId: userId,
           followingType: userType,
-        });
+        }, 15000, token);
         setIsFollowing(false);
         if (onFollowChange) onFollowChange(userId, userType, false);
       } else {
         await apiPost("/follow", {
           followingId: userId,
           followingType: userType,
-        });
+        }, 15000, token);
         setIsFollowing(true);
         if (onFollowChange) onFollowChange(userId, userType, true);
       }

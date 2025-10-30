@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
+import { apiGet } from '../../../api/client';
+import { getAuthToken } from '../../../api/auth';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -23,6 +25,7 @@ export default function SponsorHomeFeedScreen({ navigation }) {
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     loadFeed();
@@ -31,14 +34,18 @@ export default function SponsorHomeFeedScreen({ navigation }) {
   const loadFeed = async () => {
     try {
       setLoading(true);
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Use mock data - in real app, this would be API call
-      setPosts(mockData.posts);
+      setErrorMsg('');
+      const token = await getAuthToken();
+      const response = await apiGet('/posts/feed', 15000, token);
+      setPosts(response.posts || []);
+      // Use mock data for opportunities until API is ready
       setOpportunities(mockData.sponsorshipOffers);
     } catch (error) {
       console.error('Error loading feed:', error);
+      setErrorMsg(error?.message || 'Failed to load feed');
+      // Fallback to mock data if API fails
+      setPosts(mockData.posts);
+      setOpportunities(mockData.sponsorshipOffers);
     } finally {
       setLoading(false);
     }
@@ -195,7 +202,17 @@ export default function SponsorHomeFeedScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      {errorMsg ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <TouchableOpacity onPress={() => { setErrorMsg(''); loadFeed(); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      <ScrollView style={styles.scrollView} refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }>
         {renderHeader()}
         
         {/* Opportunities Section */}
@@ -406,5 +423,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  errorBanner: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFF2F0',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#D93025',
+    flex: 1,
+    marginRight: 10,
+  },
+  retryText: {
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
   },
 });

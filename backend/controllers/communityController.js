@@ -112,4 +112,27 @@ async function signup(req, res) {
 
 module.exports = { signup };
 
+async function updateLogo(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { logo_url } = req.body || {};
+    if (!userId || userType !== 'community') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!logo_url) {
+      return res.status(400).json({ error: 'logo_url is required' });
+    }
+    const r = await pool.query('UPDATE communities SET logo_url = $1 WHERE id = $2 RETURNING id, logo_url', [logo_url, userId]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Community not found' });
+    res.json({ success: true, logo_url: r.rows[0].logo_url });
+  } catch (err) {
+    console.error('/communities/profile/logo error:', err);
+    res.status(500).json({ error: 'Failed to update logo' });
+  }
+}
+
+module.exports.updateLogo = updateLogo;
+
 

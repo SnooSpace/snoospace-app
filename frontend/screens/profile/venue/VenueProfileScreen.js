@@ -14,9 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession } from '../../../api/auth';
+import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { apiGet, apiPost } from '../../../api/client';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
+import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
+import { uploadImage } from '../../../api/cloudinary';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -35,16 +38,63 @@ export default function VenueProfileScreen({ navigation }) {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      // In real app, this would be API call
-      const venueProfile = mockData.venues[0]; // First venue as current user
-      const venuePosts = mockData.posts.filter(post => 
-        post.author_type === 'venue' && post.author_id === venueProfile.id
-      );
-      
-      setProfile(venueProfile);
-      setPosts(venuePosts);
-    } catch (error) {
-      console.error('Error loading profile:', error);
+      const token = await getAuthToken();
+      const email = await AsyncStorage.getItem('auth_email');
+      let role = 'venue';
+      let fullProfile = null;
+      try {
+        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
+        role = profRes?.role || 'venue';
+        fullProfile = profRes?.profile || null;
+      } catch (_) {}
+
+      if (!fullProfile || role !== 'venue') {
+        const venueProfile = mockData.venues[0];
+        const venuePosts = mockData.posts.filter(post => post.author_type === 'venue' && post.author_id === venueProfile.id);
+        setProfile(venueProfile);
+        setPosts(venuePosts);
+        return;
+      }
+
+      const userId = fullProfile.id;
+      const userType = 'venue';
+
+      let followerCount = 0;
+      let followingCount = 0;
+      try {
+        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        followerCount = counts?.followers || 0;
+        followingCount = counts?.following || 0;
+      } catch (_) {}
+
+      let userPosts = [];
+      try {
+        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
+      } catch (_) {}
+
+      const mapped = {
+        id: userId,
+        name: fullProfile.name || '',
+        username: fullProfile.username || '',
+        city: fullProfile.city || '',
+        address: fullProfile.address || '',
+        capacity_min: fullProfile.capacity_min || 0,
+        capacity_max: fullProfile.capacity_max || 0,
+        price_per_head: fullProfile.price_per_head || 0,
+        hourly_price: fullProfile.hourly_price || 0,
+        daily_price: fullProfile.daily_price || 0,
+        conditions: fullProfile.conditions || '',
+        contact_name: fullProfile.contact_name || '',
+        contact_email: fullProfile.contact_email || '',
+        contact_phone: fullProfile.contact_phone || '',
+        follower_count: followerCount,
+        following_count: followingCount,
+        post_count: userPosts.length,
+      };
+
+      setProfile(mapped);
+      setPosts(userPosts);
     } finally {
       setLoading(false);
     }
@@ -128,6 +178,26 @@ export default function VenueProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           
+          <TouchableOpacity style={styles.settingsItem} onPress={async () => {
+            try {
+              const perm = await requestMediaLibraryPermissionsAsync();
+              if (!perm.granted) { Alert.alert('Permission Required', 'Allow photo access to change logo'); return; }
+              const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
+              if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+              const uri = picker.assets[0].uri;
+              const secureUrl = await uploadImage(uri);
+              const token = await getAuthToken();
+              await apiPost('/venues/profile/logo', { logo_url: secureUrl }, 15000, token);
+              setProfile(prev => ({ ...prev, logo_url: secureUrl }));
+              Alert.alert('Updated', 'Logo updated');
+            } catch (e) {
+              Alert.alert('Update failed', e?.message || 'Could not update logo');
+            }
+          }}>
+            <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
+            <Text style={styles.settingsText}>Change Logo</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>

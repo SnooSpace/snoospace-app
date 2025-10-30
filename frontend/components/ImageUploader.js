@@ -15,6 +15,7 @@ import {
   requestMediaLibraryPermissionsAsync,
   MediaTypeOptions,
 } from "expo-image-picker";
+import { uploadMultipleImages } from "../api/cloudinary";
 
 const { width } = Dimensions.get("window");
 
@@ -35,6 +36,8 @@ const ImageUploader = ({
   style 
 }) => {
   const [images, setImages] = useState(initialImages);
+  const [uploading, setUploading] = useState(false);
+  const [progressByIndex, setProgressByIndex] = useState({});
 
   const handleAddImages = async () => {
     try {
@@ -77,6 +80,27 @@ const ImageUploader = ({
     }
   };
 
+  const uploadAll = async () => {
+    if (!images || images.length === 0) return;
+    try {
+      setUploading(true);
+      setProgressByIndex({});
+      
+      const uploadedUrls = await uploadMultipleImages(images, (index, progress) => {
+        setProgressByIndex(prev => ({ ...prev, [index]: progress }));
+      });
+      
+      setImages(uploadedUrls);
+      if (onImagesChange) onImagesChange(uploadedUrls);
+      Alert.alert("Uploaded", "All images uploaded successfully.");
+    } catch (e) {
+      console.error("Upload error:", e);
+      Alert.alert("Upload Failed", e?.message || "Could not upload images");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const renderImageGrid = () => {
     if (images.length === 0) {
       return (
@@ -95,6 +119,11 @@ const ImageUploader = ({
         {images.map((imageUri, index) => (
           <View key={index} style={styles.imageContainer}>
             <Image source={{ uri: imageUri }} style={styles.image} />
+            {typeof progressByIndex[index] === 'number' && uploading ? (
+              <View style={styles.progressOverlay}>
+                <Text style={styles.progressText}>{progressByIndex[index]}%</Text>
+              </View>
+            ) : null}
             <TouchableOpacity
               style={styles.removeButton}
               onPress={() => removeImage(index)}
@@ -117,6 +146,11 @@ const ImageUploader = ({
     <View style={[styles.container, style]}>
       <Text style={styles.label}>Photos ({images.length}/{maxImages})</Text>
       {renderImageGrid()}
+      {images.length > 0 ? (
+        <TouchableOpacity style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]} onPress={uploadAll} disabled={uploading}>
+          <Text style={styles.uploadButtonText}>{uploading ? 'Uploading...' : 'Upload to Cloud'}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };
@@ -185,6 +219,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F8F9FA",
+  },
+  uploadButton: {
+    marginTop: 12,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  uploadButtonDisabled: {
+    backgroundColor: '#C7B8F5',
+  },
+  uploadButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  progressOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 22,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

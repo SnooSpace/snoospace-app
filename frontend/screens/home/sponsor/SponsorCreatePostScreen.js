@@ -14,6 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ImageUploader from '../../../components/ImageUploader';
 import EntityTagSelector from '../../../components/EntityTagSelector';
+import { CommonActions } from '@react-navigation/native';
+import { apiPost } from '../../../api/client';
+import { getAuthToken } from '../../../api/auth';
+import { uploadMultipleImages } from '../../../api/cloudinary';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -41,35 +45,49 @@ export default function SponsorCreatePostScreen({ navigation }) {
 
     try {
       setIsPosting(true);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // In real app, this would be API call
-      console.log('Creating sponsor post:', {
-        caption,
-        images,
+
+      // Ensure every image is a Cloudinary URL
+      let finalImages = images;
+      const needsUpload = images.some(uri => !/^https:\/\//.test(uri));
+      if (needsUpload) {
+        finalImages = await uploadMultipleImages(images, () => {});
+        if (!finalImages || !Array.isArray(finalImages) || finalImages.length === 0) {
+          console.error('Image upload failed or returned empty:', finalImages);
+          Alert.alert('Error', 'Image upload failed. No images to post.');
+          setIsPosting(false);
+          return;
+        }
+      }
+
+      // Debug log before posting
+      console.log('[SponsorPost] Posting with imageUrls:', finalImages);
+
+      const token = await getAuthToken();
+      const postRes = await apiPost('/posts', {
+        caption: caption.trim() || null,
+        imageUrls: finalImages, // must be camelCase, matches backend
         taggedEntities,
-        authorType: 'sponsor'
-      });
-      
+      }, 15000, token);
+      if (!postRes.success) throw new Error('Could not create post');
       Alert.alert('Success', 'Post created successfully!', [
         {
           text: 'OK',
           onPress: () => {
-            // Reset form
             setCaption('');
             setImages([]);
             setTaggedEntities([]);
-            // Navigate back or to feed
-            navigation.goBack();
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'SponsorHome' }],
+              })
+            );
           }
         }
       ]);
-      
     } catch (error) {
       console.error('Error creating post:', error);
-      Alert.alert('Error', 'Failed to create post. Please try again.');
+      Alert.alert('Error', error?.message || 'Failed to create post. Images: ' + JSON.stringify(images));
     } finally {
       setIsPosting(false);
     }
@@ -159,7 +177,7 @@ export default function SponsorCreatePostScreen({ navigation }) {
           <View style={styles.imageSection}>
             <Text style={styles.sectionTitle}>Add Photos</Text>
             <ImageUploader
-              onImagesSelected={handleImageSelect}
+              onImagesChange={handleImageSelect}
               maxImages={5}
             />
           </View>

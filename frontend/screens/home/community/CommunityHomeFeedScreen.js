@@ -12,12 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
+import { apiGet } from '../../../api/client';
+import { getAuthToken } from '../../../api/auth';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
-export default function CommunityHomeFeedScreen({ navigation }) {
+export default function CommunityHomeFeedScreen({ navigation, route }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -26,16 +28,39 @@ export default function CommunityHomeFeedScreen({ navigation }) {
     loadFeed();
   }, []);
 
+  // Listen for refresh triggers from create post screen
+  useEffect(() => {
+    if (route?.params?.refresh) {
+      console.log('Refreshing feed due to new post');
+      loadFeed();
+    }
+  }, [route?.params?.refresh]);
+
   const loadFeed = async () => {
     try {
       setLoading(true);
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Use mock data - in real app, this would be API call
-      setPosts(mockData.posts);
+      const token = await getAuthToken();
+      console.log('Loading feed with token:', token ? 'present' : 'missing');
+      const response = await apiGet('/posts/feed', 15000, token);
+      console.log('Feed response:', response);
+      const apiPosts = Array.isArray(response.posts) ? response.posts : [];
+      // Ensure image_urls is an array (backend sends array; guard for strings)
+      const normalized = apiPosts.map(p => ({
+        ...p,
+        image_urls: Array.isArray(p.image_urls)
+          ? p.image_urls
+          : (typeof p.image_urls === 'string' ? (() => { try { return JSON.parse(p.image_urls); } catch { return []; } })() : []),
+      }));
+      setPosts(normalized);
     } catch (error) {
       console.error('Error loading feed:', error);
+      console.log('Falling back to mock data');
+      // Fallback to mock data if API fails, adapt fields to UI shape
+      const adapted = (mockData.posts || []).map(p => ({
+        ...p,
+        author_photo_url: p.author_photo_url || p.author_photo || undefined,
+      }));
+      setPosts(adapted);
     } finally {
       setLoading(false);
     }

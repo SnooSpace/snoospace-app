@@ -7,18 +7,37 @@ function withTimeout(promise, ms = 15000) {
   ]);
 }
 
+function buildError(res, data) {
+  const status = res?.status;
+  const serverMessage = data?.error || data?.message || data?.msg;
+  const statusText = res?.statusText;
+  const message = serverMessage || statusText || "Request failed";
+  const err = new Error(message);
+  if (typeof status === "number") err.status = status;
+  if (data) err.data = data;
+  return err;
+}
+
 export async function apiPost(path, body, timeoutMs, token) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  }), timeoutMs);
+  let res;
+  try {
+    res = await withTimeout(
+      fetch(`${BACKEND_BASE_URL}${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body ?? {}),
+      }),
+      timeoutMs
+    );
+  } catch (e) {
+    if (e && e.message === "Request timed out") throw e;
+    throw new Error("Network error. Please check your connection.");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = data?.error || "Request failed";
-    throw new Error(message);
+    throw buildError(res, data);
   }
   return data;
 }
@@ -26,11 +45,36 @@ export async function apiPost(path, body, timeoutMs, token) {
 export async function apiGet(path, timeoutMs, token) {
   const headers = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, { headers }), timeoutMs);
+  let res;
+  try {
+    res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, { headers }), timeoutMs);
+  } catch (e) {
+    if (e && e.message === "Request timed out") throw e;
+    throw new Error("Network error. Please check your connection.");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = data?.error || "Request failed";
-    throw new Error(message);
+    throw buildError(res, data);
+  }
+  return data;
+}
+
+export async function apiDelete(path, body, timeoutMs, token) {
+  const headers = {};
+  if (token || body) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const options = { method: "DELETE", headers };
+  if (body) options.body = JSON.stringify(body);
+  let res;
+  try {
+    res = await withTimeout(fetch(`${BACKEND_BASE_URL}${path}`, options), timeoutMs || 15000);
+  } catch (e) {
+    if (e && e.message === "Request timed out") throw e;
+    throw new Error("Network error. Please check your connection.");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw buildError(res, data);
   }
   return data;
 }
