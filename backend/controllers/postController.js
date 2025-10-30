@@ -110,7 +110,11 @@ const getFeed = async (req, res) => {
           WHEN p.author_type = 'community' THEN c.logo_url
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
-        END as author_photo_url
+        END as author_photo_url,
+        EXISTS (
+          SELECT 1 FROM post_likes l
+          WHERE l.post_id = p.id AND l.liker_id = $1 AND l.liker_type = $2
+        ) AS is_liked
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -393,7 +397,11 @@ const getUserPosts = async (req, res) => {
           WHEN p.author_type = 'community' THEN c.logo_url
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
-        END as author_photo_url
+        END as author_photo_url,
+        EXISTS (
+          SELECT 1 FROM post_likes l
+          WHERE l.post_id = p.id AND l.liker_id = $1 AND l.liker_type = $2
+        ) AS is_liked
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id

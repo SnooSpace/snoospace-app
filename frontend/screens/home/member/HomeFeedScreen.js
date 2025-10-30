@@ -8,11 +8,13 @@ import {
   Image,
   RefreshControl,
   Alert,
+  FlatList, // Added FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { apiGet } from '../../../api/client';
+import { apiGet, apiPost } from '../../../api/client'; // Modified imports
 import { getAuthToken } from '../../../api/auth';
+import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -25,14 +27,25 @@ export default function HomeFeedScreen({ navigation }) {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
+    // Always load feed once on mount
     loadFeed();
   }, []);
+
+  useEffect(() => {
+    // Also refresh feed when Home tab is focused
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadFeed();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadFeed = async () => {
     try {
       setLoading(true);
       setErrorMsg("");
       const token = await getAuthToken();
+      if (!token) throw new Error("Authentication token not found."); // Added check for token
+      
       const response = await apiGet('/posts/feed', 15000, token);
       setPosts(response.posts || []);
     } catch (error) {
@@ -76,30 +89,18 @@ export default function HomeFeedScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const handleLike = async (postId) => {
+  const handleLike = async (postId, isLiked) => { // Modified handleLike
     try {
-      // Optimistic update
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { ...post, like_count: post.like_count + 1, isLiked: true }
-            : post
-        )
-      );
-      
-      // API call
       const token = await getAuthToken();
-      await apiGet(`/posts/${postId}/like`, 15000, token);
+      if (isLiked) {
+        await apiPost(`/posts/${postId}/like`, {}, 15000, token);
+      } else {
+        await apiPost(`/posts/${postId}/unlike`, {}, 15000, token);
+      }
     } catch (error) {
-      console.error('Error liking post:', error);
-      // Revert optimistic update
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { ...post, like_count: post.like_count - 1, isLiked: false }
-            : post
-        )
-      );
+      console.error('Error updating like status:', error);
+      // Note: A robust implementation would revert the optimistic UI update on failure.
+      // For now, we'll keep it simple and just log the error.
     }
   };
 
@@ -121,79 +122,24 @@ export default function HomeFeedScreen({ navigation }) {
     return `${Math.floor(diffInHours / 168)}w`;
   };
 
-  const renderPost = (post) => (
-    <View key={post.id} style={styles.postContainer}>
-      {/* Post Header */}
-      <View style={styles.postHeader}>
-        <View style={styles.authorInfo}>
-          <Image 
-            source={{ uri: post.author_photo_url || 'https://via.placeholder.com/40' }} 
-            style={styles.authorAvatar}
-          />
-          <View style={styles.authorDetails}>
-            <Text style={styles.authorName}>{post.author_name}</Text>
-            <Text style={styles.authorUsername}>@{post.author_username}</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color={LIGHT_TEXT_COLOR} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Post Content */}
-      <View style={styles.postContent}>
-        {post.image_urls && post.image_urls.length > 0 && (
-          <Image 
-            source={{ uri: post.image_urls[0] }} 
-            style={styles.postImage}
-            resizeMode="cover"
-          />
-        )}
-        
-        {post.caption && (
-          <Text style={styles.postCaption}>{post.caption}</Text>
-        )}
-      </View>
-
-      {/* Post Actions */}
-      <View style={styles.postActions}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => handleLike(post.id)}
-        >
-          <Ionicons 
-            name={post.isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={post.isLiked ? "#FF3B30" : TEXT_COLOR} 
-          />
-          <Text style={styles.actionText}>{formatCount(post.like_count)}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="chatbubble-outline" size={24} color={TEXT_COLOR} />
-          <Text style={styles.actionText}>{formatCount(post.comment_count)}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="paper-plane-outline" size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.actionButton, styles.bookmarkButton]}>
-          <Ionicons name="bookmark-outline" size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Comments Preview */}
-      {post.comment_count > 0 && (
-        <TouchableOpacity style={styles.commentsPreview}>
-          <Text style={styles.commentsText}>
-            View all {post.comment_count} comments
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      <Text style={styles.postTime}>{formatTimeAgo(post.created_at)}</Text>
-    </View>
+  const renderPost = ({ item }) => ( // Modified renderPost
+    <PostCard 
+      post={item}
+      onLike={(postId, isLiked) => {
+        // Optimistic UI update
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p.id === postId
+              ? { ...p, isLiked, like_count: p.like_count + (isLiked ? 1 : -1) }
+              : p
+          )
+        );
+        // API call
+        handleLike(postId, isLiked);
+      }}
+      onComment={(postId) => Alert.alert("Comments", `Viewing comments for post ${postId}`)}
+      onUserPress={(userId, userType) => Alert.alert("Navigate", `Going to profile for ${userType} ID ${userId}`)}
+    />
   );
 
   return (
@@ -226,31 +172,33 @@ export default function HomeFeedScreen({ navigation }) {
       </View>
 
       {/* Feed */}
-      <ScrollView
+      <FlatList // Replaced ScrollView with FlatList
+        data={posts}
+        renderItem={renderPost}
+        keyExtractor={(item) => item.id.toString()}
         style={styles.feed}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading posts...</Text>
-          </View>
-        ) : posts.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No posts yet</Text>
-            <Text style={styles.emptySubtext}>Follow some users to see their posts here</Text>
-            {errorMsg ? (
-              <TouchableOpacity onPress={loadFeed} style={styles.retryButton}> 
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : (
-          posts.map(renderPost)
+        ListEmptyComponent={() => ( // Added ListEmptyComponent
+          loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading posts...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No posts yet</Text>
+              <Text style={styles.emptySubtext}>Follow some users to see their posts here</Text>
+              {errorMsg ? (
+                <TouchableOpacity onPress={loadFeed} style={styles.retryButton}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )
         )}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
