@@ -24,6 +24,7 @@ import { apiGet, apiPost, apiDelete } from '../../../api/client';
 import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
 import { uploadImage } from '../../../api/cloudinary';
 import PostCard from '../../../components/PostCard'; // Assuming PostCard exists for a full post view
+import CommentsModal from '../../../components/CommentsModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const PRIMARY_COLOR = '#6A0DAD';
@@ -40,6 +41,8 @@ export default function MemberProfileScreen({ navigation }) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedPostIdForComments, setSelectedPostIdForComments] = useState(null);
 
   useEffect(() => {
     // Always load profile once on mount
@@ -208,6 +211,7 @@ export default function MemberProfileScreen({ navigation }) {
     setSelectedPost(null);
   };
 
+
   // Add utility for updating posts global state (so modal & grid stay in sync)
   function updatePostsGlobalState(postId, isLiked, likes) {
     setPosts(prevPosts =>
@@ -219,11 +223,21 @@ export default function MemberProfileScreen({ navigation }) {
 
   const renderPostGrid = () => {
     const postGrid = [];
-    // Display actual posts or placeholders up to 6
+    const itemWidth = (screenWidth - 60) / 3; // Exact calculation: (screenWidth - 40 padding - 20 gaps) / 3
+    // Display actual posts
     for (let i = 0; i < Math.max(posts.length, 0); i++) {
       const post = posts[i];
+      const isLastInRow = (i + 1) % 3 === 0;
       postGrid.push(
-        <TouchableOpacity key={i} style={styles.postGridItem} onPress={() => post && openPostModal(post)}>
+        <TouchableOpacity 
+          key={i} 
+          style={[
+            styles.postGridItem, 
+            isLastInRow && styles.postGridItemLastInRow,
+            { width: itemWidth, height: itemWidth }
+          ]} 
+          onPress={() => post && openPostModal(post)}
+        >
           {post ? (
             (() => {
               const firstImageUrl = Array.isArray(post.image_urls)
@@ -246,9 +260,18 @@ export default function MemberProfileScreen({ navigation }) {
     }
     // If no posts, show placeholders
     if (posts.length === 0) {
+      const itemWidth = (screenWidth - 60) / 3;
       for (let i = 0; i < 6; i++) {
+        const isLastInRow = (i + 1) % 3 === 0;
         postGrid.push(
-          <View key={`placeholder-${i}`} style={styles.postGridItem}>
+          <View 
+            key={`placeholder-${i}`} 
+            style={[
+              styles.postGridItem, 
+              isLastInRow && styles.postGridItemLastInRow,
+              { width: itemWidth, height: itemWidth }
+            ]}
+          >
             <View style={styles.placeholderPost}>
               <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
             </View>
@@ -260,175 +283,348 @@ export default function MemberProfileScreen({ navigation }) {
   };
 
   // --- Full Post Modal Component ---
-  const PostModal = ({ visible, post, onClose }) => {
+  const PostModal = ({ visible, post, onClose, onLikeUpdate, profile: profileProp, hideWhenCommentsOpen }) => {
+    // Initialize from post data (like PostCard does)
+    const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
     const [likes, setLikes] = useState(post?.like_count || 0);
-    const [isLiked, setIsLiked] = useState(post?.isLiked || false);
-    const [comments, setComments] = useState([]);
-    const [commentsLoading, setCommentsLoading] = useState(false);
-    const [commentInput, setCommentInput] = useState('');
-    const [commentPosting, setCommentPosting] = useState(false);
-    const [error, setError] = useState(null);
+    const [isLiked, setIsLiked] = useState(initialIsLiked);
     const [commentCount, setCommentCount] = useState(post?.comment_count || 0);
+    const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [isLiking, setIsLiking] = useState(false);
+    const justUpdatedRef = React.useRef(false);
 
-    // When modal is (re)opened, always sync like state from post prop
+    // Sync state when post prop changes (exactly like PostCard)
+    // But skip syncing immediately after we manually updated to avoid overwriting our changes
     useEffect(() => {
+      if (!visible) return;
+      if (justUpdatedRef.current) {
+        // We just manually updated, skip this sync cycle
+        justUpdatedRef.current = false;
+        return;
+      }
+      const newIsLiked = post?.is_liked === true || post?.isLiked === true;
+      setIsLiked(newIsLiked);
       setLikes(post?.like_count || 0);
-      setIsLiked(!!post?.isLiked); // always sync from prop
-    }, [post?.id, visible]);
+      setCommentCount(post?.comment_count || 0);
+    }, [post?.is_liked, post?.isLiked, post?.like_count, post?.comment_count, visible]);
 
-    // Fetch comments on modal open and post change
+    // Reset delete menu when modal closes
     useEffect(() => {
-      if (!visible || !post?.id) return;
-      setCommentsLoading(true);
-      setError(null);
-      getAuthToken().then(token => {
-        return apiGet(`/posts/${post.id}/comments`, 10000, token);
-      }).then(data => {
-        setComments(Array.isArray(data?.comments) ? data.comments : []);
-        setCommentCount(data?.comments?.length ?? 0);
-      }).catch(e => setError(e.message)).finally(() => setCommentsLoading(false));
-    }, [visible, post?.id]);
+      if (!visible) {
+        setShowDeleteMenu(false);
+      }
+    }, [visible]);
 
-    // Like/unlike logic
+    // Check if current user owns the post
+    const isOwnPost = () => {
+      // Since this is the member's own profile screen, all posts should belong to them
+      // But we'll verify by checking if the post's author matches the profile
+      return post?.author_id === profileProp?.id && post?.author_type === 'member';
+    };
+
+    // Handle delete post
+    const handleDeletePost = async () => {
+      if (!post?.id) return;
+      
+      if (!isOwnPost()) {
+        Alert.alert('Error', 'You can only delete your own posts');
+        setShowDeleteMenu(false);
+        return;
+      }
+
+      Alert.alert(
+        'Delete Post',
+        'Are you sure you want to delete this post? This action cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setShowDeleteMenu(false) },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              setDeleting(true);
+              try {
+                const token = await getAuthToken();
+                await apiDelete(`/posts/${post.id}`, null, 15000, token);
+                
+                // Remove post from local state
+                setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+                
+                // Clear comments modal if it was open for this post
+                if (selectedPostIdForComments === post.id) {
+                  setCommentsModalVisible(false);
+                  setSelectedPostIdForComments(null);
+                }
+                
+                // Close modal
+                onClose();
+                Alert.alert('Success', 'Post deleted successfully');
+              } catch (error) {
+                Alert.alert('Error', error?.message || 'Failed to delete post');
+              } finally {
+                setDeleting(false);
+                setShowDeleteMenu(false);
+              }
+            }
+          }
+        ]
+      );
+    };
+
+    // Like/unlike logic - exactly like PostCard
     const handleLikeToggle = async () => {
+      if (isLiking) return;
+      
+      setIsLiking(true);
+      justUpdatedRef.current = true; // Mark that we're manually updating
       try {
         const token = await getAuthToken();
+        
         if (isLiked) {
           await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-          setLikes(likes - 1); setIsLiked(false);
-          updatePostsGlobalState(post.id, false, likes - 1);
+          setLikes(prev => {
+            const newCount = prev - 1;
+            if (onLikeUpdate) {
+              onLikeUpdate(post.id, false, newCount);
+            }
+            return newCount;
+          });
+          setIsLiked(false);
         } else {
           await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-          setLikes(likes + 1); setIsLiked(true);
-          updatePostsGlobalState(post.id, true, likes + 1);
+          setLikes(prev => {
+            const newCount = prev + 1;
+            if (onLikeUpdate) {
+              onLikeUpdate(post.id, true, newCount);
+            }
+            return newCount;
+          });
+          setIsLiked(true);
         }
-      } catch (e) {
-        Alert.alert('Error', e.message || 'Error updating like');
+      } catch (error) {
+        console.error('Error liking post:', error);
+        Alert.alert('Error', error?.message || 'Failed to like post');
+        justUpdatedRef.current = false; // Reset on error so we can sync
+      } finally {
+        setIsLiking(false);
+        // Reset the flag after a short delay to allow useEffect to run normally again
+        setTimeout(() => {
+          justUpdatedRef.current = false;
+        }, 100);
       }
     };
 
-    // Post new comment
-    const handleCommentPost = async () => {
-      if (!commentInput.trim()) return;
-      setCommentPosting(true);
-      try {
-        const token = await getAuthToken();
-        const result = await apiPost(`/posts/${post.id}/comments`, { commentText: commentInput.trim() }, 15000, token);
-        setCommentInput('');
-        if (result?.comment) {
-          setComments(prev => [...prev, result.comment]);
-          setCommentCount(c => c + 1);
-        }
-      } catch (e) {
-        Alert.alert('Error', e.message || 'Failed to post comment');
-      } finally {
-        setCommentPosting(false);
-      }
-    };
 
     if (!post) return null;
     const images = Array.isArray(post.image_urls)
       ? post.image_urls.flat().filter(u => typeof u === 'string' && u.startsWith('http'))
       : [];
+    
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    
+    // Keep track of post ID to prevent unnecessary re-renders
+    const [currentPostId, setCurrentPostId] = useState(post?.id);
+    useEffect(() => {
+      if (post?.id && post.id !== currentPostId) {
+        setCurrentPostId(post.id);
+      }
+    }, [post?.id]);
+    const formatDate = (timestamp) => {
+      const date = new Date(timestamp);
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    };
+
     return (
-      <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
-        <View style={[styles.modalOverlayFull, { backgroundColor: 'rgba(255,255,255,0.94)' }]}> {/* white background */}
-          <KeyboardAvoidingView
-            style={styles.postModalKeyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={[styles.postModalContainer, { backgroundColor: '#fff' }]}> {/* white background */}
-              <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
-                <Ionicons name="close" size={30} color="#000" />
-              </TouchableOpacity>
-              {/* Images Carousel */}
-              <FlatList
-                data={images}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(_, idx) => idx.toString()}
-                renderItem={({ item }) => (
-                  <View style={styles.postModalImageFrame}>
-                    <Image
-                      source={{ uri: item }}
-                      style={styles.postModalImage}
-                      resizeMode="contain"
-                    />
-                  </View>
-                )}
-                style={styles.modalImageCarousel}
-              />
-              {/* Post Info */}
-              <View style={styles.postModalInfoArea}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                  <Image
-                    source={{ uri: post.author_photo_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(post.author_name || 'User') }}
-                    style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }}
-                  />
-                  <View>
-                    <Text style={{ fontWeight: 'bold', color: '#222', fontSize: 16 }}>{post.author_name}</Text>
-                    <Text style={{ color: '#888', fontSize: 13 }}>@{post.author_username}</Text>
-                  </View>
-                </View>
-                {post.caption && (
-                  <Text style={{ color: '#111', marginBottom: 6, fontSize: 15 }}>{post.caption}</Text>
-                )}
-              </View>
-              {/* Like & Comment Section */}
-              <View style={styles.postModalActionsRow}>
-                <TouchableOpacity onPress={handleLikeToggle} style={styles.modalActionButton}>
-                  <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={26} color={isLiked ? '#FF3B30' : '#222'} />
-                  <Text style={{ color: '#222', marginLeft: 4 }}>{likes}</Text>
+      <Modal 
+        visible={visible && !hideWhenCommentsOpen} 
+        transparent={false} 
+        animationType="slide" 
+        onRequestClose={onClose}
+        statusBarTranslucent={true}
+      >
+        <SafeAreaView style={styles.postModalSafeArea}>
+          <View style={styles.postModalContainer}>
+            {/* Header */}
+            <View style={styles.postModalHeader}>
+              <View style={styles.postModalHeaderTop}>
+                <TouchableOpacity onPress={onClose} style={styles.postModalBackButton}>
+                  <Ionicons name="arrow-back" size={24} color="#000" />
                 </TouchableOpacity>
-                <Ionicons name="chatbubble-outline" size={24} color="#222" style={{ marginLeft: 16, marginRight: 2 }} />
-                <Text style={{ color: '#222' }}>{commentCount}</Text>
+                <Text style={styles.postModalHeaderTitle}>Posts</Text>
+                <TouchableOpacity 
+                  style={styles.postModalMoreButton}
+                  onPress={() => {
+                    if (isOwnPost()) {
+                      setShowDeleteMenu(true);
+                    }
+                  }}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                </TouchableOpacity>
               </View>
-              {/* Comments List + Input below */}
-              <View style={[styles.commentsContainer, { backgroundColor: '#f8f8f8' }]}> {/* light background for comments */}
-                {commentsLoading ? (
-                  <ActivityIndicator size="small" color="#444" />
-                ) : error ? (
-                  <Text style={{ color: 'red' }}>{error}</Text>
-                ) : comments.length === 0 ? (
-                  <Text style={{ color: '#aaa' }}>No comments yet</Text>
-                ) : (
-                  <FlatList
-                    data={comments}
-                    keyExtractor={item => item.id?.toString()}
-                    renderItem={({ item }) => (
-                      <View style={styles.commentRow}>
-                        <Image
-                          source={{ uri: item.commenter_photo_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(item.commenter_name || 'User') }}
-                          style={styles.commentAvatar}
-                        />
-                        <View>
-                          <Text style={styles.commentName}>{item.commenter_name}</Text>
-                          <Text style={styles.commentText}>{item.comment_text}</Text>
-                        </View>
-                      </View>
-                    )}
-                    style={styles.commentList}
-                  />
-                )}
-                {/* Comment input always at the bottom */}
-                <View style={styles.commentInputRow}>
-                  <TextInput
-                    value={commentInput}
-                    onChangeText={setCommentInput}
-                    placeholder="Add a comment..."
-                    placeholderTextColor="#888"
-                    style={[styles.commentInput, { color: '#000', backgroundColor: '#fff' }]}
-                    editable={!commentPosting}
-                  />
-                  <TouchableOpacity onPress={handleCommentPost} disabled={commentPosting || !commentInput.trim()} style={styles.sendCommentButton}>
-                    <Ionicons name="send" size={22} color={commentPosting || !commentInput.trim() ? '#bbb' : '#6A0DAD'} />
-                  </TouchableOpacity>
+              <View style={styles.postModalHeaderUserInfo}>
+                <Image
+                  source={{ uri: post.author_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author_name || 'User')}&background=6A0DAD&color=FFFFFF` }}
+                  style={styles.postModalHeaderAvatar}
+                />
+                <View style={styles.postModalHeaderText}>
+                  <Text style={styles.postModalHeaderUsername}>{post.author_username}</Text>
+                  <Text style={styles.postModalHeaderDate}>{formatDate(post.created_at)}</Text>
                 </View>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+
+            <ScrollView style={styles.postModalScrollView} showsVerticalScrollIndicator={false}>
+              {/* Image Carousel */}
+              <View style={styles.postModalImageWrapper}>
+                {images.length > 0 && (
+                  <>
+                    <FlatList
+                      data={images}
+                      horizontal
+                      pagingEnabled
+                      showsHorizontalScrollIndicator={false}
+                      keyExtractor={(_, idx) => idx.toString()}
+                      onMomentumScrollEnd={(e) => {
+                        const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+                        setCurrentImageIndex(index);
+                      }}
+                      renderItem={({ item }) => (
+                        <View style={styles.postModalImageFrame}>
+                          <Image
+                            source={{ uri: item }}
+                            style={styles.postModalImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+                      style={styles.modalImageCarousel}
+                    />
+                    {images.length > 1 && (
+                      <View style={styles.postModalImageIndicator}>
+                        <Text style={styles.postModalImageIndicatorText}>
+                          {currentImageIndex + 1}/{images.length}
+                        </Text>
+                      </View>
+                    )}
+                    {images.length > 1 && (
+                      <View style={styles.postModalImageDots}>
+                        {images.map((_, idx) => (
+                          <View
+                            key={idx}
+                            style={[
+                              styles.postModalDot,
+                              idx === currentImageIndex && styles.postModalDotActive
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.postModalActionsRow}>
+                <TouchableOpacity 
+                  onPress={handleLikeToggle} 
+                  style={styles.modalActionButton}
+                  disabled={isLiking}
+                >
+                  <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={28} color={isLiked ? '#FF3040' : '#000'} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (post?.id) {
+                      setSelectedPostIdForComments(post.id);
+                      setCommentsModalVisible(true);
+                    }
+                  }}
+                  style={styles.modalActionButton}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="chatbubble-outline" size={26} color="#000" />
+                    {commentCount > 0 && (
+                      <Text style={styles.postModalCommentCount}>{commentCount}</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Likes Count */}
+              {likes > 0 && (
+                <View style={styles.postModalLikesSection}>
+                  <Text style={styles.postModalLikesText}>
+                    {likes === 1 ? '1 like' : `${likes} likes`}
+                  </Text>
+                </View>
+              )}
+
+              {/* Caption */}
+              <View style={styles.postModalCaptionSection}>
+                <Text style={styles.postModalCaption}>
+                  <Text style={styles.postModalCaptionUsername}>{post.author_username}</Text>
+                  {post.caption && ` ${post.caption}`}
+                </Text>
+              </View>
+
+              {/* View Comments Button */}
+              {commentCount > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (post?.id) {
+                      setSelectedPostIdForComments(post.id);
+                      setCommentsModalVisible(true);
+                    }
+                  }}
+                  style={styles.postModalViewCommentsButton}
+                >
+                  <Text style={styles.postModalViewCommentsText}>
+                    View all {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+          
+          {/* Delete Menu Modal */}
+          <Modal
+            visible={showDeleteMenu}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowDeleteMenu(false)}
+          >
+            <TouchableOpacity
+              style={styles.deleteMenuOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDeleteMenu(false)}
+            >
+              <View style={styles.deleteMenuContainer}>
+                <TouchableOpacity
+                  style={[styles.deleteMenuOption, deleting && styles.deleteMenuOptionDisabled]}
+                  onPress={handleDeletePost}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color="#FF3B30" />
+                  ) : (
+                    <>
+                      <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                      <Text style={styles.deleteMenuOptionText}>Delete Post</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteMenuOption}
+                  onPress={() => setShowDeleteMenu(false)}
+                >
+                  <Text style={styles.deleteMenuCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </SafeAreaView>
       </Modal>
     );
   };
@@ -564,7 +760,56 @@ export default function MemberProfileScreen({ navigation }) {
         </View>
       </ScrollView>
       {/* --- Full Post Modal Viewer --- */}
-      <PostModal visible={postModalVisible} post={selectedPost} onClose={closePostModal} />
+      <PostModal 
+        visible={postModalVisible} 
+        post={selectedPost} 
+        onClose={closePostModal}
+        profile={profile}
+        hideWhenCommentsOpen={commentsModalVisible}
+        onLikeUpdate={(postId, newIsLiked, newLikeCount) => {
+          // Update posts array
+          setPosts(prevPosts =>
+            prevPosts.map(p =>
+              p.id === postId
+                ? { ...p, is_liked: newIsLiked, isLiked: newIsLiked, like_count: newLikeCount }
+                : p
+            )
+          );
+          // Also update selectedPost so the post prop stays in sync with our state updates
+          // This prevents the useEffect from overwriting our manual updates with stale data
+          if (selectedPost && selectedPost.id === postId) {
+            setSelectedPost(prev => prev ? { ...prev, is_liked: newIsLiked, isLiked: newIsLiked, like_count: newLikeCount } : prev);
+          }
+          // PostModal manages its own like state internally, so updating selectedPost won't cause issues
+        }}
+      />
+      
+      {/* Comments Modal - Render after PostModal to ensure proper z-index */}
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={selectedPostIdForComments}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedPostIdForComments(null);
+        }}
+        onCommentCountChange={(newCount) => {
+          // Update comment count in posts array
+          if (selectedPostIdForComments) {
+            setPosts(prevPosts =>
+              prevPosts.map(p =>
+                p.id === selectedPostIdForComments
+                  ? { ...p, comment_count: newCount }
+                  : p
+              )
+            );
+            // IMPORTANT: Don't update selectedPost when comments modal is open
+            // This prevents PostModal from re-rendering and obscuring CommentsModal
+            // PostModal will sync comment count from post prop when modal is opened next time
+          }
+          // IMPORTANT: Modal should remain open - don't change commentsModalVisible state
+        }}
+      />
+      
       {/* Settings Modal */}
       <Modal
         visible={showSettingsModal}
@@ -743,14 +988,19 @@ const styles = StyleSheet.create({
   postsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    width: screenWidth - 40, // Exact width accounting for padding
   },
   postGridItem: {
-    width: (screenWidth - 60) / 3,
+    width: (screenWidth - 60) / 3, // screenWidth - containerPadding(40) - gapsBetweenItems(20) = screenWidth - 60
     height: (screenWidth - 60) / 3,
+    marginRight: 10,
     marginBottom: 10,
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  postGridItemLastInRow: {
+    marginRight: 0,
   },
   postImage: {
     width: '100%',
@@ -851,70 +1101,201 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   // Full Post Modal Styles
-  modalOverlayFull: {
+  postModalSafeArea: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  postModalKeyboardContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   postModalContainer: {
-    width: screenWidth,
-    height: screenHeight * 0.9,
-    backgroundColor: '#000',
-    borderRadius: 20,
-    overflow: 'hidden',
-    alignSelf: 'center',
-    marginTop: screenHeight * 0.05,
-    marginBottom: screenHeight * 0.03,
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  postModalInfoArea: {
-    width: '100%',
-    paddingHorizontal: 27,
-    paddingTop: 8,
-    paddingBottom: 3,
-    backgroundColor: 'transparent',
+  postModalHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
   },
-  modalImageCarousel: {
+  postModalHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  postModalBackButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  postModalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+  },
+  postModalHeaderUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  postModalHeaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  postModalHeaderText: {
     flex: 1,
   },
-  postModalImageFrame: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    paddingTop: 22,
-    paddingBottom: 10,
+  postModalHeaderUsername: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+  },
+  postModalHeaderDate: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  postModalMoreButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  postModalScrollView: {
+    flex: 1,
+  },
+  postModalImageWrapper: {
     width: screenWidth,
-    minHeight: screenHeight * 0.36,
-    maxHeight: screenHeight * 0.46,
+    height: screenWidth,
+    backgroundColor: '#000',
+    position: 'relative',
+  },
+  modalImageCarousel: {
+    width: screenWidth,
+    height: screenWidth,
+  },
+  postModalImageFrame: {
+    width: screenWidth,
+    height: screenWidth,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
   },
   postModalImage: {
-    maxWidth: screenWidth * 0.85,
-    maxHeight: screenHeight * 0.38,
-    width: undefined,
-    height: undefined,
-    aspectRatio: 1,
+    width: screenWidth,
+    height: screenWidth,
   },
-  postModalInfo: {
+  postModalImageIndicator: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    zIndex: 5,
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  postModalImageIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  postModalImageDots: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  postModalDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  postModalDotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   postModalActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 30,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   modalActionButton: {
+    padding: 8,
+    marginRight: 16,
+  },
+  postModalCommentCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+    marginLeft: 6,
+  },
+  postModalLikesSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  postModalLikesText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+  },
+  postModalCaptionSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  postModalCaption: {
+    fontSize: 14,
+    color: '#000',
+    lineHeight: 20,
+  },
+  postModalCaptionUsername: {
+    fontWeight: '600',
+    color: '#000',
+  },
+  postModalViewCommentsButton: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  postModalViewCommentsText: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
+  // Delete Menu Styles
+  deleteMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  deleteMenuContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  deleteMenuOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 15,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  deleteMenuOptionDisabled: {
+    opacity: 0.5,
+  },
+  deleteMenuOptionText: {
+    fontSize: 18,
+    color: '#FF3B30',
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  deleteMenuCancelText: {
+    fontSize: 18,
+    color: '#000',
+    fontWeight: '600',
   },
   commentsContainer: {
     flexGrow: 1,

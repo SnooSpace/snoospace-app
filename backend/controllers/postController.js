@@ -313,6 +313,8 @@ const unlikePost = async (req, res) => {
 const getPost = async (req, res) => {
   try {
     const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
 
     const query = `
       SELECT 
@@ -334,7 +336,11 @@ const getPost = async (req, res) => {
           WHEN p.author_type = 'community' THEN c.logo_url
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
-        END as author_photo_url
+        END as author_photo_url,
+        CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
+          SELECT 1 FROM post_likes l
+          WHERE l.post_id = p.id AND l.liker_id = $2 AND l.liker_type = $3
+        ) ELSE false END AS is_liked
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -343,7 +349,7 @@ const getPost = async (req, res) => {
       WHERE p.id = $1
     `;
 
-    const result = await pool.query(query, [postId]);
+    const result = await pool.query(query, [postId, userId || null, userType || null]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
@@ -358,7 +364,12 @@ const getPost = async (req, res) => {
     } catch {
       post.image_urls = post.image_urls ? [post.image_urls] : [];
     }
-    post.tagged_entities = post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
+    
+    try {
+      post.tagged_entities = post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
+    } catch {
+      post.tagged_entities = null;
+    }
 
     res.json({ post });
 
@@ -445,6 +456,45 @@ const getUserPosts = async (req, res) => {
   }
 };
 
+// Delete a post
+const deletePost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Check if post exists and belongs to user
+    const postCheck = await pool.query(
+      "SELECT id FROM posts WHERE id = $1 AND author_id = $2 AND author_type = $3",
+      [postId, userId, userType]
+    );
+
+    if (postCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found or not authorized" });
+    }
+
+    // Delete post (CASCADE will handle related likes and comments)
+    const result = await pool.query(
+      "DELETE FROM posts WHERE id = $1",
+      [postId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    res.json({ success: true, message: "Post deleted successfully" });
+
+  } catch (error) {
+    console.error("Error deleting post:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -452,5 +502,6 @@ module.exports = {
   likePost,
   unlikePost,
   getPost,
-  getUserPosts
+  getUserPosts,
+  deletePost
 };

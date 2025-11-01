@@ -26,7 +26,7 @@ const COLORS = {
   border: "#E5E5E5",
 };
 
-const CreatePostScreen = ({ navigation, route }) => {
+const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [taggedEntities, setTaggedEntities] = useState([]);
@@ -75,13 +75,24 @@ const CreatePostScreen = ({ navigation, route }) => {
         taggedEntities: taggedEntitiesData,
       }, 15000, token);
 
-      // 5. Success: navigate back and refresh previous screen
+      // 5. Success: navigate to Home tab
       Alert.alert("Success", "Post created successfully!", [
         { 
           text: "OK", 
           onPress: () => {
-            // Navigate back and pass a 'refresh' param to trigger refetching
-            navigation.goBack();
+            // Use callback to switch to Home tab if provided (from BottomTabNavigator)
+            if (onPostCreated) {
+              onPostCreated();
+            } else {
+              // Fallback: try to navigate to parent
+              const parent = navigation.getParent();
+              if (parent) {
+                parent.reset({
+                  index: 0,
+                  routes: [{ name: 'MemberHome' }],
+                });
+              }
+            }
           }
         }
       ]);

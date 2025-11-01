@@ -27,6 +27,10 @@ const BottomTabNavigator = ({ navigation }) => {
   const renderScreen = () => {
     const activeTabData = tabs.find(tab => tab.name === activeTab);
     const ScreenComponent = activeTabData?.component || HomeFeedScreen;
+    // Pass setActiveTab callback to CreatePostScreen so it can switch to Home after posting
+    if (activeTabData?.name === 'Create') {
+      return <ScreenComponent navigation={navigation} onPostCreated={() => setActiveTab('Home')} />;
+    }
     return <ScreenComponent navigation={navigation} />;
   };
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -27,9 +27,18 @@ const COLORS = {
 };
 
 const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, currentUserType }) => {
-  const [isLiked, setIsLiked] = useState(false);
+  // Initialize from post data (backend sends is_liked, handle both snake_case and camelCase)
+  const initialIsLiked = post.is_liked === true || post.isLiked === true;
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
+
+  // Sync state when post prop changes (e.g., after navigation and feed reload)
+  useEffect(() => {
+    const newIsLiked = post.is_liked === true || post.isLiked === true;
+    setIsLiked(newIsLiked);
+    setLikeCount(post.like_count || 0);
+  }, [post.is_liked, post.isLiked, post.like_count]);
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -166,10 +175,6 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
         <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
           <Ionicons name="chatbubble-outline" size={24} color={COLORS.textDark} />
           <Text style={styles.actionText}>{post.comment_count || 0}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share-outline" size={24} color={COLORS.textDark} />
         </TouchableOpacity>
       </View>
 

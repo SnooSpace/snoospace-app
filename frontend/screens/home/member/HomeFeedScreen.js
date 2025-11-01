@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiGet, apiPost } from '../../../api/client'; // Modified imports
 import { getAuthToken } from '../../../api/auth';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
+import CommentsModal from '../../../components/CommentsModal'; // Comments modal
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -25,6 +26,8 @@ export default function HomeFeedScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState(null);
 
   useEffect(() => {
     // Always load feed once on mount
@@ -122,22 +125,40 @@ export default function HomeFeedScreen({ navigation }) {
     return `${Math.floor(diffInHours / 168)}w`;
   };
 
+  const handleCommentPress = (postId) => {
+    setSelectedPostId(postId);
+    setCommentsModalVisible(true);
+  };
+
+  const handleCommentCountChange = (postId) => {
+    return (prevCount) => {
+      // Update the comment count in the posts array
+      setPosts(prevPosts =>
+        prevPosts.map(p =>
+          p.id === postId
+            ? { ...p, comment_count: prevCount }
+            : p
+        )
+      );
+    };
+  };
+
   const renderPost = ({ item }) => ( // Modified renderPost
     <PostCard 
       post={item}
       onLike={(postId, isLiked) => {
-        // Optimistic UI update
+        // Optimistic UI update (preserve both snake_case and camelCase for consistency)
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === postId
-              ? { ...p, isLiked, like_count: p.like_count + (isLiked ? 1 : -1) }
+              ? { ...p, is_liked: isLiked, isLiked, like_count: p.like_count + (isLiked ? 1 : -1) }
               : p
           )
         );
         // API call
         handleLike(postId, isLiked);
       }}
-      onComment={(postId) => Alert.alert("Comments", `Viewing comments for post ${postId}`)}
+      onComment={handleCommentPress}
       onUserPress={(userId, userType) => Alert.alert("Navigate", `Going to profile for ${userType} ID ${userId}`)}
     />
   );
@@ -198,6 +219,17 @@ export default function HomeFeedScreen({ navigation }) {
             </View>
           )
         )}
+      />
+      
+      {/* Comments Modal */}
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={selectedPostId}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedPostId(null);
+        }}
+        onCommentCountChange={selectedPostId ? handleCommentCountChange(selectedPostId) : undefined}
       />
     </SafeAreaView>
   );

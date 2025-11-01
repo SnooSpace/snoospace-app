@@ -133,39 +133,124 @@ const getPostComments = async (req, res) => {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    // Get top-level comments (no parent)
-    const query = `
-      SELECT 
-        c.*,
-        CASE 
-          WHEN c.commenter_type = 'member' THEN m.name
-          WHEN c.commenter_type = 'community' THEN comm.name
-          WHEN c.commenter_type = 'sponsor' THEN s.brand_name
-          WHEN c.commenter_type = 'venue' THEN v.name
-        END as commenter_name,
-        CASE 
-          WHEN c.commenter_type = 'member' THEN m.username
-          WHEN c.commenter_type = 'community' THEN comm.username
-          WHEN c.commenter_type = 'sponsor' THEN s.username
-          WHEN c.commenter_type = 'venue' THEN v.username
-        END as commenter_username,
-        CASE 
-          WHEN c.commenter_type = 'member' THEN m.profile_photo_url
-          WHEN c.commenter_type = 'community' THEN comm.logo_url
-          WHEN c.commenter_type = 'sponsor' THEN s.logo_url
-          WHEN c.commenter_type = 'venue' THEN NULL
-        END as commenter_photo_url
-      FROM post_comments c
-      LEFT JOIN members m ON c.commenter_type = 'member' AND c.commenter_id = m.id
-      LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
-      LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
-      LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
-      WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
-      ORDER BY c.created_at ASC
-      LIMIT $2 OFFSET $3
-    `;
+    // Get current user info for is_liked check
+    const userId = req.user?.id;
+    const userType = req.user?.type;
 
-    const result = await pool.query(query, [postId, limit, offset]);
+    // Build query based on whether user is authenticated
+    let query, queryParams;
+    if (userId && userType) {
+      query = `
+        SELECT 
+          c.*,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.name
+            WHEN c.commenter_type = 'community' THEN comm.name
+            WHEN c.commenter_type = 'sponsor' THEN s.brand_name
+            WHEN c.commenter_type = 'venue' THEN v.name
+          END as commenter_name,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.username
+            WHEN c.commenter_type = 'community' THEN comm.username
+            WHEN c.commenter_type = 'sponsor' THEN s.username
+            WHEN c.commenter_type = 'venue' THEN v.username
+          END as commenter_username,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.profile_photo_url
+            WHEN c.commenter_type = 'community' THEN comm.logo_url
+            WHEN c.commenter_type = 'sponsor' THEN s.logo_url
+            WHEN c.commenter_type = 'venue' THEN NULL
+          END as commenter_photo_url,
+          COALESCE((
+            SELECT COUNT(*) FROM comment_likes WHERE comment_id = c.id
+          ), 0) as like_count,
+          EXISTS (
+            SELECT 1 FROM comment_likes l
+            WHERE l.comment_id = c.id AND l.liker_id = $4 AND l.liker_type = $5
+          ) AS is_liked
+        FROM post_comments c
+        LEFT JOIN members m ON c.commenter_type = 'member' AND c.commenter_id = m.id
+        LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
+        LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
+        LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
+        WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
+        ORDER BY c.created_at ASC
+        LIMIT $2 OFFSET $3
+      `;
+      queryParams = [postId, limit, offset, userId, userType];
+    } else {
+      query = `
+        SELECT 
+          c.*,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.name
+            WHEN c.commenter_type = 'community' THEN comm.name
+            WHEN c.commenter_type = 'sponsor' THEN s.brand_name
+            WHEN c.commenter_type = 'venue' THEN v.name
+          END as commenter_name,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.username
+            WHEN c.commenter_type = 'community' THEN comm.username
+            WHEN c.commenter_type = 'sponsor' THEN s.username
+            WHEN c.commenter_type = 'venue' THEN v.username
+          END as commenter_username,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.profile_photo_url
+            WHEN c.commenter_type = 'community' THEN comm.logo_url
+            WHEN c.commenter_type = 'sponsor' THEN s.logo_url
+            WHEN c.commenter_type = 'venue' THEN NULL
+          END as commenter_photo_url,
+          COALESCE((
+            SELECT COUNT(*) FROM comment_likes WHERE comment_id = c.id
+          ), 0) as like_count,
+          false AS is_liked
+        FROM post_comments c
+        LEFT JOIN members m ON c.commenter_type = 'member' AND c.commenter_id = m.id
+        LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
+        LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
+        LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
+        WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
+        ORDER BY c.created_at ASC
+        LIMIT $2 OFFSET $3
+      `;
+      queryParams = [postId, limit, offset];
+    }
+
+    const result = await pool.query(query, queryParams).catch(() => {
+      // Fallback if comment_likes table doesn't exist yet
+      return pool.query(`
+        SELECT 
+          c.*,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.name
+            WHEN c.commenter_type = 'community' THEN comm.name
+            WHEN c.commenter_type = 'sponsor' THEN s.brand_name
+            WHEN c.commenter_type = 'venue' THEN v.name
+          END as commenter_name,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.username
+            WHEN c.commenter_type = 'community' THEN comm.username
+            WHEN c.commenter_type = 'sponsor' THEN s.username
+            WHEN c.commenter_type = 'venue' THEN v.username
+          END as commenter_username,
+          CASE 
+            WHEN c.commenter_type = 'member' THEN m.profile_photo_url
+            WHEN c.commenter_type = 'community' THEN comm.logo_url
+            WHEN c.commenter_type = 'sponsor' THEN s.logo_url
+            WHEN c.commenter_type = 'venue' THEN NULL
+          END as commenter_photo_url,
+          0 as like_count,
+          false AS is_liked
+        FROM post_comments c
+        LEFT JOIN members m ON c.commenter_type = 'member' AND c.commenter_id = m.id
+        LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
+        LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
+        LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
+        WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
+        ORDER BY c.created_at ASC
+        LIMIT $2 OFFSET $3
+      `, [postId, limit, offset]);
+    });
     const comments = result.rows;
 
     // Get replies for each comment
@@ -259,9 +344,129 @@ const deleteComment = async (req, res) => {
   }
 };
 
+// Like a comment
+const likeComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Check if comment exists
+    const commentCheck = await pool.query("SELECT id FROM post_comments WHERE id = $1", [commentId]);
+    if (commentCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Check if already liked (assuming we have a comment_likes table)
+    // For now, we'll check if the table exists and handle gracefully
+    const existingLike = await pool.query(
+      "SELECT id FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
+      [commentId, userId, userType]
+    ).catch(() => ({ rows: [] }));
+
+    if (existingLike.rows && existingLike.rows.length > 0) {
+      return res.status(400).json({ error: "Comment already liked" });
+    }
+
+    // Add like (assuming comment_likes table exists)
+    await pool.query(
+      "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
+      [commentId, userId, userType]
+    ).catch(async (err) => {
+      // If table doesn't exist, create it first (one-time setup)
+      if (err.code === '42P01') {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS comment_likes (
+            id SERIAL PRIMARY KEY,
+            comment_id INTEGER NOT NULL REFERENCES post_comments(id) ON DELETE CASCADE,
+            liker_id INTEGER NOT NULL,
+            liker_type VARCHAR(20) NOT NULL CHECK (liker_type IN ('member', 'community', 'sponsor', 'venue')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(comment_id, liker_id, liker_type)
+          )
+        `);
+        await pool.query(
+          "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
+          [commentId, userId, userType]
+        );
+      } else {
+        throw err;
+      }
+    });
+
+    // Update like count in post_comments if column exists
+    await pool.query(
+      "UPDATE post_comments SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1",
+      [commentId]
+    ).catch(() => {
+      // Column might not exist yet, that's okay
+      console.log('like_count column may not exist on post_comments');
+    });
+
+    res.json({ success: true, message: "Comment liked" });
+
+  } catch (error) {
+    console.error("Error liking comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unlike a comment
+const unlikeComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Check if comment exists
+    const commentCheck = await pool.query("SELECT id FROM post_comments WHERE id = $1", [commentId]);
+    if (commentCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Remove like (handle case where table doesn't exist)
+    const result = await pool.query(
+      "DELETE FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
+      [commentId, userId, userType]
+    ).catch(() => {
+      // Table might not exist yet
+      return { rowCount: 0 };
+    });
+
+    if (!result || result.rowCount === 0) {
+      return res.status(400).json({ error: "Comment not liked" });
+    }
+
+    // Update like count in post_comments if column exists
+    await pool.query(
+      "UPDATE post_comments SET like_count = GREATEST(COALESCE(like_count, 0) - 1, 0) WHERE id = $1",
+      [commentId]
+    ).catch(() => {
+      // Column might not exist yet, that's okay
+      console.log('like_count column may not exist on post_comments');
+    });
+
+    res.json({ success: true, message: "Comment unliked" });
+
+  } catch (error) {
+    console.error("Error unliking comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createComment,
   replyToComment,
   getPostComments,
-  deleteComment
+  deleteComment,
+  likeComment,
+  unlikeComment
 };

@@ -72,12 +72,15 @@ router.get("/posts/:postId", PostController.getPost);
 router.get("/posts/user/:userId/:userType", PostController.getUserPosts);
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
+router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
 
 // Comments
 router.post("/posts/:postId/comments", authMiddleware, CommentController.createComment);
 router.post("/comments/:commentId/reply", authMiddleware, CommentController.replyToComment);
-router.get("/posts/:postId/comments", CommentController.getPostComments);
+router.get("/posts/:postId/comments", authMiddleware, CommentController.getPostComments);
 router.delete("/comments/:commentId", authMiddleware, CommentController.deleteComment);
+router.post("/comments/:commentId/like", authMiddleware, CommentController.likeComment);
+router.delete("/comments/:commentId/like", authMiddleware, CommentController.unlikeComment);
 
 // Follow system
 router.post("/follow", authMiddleware, FollowController.follow);
