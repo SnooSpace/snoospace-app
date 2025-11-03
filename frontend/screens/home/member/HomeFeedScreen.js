@@ -16,6 +16,7 @@ import { apiGet, apiPost } from '../../../api/client'; // Modified imports
 import { getAuthToken } from '../../../api/auth';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
 import CommentsModal from '../../../components/CommentsModal'; // Comments modal
+import EventBus from '../../../utils/EventBus';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -39,7 +40,10 @@ export default function HomeFeedScreen({ navigation }) {
     const unsubscribe = navigation.addListener('focus', () => {
       loadFeed();
     });
-    return unsubscribe;
+    const off = EventBus.on('follow-updated', () => {
+      loadFeed();
+    });
+    return () => { unsubscribe(); off(); };
   }, [navigation]);
 
   const loadFeed = async () => {

@@ -135,6 +135,113 @@ async function updatePhoto(req, res) {
   }
 }
 
-module.exports = { signup, getProfile, updatePhoto };
+async function searchMembers(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const q = (req.query.query || '').trim();
+    const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+    if (q.length < 2) {
+      return res.json({ results: [], nextOffset: offset, hasMore: false });
+    }
+
+    const likeParam = `%${q}%`;
+    const r = await pool.query(
+      `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
+              (SELECT 1 FROM follows f
+                 WHERE f.follower_id = $2 AND f.follower_type = 'member'
+                   AND f.following_id = m.id AND f.following_type = 'member'
+                 LIMIT 1) IS NOT NULL AS is_following
+       FROM members m
+       WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+         AND m.id <> $2
+       ORDER BY m.name ASC
+       LIMIT $3 OFFSET $4`,
+      [likeParam, userId, limit, offset]
+    );
+
+    const results = r.rows.map(row => ({
+      id: row.id,
+      username: row.username,
+      full_name: row.full_name,
+      bio: row.bio,
+      profile_photo_url: row.profile_photo_url,
+      is_following: !!row.is_following,
+    }));
+
+    const hasMore = results.length === limit;
+    res.json({ results, nextOffset: offset + results.length, hasMore });
+  } catch (err) {
+    console.error("/members/search error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to search members" });
+  }
+}
+
+async function getPublicMember(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const authUserId = req.user?.id;
+    const userType = req.user?.type;
+    const targetId = req.params.id;
+
+    if (!authUserId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const memberR = await pool.query(
+      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at
+       FROM members
+       WHERE id = $1`,
+      [targetId]
+    );
+    if (memberR.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+    const profile = memberR.rows[0];
+
+    const countsR = await pool.query(
+      `SELECT 
+         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'member') AS followers_count,
+         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') AS following_count,
+         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member') AS posts_count`,
+      [targetId]
+    );
+    const counts = countsR.rows[0];
+
+    const isFollowingR = await pool.query(
+      `SELECT 1 FROM follows 
+       WHERE follower_id = $1 AND follower_type = 'member'
+         AND following_id = $2 AND following_type = 'member'
+       LIMIT 1`,
+      [authUserId, targetId]
+    );
+
+    res.json({
+      id: profile.id,
+      username: profile.username,
+      full_name: profile.full_name,
+      bio: profile.bio,
+      profile_photo_url: profile.profile_photo_url,
+      created_at: profile.created_at,
+      posts_count: parseInt(counts.posts_count || 0, 10),
+      followers_count: parseInt(counts.followers_count || 0, 10),
+      following_count: parseInt(counts.following_count || 0, 10),
+      is_following: isFollowingR.rows.length > 0,
+    });
+  } catch (err) {
+    console.error("/members/:id/public error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to load public profile" });
+  }
+}
+
+module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember };
 
 

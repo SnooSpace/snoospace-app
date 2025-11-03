@@ -48,8 +48,9 @@ const LoginOtpScreen = ({ navigation, route }) => {
         20000
       );
       const accessToken = result?.data?.session?.access_token;
+      const refreshToken = result?.data?.session?.refresh_token;
       if (accessToken) {
-        await setAuthSession(accessToken, email);
+        await setAuthSession(accessToken, email, refreshToken);
       }
       await clearPendingOtp();
       

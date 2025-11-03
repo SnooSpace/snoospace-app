@@ -25,6 +25,7 @@ import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaType
 import { uploadImage } from '../../../api/cloudinary';
 import PostCard from '../../../components/PostCard'; // Assuming PostCard exists for a full post view
 import CommentsModal from '../../../components/CommentsModal';
+import EventBus from '../../../utils/EventBus';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const PRIMARY_COLOR = '#6A0DAD';
@@ -59,9 +60,19 @@ export default function MemberProfileScreen({ navigation }) {
       console.log('[Profile] Screen focused, calling loadProfile');
       loadProfile();
     });
+    const off = EventBus.on('follow-updated', (payload) => {
+      // Optimistically adjust following_count for current user when they follow/unfollow someone
+      setProfile(prev => {
+        if (!prev) return prev;
+        const delta = payload?.isFollowing ? 1 : -1;
+        const next = Math.max(0, (prev.following_count || 0) + delta);
+        return { ...prev, following_count: next };
+      });
+    });
     return () => {
       console.log('[Profile] useEffect cleanup (unsubscribing)');
       unsubscribe();
+      off();
     };
   }, [navigation]);
 
@@ -91,8 +102,12 @@ export default function MemberProfileScreen({ navigation }) {
       ]);
       console.log('[Profile] countsResponse:', countsResponse);
       console.log('[Profile] postsResponse:', postsResponse);
-      const followerCount = countsResponse?.followers || 0;
-      const followingCount = countsResponse?.following || 0;
+      const followerCount = typeof countsResponse?.followers_count === 'number'
+        ? countsResponse.followers_count
+        : parseInt(countsResponse?.followers_count || 0, 10);
+      const followingCount = typeof countsResponse?.following_count === 'number'
+        ? countsResponse.following_count
+        : parseInt(countsResponse?.following_count || 0, 10);
       const userPosts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
       const mappedProfile = {
         id: userId,

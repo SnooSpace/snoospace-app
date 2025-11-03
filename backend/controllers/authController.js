@@ -128,6 +128,23 @@ async function verifyOtp(req, res) {
   }
 }
 
+async function refresh(req, res) {
+  try {
+    const { refresh_token } = req.body || {};
+    if (!refresh_token) {
+      return res.status(400).json({ error: "refresh_token is required" });
+    }
+    const { data, error } = await supabase.auth.refreshSession({ refresh_token });
+    if (error) {
+      return res.status(401).json({ error: error.message });
+    }
+    res.json({ message: 'refreshed', data });
+  } catch (err) {
+    console.error('/auth/refresh error:', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+}
+
 function callback(req, res) {
   const { access_token, refresh_token, error } = req.query;
   if (error) {
@@ -218,6 +235,6 @@ async function getUserProfile(req, res) {
   }
 }
 
-module.exports = { sendOtp, verifyOtp, callback, me, checkEmail, getUserProfile, loginStart };
+module.exports = { sendOtp, verifyOtp, callback, me, checkEmail, getUserProfile, loginStart, refresh };
 
 

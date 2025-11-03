@@ -18,6 +18,31 @@ function buildError(res, data) {
   return err;
 }
 
+async function tryRefreshAndRetry(doRequest) {
+  try {
+    const res = await withTimeout(
+      fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: (await import('./auth')).getRefreshToken ? await (await import('./auth')).getRefreshToken() : null })
+      }),
+      15000
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error('Unauthorized');
+    const newAccess = data?.data?.session?.access_token;
+    const newRefresh = data?.data?.session?.refresh_token;
+    if (newAccess) {
+      const mod = await import('./auth');
+      if (mod.setAccessToken) await mod.setAccessToken(newAccess);
+    }
+    // Note: we keep existing refresh token unless backend rotated; storing rotation is optional here
+    return doRequest(newAccess);
+  } catch {
+    throw new Error('Unauthorized');
+  }
+}
+
 export async function apiPost(path, body, timeoutMs, token) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -35,10 +60,11 @@ export async function apiPost(path, body, timeoutMs, token) {
     if (e && e.message === "Request timed out") throw e;
     throw new Error("Network error. Please check your connection.");
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw buildError(res, data);
+  if (res.status === 401) {
+    return tryRefreshAndRetry((newToken) => apiPost(path, body, timeoutMs, newToken));
   }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw buildError(res, data);
   return data;
 }
 
@@ -52,10 +78,11 @@ export async function apiGet(path, timeoutMs, token) {
     if (e && e.message === "Request timed out") throw e;
     throw new Error("Network error. Please check your connection.");
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw buildError(res, data);
+  if (res.status === 401) {
+    return tryRefreshAndRetry((newToken) => apiGet(path, timeoutMs, newToken));
   }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw buildError(res, data);
   return data;
 }
 
@@ -72,10 +99,11 @@ export async function apiDelete(path, body, timeoutMs, token) {
     if (e && e.message === "Request timed out") throw e;
     throw new Error("Network error. Please check your connection.");
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw buildError(res, data);
+  if (res.status === 401) {
+    return tryRefreshAndRetry((newToken) => apiDelete(path, body, timeoutMs, newToken));
   }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw buildError(res, data);
   return data;
 }
 

@@ -37,6 +37,7 @@ router.get("/db/health", async (req, res) => {
 // Auth
 router.post("/auth/send-otp", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthController.sendOtp);
 router.post("/auth/verify-otp", normalizeEmail, validateBody(['email','token']), rateLimitOtp, AuthController.verifyOtp);
+router.post("/auth/refresh", AuthController.refresh);
 router.get("/auth/callback", AuthController.callback);
 router.get("/me", authMiddleware, AuthController.me);
 router.post("/auth/check-email", normalizeEmail, validateBody(['email']), AuthController.checkEmail);
@@ -47,6 +48,8 @@ router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLi
 router.post("/members/signup", MemberController.signup);
 router.get("/members/profile", authMiddleware, MemberController.getProfile);
 router.post("/members/profile/photo", authMiddleware, MemberController.updatePhoto);
+router.get("/members/search", authMiddleware, MemberController.searchMembers);
+router.get("/members/:id/public", authMiddleware, MemberController.getPublicMember);
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);
