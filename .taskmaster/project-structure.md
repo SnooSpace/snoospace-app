@@ -109,9 +109,11 @@ frontend/
 .taskmaster/
   docs/
     PRD.md                  # Product Requirements Document
+    social-posts-implementation.md # Current implementation notes for posts/likes/comments ✅
   tasks/
     README.md               # Task organization guide
     backlog.md              # Prioritized product backlog
+    backlog-posts.md        # Next steps for social posts feature (shared across roles)
     frontend.md             # Frontend development tasks
     backend.md              # Backend development tasks
     operations.md           # Auth, storage, CI/CD tasks

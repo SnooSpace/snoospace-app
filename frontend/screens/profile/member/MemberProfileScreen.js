@@ -249,64 +249,55 @@ export default function MemberProfileScreen({ navigation }) {
   }
 
   const renderPostGrid = () => {
-    const postGrid = [];
-    const itemWidth = (screenWidth - 60) / 3; // Exact calculation: (screenWidth - 40 padding - 20 gaps) / 3
-    // Display actual posts
-    for (let i = 0; i < Math.max(posts.length, 0); i++) {
-      const post = posts[i];
-      const isLastInRow = (i + 1) % 3 === 0;
-      postGrid.push(
-        <TouchableOpacity 
-          key={i} 
-          style={[
-            styles.postGridItem, 
-            isLastInRow && styles.postGridItemLastInRow,
-            { width: itemWidth, height: itemWidth }
-          ]} 
-          onPress={() => post && openPostModal(post)}
-        >
-          {post ? (
-            (() => {
-              const firstImageUrl = Array.isArray(post.image_urls)
-                ? post.image_urls.flat().find(u => typeof u === 'string' && u.startsWith('http'))
-                : undefined;
-              return (
-                <Image
-                  source={{ uri: firstImageUrl || 'https://via.placeholder.com/150' }}
-                  style={styles.postImage}
-                />
-              );
-            })()
-          ) : (
-            <View style={styles.placeholderPost}>
-              <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
-            </View>
-          )}
-        </TouchableOpacity>
-      );
-    }
-    // If no posts, show placeholders
-    if (posts.length === 0) {
-      const itemWidth = (screenWidth - 60) / 3;
-      for (let i = 0; i < 6; i++) {
-        const isLastInRow = (i + 1) % 3 === 0;
-        postGrid.push(
-          <View 
-            key={`placeholder-${i}`} 
-            style={[
-              styles.postGridItem, 
-              isLastInRow && styles.postGridItemLastInRow,
-              { width: itemWidth, height: itemWidth }
-            ]}
-          >
-            <View style={styles.placeholderPost}>
-              <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
-            </View>
-          </View>
-        );
-      }
-    }
-    return postGrid;
+    const gap = 10;
+    const itemSize = (screenWidth - 40 - (gap * 2)) / 3; // (screenWidth - padding(40) - gaps(20)) / 3
+    const data = posts.length > 0 ? posts : new Array(6).fill(null);
+
+    return (
+      <FlatList
+        data={data}
+        keyExtractor={(_, index) => (data[index]?.id ? String(data[index].id) : `ph-${index}`)}
+        numColumns={3}
+        columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: gap }}
+        renderItem={({ item, index }) => {
+          const isLastInRow = (index + 1) % 3 === 0;
+          return (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                styles.postGridItem, 
+                { 
+                  width: itemSize, 
+                  height: itemSize, 
+                  marginRight: isLastInRow ? 0 : gap 
+                }
+              ]}
+              onPress={() => item && openPostModal(item)}
+              disabled={!item}
+            >
+              {item ? (
+                (() => {
+                  const firstImageUrl = Array.isArray(item.image_urls)
+                    ? item.image_urls.flat().find(u => typeof u === 'string' && u.startsWith('http'))
+                    : undefined;
+                  return (
+                    <Image
+                      source={{ uri: firstImageUrl || 'https://via.placeholder.com/150' }}
+                      style={styles.postImage}
+                    />
+                  );
+                })()
+              ) : (
+                <View style={styles.placeholderPost}>
+                  <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        }}
+        scrollEnabled={false}
+      />
+    );
   };
 
   // --- Full Post Modal Component ---
@@ -1012,18 +1003,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
-    width: screenWidth - 40, // Exact width accounting for padding
+    width: screenWidth - 40,
   },
   postGridItem: {
-    width: (screenWidth - 60) / 3, // screenWidth - containerPadding(40) - gapsBetweenItems(20) = screenWidth - 60
-    height: (screenWidth - 60) / 3,
-    marginRight: 10,
-    marginBottom: 10,
     borderRadius: 8,
     overflow: 'hidden',
-  },
-  postGridItemLastInRow: {
-    marginRight: 0,
   },
   postImage: {
     width: '100%',
