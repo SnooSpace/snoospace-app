@@ -28,7 +28,7 @@ const COLORS = {
   error: '#FF4444',
 };
 
-const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
+const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedded = false }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [commentInput, setCommentInput] = useState('');
@@ -81,7 +81,16 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
       setLoading(true);
       const token = await getAuthToken();
       const data = await apiGet(`/posts/${postId}/comments`, 10000, token);
-      setComments(Array.isArray(data?.comments) ? data.comments : []);
+      // Normalize like_count to numbers to fix "01" display glitch
+      const normalizedComments = Array.isArray(data?.comments) 
+        ? data.comments.map(comment => ({
+            ...comment,
+            like_count: typeof comment.like_count === 'string' 
+              ? parseInt(comment.like_count, 10) || 0 
+              : Number(comment.like_count) || 0
+          }))
+        : [];
+      setComments(normalizedComments);
     } catch (error) {
       console.error('Error loading comments:', error);
       Alert.alert('Error', 'Failed to load comments');
@@ -161,7 +170,11 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
 
   const handleCommentLike = async (commentId, isLiked, currentLikeCount) => {
     const newIsLiked = !isLiked;
-    const newLikeCount = isLiked ? Math.max(0, currentLikeCount - 1) : (currentLikeCount + 1);
+    // Ensure currentLikeCount is a number before calculating (fixes "01" glitch)
+    const numLikeCount = typeof currentLikeCount === 'string' 
+      ? parseInt(currentLikeCount, 10) || 0 
+      : Number(currentLikeCount) || 0;
+    const newLikeCount = isLiked ? Math.max(0, numLikeCount - 1) : (numLikeCount + 1);
     
     // Optimistic update
     setComments(prevComments =>
@@ -183,10 +196,14 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
     } catch (error) {
       console.error('Error toggling comment like:', error);
       // Revert optimistic update on error
+      // Ensure currentLikeCount is normalized to number (fixes "01" glitch)
+      const normalizedCurrentCount = typeof currentLikeCount === 'string' 
+        ? parseInt(currentLikeCount, 10) || 0 
+        : Number(currentLikeCount) || 0;
       setComments(prevComments =>
         prevComments.map(comment =>
           comment.id === commentId
-            ? { ...comment, is_liked: isLiked, isLiked, like_count: currentLikeCount }
+            ? { ...comment, is_liked: isLiked, isLiked, like_count: normalizedCurrentCount }
             : comment
         )
       );
@@ -197,7 +214,10 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
   const renderComment = ({ item }) => {
     const hasReplies = item.replies && item.replies.length > 0;
     const isLiked = item.is_liked === true || item.isLiked === true;
-    const likeCount = item.like_count || 0;
+    // Ensure likeCount is a number, not a string (fixes "01" glitch)
+    const likeCount = typeof item.like_count === 'string' 
+      ? parseInt(item.like_count, 10) || 0 
+      : Number(item.like_count) || 0;
     
     return (
       <View style={styles.commentItem}>
@@ -239,18 +259,11 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
     );
   };
 
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-      presentationStyle="overFullScreen"
-    >
+  const content = (
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={embedded ? styles.embeddedContainer : styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <View style={styles.modalContent}>
           {/* Header */}
@@ -319,6 +332,28 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
+  );
+
+  if (!visible) return null;
+
+  if (embedded) {
+    return (
+      <View style={styles.embeddedOverlay}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+      presentationStyle="overFullScreen"
+    >
+      {content}
     </Modal>
   );
 };
@@ -327,13 +362,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  embeddedContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  embeddedOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    flex: 1,
+    height: '85%', // Use fixed percentage height instead of flex: 1
     backgroundColor: COLORS.dark,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: 50,
   },
   header: {
     flexDirection: 'row',
@@ -362,6 +410,7 @@ const styles = StyleSheet.create({
   },
   commentsListContent: {
     paddingVertical: 10,
+    paddingBottom: 20, // Extra padding at bottom so last comment isn't hidden behind input
   },
   commentItem: {
     flexDirection: 'row',
@@ -437,10 +486,13 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     backgroundColor: COLORS.darkGray,
+    // Ensure modal sits flush at the bottom
+    marginBottom: 0,
   },
   inputRow: {
     flexDirection: 'row',

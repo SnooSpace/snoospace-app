@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -41,8 +41,10 @@ export default function MemberProfileScreen({ navigation }) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
-  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
-  const [selectedPostIdForComments, setSelectedPostIdForComments] = useState(null);
+  // Combine comments modal state into one object to reduce state updates
+  const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
+  // Buffer for avoiding parent re-renders during like/unlike inside PostModal
+  const pendingPostUpdateRef = React.useRef(null);
 
   useEffect(() => {
     // Always load profile once on mount
@@ -207,9 +209,34 @@ export default function MemberProfileScreen({ navigation }) {
     setPostModalVisible(true);
   };
   const closePostModal = () => {
+    // Apply any buffered like updates once when the modal closes
+    const pending = pendingPostUpdateRef.current;
+    if (pending && pending.postId != null) {
+      setPosts(prevPosts =>
+        prevPosts.map(p =>
+          p.id === pending.postId
+            ? { ...p, is_liked: pending.is_liked, isLiked: pending.is_liked, like_count: pending.like_count }
+            : p
+        )
+      );
+      pendingPostUpdateRef.current = null;
+    }
     setPostModalVisible(false);
     setSelectedPost(null);
   };
+
+  // Memoized callback to open comments modal - uses single state update to prevent unnecessary re-renders
+  const openCommentsModal = useCallback((postId) => {
+    if (postId) {
+      // Single state update instead of two separate updates
+      setCommentsModalState({ visible: true, postId });
+    }
+  }, []);
+
+  // Memoized callback to close comments modal
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null });
+  }, []);
 
 
   // Add utility for updating posts global state (so modal & grid stay in sync)
@@ -283,7 +310,7 @@ export default function MemberProfileScreen({ navigation }) {
   };
 
   // --- Full Post Modal Component ---
-  const PostModal = ({ visible, post, onClose, onLikeUpdate, profile: profileProp, hideWhenCommentsOpen }) => {
+  const PostModal = ({ visible, post, onClose, onLikeUpdate, profile: profileProp, onOpenComments, onCloseComments }) => {
     // Initialize from post data (like PostCard does)
     const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
     const [likes, setLikes] = useState(post?.like_count || 0);
@@ -292,6 +319,7 @@ export default function MemberProfileScreen({ navigation }) {
     const [showDeleteMenu, setShowDeleteMenu] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [isLiking, setIsLiking] = useState(false);
+    const [localCommentsVisible, setLocalCommentsVisible] = useState(false);
     const justUpdatedRef = React.useRef(false);
 
     // Sync state when post prop changes (exactly like PostCard)
@@ -351,9 +379,8 @@ export default function MemberProfileScreen({ navigation }) {
                 setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
                 
                 // Clear comments modal if it was open for this post
-                if (selectedPostIdForComments === post.id) {
-                  setCommentsModalVisible(false);
-                  setSelectedPostIdForComments(null);
+                if (onCloseComments) {
+                  onCloseComments();
                 }
                 
                 // Close modal
@@ -437,7 +464,7 @@ export default function MemberProfileScreen({ navigation }) {
 
     return (
       <Modal 
-        visible={visible && !hideWhenCommentsOpen} 
+        visible={visible} 
         transparent={false} 
         animationType="slide" 
         onRequestClose={onClose}
@@ -536,10 +563,7 @@ export default function MemberProfileScreen({ navigation }) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
-                    if (post?.id) {
-                      setSelectedPostIdForComments(post.id);
-                      setCommentsModalVisible(true);
-                    }
+                    setLocalCommentsVisible(true);
                   }}
                   style={styles.modalActionButton}
                 >
@@ -573,10 +597,7 @@ export default function MemberProfileScreen({ navigation }) {
               {commentCount > 0 && (
                 <TouchableOpacity
                   onPress={() => {
-                    if (post?.id) {
-                      setSelectedPostIdForComments(post.id);
-                      setCommentsModalVisible(true);
-                    }
+                    setLocalCommentsVisible(true);
                   }}
                   style={styles.postModalViewCommentsButton}
                 >
@@ -625,6 +646,14 @@ export default function MemberProfileScreen({ navigation }) {
             </TouchableOpacity>
           </Modal>
         </SafeAreaView>
+        {/* Embedded Comments Modal overlay positioned relative to Modal root */}
+        <CommentsModal
+          visible={localCommentsVisible}
+          postId={post?.id}
+          onClose={() => setLocalCommentsVisible(false)}
+          onCommentCountChange={(newCount) => setCommentCount(newCount)}
+          embedded
+        />
       </Modal>
     );
   };
@@ -765,48 +794,42 @@ export default function MemberProfileScreen({ navigation }) {
         post={selectedPost} 
         onClose={closePostModal}
         profile={profile}
-        hideWhenCommentsOpen={commentsModalVisible}
+        onOpenComments={openCommentsModal}
+        onCloseComments={closeCommentsModal}
         onLikeUpdate={(postId, newIsLiked, newLikeCount) => {
-          // Update posts array
-          setPosts(prevPosts =>
-            prevPosts.map(p =>
-              p.id === postId
-                ? { ...p, is_liked: newIsLiked, isLiked: newIsLiked, like_count: newLikeCount }
-                : p
-            )
-          );
-          // Also update selectedPost so the post prop stays in sync with our state updates
-          // This prevents the useEffect from overwriting our manual updates with stale data
-          if (selectedPost && selectedPost.id === postId) {
-            setSelectedPost(prev => prev ? { ...prev, is_liked: newIsLiked, isLiked: newIsLiked, like_count: newLikeCount } : prev);
-          }
-          // PostModal manages its own like state internally, so updating selectedPost won't cause issues
+          // Buffer the update; apply once on modal close to avoid parent re-renders
+          pendingPostUpdateRef.current = {
+            postId,
+            is_liked: newIsLiked,
+            like_count: newLikeCount,
+          };
+          // Do NOT set state here. PostModal manages its own UI state.
         }}
       />
       
       {/* Comments Modal - Render after PostModal to ensure proper z-index */}
       <CommentsModal
-        visible={commentsModalVisible}
-        postId={selectedPostIdForComments}
+        visible={commentsModalState.visible && !postModalVisible}
+        postId={commentsModalState.postId}
         onClose={() => {
-          setCommentsModalVisible(false);
-          setSelectedPostIdForComments(null);
+          setCommentsModalState({ visible: false, postId: null });
         }}
         onCommentCountChange={(newCount) => {
           // Update comment count in posts array
-          if (selectedPostIdForComments) {
+          if (commentsModalState.postId) {
             setPosts(prevPosts =>
               prevPosts.map(p =>
-                p.id === selectedPostIdForComments
+                p.id === commentsModalState.postId
                   ? { ...p, comment_count: newCount }
                   : p
               )
             );
-            // IMPORTANT: Don't update selectedPost when comments modal is open
-            // This prevents PostModal from re-rendering and obscuring CommentsModal
-            // PostModal will sync comment count from post prop when modal is opened next time
+            // Update selectedPost so PostModal's comment count updates immediately
+            if (selectedPost && selectedPost.id === commentsModalState.postId) {
+              setSelectedPost(prev => prev ? { ...prev, comment_count: newCount } : prev);
+            }
           }
-          // IMPORTANT: Modal should remain open - don't change commentsModalVisible state
+          // IMPORTANT: Modal should remain open - don't change commentsModalState
         }}
       />
       
