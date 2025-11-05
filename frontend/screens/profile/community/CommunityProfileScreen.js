@@ -9,12 +9,14 @@ import {
   Alert,
   Modal,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
 import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { deleteAccount as apiDeleteAccount } from '../../../api/account';
 import { apiGet, apiPost } from '../../../api/client';
 import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
 import { uploadImage } from '../../../api/cloudinary';
@@ -30,6 +32,9 @@ export default function CommunityProfileScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -218,6 +223,11 @@ export default function CommunityProfileScreen({ navigation }) {
             <Text style={styles.settingsText}>Change Logo</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
+            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
@@ -320,6 +330,55 @@ export default function CommunityProfileScreen({ navigation }) {
       </ScrollView>
 
       {renderSettingsModal()}
+
+      {/* Delete Account Confirm Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <TouchableOpacity onPress={() => setShowDeleteModal(false)} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>This is permanent and cannot be undone. Type "delete" to confirm.</Text>
+              <TextInput
+                value={deleteInput}
+                onChangeText={setDeleteInput}
+                placeholder="Type delete"
+                autoCapitalize="none"
+                style={{ borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16 }}
+              />
+              <TouchableOpacity
+                disabled={deleting || (deleteInput.trim().toLowerCase() !== 'delete')}
+                onPress={async () => {
+                  if (deleteInput.trim().toLowerCase() !== 'delete') return;
+                  setDeleting(true);
+                  try {
+                    await apiDeleteAccount();
+                    await clearAuthSession();
+                    setShowDeleteModal(false);
+                    navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                  } catch (e) {
+                    Alert.alert('Delete failed', e?.message || 'Could not delete account');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                style={{ backgroundColor: (deleteInput.trim().toLowerCase() === 'delete' ? '#FF3B30' : '#FFAAA3'), paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>{deleting ? 'Deleting...' : 'Delete Account'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

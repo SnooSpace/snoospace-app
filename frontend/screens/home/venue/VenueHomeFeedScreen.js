@@ -15,6 +15,7 @@ import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
 import { apiGet } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
+import { useNotifications } from '../../../context/NotificationsContext';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -26,6 +27,7 @@ export default function VenueHomeFeedScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const { unread } = useNotifications();
 
   useEffect(() => {
     loadFeed();
@@ -156,7 +158,15 @@ export default function VenueHomeFeedScreen({ navigation }) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Venue Dashboard</Text>
+      <View style={styles.headerTop}>
+        <Text style={styles.headerTitle}>Venue Dashboard</Text>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+          <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+          {unread > 0 && (
+            <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text></View>
+          )}
+        </TouchableOpacity>
+      </View>
       <Text style={styles.headerSubtitle}>
         Manage your bookings and stay connected with the community
       </Text>
@@ -278,12 +288,16 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 10,
   },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: TEXT_COLOR,
     marginBottom: 5,
   },
+  headerButton: { padding: 4 },
+  badge: { position: 'absolute', right: -2, top: -4, backgroundColor: '#D93025', borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   headerSubtitle: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,

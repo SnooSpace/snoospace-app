@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiDelete } from './client';
+import { apiGet, apiPost, apiDelete, apiPatch } from './client';
 import { getAuthToken } from './auth';
 
 export async function getPublicMemberProfile(memberId) {
@@ -24,6 +24,32 @@ export async function followMember(memberId) {
 export async function unfollowMember(memberId) {
   const token = await getAuthToken();
   return apiDelete('/follow', { followingId: memberId, followingType: 'member' }, 15000, token);
+}
+
+export async function updateMemberProfile(updates, token) {
+  if (!token) token = await getAuthToken();
+  return apiPatch('/members/profile', updates, 15000, token);
+}
+
+export async function changeUsername(username, token) {
+  if (!token) token = await getAuthToken();
+  return apiPost('/members/username', { username }, 15000, token);
+}
+
+export async function startEmailChange(newEmail) {
+  const token = await getAuthToken();
+  return apiPost('/members/email/change/start', { email: newEmail }, 15000, token);
+}
+
+export async function verifyEmailChange(newEmail, otp) {
+  const token = await getAuthToken();
+  return apiPost('/members/email/change/verify', { email: newEmail, otp }, 15000, token);
+}
+
+export async function fetchInterests() {
+  const token = await getAuthToken();
+  const result = await apiGet('/catalog/interests', 15000, token);
+  return result?.interests || [];
 }
 
 

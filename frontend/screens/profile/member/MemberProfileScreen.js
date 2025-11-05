@@ -113,11 +113,20 @@ export default function MemberProfileScreen({ navigation }) {
         id: userId,
         name: fullProfile.name || '',
         username: fullProfile.username || '',
+        email: fullProfile.email || '',
+        phone: fullProfile.phone || '',
         bio: fullProfile.bio || '',
         profile_photo_url: fullProfile.profile_photo_url || '',
         interests: Array.isArray(fullProfile.interests) 
           ? fullProfile.interests 
           : (fullProfile.interests ? JSON.parse(fullProfile.interests) : []),
+        pronouns: Array.isArray(fullProfile.pronouns) 
+          ? fullProfile.pronouns 
+          : (fullProfile.pronouns ? [fullProfile.pronouns] : null),
+        location: typeof fullProfile.location === 'string' 
+          ? JSON.parse(fullProfile.location) 
+          : (fullProfile.location || null),
+        city: fullProfile.city || '',
         follower_count: followerCount,
         following_count: followingCount,
       };
@@ -137,7 +146,7 @@ export default function MemberProfileScreen({ navigation }) {
   };
 
   const handleEditProfile = () => {
-    Alert.alert('Edit Profile', 'This feature will be implemented soon!');
+    navigation.navigate('EditProfile', { profile });
   };
 
   const handleChangePhoto = async () => {

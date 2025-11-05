@@ -243,7 +243,10 @@ async function ensureTables(pool) {
         ALTER TABLE members ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
-        ALTER TABLE members ADD COLUMN IF NOT EXISTS pronouns TEXT;
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS pronouns TEXT[];
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS location JSONB;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
       -- Add constraints
@@ -431,6 +434,23 @@ async function ensureTables(pool) {
           );
         END IF;
       EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+      -- Notifications table and indexes
+      CREATE TABLE IF NOT EXISTS notifications (
+        id BIGSERIAL PRIMARY KEY,
+        recipient_id BIGINT NOT NULL,
+        recipient_type VARCHAR(16) NOT NULL,
+        actor_id BIGINT NOT NULL,
+        actor_type VARCHAR(16) NOT NULL,
+        type VARCHAR(32) NOT NULL,
+        payload JSONB,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_notifications_recipient_read
+        ON notifications (recipient_id, recipient_type, is_read);
+      CREATE INDEX IF NOT EXISTS idx_notifications_created_at
+        ON notifications (created_at DESC);
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

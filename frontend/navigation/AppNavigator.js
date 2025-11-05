@@ -16,6 +16,8 @@ import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
+import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
+import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 
 const Stack = createStackNavigator();
 
@@ -36,6 +38,8 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="VenueHome" component={VenueBottomTabNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="CommunityCreatePost" component={CommunityCreatePostScreen} options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
     </Stack.Navigator>
   );
 }

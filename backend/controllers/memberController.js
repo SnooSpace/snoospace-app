@@ -55,7 +55,7 @@ async function getProfile(req, res) {
 
     // Get member profile
     const memberResult = await pool.query(
-      `SELECT id, name, email, phone, dob, gender, city, interests, username, bio, profile_photo_url, created_at
+      `SELECT id, name, email, phone, dob, gender, city, interests, username, bio, profile_photo_url, pronouns, location, created_at
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -91,13 +91,17 @@ async function getProfile(req, res) {
       image_urls: JSON.parse(post.image_urls)
     }));
 
+    const profileData = {
+      ...member,
+      interests: JSON.parse(member.interests),
+      follower_count: parseInt(followCounts.follower_count),
+      following_count: parseInt(followCounts.following_count),
+      pronouns: Array.isArray(member.pronouns) ? member.pronouns : (member.pronouns ? [member.pronouns] : null),
+      location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
+    };
+
     res.json({
-      profile: {
-        ...member,
-        interests: JSON.parse(member.interests),
-        follower_count: parseInt(followCounts.follower_count),
-        following_count: parseInt(followCounts.following_count)
-      },
+      profile: profileData,
       posts
     });
 
@@ -242,6 +246,249 @@ async function getPublicMember(req, res) {
   }
 }
 
-module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember };
+async function patchProfile(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { bio, phone, pronouns, interests, location } = req.body || {};
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (bio !== undefined) {
+      const bioTrimmed = typeof bio === 'string' ? bio.trim() : null;
+      if (bioTrimmed && bioTrimmed.length > 150) {
+        return res.status(400).json({ error: "Bio must be 150 characters or less" });
+      }
+      updates.push(`bio = $${paramIndex++}`);
+      values.push(bioTrimmed || null);
+    }
+
+    if (phone !== undefined) {
+      const phoneTrimmed = typeof phone === 'string' ? phone.trim() : '';
+      if (phoneTrimmed && !/^\d{10}$/.test(phoneTrimmed)) {
+        return res.status(400).json({ error: "Phone must be 10 digits" });
+      }
+      updates.push(`phone = $${paramIndex++}`);
+      values.push(phoneTrimmed || null);
+    }
+
+    if (pronouns !== undefined) {
+      if (pronouns === null) {
+        updates.push(`pronouns = NULL`);
+      } else if (Array.isArray(pronouns)) {
+        if (pronouns.length > 10) {
+          return res.status(400).json({ error: "Maximum 10 pronouns allowed" });
+        }
+        const sanitized = pronouns.filter(p => typeof p === 'string' && p.trim().length > 0 && p.trim().length <= 50);
+        updates.push(`pronouns = $${paramIndex++}::text[]`);
+        values.push(sanitized);
+      } else if (typeof pronouns === 'string') {
+        updates.push(`pronouns = $${paramIndex++}::text[]`);
+        values.push([pronouns]);
+      }
+    }
+
+    if (interests !== undefined) {
+      if (!Array.isArray(interests)) {
+        return res.status(400).json({ error: "Interests must be an array" });
+      }
+      if (interests.length > 20) {
+        return res.status(400).json({ error: "Maximum 20 interests allowed" });
+      }
+      const sanitized = interests.filter(i => typeof i === 'string' && i.trim().length > 0 && i.trim().length <= 100);
+      updates.push(`interests = $${paramIndex++}::jsonb`);
+      values.push(JSON.stringify(sanitized));
+    }
+
+    if (location !== undefined) {
+      if (location && typeof location === 'object') {
+        const locCity = location.city ? String(location.city).trim().substring(0, 100) : null;
+        const locState = location.state ? String(location.state).trim().substring(0, 100) : null;
+        const locCountry = location.country ? String(location.country).trim().substring(0, 100) : null;
+        const lat = location.lat != null ? parseFloat(location.lat) : null;
+        const lng = location.lng != null ? parseFloat(location.lng) : null;
+        
+        updates.push(`city = $${paramIndex++}`);
+        values.push(locCity || null);
+        
+        if (locState || locCountry || lat != null || lng != null) {
+          const locationJson = JSON.stringify({ city: locCity, state: locState, country: locCountry, lat, lng });
+          updates.push(`location = $${paramIndex++}::jsonb`);
+          values.push(locationJson);
+        }
+      } else if (location === null) {
+        updates.push(`city = NULL`);
+        updates.push(`location = NULL`);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    values.push(userId);
+    const query = `UPDATE members SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, pronouns, interests, city, location`;
+    
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    const member = result.rows[0];
+    res.json({
+      success: true,
+      profile: {
+        bio: member.bio,
+        phone: member.phone,
+        pronouns: Array.isArray(member.pronouns) ? member.pronouns : (member.pronouns ? [member.pronouns] : null),
+        interests: typeof member.interests === 'string' ? JSON.parse(member.interests) : member.interests,
+        city: member.city,
+        location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
+      },
+    });
+  } catch (err) {
+    console.error("/members/profile PATCH error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+}
+
+async function changeUsernameEndpoint(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { username } = req.body || {};
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const sanitized = username.toLowerCase().trim();
+    if (!/^[a-z0-9_]{3,30}$/.test(sanitized)) {
+      return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, and underscores only" });
+    }
+
+    const existing = await pool.query(
+      `SELECT id FROM members WHERE username = $1 AND id <> $2 LIMIT 1`,
+      [sanitized, userId]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: "Username is already taken" });
+    }
+
+    await pool.query(
+      `UPDATE members SET username = $1 WHERE id = $2`,
+      [sanitized, userId]
+    );
+
+    res.json({ success: true, username: sanitized });
+  } catch (err) {
+    console.error("/members/username POST error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to update username" });
+  }
+}
+
+async function startEmailChange(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    const existing = await pool.query(
+      `SELECT id FROM members WHERE email = $1 AND id <> $2 LIMIT 1`,
+      [emailTrimmed, userId]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: "Email is already in use" });
+    }
+
+    const supabase = require("../supabase");
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: emailTrimmed,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: undefined
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ success: true, message: "OTP sent to email" });
+  } catch (err) {
+    console.error("/members/email/change/start error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to send OTP" });
+  }
+}
+
+async function verifyEmailChange(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { email, otp } = req.body || {};
+    if (!email || !otp) {
+      return res.status(400).json({ error: "Email and OTP are required" });
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+    const supabase = require("../supabase");
+    
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: emailTrimmed,
+      token: otp,
+      type: "email",
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message || "Invalid OTP" });
+    }
+
+    await pool.query(
+      `UPDATE members SET email = $1 WHERE id = $2`,
+      [emailTrimmed, userId]
+    );
+
+    res.json({ success: true, email: emailTrimmed });
+  } catch (err) {
+    console.error("/members/email/change/verify error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to verify email" });
+  }
+}
+
+module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember, patchProfile, changeUsernameEndpoint, startEmailChange, verifyEmailChange };
 
 

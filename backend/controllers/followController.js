@@ -44,6 +44,30 @@ const follow = async (req, res) => {
       [followerId, followerType, followingId, followingType]
     );
 
+    // Create follow notification for the recipient (the one being followed)
+    try {
+      // Try to fetch minimal actor profile for payload (best-effort)
+      let actorName = null;
+      let actorUsername = null;
+      let actorAvatar = null;
+      if (followerType === 'member') {
+        const r = await pool.query('SELECT name, username, profile_photo_url FROM members WHERE id = $1', [followerId]);
+        if (r.rows[0]) {
+          actorName = r.rows[0].name || null;
+          actorUsername = r.rows[0].username || null;
+          actorAvatar = r.rows[0].profile_photo_url || null;
+        }
+      }
+      await pool.query(
+        `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [followingId, followingType, followerId, followerType, 'follow', JSON.stringify({ actorName, actorUsername, actorAvatar })]
+      );
+    } catch (e) {
+      // Non-fatal: do not block follow if notification fails
+      console.error('Failed to create follow notification', e);
+    }
+
     res.json({ success: true, message: "Successfully followed" });
 
   } catch (error) {

@@ -187,5 +187,3 @@ const styles = StyleSheet.create({
   followingCta: { backgroundColor: '#FFFFFF', borderColor: '#E5E5EA' },
   followingCtaText: { color: '#1D1D1F', fontWeight: '700' },
 });
-
-

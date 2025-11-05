@@ -11,7 +11,10 @@ const UsernameController = require("../controllers/usernameController");
 const PostController = require("../controllers/postController");
 const CommentController = require("../controllers/commentController");
 const FollowController = require("../controllers/followController");
+const NotificationController = require("../controllers/notificationController");
+const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
+const CatalogController = require("../controllers/catalogController");
 
 const router = express.Router();
 
@@ -47,7 +50,11 @@ router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLi
 // Members
 router.post("/members/signup", MemberController.signup);
 router.get("/members/profile", authMiddleware, MemberController.getProfile);
+router.patch("/members/profile", authMiddleware, MemberController.patchProfile);
 router.post("/members/profile/photo", authMiddleware, MemberController.updatePhoto);
+router.post("/members/username", authMiddleware, MemberController.changeUsernameEndpoint);
+router.post("/members/email/change/start", authMiddleware, rateLimitOtp, normalizeEmail, validateBody(['email']), MemberController.startEmailChange);
+router.post("/members/email/change/verify", authMiddleware, rateLimitOtp, normalizeEmail, validateBody(['email', 'otp']), MemberController.verifyEmailChange);
 router.get("/members/search", authMiddleware, MemberController.searchMembers);
 router.get("/members/:id/public", authMiddleware, MemberController.getPublicMember);
 
@@ -93,12 +100,24 @@ router.get("/following/:userId/:userType", FollowController.getFollowing);
 router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
 router.get("/follow/counts/:userId/:userType", FollowController.getFollowCounts);
 
+// Notifications
+router.get("/notifications", authMiddleware, NotificationController.listNotifications);
+router.get("/notifications/unread-count", authMiddleware, NotificationController.unreadCount);
+router.patch("/notifications/:id/read", authMiddleware, NotificationController.markRead);
+router.patch("/notifications/read-all", authMiddleware, NotificationController.markAllRead);
+
+// Account
+router.delete("/account", authMiddleware, AccountController.deleteAccount);
+
 // Events and matching
 router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
 router.get("/events/:eventId/attendees", authMiddleware, EventController.getEventAttendees);
 router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwipe);
 router.get("/events/:eventId/matches", authMiddleware, EventController.getEventMatches);
 router.post("/events/:eventId/request-next", authMiddleware, EventController.requestNextEvent);
+
+// Catalog
+router.get("/catalog/interests", authMiddleware, CatalogController.getInterests);
 
 module.exports = router;
 

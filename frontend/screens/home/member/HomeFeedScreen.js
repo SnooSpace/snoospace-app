@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNotifications } from '../../../context/NotificationsContext';
 import { apiGet, apiPost } from '../../../api/client'; // Modified imports
 import { getAuthToken } from '../../../api/auth';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
@@ -29,6 +30,7 @@ export default function HomeFeedScreen({ navigation }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
+  const { unread } = useNotifications();
 
   useEffect(() => {
     // Always load feed once on mount
@@ -173,8 +175,13 @@ export default function HomeFeedScreen({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.appTitle}>SnooSpace</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
             <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+            {unread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerButton}>
             <Ionicons name="menu" size={24} color={TEXT_COLOR} />
@@ -262,6 +269,23 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 5,
+  },
+  badge: {
+    position: 'absolute',
+    right: 0,
+    top: -2,
+    backgroundColor: '#D93025',
+    borderRadius: 8,
+    minWidth: 16,
+    paddingHorizontal: 4,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   greeting: {
     paddingHorizontal: 20,

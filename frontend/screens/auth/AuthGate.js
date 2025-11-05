@@ -1,12 +1,20 @@
 import React, { useEffect } from "react";
 import { View } from "react-native";
-import { getPendingOtp, getAuthToken, getAuthEmail } from "../../api/auth";
+import { getPendingOtp, getAuthToken, getAuthEmail, getRefreshToken } from "../../api/auth";
 import { apiPost } from "../../api/client";
 
 export default function AuthGate({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
+        // Pre-emptive: refresh access token if we have a refresh token
+        try {
+          const rt = await getRefreshToken();
+          if (rt) {
+            await apiPost('/auth/refresh', { refresh_token: rt }, 10000);
+          }
+        } catch {}
+
         const pending = await getPendingOtp();
         if (pending && pending.email) {
           if (pending.flow === 'login') {

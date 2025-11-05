@@ -86,6 +86,31 @@ export async function apiGet(path, timeoutMs, token) {
   return data;
 }
 
+export async function apiPatch(path, body, timeoutMs, token) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let res;
+  try {
+    res = await withTimeout(
+      fetch(`${BACKEND_BASE_URL}${path}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body ?? {}),
+      }),
+      timeoutMs
+    );
+  } catch (e) {
+    if (e && e.message === "Request timed out") throw e;
+    throw new Error("Network error. Please check your connection.");
+  }
+  if (res.status === 401) {
+    return tryRefreshAndRetry((newToken) => apiPatch(path, body, timeoutMs, newToken));
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw buildError(res, data);
+  return data;
+}
+
 export async function apiDelete(path, body, timeoutMs, token) {
   const headers = {};
   if (token || body) headers["Content-Type"] = "application/json";
