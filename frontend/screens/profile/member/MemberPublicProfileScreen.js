@@ -33,12 +33,31 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [interestsExpanded, setInterestsExpanded] = useState(false);
+  const [showAllInterests, setShowAllInterests] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
       const p = await getPublicMemberProfile(memberId);
-      setProfile(p);
+      // Normalize interests/pronouns fields - backend now returns them as arrays
+      const normalized = {
+        ...p,
+        interests: Array.isArray(p?.interests)
+          ? p.interests.filter(i => i && String(i).trim())
+          : (typeof p?.interests === 'string' && p.interests
+              ? (() => { 
+                  try { 
+                    const parsed = JSON.parse(p.interests);
+                    return Array.isArray(parsed) ? parsed.filter(i => i && String(i).trim()) : [];
+                  } catch { 
+                    return []; 
+                  }
+                })()
+              : []),
+        pronouns: Array.isArray(p?.pronouns)
+          ? p.pronouns.filter(pron => pron && String(pron).trim())
+          : (p?.pronouns && String(p.pronouns).trim() ? [String(p.pronouns).trim()] : []),
+      };
+      setProfile(normalized);
       setIsFollowing(!!p?.is_following);
     } catch (e) {
       setError(e?.message || "Failed to load profile");
@@ -154,53 +173,66 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               }}
               style={styles.avatarLarge}
             />
-            <Text style={styles.displayName}>
-              {profile?.full_name || "Member"}
-            </Text>
-            {/* Username subtitle removed for cleaner public profile header */}
+            <View style={styles.nameRowContainer}>
+              <View style={styles.nameContainer}>
+                <Text style={styles.displayName}>
+                  {profile?.full_name || "Member"}
+                </Text>
+              </View>
+              {Array.isArray(profile?.pronouns) && profile.pronouns.length > 0 ? (
+                <View style={styles.inlinePronounsRow}>
+                  {profile.pronouns.map((p, idx) => (
+                    <View
+                      key={`p-${idx}`}
+                      style={[styles.chip, styles.pronounChipSmall]}
+                    >
+                      <Text style={styles.chipText}>
+                        {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
             {!!profile?.bio && (
-              <Text style={styles.bioCenter}>
+              <Text style={styles.bioLeft}>
                 {profile.bio}
               </Text>
             )}
-            {(Array.isArray(profile?.pronouns) && profile.pronouns.length > 0) ||
-            (Array.isArray(profile?.interests) && profile.interests.length > 0) ? (
+
+            {/* Interests */}
+            {Array.isArray(profile?.interests) && profile.interests.length > 0 ? (
               <View style={styles.metaChipsSection}>
-                {Array.isArray(profile?.pronouns) && profile.pronouns.length > 0 ? (
-                  <View style={styles.chipRow}>
-                    {profile.pronouns.map((p, idx) => (
-                      <View key={`p-${idx}`} style={[styles.chip, styles.chipFilled]}>
-                        <Text style={[styles.chipText, styles.chipTextFilled]}>
-                          {String(p).replace(/^[{\"]/g, '').replace(/[}\"]/g, '')}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-                {Array.isArray(profile?.interests) && profile.interests.length > 0 ? (
-                  <View style={styles.chipRow}>
-                    {(interestsExpanded
-                      ? profile.interests
-                      : profile.interests.slice(0, 7)
-                    ).map((i, idx) => (
-                      <View key={`i-${idx}`} style={styles.chip}>
-                        <Text style={styles.chipText}>{String(i)}</Text>
-                      </View>
-                    ))}
-                    {profile.interests.length > 7 && !interestsExpanded && (
-                      <TouchableOpacity onPress={() => setInterestsExpanded(true)}>
-                        <View style={styles.chip}>
-                          <Text style={styles.chipText}>View all</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ) : null}
-                {Array.isArray(profile?.interests) && profile.interests.length > 7 && interestsExpanded ? (
-                  <TouchableOpacity onPress={() => setInterestsExpanded(false)} style={{ alignSelf: 'center', marginTop: 6 }}>
-                    <Text style={{ color: '#6A0DAD', fontWeight: '600' }}>Collapse</Text>
-                  </TouchableOpacity>
-                ) : null}
+                <View style={[styles.chipRow, { marginTop: 6 }]}>
+                  {(showAllInterests
+                    ? profile.interests
+                    : profile.interests.slice(0, 5)
+                  ).map((i, idx) => (
+                    <View key={`i-${idx}`} style={styles.chip}>
+                      <Text style={styles.chipText}>{String(i)}</Text>
+                    </View>
+                  ))}
+                  {profile.interests.length > 5 && !showAllInterests ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllInterests(true)}
+                      style={[styles.chip, styles.chipBlue]}
+                    >
+                      <Text style={[styles.chipText, styles.chipTextBlue]}>
+                        See all
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {profile.interests.length > 5 && showAllInterests ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllInterests(false)}
+                      style={[styles.chip, styles.chipBlue]}
+                    >
+                      <Text style={[styles.chipText, styles.chipTextBlue]}>
+                        Collapse
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             ) : null}
             <View style={styles.countsRowCenter}>
@@ -370,28 +402,59 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#1D1D1F",
-    marginTop: 12,
   },
   handleText: { fontSize: 14, color: "#8E8E93", marginTop: 4 },
-  bioCenter: { fontSize: 14, color: "#6A0DAD", marginTop: 8 },
+  nameRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    marginBottom: 5,
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+  },
+  nameContainer: {
+    alignItems: "center",
+  },
+  inlinePronounsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    position: "absolute",
+    left: "50%",
+    marginLeft: 60,
+  },
+  pronounChipSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+  },
+  bioLeft: {
+    fontSize: 16,
+    color: "#6A0DAD",
+    marginBottom: 20,
+    textAlign: "left",
+    alignSelf: "flex-start",
+    width: "100%",
+  },
   metaChipsSection: {
     width: "100%",
-    paddingHorizontal: 20,
-    marginTop: 10,
-    gap: 6,
+    marginBottom: 16,
+    alignItems: "center",
   },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center",
     gap: 8,
     alignItems: "center",
   },
   chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: "#FFFFFF",
   },
   chipFilled: {
@@ -399,6 +462,8 @@ const styles = StyleSheet.create({
     borderColor: "#6A0DAD",
   },
   chipText: { fontSize: 12, color: "#1D1D1F" },
+  chipBlue: { borderColor: '#007AFF' },
+  chipTextBlue: { color: '#007AFF' },
   chipTextFilled: { color: "#FFFFFF" },
   countsRowCenter: {
     flexDirection: "row",

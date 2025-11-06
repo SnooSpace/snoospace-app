@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -14,26 +14,32 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken } from '../../../api/auth';
-import { apiGet, apiPost, apiDelete } from '../../../api/client';
-import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
-import { uploadImage } from '../../../api/cloudinary';
-import PostCard from '../../../components/PostCard'; // Assuming PostCard exists for a full post view
-import CommentsModal from '../../../components/CommentsModal';
-import EventBus from '../../../utils/EventBus';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions } from "@react-navigation/native";
+import { clearAuthSession, getAuthToken } from "../../../api/auth";
+import { apiGet, apiPost, apiDelete } from "../../../api/client";
+import {
+  launchImageLibraryAsync,
+  requestMediaLibraryPermissionsAsync,
+  MediaTypeOptions,
+} from "expo-image-picker";
+import { uploadImage } from "../../../api/cloudinary";
+import PostCard from "../../../components/PostCard"; // Assuming PostCard exists for a full post view
+import CommentsModal from "../../../components/CommentsModal";
+import EventBus from "../../../utils/EventBus";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const PRIMARY_COLOR = "#6A0DAD";
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 export default function MemberProfileScreen({ navigation }) {
-  console.log('[Profile] MemberProfileScreen component function START (mount or render)');
+  console.log(
+    "[Profile] MemberProfileScreen component function START (mount or render)"
+  );
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,27 +48,31 @@ export default function MemberProfileScreen({ navigation }) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
+  const [showAllInterests, setShowAllInterests] = useState(false);
   // Combine comments modal state into one object to reduce state updates
-  const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+  });
   // Buffer for avoiding parent re-renders during like/unlike inside PostModal
   const pendingPostUpdateRef = React.useRef(null);
 
   useEffect(() => {
     // Always load profile once on mount
-    console.log('[Profile] useEffect: initial mount loadProfile call');
+    console.log("[Profile] useEffect: initial mount loadProfile call");
     loadProfile();
   }, []);
 
   useEffect(() => {
     // Also refresh when we actually get focus
-    console.log('[Profile] useEffect: subscribing to navigation focus.');
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('[Profile] Screen focused, calling loadProfile');
+    console.log("[Profile] useEffect: subscribing to navigation focus.");
+    const unsubscribe = navigation.addListener("focus", () => {
+      console.log("[Profile] Screen focused, calling loadProfile");
       loadProfile();
     });
-    const off = EventBus.on('follow-updated', (payload) => {
+    const off = EventBus.on("follow-updated", (payload) => {
       // Optimistically adjust following_count for current user when they follow/unfollow someone
-      setProfile(prev => {
+      setProfile((prev) => {
         if (!prev) return prev;
         const delta = payload?.isFollowing ? 1 : -1;
         const next = Math.max(0, (prev.following_count || 0) + delta);
@@ -70,83 +80,103 @@ export default function MemberProfileScreen({ navigation }) {
       });
     });
     return () => {
-      console.log('[Profile] useEffect cleanup (unsubscribing)');
+      console.log("[Profile] useEffect cleanup (unsubscribing)");
       unsubscribe();
       off();
     };
   }, [navigation]);
 
   const loadProfile = async () => {
-    console.log('[Profile] loadProfile: start');
+    console.log("[Profile] loadProfile: start");
     try {
       setLoading(true);
       setError(null);
       const token = await getAuthToken();
       console.log(`[Profile] Token: ${token}`);
       if (!token) throw new Error("No auth token found");
-      const email = await AsyncStorage.getItem('auth_email');
+      const email = await AsyncStorage.getItem("auth_email");
       if (!email) throw new Error("No user email in AsyncStorage");
-      const userProfileResponse = await apiPost('/auth/get-user-profile', { email }, 15000, token);
-      console.log('[Profile] userProfileResponse:', userProfileResponse);
+      const userProfileResponse = await apiPost(
+        "/auth/get-user-profile",
+        { email },
+        15000,
+        token
+      );
+      console.log("[Profile] userProfileResponse:", userProfileResponse);
       const fullProfile = userProfileResponse?.profile;
       const userRole = userProfileResponse?.role;
-      if (!fullProfile || userRole !== 'member') {
-        console.log('[Profile] No fullProfile or not member:', fullProfile, userRole);
+      if (!fullProfile || userRole !== "member") {
+        console.log(
+          "[Profile] No fullProfile or not member:",
+          fullProfile,
+          userRole
+        );
         throw new Error("Failed to fetch member profile or incorrect role.");
       }
       const userId = fullProfile.id;
-      const userType = 'member';
+      const userType = "member";
       const [countsResponse, postsResponse] = await Promise.all([
         apiGet(`/follow/counts/${userId}/${userType}`, 15000, token),
-        apiGet(`/posts/user/${userId}/${userType}`, 15000, token)
+        apiGet(`/posts/user/${userId}/${userType}`, 15000, token),
       ]);
-      console.log('[Profile] countsResponse:', countsResponse);
-      console.log('[Profile] postsResponse:', postsResponse);
-      const followerCount = typeof countsResponse?.followers_count === 'number'
-        ? countsResponse.followers_count
-        : parseInt(countsResponse?.followers_count || 0, 10);
-      const followingCount = typeof countsResponse?.following_count === 'number'
-        ? countsResponse.following_count
-        : parseInt(countsResponse?.following_count || 0, 10);
-      const userPosts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
+      console.log("[Profile] countsResponse:", countsResponse);
+      console.log("[Profile] postsResponse:", postsResponse);
+      const followerCount =
+        typeof countsResponse?.followers_count === "number"
+          ? countsResponse.followers_count
+          : parseInt(countsResponse?.followers_count || 0, 10);
+      const followingCount =
+        typeof countsResponse?.following_count === "number"
+          ? countsResponse.following_count
+          : parseInt(countsResponse?.following_count || 0, 10);
+      const userPosts = Array.isArray(postsResponse?.posts)
+        ? postsResponse.posts
+        : [];
       const mappedProfile = {
         id: userId,
-        name: fullProfile.name || '',
-        username: fullProfile.username || '',
-        email: fullProfile.email || '',
-        phone: fullProfile.phone || '',
-        bio: fullProfile.bio || '',
-        profile_photo_url: fullProfile.profile_photo_url || '',
-        interests: Array.isArray(fullProfile.interests) 
-          ? fullProfile.interests 
-          : (fullProfile.interests ? JSON.parse(fullProfile.interests) : []),
-        pronouns: Array.isArray(fullProfile.pronouns) 
-          ? fullProfile.pronouns 
-          : (fullProfile.pronouns ? [fullProfile.pronouns] : null),
-        location: typeof fullProfile.location === 'string' 
-          ? JSON.parse(fullProfile.location) 
-          : (fullProfile.location || null),
-        city: fullProfile.city || '',
+        name: fullProfile.name || "",
+        username: fullProfile.username || "",
+        email: fullProfile.email || "",
+        phone: fullProfile.phone || "",
+        bio: fullProfile.bio || "",
+        profile_photo_url: fullProfile.profile_photo_url || "",
+        interests: Array.isArray(fullProfile.interests)
+          ? fullProfile.interests
+          : fullProfile.interests
+          ? JSON.parse(fullProfile.interests)
+          : [],
+        pronouns: Array.isArray(fullProfile.pronouns)
+          ? fullProfile.pronouns
+          : fullProfile.pronouns
+          ? [fullProfile.pronouns]
+          : null,
+        location:
+          typeof fullProfile.location === "string"
+            ? JSON.parse(fullProfile.location)
+            : fullProfile.location || null,
+        city: fullProfile.city || "",
         follower_count: followerCount,
         following_count: followingCount,
       };
       setProfile(mappedProfile);
-      setPosts(userPosts.map(post => ({
-        ...post,
-        isLiked: !!post.is_liked,
-      })));
-      console.log('[Profile] loadProfile: setProfile & setPosts');
+      setPosts(
+        userPosts.map((post) => ({
+          ...post,
+          isLiked: !!post.is_liked,
+        }))
+      );
+      console.log("[Profile] loadProfile: setProfile & setPosts");
     } catch (err) {
-      console.log('[Profile] loadProfile: error caught:', err);
+      console.log("[Profile] loadProfile: error caught:", err);
       setError(err.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
-      console.log('[Profile] loadProfile: finally, loading set to false');
+      console.log("[Profile] loadProfile: finally, loading set to false");
     }
   };
 
   const handleEditProfile = () => {
-    navigation.navigate('EditProfile', { profile });
+    navigation.navigate("EditProfile", { profile });
   };
 
   // Change Photo moved to Edit Profile screen
@@ -154,60 +184,62 @@ export default function MemberProfileScreen({ navigation }) {
   const handleFollow = async () => {
     try {
       // Toggle follow status
-      Alert.alert('Follow', 'Follow functionality will be implemented soon!');
+      Alert.alert("Follow", "Follow functionality will be implemented soon!");
     } catch (error) {
-      console.error('Error following:', error);
+      console.error("Error following:", error);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Close settings modal first
-              setShowSettingsModal(false);
-              
-              // Clear all authentication data
-              await clearAuthSession();
-              await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-              
-              // Get the root navigator by going up the navigation hierarchy
-              let rootNavigator = navigation;
-              
-              // Try to get parent navigator (go up from MemberProfileScreen to MemberBottomTabNavigator)
-              if (navigation.getParent) {
-                const parent = navigation.getParent();
-                if (parent) {
-                  // Go up one more level (from MemberBottomTabNavigator to AppNavigator)
-                  rootNavigator = parent.getParent ? parent.getParent() : parent;
-                }
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Close settings modal first
+            setShowSettingsModal(false);
+
+            // Clear all authentication data
+            await clearAuthSession();
+            await AsyncStorage.multiRemove([
+              "accessToken",
+              "userData",
+              "auth_token",
+              "auth_email",
+              "pending_otp",
+            ]);
+
+            // Get the root navigator by going up the navigation hierarchy
+            let rootNavigator = navigation;
+
+            // Try to get parent navigator (go up from MemberProfileScreen to MemberBottomTabNavigator)
+            if (navigation.getParent) {
+              const parent = navigation.getParent();
+              if (parent) {
+                // Go up one more level (from MemberBottomTabNavigator to AppNavigator)
+                rootNavigator = parent.getParent ? parent.getParent() : parent;
               }
-              
-              // Reset navigation stack to Landing using root navigator
-              rootNavigator.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Landing' }],
-                })
-              );
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout properly');
             }
-          },
+
+            // Reset navigation stack to Landing using root navigator
+            rootNavigator.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: "Landing" }],
+              })
+            );
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert("Error", "Failed to logout properly");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const openPostModal = (post) => {
@@ -218,10 +250,15 @@ export default function MemberProfileScreen({ navigation }) {
     // Apply any buffered like updates once when the modal closes
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
-      setPosts(prevPosts =>
-        prevPosts.map(p =>
+      setPosts((prevPosts) =>
+        prevPosts.map((p) =>
           p.id === pending.postId
-            ? { ...p, is_liked: pending.is_liked, isLiked: pending.is_liked, like_count: pending.like_count }
+            ? {
+                ...p,
+                is_liked: pending.is_liked,
+                isLiked: pending.is_liked,
+                like_count: pending.like_count,
+              }
             : p
         )
       );
@@ -244,11 +281,10 @@ export default function MemberProfileScreen({ navigation }) {
     setCommentsModalState({ visible: false, postId: null });
   }, []);
 
-
   // Add utility for updating posts global state (so modal & grid stay in sync)
   function updatePostsGlobalState(postId, isLiked, likes) {
-    setPosts(prevPosts =>
-      prevPosts.map(p =>
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
         p.id === postId ? { ...p, isLiked, like_count: likes } : p
       )
     );
@@ -256,27 +292,29 @@ export default function MemberProfileScreen({ navigation }) {
 
   const renderPostGrid = () => {
     const gap = 10;
-    const itemSize = (screenWidth - 40 - (gap * 2)) / 3; // (screenWidth - padding(40) - gaps(20)) / 3
+    const itemSize = (screenWidth - 40 - gap * 2) / 3; // (screenWidth - padding(40) - gaps(20)) / 3
     const data = posts.length > 0 ? posts : new Array(6).fill(null);
 
     return (
       <FlatList
         data={data}
-        keyExtractor={(_, index) => (data[index]?.id ? String(data[index].id) : `ph-${index}`)}
+        keyExtractor={(_, index) =>
+          data[index]?.id ? String(data[index].id) : `ph-${index}`
+        }
         numColumns={3}
-        columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: gap }}
+        columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap }}
         renderItem={({ item, index }) => {
           const isLastInRow = (index + 1) % 3 === 0;
           return (
             <TouchableOpacity
               activeOpacity={0.8}
               style={[
-                styles.postGridItem, 
-                { 
-                  width: itemSize, 
-                  height: itemSize, 
-                  marginRight: isLastInRow ? 0 : gap 
-                }
+                styles.postGridItem,
+                {
+                  width: itemSize,
+                  height: itemSize,
+                  marginRight: isLastInRow ? 0 : gap,
+                },
               ]}
               onPress={() => item && openPostModal(item)}
               disabled={!item}
@@ -284,18 +322,28 @@ export default function MemberProfileScreen({ navigation }) {
               {item ? (
                 (() => {
                   const firstImageUrl = Array.isArray(item.image_urls)
-                    ? item.image_urls.flat().find(u => typeof u === 'string' && u.startsWith('http'))
+                    ? item.image_urls
+                        .flat()
+                        .find(
+                          (u) => typeof u === "string" && u.startsWith("http")
+                        )
                     : undefined;
                   return (
                     <Image
-                      source={{ uri: firstImageUrl || 'https://via.placeholder.com/150' }}
+                      source={{
+                        uri: firstImageUrl || "https://via.placeholder.com/150",
+                      }}
                       style={styles.postImage}
                     />
                   );
                 })()
               ) : (
                 <View style={styles.placeholderPost}>
-                  <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+                  <Ionicons
+                    name="image-outline"
+                    size={30}
+                    color={LIGHT_TEXT_COLOR}
+                  />
                 </View>
               )}
             </TouchableOpacity>
@@ -307,7 +355,15 @@ export default function MemberProfileScreen({ navigation }) {
   };
 
   // --- Full Post Modal Component ---
-  const PostModal = ({ visible, post, onClose, onLikeUpdate, profile: profileProp, onOpenComments, onCloseComments }) => {
+  const PostModal = ({
+    visible,
+    post,
+    onClose,
+    onLikeUpdate,
+    profile: profileProp,
+    onOpenComments,
+    onCloseComments,
+  }) => {
     // Initialize from post data (like PostCard does)
     const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
     const [likes, setLikes] = useState(post?.like_count || 0);
@@ -332,7 +388,13 @@ export default function MemberProfileScreen({ navigation }) {
       setIsLiked(newIsLiked);
       setLikes(post?.like_count || 0);
       setCommentCount(post?.comment_count || 0);
-    }, [post?.is_liked, post?.isLiked, post?.like_count, post?.comment_count, visible]);
+    }, [
+      post?.is_liked,
+      post?.isLiked,
+      post?.like_count,
+      post?.comment_count,
+      visible,
+    ]);
 
     // Reset delete menu when modal closes
     useEffect(() => {
@@ -345,52 +407,60 @@ export default function MemberProfileScreen({ navigation }) {
     const isOwnPost = () => {
       // Since this is the member's own profile screen, all posts should belong to them
       // But we'll verify by checking if the post's author matches the profile
-      return post?.author_id === profileProp?.id && post?.author_type === 'member';
+      return (
+        post?.author_id === profileProp?.id && post?.author_type === "member"
+      );
     };
 
     // Handle delete post
     const handleDeletePost = async () => {
       if (!post?.id) return;
-      
+
       if (!isOwnPost()) {
-        Alert.alert('Error', 'You can only delete your own posts');
+        Alert.alert("Error", "You can only delete your own posts");
         setShowDeleteMenu(false);
         return;
       }
 
       Alert.alert(
-        'Delete Post',
-        'Are you sure you want to delete this post? This action cannot be undone.',
+        "Delete Post",
+        "Are you sure you want to delete this post? This action cannot be undone.",
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => setShowDeleteMenu(false) },
           {
-            text: 'Delete',
-            style: 'destructive',
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => setShowDeleteMenu(false),
+          },
+          {
+            text: "Delete",
+            style: "destructive",
             onPress: async () => {
               setDeleting(true);
               try {
                 const token = await getAuthToken();
                 await apiDelete(`/posts/${post.id}`, null, 15000, token);
-                
+
                 // Remove post from local state
-                setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
-                
+                setPosts((prevPosts) =>
+                  prevPosts.filter((p) => p.id !== post.id)
+                );
+
                 // Clear comments modal if it was open for this post
                 if (onCloseComments) {
                   onCloseComments();
                 }
-                
+
                 // Close modal
                 onClose();
-                Alert.alert('Success', 'Post deleted successfully');
+                Alert.alert("Success", "Post deleted successfully");
               } catch (error) {
-                Alert.alert('Error', error?.message || 'Failed to delete post');
+                Alert.alert("Error", error?.message || "Failed to delete post");
               } finally {
                 setDeleting(false);
                 setShowDeleteMenu(false);
               }
-            }
-          }
+            },
+          },
         ]
       );
     };
@@ -398,15 +468,15 @@ export default function MemberProfileScreen({ navigation }) {
     // Like/unlike logic - exactly like PostCard
     const handleLikeToggle = async () => {
       if (isLiking) return;
-      
+
       setIsLiking(true);
       justUpdatedRef.current = true; // Mark that we're manually updating
       try {
         const token = await getAuthToken();
-        
+
         if (isLiked) {
           await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-          setLikes(prev => {
+          setLikes((prev) => {
             const newCount = prev - 1;
             if (onLikeUpdate) {
               onLikeUpdate(post.id, false, newCount);
@@ -416,7 +486,7 @@ export default function MemberProfileScreen({ navigation }) {
           setIsLiked(false);
         } else {
           await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-          setLikes(prev => {
+          setLikes((prev) => {
             const newCount = prev + 1;
             if (onLikeUpdate) {
               onLikeUpdate(post.id, true, newCount);
@@ -426,8 +496,8 @@ export default function MemberProfileScreen({ navigation }) {
           setIsLiked(true);
         }
       } catch (error) {
-        console.error('Error liking post:', error);
-        Alert.alert('Error', error?.message || 'Failed to like post');
+        console.error("Error liking post:", error);
+        Alert.alert("Error", error?.message || "Failed to like post");
         justUpdatedRef.current = false; // Reset on error so we can sync
       } finally {
         setIsLiking(false);
@@ -438,14 +508,15 @@ export default function MemberProfileScreen({ navigation }) {
       }
     };
 
-
     if (!post) return null;
     const images = Array.isArray(post.image_urls)
-      ? post.image_urls.flat().filter(u => typeof u === 'string' && u.startsWith('http'))
+      ? post.image_urls
+          .flat()
+          .filter((u) => typeof u === "string" && u.startsWith("http"))
       : [];
-    
+
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    
+
     // Keep track of post ID to prevent unnecessary re-renders
     const [currentPostId, setCurrentPostId] = useState(post?.id);
     useEffect(() => {
@@ -455,15 +526,30 @@ export default function MemberProfileScreen({ navigation }) {
     }, [post?.id]);
     const formatDate = (timestamp) => {
       const date = new Date(timestamp);
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+      const months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+      return `${date.getDate()} ${
+        months[date.getMonth()]
+      } ${date.getFullYear()}`;
     };
 
     return (
-      <Modal 
-        visible={visible} 
-        transparent={false} 
-        animationType="slide" 
+      <Modal
+        visible={visible}
+        transparent={false}
+        animationType="slide"
         onRequestClose={onClose}
         statusBarTranslucent={true}
       >
@@ -472,11 +558,14 @@ export default function MemberProfileScreen({ navigation }) {
             {/* Header */}
             <View style={styles.postModalHeader}>
               <View style={styles.postModalHeaderTop}>
-                <TouchableOpacity onPress={onClose} style={styles.postModalBackButton}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.postModalBackButton}
+                >
                   <Ionicons name="arrow-back" size={24} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.postModalHeaderTitle}>Posts</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.postModalMoreButton}
                   onPress={() => {
                     if (isOwnPost()) {
@@ -489,17 +578,30 @@ export default function MemberProfileScreen({ navigation }) {
               </View>
               <View style={styles.postModalHeaderUserInfo}>
                 <Image
-                  source={{ uri: post.author_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author_name || 'User')}&background=6A0DAD&color=FFFFFF` }}
+                  source={{
+                    uri:
+                      post.author_photo_url ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        post.author_name || "User"
+                      )}&background=6A0DAD&color=FFFFFF`,
+                  }}
                   style={styles.postModalHeaderAvatar}
                 />
                 <View style={styles.postModalHeaderText}>
-                  <Text style={styles.postModalHeaderUsername}>{post.author_username}</Text>
-                  <Text style={styles.postModalHeaderDate}>{formatDate(post.created_at)}</Text>
+                  <Text style={styles.postModalHeaderUsername}>
+                    {post.author_username}
+                  </Text>
+                  <Text style={styles.postModalHeaderDate}>
+                    {formatDate(post.created_at)}
+                  </Text>
                 </View>
               </View>
             </View>
 
-            <ScrollView style={styles.postModalScrollView} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.postModalScrollView}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Image Carousel */}
               <View style={styles.postModalImageWrapper}>
                 {images.length > 0 && (
@@ -511,7 +613,9 @@ export default function MemberProfileScreen({ navigation }) {
                       showsHorizontalScrollIndicator={false}
                       keyExtractor={(_, idx) => idx.toString()}
                       onMomentumScrollEnd={(e) => {
-                        const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+                        const index = Math.round(
+                          e.nativeEvent.contentOffset.x / screenWidth
+                        );
                         setCurrentImageIndex(index);
                       }}
                       renderItem={({ item }) => (
@@ -539,7 +643,8 @@ export default function MemberProfileScreen({ navigation }) {
                             key={idx}
                             style={[
                               styles.postModalDot,
-                              idx === currentImageIndex && styles.postModalDotActive
+                              idx === currentImageIndex &&
+                                styles.postModalDotActive,
                             ]}
                           />
                         ))}
@@ -551,12 +656,16 @@ export default function MemberProfileScreen({ navigation }) {
 
               {/* Action Buttons */}
               <View style={styles.postModalActionsRow}>
-                <TouchableOpacity 
-                  onPress={handleLikeToggle} 
+                <TouchableOpacity
+                  onPress={handleLikeToggle}
                   style={styles.modalActionButton}
                   disabled={isLiking}
                 >
-                  <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={28} color={isLiked ? '#FF3040' : '#000'} />
+                  <Ionicons
+                    name={isLiked ? "heart" : "heart-outline"}
+                    size={28}
+                    color={isLiked ? "#FF3040" : "#000"}
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
@@ -564,10 +673,16 @@ export default function MemberProfileScreen({ navigation }) {
                   }}
                   style={styles.modalActionButton}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Ionicons name="chatbubble-outline" size={26} color="#000" />
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={26}
+                      color="#000"
+                    />
                     {commentCount > 0 && (
-                      <Text style={styles.postModalCommentCount}>{commentCount}</Text>
+                      <Text style={styles.postModalCommentCount}>
+                        {commentCount}
+                      </Text>
                     )}
                   </View>
                 </TouchableOpacity>
@@ -577,7 +692,7 @@ export default function MemberProfileScreen({ navigation }) {
               {likes > 0 && (
                 <View style={styles.postModalLikesSection}>
                   <Text style={styles.postModalLikesText}>
-                    {likes === 1 ? '1 like' : `${likes} likes`}
+                    {likes === 1 ? "1 like" : `${likes} likes`}
                   </Text>
                 </View>
               )}
@@ -585,7 +700,9 @@ export default function MemberProfileScreen({ navigation }) {
               {/* Caption */}
               <View style={styles.postModalCaptionSection}>
                 <Text style={styles.postModalCaption}>
-                  <Text style={styles.postModalCaptionUsername}>{post.author_username}</Text>
+                  <Text style={styles.postModalCaptionUsername}>
+                    {post.author_username}
+                  </Text>
                   {post.caption && ` ${post.caption}`}
                 </Text>
               </View>
@@ -599,13 +716,14 @@ export default function MemberProfileScreen({ navigation }) {
                   style={styles.postModalViewCommentsButton}
                 >
                   <Text style={styles.postModalViewCommentsText}>
-                    View all {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
+                    View all {commentCount}{" "}
+                    {commentCount === 1 ? "comment" : "comments"}
                   </Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
           </View>
-          
+
           {/* Delete Menu Modal */}
           <Modal
             visible={showDeleteMenu}
@@ -620,7 +738,10 @@ export default function MemberProfileScreen({ navigation }) {
             >
               <View style={styles.deleteMenuContainer}>
                 <TouchableOpacity
-                  style={[styles.deleteMenuOption, deleting && styles.deleteMenuOptionDisabled]}
+                  style={[
+                    styles.deleteMenuOption,
+                    deleting && styles.deleteMenuOptionDisabled,
+                  ]}
                   onPress={handleDeletePost}
                   disabled={deleting}
                 >
@@ -628,8 +749,14 @@ export default function MemberProfileScreen({ navigation }) {
                     <ActivityIndicator size="small" color="#FF3B30" />
                   ) : (
                     <>
-                      <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                      <Text style={styles.deleteMenuOptionText}>Delete Post</Text>
+                      <Ionicons
+                        name="trash-outline"
+                        size={20}
+                        color="#FF3B30"
+                      />
+                      <Text style={styles.deleteMenuOptionText}>
+                        Delete Post
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -656,7 +783,7 @@ export default function MemberProfileScreen({ navigation }) {
   };
 
   if (loading) {
-    console.log('[Profile] rendering: loading spinner');
+    console.log("[Profile] rendering: loading spinner");
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -667,7 +794,7 @@ export default function MemberProfileScreen({ navigation }) {
   }
 
   if (error) {
-    console.log('[Profile] rendering: error banner', error);
+    console.log("[Profile] rendering: error banner", error);
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -676,8 +803,14 @@ export default function MemberProfileScreen({ navigation }) {
             <TouchableOpacity
               onPress={async () => {
                 await clearAuthSession();
-                await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-                navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                await AsyncStorage.multiRemove([
+                  "accessToken",
+                  "userData",
+                  "auth_token",
+                  "auth_email",
+                  "pending_otp",
+                ]);
+                navigation.reset({ index: 0, routes: [{ name: "Landing" }] });
               }}
               style={styles.retryButton}
             >
@@ -694,7 +827,7 @@ export default function MemberProfileScreen({ navigation }) {
   }
 
   if (!profile) {
-    console.log('[Profile] rendering: no profile');
+    console.log("[Profile] rendering: no profile");
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -704,13 +837,13 @@ export default function MemberProfileScreen({ navigation }) {
     );
   }
 
-  console.log('[Profile] rendering: main profile UI');
+  console.log("[Profile] rendering: main profile UI");
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.username}>@{profile.username}</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => setShowSettingsModal(true)}
         >
@@ -722,17 +855,39 @@ export default function MemberProfileScreen({ navigation }) {
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>
-            <Image 
-              source={{ 
-                uri: profile.profile_photo_url && /^https?:\/\//.test(profile.profile_photo_url)
-                  ? profile.profile_photo_url
-                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Member')}&background=6A0DAD&color=FFFFFF&size=120&bold=true`
-              }} 
+            <Image
+              source={{
+                uri:
+                  profile.profile_photo_url &&
+                  /^https?:\/\//.test(profile.profile_photo_url)
+                    ? profile.profile_photo_url
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        profile.name || "Member"
+                      )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
+              }}
               style={styles.profileImage}
             />
           </View>
-          
-          <Text style={styles.profileName}>{profile.name}</Text>
+
+          <View style={styles.nameRowContainer}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.profileName}>{profile.name}</Text>
+            </View>
+            {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
+              <View style={styles.inlinePronounsRow}>
+                {profile.pronouns.map((p, idx) => (
+                  <View
+                    key={`pronoun-${idx}`}
+                    style={[styles.chip, styles.pronounChipSmall]}
+                  >
+                    <Text style={styles.chipText}>
+                      {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
           {profile.bio ? (
             <Text style={styles.profileTagline}>{profile.bio}</Text>
           ) : null}
@@ -743,68 +898,89 @@ export default function MemberProfileScreen({ navigation }) {
               <Text style={styles.statNumber}>{posts.length}</Text>
               <Text style={styles.statLabel}>Posts</Text>
             </View>
-            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('FollowersList', { memberId: profile.id, title: 'Followers' })}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate("FollowersList", {
+                  memberId: profile.id,
+                  title: "Followers",
+                })
+              }
+            >
               <Text style={styles.statNumber}>{profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('FollowingList', { memberId: profile.id, title: 'Following' })}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate("FollowingList", {
+                  memberId: profile.id,
+                  title: "Following",
+                })
+              }
+            >
               <Text style={styles.statNumber}>{profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Pronouns & Interests */}
-          {(Array.isArray(profile.pronouns) && profile.pronouns.length > 0) || (Array.isArray(profile.interests) && profile.interests.length > 0) ? (
+          {/* Interests */}
+          {Array.isArray(profile.interests) && profile.interests.length > 0 ? (
             <View style={styles.metaChipsSection}>
-              {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
-                <View style={styles.chipRow}>
-                  {profile.pronouns.map((p, idx) => (
-                    <View key={`pronoun-${idx}`} style={[styles.chip, styles.chipFilled]}>
-                      <Text style={[styles.chipText, styles.chipTextFilled]}>{String(p).replace(/^[{\"]+|[}\"]+$/g, '')}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              {Array.isArray(profile.interests) && profile.interests.length > 0 ? (
-                <View style={[styles.chipRow, { marginTop: 6 }]}>
-                  {profile.interests.slice(0, 6).map((i, idx) => (
-                    <View key={`interest-${idx}`} style={styles.chip}>
-                      <Text style={styles.chipText}>{String(i)}</Text>
-                    </View>
-                  ))}
-                  {profile.interests.length > 6 ? (
-                    <View style={styles.chip}>
-                      <Text style={styles.chipText}>+{profile.interests.length - 6}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+              <View style={[styles.chipRow, { marginTop: 6 }]}>
+                {(showAllInterests
+                  ? profile.interests
+                  : profile.interests.slice(0, 5)
+                ).map((i, idx) => (
+                  <View key={`interest-${idx}`} style={styles.chip}>
+                    <Text style={styles.chipText}>{String(i)}</Text>
+                  </View>
+                ))}
+                {profile.interests.length > 5 && !showAllInterests ? (
+                  <TouchableOpacity
+                    onPress={() => setShowAllInterests(true)}
+                    style={[styles.chip, styles.chipBlue]}
+                  >
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>
+                      See all
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {profile.interests.length > 5 && showAllInterests ? (
+                  <TouchableOpacity
+                    onPress={() => setShowAllInterests(false)}
+                    style={[styles.chip, styles.chipBlue]}
+                  >
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>
+                      Collapse
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ) : null}
 
           {/* Action Button */}
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, { marginTop: 10 }]}
             onPress={isOwnProfile ? handleEditProfile : handleFollow}
           >
             <Text style={styles.actionButtonText}>
-              {isOwnProfile ? 'Edit Profile' : 'Follow'}
+              {isOwnProfile ? "Edit Profile" : "Follow"}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Posts Grid */}
         <View style={styles.postsSection}>
-          <View style={styles.postsGrid}>
-            {renderPostGrid()}
-          </View>
+          <View style={styles.postsGrid}>{renderPostGrid()}</View>
         </View>
       </ScrollView>
       {/* --- Full Post Modal Viewer --- */}
-      <PostModal 
-        visible={postModalVisible} 
-        post={selectedPost} 
+      <PostModal
+        visible={postModalVisible}
+        post={selectedPost}
         onClose={closePostModal}
         profile={profile}
         onOpenComments={openCommentsModal}
@@ -819,7 +995,7 @@ export default function MemberProfileScreen({ navigation }) {
           // Do NOT set state here. PostModal manages its own UI state.
         }}
       />
-      
+
       {/* Comments Modal - Render after PostModal to ensure proper z-index */}
       <CommentsModal
         visible={commentsModalState.visible && !postModalVisible}
@@ -830,8 +1006,8 @@ export default function MemberProfileScreen({ navigation }) {
         onCommentCountChange={(newCount) => {
           // Update comment count in posts array
           if (commentsModalState.postId) {
-            setPosts(prevPosts =>
-              prevPosts.map(p =>
+            setPosts((prevPosts) =>
+              prevPosts.map((p) =>
                 p.id === commentsModalState.postId
                   ? { ...p, comment_count: newCount }
                   : p
@@ -839,13 +1015,15 @@ export default function MemberProfileScreen({ navigation }) {
             );
             // Update selectedPost so PostModal's comment count updates immediately
             if (selectedPost && selectedPost.id === commentsModalState.postId) {
-              setSelectedPost(prev => prev ? { ...prev, comment_count: newCount } : prev);
+              setSelectedPost((prev) =>
+                prev ? { ...prev, comment_count: newCount } : prev
+              );
             }
           }
           // IMPORTANT: Modal should remain open - don't change commentsModalState
         }}
       />
-      
+
       {/* Settings Modal */}
       <Modal
         visible={showSettingsModal}
@@ -865,7 +1043,7 @@ export default function MemberProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsOption}
                 onPress={() => {
                   setShowSettingsModal(false);
@@ -874,53 +1052,88 @@ export default function MemberProfileScreen({ navigation }) {
               >
                 <Ionicons name="person-outline" size={24} color={TEXT_COLOR} />
                 <Text style={styles.settingsOptionText}>Edit Profile</Text>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsOption}
                 onPress={() => {
                   setShowSettingsModal(false);
-                  Alert.alert('Notifications', 'Notification settings will be implemented soon!');
+                  Alert.alert(
+                    "Notifications",
+                    "Notification settings will be implemented soon!"
+                  );
                 }}
               >
-                <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+                <Ionicons
+                  name="notifications-outline"
+                  size={24}
+                  color={TEXT_COLOR}
+                />
                 <Text style={styles.settingsOptionText}>Notifications</Text>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsOption}
                 onPress={() => {
                   setShowSettingsModal(false);
-                  Alert.alert('Privacy', 'Privacy settings will be implemented soon!');
+                  Alert.alert(
+                    "Privacy",
+                    "Privacy settings will be implemented soon!"
+                  );
                 }}
               >
                 <Ionicons name="shield-outline" size={24} color={TEXT_COLOR} />
                 <Text style={styles.settingsOptionText}>Privacy</Text>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsOption}
                 onPress={() => {
                   setShowSettingsModal(false);
-                  Alert.alert('Help', 'Help & Support will be implemented soon!');
+                  Alert.alert(
+                    "Help",
+                    "Help & Support will be implemented soon!"
+                  );
                 }}
               >
-                <Ionicons name="help-circle-outline" size={24} color={TEXT_COLOR} />
+                <Ionicons
+                  name="help-circle-outline"
+                  size={24}
+                  color={TEXT_COLOR}
+                />
                 <Text style={styles.settingsOptionText}>Help & Support</Text>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
               </TouchableOpacity>
 
               <View style={styles.divider} />
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.settingsOption, styles.logoutOption]}
                 onPress={handleLogout}
               >
                 <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-                <Text style={[styles.settingsOptionText, styles.logoutText]}>Logout</Text>
+                <Text style={[styles.settingsOptionText, styles.logoutText]}>
+                  Logout
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -933,18 +1146,18 @@ export default function MemberProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   username: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   settingsButton: {
@@ -954,7 +1167,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileSection: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 30,
   },
@@ -968,9 +1181,35 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
+  },
+  nameRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 5,
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+  },
+  nameContainer: {
+    alignItems: "center",
+  },
+  inlinePronounsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    position: "absolute",
+    left: "50%",
+    marginLeft: 60,
+  },
+  nameSpacer: {
+    flex: 0,
+  },
+  pronounChipSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
   },
   profileTagline: {
     fontSize: 16,
@@ -978,23 +1217,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metaChipsSection: {
-    width: '100%',
+    width: "100%",
     marginBottom: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 8,
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   chipFilled: {
     backgroundColor: PRIMARY_COLOR,
@@ -1004,78 +1243,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_COLOR,
   },
+  chipBlue: {
+    borderColor: "#007AFF",
+  },
+  chipTextBlue: {
+    color: "#007AFF",
+  },
   chipTextFilled: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
     marginBottom: 20,
   },
   statItem: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 5,
   },
   statLabel: {
     fontSize: 14,
     color: PRIMARY_COLOR,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   bioContainer: {
-    width: '100%',
+    width: "100%",
     marginBottom: 20,
   },
   bioText: {
     fontSize: 16,
     color: TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
   },
   actionButton: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     paddingHorizontal: 30,
     paddingVertical: 12,
   },
   actionButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: PRIMARY_COLOR,
   },
   postsSection: {
     paddingHorizontal: 20,
   },
   postsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
     width: screenWidth - 40,
   },
   postGridItem: {
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   postImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   placeholderPost: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#F2F2F7',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#F2F2F7",
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     fontSize: 16,
@@ -1083,8 +1328,8 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   retryButton: {
     marginTop: 20,
@@ -1094,40 +1339,40 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   errorText: {
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
     paddingHorizontal: 20,
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   closeButton: {
@@ -1138,8 +1383,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   settingsOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 15,
     gap: 15,
   },
@@ -1152,32 +1397,32 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   logoutText: {
-    color: '#FF3B30',
+    color: "#FF3B30",
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: "#E5E5EA",
     marginVertical: 10,
   },
   // Full Post Modal Styles
   postModalSafeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   postModalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   postModalHeader: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   postModalHeaderTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 12,
   },
   postModalBackButton: {
@@ -1186,12 +1431,12 @@ const styles = StyleSheet.create({
   },
   postModalHeaderTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalHeaderUserInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   postModalHeaderAvatar: {
     width: 32,
@@ -1204,12 +1449,12 @@ const styles = StyleSheet.create({
   },
   postModalHeaderUsername: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalHeaderDate: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: "#8E8E93",
     marginTop: 2,
   },
   postModalMoreButton: {
@@ -1222,8 +1467,8 @@ const styles = StyleSheet.create({
   postModalImageWrapper: {
     width: screenWidth,
     height: screenWidth,
-    backgroundColor: '#000',
-    position: 'relative',
+    backgroundColor: "#000",
+    position: "relative",
   },
   modalImageCarousel: {
     width: screenWidth,
@@ -1232,52 +1477,52 @@ const styles = StyleSheet.create({
   postModalImageFrame: {
     width: screenWidth,
     height: screenWidth,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
   },
   postModalImage: {
     width: screenWidth,
     height: screenWidth,
   },
   postModalImageIndicator: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   postModalImageIndicatorText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   postModalImageDots: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 12,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
   },
   postModalDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
   },
   postModalDotActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     width: 8,
     height: 8,
     borderRadius: 4,
   },
   postModalActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -1287,8 +1532,8 @@ const styles = StyleSheet.create({
   },
   postModalCommentCount: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
     marginLeft: 6,
   },
   postModalLikesSection: {
@@ -1297,8 +1542,8 @@ const styles = StyleSheet.create({
   },
   postModalLikesText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalCaptionSection: {
     paddingHorizontal: 16,
@@ -1306,12 +1551,12 @@ const styles = StyleSheet.create({
   },
   postModalCaption: {
     fontSize: 14,
-    color: '#000',
+    color: "#000",
     lineHeight: 20,
   },
   postModalCaptionUsername: {
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalViewCommentsButton: {
     paddingHorizontal: 16,
@@ -1319,67 +1564,67 @@ const styles = StyleSheet.create({
   },
   postModalViewCommentsText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: "#8E8E93",
   },
   // Delete Menu Styles
   deleteMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   deleteMenuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
   },
   deleteMenuOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   deleteMenuOptionDisabled: {
     opacity: 0.5,
   },
   deleteMenuOptionText: {
     fontSize: 18,
-    color: '#FF3B30',
-    fontWeight: '600',
+    color: "#FF3B30",
+    fontWeight: "600",
     marginLeft: 12,
   },
   deleteMenuCancelText: {
     fontSize: 18,
-    color: '#000',
-    fontWeight: '600',
+    color: "#000",
+    fontWeight: "600",
   },
   commentsContainer: {
     flexGrow: 1,
     minHeight: 170,
     maxHeight: 220,
-    backgroundColor: 'rgba(30,30,30,0.92)',
+    backgroundColor: "rgba(30,30,30,0.92)",
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderTopColor: '#222',
+    borderTopColor: "#222",
     borderTopWidth: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   commentList: {
     maxHeight: 120,
     marginBottom: 9,
   },
   commentInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
   },
   commentInput: {
     flex: 1,
-    backgroundColor: '#242424',
-    color: '#fff',
+    backgroundColor: "#242424",
+    color: "#fff",
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -1390,8 +1635,8 @@ const styles = StyleSheet.create({
     padding: 7,
   },
   commentRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 6,
   },
   commentAvatar: {
@@ -1401,12 +1646,12 @@ const styles = StyleSheet.create({
     marginRight: 7,
   },
   commentName: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 13,
   },
   commentText: {
-    color: '#ccc',
+    color: "#ccc",
     fontSize: 13,
     marginTop: 1,
   },

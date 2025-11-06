@@ -220,7 +220,7 @@ async function getPublicMember(req, res) {
     }
 
     const memberR = await pool.query(
-      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at
+      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -258,6 +258,8 @@ async function getPublicMember(req, res) {
       followers_count: parseInt(counts.followers_count || 0, 10),
       following_count: parseInt(counts.following_count || 0, 10),
       is_following: isFollowingR.rows.length > 0,
+      interests: typeof profile.interests === 'string' ? JSON.parse(profile.interests) : (profile.interests || []),
+      pronouns: parsePgTextArray(profile.pronouns),
     });
   } catch (err) {
     console.error("/members/:id/public error:", err && err.stack ? err.stack : err);
