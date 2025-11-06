@@ -1,66 +1,116 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, FlatList, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { searchMembers } from '../../api/search';
-import { followMember, unfollowMember } from '../../api/members';
-import EventBus from '../../utils/EventBus';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  View,
+  TextInput,
+  FlatList,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Keyboard,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { searchMembers } from "../../api/search";
+import { followMember, unfollowMember } from "../../api/members";
+import EventBus from "../../utils/EventBus";
 
 const DEBOUNCE_MS = 300;
 
 export default function SearchScreen({ navigation }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [following, setFollowing] = useState({}); // id -> boolean
   const [pending, setPending] = useState({}); // id -> boolean
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const inFlightRef = useRef(null);
+  const inputRef = useRef(null);
+  const [focused, setFocused] = useState(false);
+  const [recents, setRecents] = useState([]);
 
   const canSearch = query.trim().length >= 2;
 
-  const doSearch = useCallback(async (reset = false) => {
-    if (!canSearch) {
-      setResults([]);
-      setOffset(0);
-      setHasMore(false);
-      setLoading(false);
-      setError('');
-      return;
-    }
-    const nextOffset = reset ? 0 : offset;
-    setLoading(true);
-    setError('');
-    const p = searchMembers(query.trim(), { limit: 20, offset: nextOffset });
-    inFlightRef.current = p;
+  const RECENTS_KEY = "recent_searches";
+
+  const loadRecents = useCallback(async () => {
     try {
-      const data = await p;
-      if (inFlightRef.current !== p) return; // stale
-      const newResults = reset ? data.results : [...results, ...data.results];
-      setResults(newResults);
-      // initialize following map from payload
-      setFollowing(prev => {
-        const copy = { ...prev };
-        (data.results || []).forEach(r => {
-          if (typeof r.is_following === 'boolean') copy[r.id] = r.is_following;
-        });
-        return copy;
-      });
-      setOffset(data.nextOffset || (nextOffset + (data.results?.length || 0)));
-      setHasMore(!!data.hasMore);
-    } catch (e) {
-      if (inFlightRef.current !== p) return;
-      setError(e?.message || 'Failed to search');
-    } finally {
-      if (inFlightRef.current === p) setLoading(false);
+      const raw = await AsyncStorage.getItem(RECENTS_KEY);
+      if (!raw) {
+        setRecents([]);
+        return;
+      }
+      const arr = JSON.parse(raw);
+      setRecents(Array.isArray(arr) ? arr : []);
+    } catch {
+      setRecents([]);
     }
-  }, [query, offset, results, canSearch]);
+  }, []);
+
+  const saveRecents = useCallback(async (items) => {
+    try {
+      await AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(items));
+    } catch {}
+  }, []);
+
+  const doSearch = useCallback(
+    async (reset = false) => {
+      if (!canSearch) {
+        setResults([]);
+        setOffset(0);
+        setHasMore(false);
+        setLoading(false);
+        setError("");
+        return;
+      }
+      const nextOffset = reset ? 0 : offset;
+      setLoading(true);
+      setError("");
+      const p = searchMembers(query.trim(), { limit: 20, offset: nextOffset });
+      inFlightRef.current = p;
+      try {
+        const data = await p;
+        if (inFlightRef.current !== p) return; // stale
+        const newResults = reset ? data.results : [...results, ...data.results];
+        setResults(newResults);
+        // initialize following map from payload
+        setFollowing((prev) => {
+          const copy = { ...prev };
+          (data.results || []).forEach((r) => {
+            if (typeof r.is_following === "boolean")
+              copy[r.id] = r.is_following;
+          });
+          return copy;
+        });
+        setOffset(data.nextOffset || nextOffset + (data.results?.length || 0));
+        setHasMore(!!data.hasMore);
+      } catch (e) {
+        if (inFlightRef.current !== p) return;
+        setError(e?.message || "Failed to search");
+      } finally {
+        if (inFlightRef.current === p) setLoading(false);
+      }
+    },
+    [query, offset, results, canSearch]
+  );
 
   useEffect(() => {
     const h = setTimeout(() => doSearch(true), DEBOUNCE_MS);
     return () => clearTimeout(h);
   }, [query, doSearch]);
+
+  useEffect(() => {
+    loadRecents();
+  }, [loadRecents]);
 
   const onEndReached = useCallback(() => {
     if (loading || !hasMore) return;
@@ -70,37 +120,121 @@ export default function SearchScreen({ navigation }) {
   const toggleFollow = async (memberId) => {
     if (pending[memberId]) return;
     const isFollowing = !!following[memberId];
-    setFollowing(prev => ({ ...prev, [memberId]: !isFollowing }));
-    setPending(prev => ({ ...prev, [memberId]: true }));
+    setFollowing((prev) => ({ ...prev, [memberId]: !isFollowing }));
+    setPending((prev) => ({ ...prev, [memberId]: true }));
     try {
       if (isFollowing) {
         await unfollowMember(memberId);
       } else {
         await followMember(memberId);
       }
-      EventBus.emit('follow-updated', { memberId, isFollowing: !isFollowing });
+      EventBus.emit("follow-updated", { memberId, isFollowing: !isFollowing });
     } catch (e) {
       // rollback on error
-      setFollowing(prev => ({ ...prev, [memberId]: isFollowing }));
+      setFollowing((prev) => ({ ...prev, [memberId]: isFollowing }));
     } finally {
-      setPending(prev => ({ ...prev, [memberId]: false }));
+      setPending((prev) => ({ ...prev, [memberId]: false }));
     }
+  };
+
+  const onPressProfile = async (item) => {
+    // Close keyboard and recents UI, then navigate
+    Keyboard.dismiss();
+    setFocused(false);
+    setTimeout(() => {
+      navigation.navigate("MemberPublicProfile", { memberId: item.id });
+    }, 0);
+    // update recents (dedup by id, newest first, max 10)
+    const next = [
+      {
+        id: item.id,
+        username: item.username,
+        full_name: item.full_name,
+        profile_photo_url: item.profile_photo_url,
+      },
+      ...recents.filter((r) => r.id !== item.id),
+    ].slice(0, 10);
+    setRecents(next);
+    saveRecents(next);
   };
 
   const renderItem = ({ item }) => (
     <View style={styles.row}>
-      <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => navigation.navigate('MemberPublicProfile', { memberId: item.id })}>
-        <Image source={{ uri: item.profile_photo_url || 'https://via.placeholder.com/64' }} style={styles.avatar} />
+      <TouchableOpacity
+        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+        onPress={() => onPressProfile(item)}
+      >
+        <Image
+          source={{
+            uri: item.profile_photo_url || "https://via.placeholder.com/64",
+          }}
+          style={styles.avatar}
+        />
         <View style={styles.meta}>
-          <Text style={styles.name} numberOfLines={1}>{item.full_name || 'Member'}</Text>
-          <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
-          {!!item.bio && <Text style={styles.bio} numberOfLines={1}>{item.bio}</Text>}
+          <Text style={styles.name} numberOfLines={1}>
+            {item.full_name || "Member"}
+          </Text>
+          <Text style={styles.username} numberOfLines={1}>
+            @{item.username}
+          </Text>
         </View>
       </TouchableOpacity>
-      <TouchableOpacity disabled={!!pending[item.id]} style={[styles.followBtn, following[item.id] ? styles.followingBtn : styles.followBtnPrimary, pending[item.id] ? { opacity: 0.6 } : null]} onPress={() => toggleFollow(item.id)}>
-        <Text style={[styles.followText, following[item.id] ? styles.followingText : styles.followTextPrimary]}>
-          {following[item.id] ? 'Following' : 'Follow'}
+      <TouchableOpacity
+        disabled={!!pending[item.id]}
+        style={[
+          styles.followBtn,
+          following[item.id] ? styles.followingBtn : styles.followBtnPrimary,
+          pending[item.id] ? { opacity: 0.6 } : null,
+        ]}
+        onPress={() => toggleFollow(item.id)}
+      >
+        <Text
+          style={[
+            styles.followText,
+            following[item.id]
+              ? styles.followingText
+              : styles.followTextPrimary,
+          ]}
+        >
+          {following[item.id] ? "Following" : "Follow"}
         </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderRecentItem = ({ item }) => (
+    <View style={styles.row}>
+      <TouchableOpacity
+        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+        onPress={() => onPressProfile(item)}
+      >
+        <Image
+          source={{
+            uri: item.profile_photo_url || "https://via.placeholder.com/64",
+          }}
+          style={styles.avatar}
+        />
+        <View style={styles.meta}>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.full_name || "Member"}
+          </Text>
+          <Text style={styles.username} numberOfLines={1}>
+            @{item.username}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => {
+          const next = recents.filter((r) => r.id !== item.id);
+          setRecents(next);
+          saveRecents(next);
+          setFocused(true);
+          setTimeout(() => inputRef.current?.focus(), 10);
+        }}
+        hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        style={{ padding: 8 }}
+      >
+        <Ionicons name="close" size={22} color="#8E8E93" />
       </TouchableOpacity>
     </View>
   );
@@ -110,6 +244,7 @@ export default function SearchScreen({ navigation }) {
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color="#8E8E93" />
         <TextInput
+          ref={inputRef}
           style={styles.input}
           placeholder="Search members by name or username"
           placeholderTextColor="#8E8E93"
@@ -118,54 +253,134 @@ export default function SearchScreen({ navigation }) {
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
-        {loading ? <ActivityIndicator size="small" color="#6A0DAD" /> : null}
+        <TouchableOpacity
+          onPress={() => {
+            setQuery("");
+            setFocused(false);
+            setResults([]);
+            setError("");
+            Keyboard.dismiss();
+          }}
+          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          style={{ padding: 8 }}
+        >
+          <Ionicons name="close" size={20} color="#8E8E93" />
+        </TouchableOpacity>
       </View>
 
-      {!canSearch && (
-        <View style={styles.helper}><Text style={styles.helperText}>Type at least 2 characters to search</Text></View>
-      )}
+      {focused && query.trim().length === 0 ? (
+        <>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingTop: 8,
+            }}
+          >
+            <Text style={{ fontWeight: "600", color: "#1D1D1F" }}>Recent</Text>
+            {recents.length > 0 && (
+              <TouchableOpacity
+                onPress={async () => {
+                  setRecents([]);
+                  await saveRecents([]);
+                }}
+              >
+                <Text style={{ color: "#6A0DAD", fontWeight: "600" }}>
+                  Clear all
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <FlatList
+            data={recents}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderRecentItem}
+            ListEmptyComponent={
+              <View style={styles.helper}>
+                <Text style={styles.helperText}>No recent searches</Text>
+              </View>
+            }
+          />
+        </>
+      ) : null}
 
       {!!error && (
-        <View style={styles.helper}><Text style={styles.errorText}>{error}</Text></View>
+        <View style={styles.helper}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
 
-      <FlatList
-        data={results}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
-        onEndReached={onEndReached}
-        onEndReachedThreshold={0.6}
-        ListEmptyComponent={canSearch && !loading ? (
-          <View style={styles.helper}><Text style={styles.helperText}>No members found</Text></View>
-        ) : null}
-        contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
-      />
+      {canSearch && (
+        <FlatList
+          data={results}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderItem}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.6}
+          ListEmptyComponent={
+            canSearch && !loading ? (
+              <View style={styles.helper}>
+                <Text style={styles.helperText}>No members found</Text>
+              </View>
+            ) : null
+          }
+          contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   searchBox: {
-    flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16, marginTop: 52, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, height: 44, gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 52,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    borderRadius: 10,
+    height: 44,
+    gap: 8,
   },
-  input: { flex: 1, fontSize: 16, color: '#1D1D1F' },
-  helper: { alignItems: 'center', paddingVertical: 24 },
-  helperText: { color: '#8E8E93' },
-  errorText: { color: '#FF3B30' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F7' },
+  input: { flex: 1, fontSize: 16, color: "#1D1D1F" },
+  helper: { alignItems: "center", paddingVertical: 24 },
+  helperText: { color: "#8E8E93" },
+  errorText: { color: "#FF3B30" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F2F2F7",
+  },
   meta: { flex: 1 },
-  name: { fontSize: 16, color: '#1D1D1F', fontWeight: '600' },
-  username: { fontSize: 14, color: '#8E8E93', marginTop: 2 },
-  bio: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
-  followBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA' },
-  followBtnPrimary: { backgroundColor: '#6A0DAD', borderColor: '#6A0DAD' },
-  followingBtn: { backgroundColor: '#FFFFFF', borderColor: '#E5E5EA' },
-  followText: { fontSize: 12, fontWeight: '600' },
-  followTextPrimary: { color: '#FFFFFF' },
-  followingText: { color: '#1D1D1F' },
+  name: { fontSize: 16, color: "#1D1D1F", fontWeight: "600" },
+  username: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+  bio: { fontSize: 12, color: "#8E8E93", marginTop: 2 },
+  followBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  followBtnPrimary: { backgroundColor: "#6A0DAD", borderColor: "#6A0DAD" },
+  followingBtn: { backgroundColor: "#FFFFFF", borderColor: "#E5E5EA" },
+  followText: { fontSize: 12, fontWeight: "600" },
+  followTextPrimary: { color: "#FFFFFF" },
+  followingText: { color: "#1D1D1F" },
 });
-

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../../context/NotificationsContext';
 import { apiGet, apiPost } from '../../../api/client'; // Modified imports
-import { getAuthToken } from '../../../api/auth';
+import { getAuthToken, getAuthEmail } from '../../../api/auth';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
 import CommentsModal from '../../../components/CommentsModal'; // Comments modal
 import EventBus from '../../../utils/EventBus';
@@ -31,10 +31,12 @@ export default function HomeFeedScreen({ navigation }) {
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
   const { unread } = useNotifications();
+  const [greetingName, setGreetingName] = useState(null);
 
   useEffect(() => {
     // Always load feed once on mount
     loadFeed();
+    loadGreetingName();
   }, []);
 
   useEffect(() => {
@@ -89,6 +91,20 @@ export default function HomeFeedScreen({ navigation }) {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGreetingName = async () => {
+    try {
+      const token = await getAuthToken();
+      const email = await getAuthEmail();
+      if (!token || !email) return;
+      const res = await apiPost('/auth/get-user-profile', { email }, 12000, token);
+      const prof = res?.profile || {};
+      const name = prof.full_name || prof.name || prof.username || 'Member';
+      setGreetingName(name);
+    } catch (e) {
+      setGreetingName('Member');
     }
   };
 
@@ -165,7 +181,11 @@ export default function HomeFeedScreen({ navigation }) {
         handleLike(postId, isLiked);
       }}
       onComment={handleCommentPress}
-      onUserPress={(userId, userType) => Alert.alert("Navigate", `Going to profile for ${userType} ID ${userId}`)}
+      onUserPress={(userId, userType) => {
+        if (userType === 'member' || !userType) {
+          navigation.navigate('MemberPublicProfile', { memberId: userId });
+        }
+      }}
     />
   );
 
@@ -199,7 +219,7 @@ export default function HomeFeedScreen({ navigation }) {
       ) : null}
 
       <View style={styles.greeting}>
-        <Text style={styles.greetingText}>Hi Member!</Text>
+        <Text style={styles.greetingText}>Hi {greetingName || 'Member'}!</Text>
         <Text style={styles.greetingSubtext}>Discover what's happening</Text>
       </View>
 

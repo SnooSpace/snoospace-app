@@ -743,14 +743,14 @@ export default function MemberProfileScreen({ navigation }) {
               <Text style={styles.statNumber}>{posts.length}</Text>
               <Text style={styles.statLabel}>Posts</Text>
             </View>
-            <View style={styles.statItem}>
+            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('FollowersList', { memberId: profile.id, title: 'Followers' })}>
               <Text style={styles.statNumber}>{profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
-            </View>
-            <View style={styles.statItem}>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('FollowingList', { memberId: profile.id, title: 'Following' })}>
               <Text style={styles.statNumber}>{profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Pronouns & Interests */}

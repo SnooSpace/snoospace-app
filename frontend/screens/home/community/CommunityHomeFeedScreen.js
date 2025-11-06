@@ -109,6 +109,11 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
       onLike={handleLike}
       onComment={handleComment}
       onFollow={handleFollow}
+      onUserPress={(userId, userType) => {
+        if (userType === 'member' || !userType) {
+          navigation.navigate('MemberPublicProfile', { memberId: userId });
+        }
+      }}
     />
   );
 

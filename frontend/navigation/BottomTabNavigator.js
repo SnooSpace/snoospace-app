@@ -13,8 +13,15 @@ const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
-const BottomTabNavigator = ({ navigation }) => {
+const BottomTabNavigator = ({ navigation, route }) => {
   const [activeTab, setActiveTab] = useState('Home');
+
+  React.useEffect(() => {
+    const desired = route?.params?.tab;
+    if (desired && typeof desired === 'string') {
+      setActiveTab(desired);
+    }
+  }, [route?.params?.tab]);
 
   const tabs = [
     { name: 'Home', icon: 'home', component: HomeFeedScreen },

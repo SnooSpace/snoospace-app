@@ -33,6 +33,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [interestsExpanded, setInterestsExpanded] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -108,7 +109,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         {item ? (
           <Image
             source={{ uri: firstImageUrl || "https://via.placeholder.com/150" }}
-            style={{ width: "100%", height: "100%" }}
+            style={{ width: "100%", height: "100%", resizeMode: "cover" }}
           />
         ) : (
           <View style={{ flex: 1, backgroundColor: "#F2F2F7" }} />
@@ -156,12 +157,52 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             <Text style={styles.displayName}>
               {profile?.full_name || "Member"}
             </Text>
-            <Text style={styles.handleText}>@{profile?.username}</Text>
+            {/* Username subtitle removed for cleaner public profile header */}
             {!!profile?.bio && (
-              <Text style={styles.bioCenter} numberOfLines={2}>
+              <Text style={styles.bioCenter}>
                 {profile.bio}
               </Text>
             )}
+            {(Array.isArray(profile?.pronouns) && profile.pronouns.length > 0) ||
+            (Array.isArray(profile?.interests) && profile.interests.length > 0) ? (
+              <View style={styles.metaChipsSection}>
+                {Array.isArray(profile?.pronouns) && profile.pronouns.length > 0 ? (
+                  <View style={styles.chipRow}>
+                    {profile.pronouns.map((p, idx) => (
+                      <View key={`p-${idx}`} style={[styles.chip, styles.chipFilled]}>
+                        <Text style={[styles.chipText, styles.chipTextFilled]}>
+                          {String(p).replace(/^[{\"]/g, '').replace(/[}\"]/g, '')}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {Array.isArray(profile?.interests) && profile.interests.length > 0 ? (
+                  <View style={styles.chipRow}>
+                    {(interestsExpanded
+                      ? profile.interests
+                      : profile.interests.slice(0, 7)
+                    ).map((i, idx) => (
+                      <View key={`i-${idx}`} style={styles.chip}>
+                        <Text style={styles.chipText}>{String(i)}</Text>
+                      </View>
+                    ))}
+                    {profile.interests.length > 7 && !interestsExpanded && (
+                      <TouchableOpacity onPress={() => setInterestsExpanded(true)}>
+                        <View style={styles.chip}>
+                          <Text style={styles.chipText}>View all</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : null}
+                {Array.isArray(profile?.interests) && profile.interests.length > 7 && interestsExpanded ? (
+                  <TouchableOpacity onPress={() => setInterestsExpanded(false)} style={{ alignSelf: 'center', marginTop: 6 }}>
+                    <Text style={{ color: '#6A0DAD', fontWeight: '600' }}>Collapse</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
             <View style={styles.countsRowCenter}>
               <View style={styles.countItem}>
                 <Text style={styles.countNumLg}>
@@ -169,18 +210,18 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.countLabel}>Posts</Text>
               </View>
-              <View style={styles.countItem}>
+              <TouchableOpacity style={styles.countItem} onPress={() => navigation.navigate('FollowersList', { memberId, title: 'Followers' })}>
                 <Text style={styles.countNumLg}>
                   {profile?.followers_count || 0}
                 </Text>
                 <Text style={styles.countLabel}>Followers</Text>
-              </View>
-              <View style={styles.countItem}>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.countItem} onPress={() => navigation.navigate('FollowingList', { memberId, title: 'Following' })}>
                 <Text style={styles.countNumLg}>
                   {profile?.following_count || 0}
                 </Text>
                 <Text style={styles.countLabel}>Following</Text>
-              </View>
+              </TouchableOpacity>
             </View>
             <View style={{ marginTop: 12 }}>
               <TouchableOpacity
@@ -333,6 +374,32 @@ const styles = StyleSheet.create({
   },
   handleText: { fontSize: 14, color: "#8E8E93", marginTop: 4 },
   bioCenter: { fontSize: 14, color: "#6A0DAD", marginTop: 8 },
+  metaChipsSection: {
+    width: "100%",
+    paddingHorizontal: 20,
+    marginTop: 10,
+    gap: 6,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    backgroundColor: "#FFFFFF",
+  },
+  chipFilled: {
+    backgroundColor: "#6A0DAD",
+    borderColor: "#6A0DAD",
+  },
+  chipText: { fontSize: 12, color: "#1D1D1F" },
+  chipTextFilled: { color: "#FFFFFF" },
   countsRowCenter: {
     flexDirection: "row",
     justifyContent: "space-around",

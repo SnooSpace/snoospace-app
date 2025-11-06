@@ -11,11 +11,14 @@ import VenueSignupNavigator from "../screens/signup/venue/VenueSignupNavigator";
 import LoginScreen from "../screens/auth/signin/LoginScreen";
 import LoginOtpScreen from "../screens/auth/signin/LoginOtpScreen";
 import BottomTabNavigator from "./BottomTabNavigator";
+import MemberProfileScreen from "../screens/profile/member/MemberProfileScreen";
 import CommunityBottomTabNavigator from "./CommunityBottomTabNavigator";
 import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
+import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
+import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 
@@ -38,6 +41,9 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="VenueHome" component={VenueBottomTabNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="CommunityCreatePost" component={CommunityCreatePostScreen} options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MyProfile" component={MemberProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FollowersList" component={FollowersListScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FollowingList" component={FollowingListScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
     </Stack.Navigator>

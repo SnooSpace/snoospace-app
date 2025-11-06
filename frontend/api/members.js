@@ -52,4 +52,32 @@ export async function fetchInterests() {
   return result?.interests || [];
 }
 
+export async function getMemberFollowers(memberId, { limit = 30, offset = 0 } = {}) {
+  const token = await getAuthToken();
+  // Backend expects page + limit
+  const page = Math.floor(offset / limit) + 1;
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('page', String(page));
+  return apiGet(`/followers/${memberId}/member?${params.toString()}`, 15000, token);
+}
+
+export async function getMemberFollowing(memberId, { limit = 30, offset = 0 } = {}) {
+  const token = await getAuthToken();
+  // Backend expects page + limit
+  const page = Math.floor(offset / limit) + 1;
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('page', String(page));
+  return apiGet(`/following/${memberId}/member?${params.toString()}`, 15000, token);
+}
+
+export async function getFollowStatusForMember(followingMemberId) {
+  const token = await getAuthToken();
+  const params = new URLSearchParams();
+  params.set('followingId', String(followingMemberId));
+  params.set('followingType', 'member');
+  return apiGet(`/follow/status?${params.toString()}`, 15000, token);
+}
+
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -93,6 +94,13 @@ export default function EditProfileScreen({ route, navigation }) {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(
+    profile?.profile_photo_url ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        profile?.name || "Member"
+      )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`
+  );
+  const allowLeaveRef = useRef(false);
 
   useEffect(() => {
     loadInterestsCatalog();
@@ -101,6 +109,31 @@ export default function EditProfileScreen({ route, navigation }) {
   useEffect(() => {
     checkForChanges();
   }, [bio, username, phone, pronouns, interests, location, email]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (!hasChanges || saving || allowLeaveRef.current) {
+        return;
+      }
+      e.preventDefault();
+      Alert.alert(
+        "Unsaved changes",
+        "You have unsaved changes. Are you sure you want to cancel?",
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Yes",
+            style: "destructive",
+            onPress: () => {
+              allowLeaveRef.current = true;
+              navigation.dispatch(e.data.action);
+            },
+          },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, hasChanges, saving]);
 
   const loadInterestsCatalog = async () => {
     try {
@@ -116,33 +149,48 @@ export default function EditProfileScreen({ route, navigation }) {
     const originalUsername = profile?.username || "";
     const originalPhone = profile?.phone || "";
     const originalEmail = profile?.email || "";
-    const originalPronouns = profile?.pronouns
-      ? Array.isArray(profile.pronouns)
-        ? profile.pronouns
-        : [profile.pronouns]
-      : [];
-    const originalInterests = profile?.interests || [];
-    const originalCity = profile?.city || "";
-    const originalLocation = profile?.location || {
-      city: originalCity,
-      state: "",
-      country: "",
-      lat: null,
-      lng: null,
+
+    const normalizePronouns = (arr) =>
+      (arr ? (Array.isArray(arr) ? arr : [arr]) : [])
+        .map(cleanLabel)
+        .slice()
+        .sort();
+
+    const originalPronouns = normalizePronouns(profile?.pronouns);
+    const currentPronouns = normalizePronouns(pronouns);
+
+    const normalizeInterests = (arr) => (arr ? [...arr].sort() : []);
+    const originalInterests = normalizeInterests(profile?.interests || []);
+    const currentInterests = normalizeInterests(interests || []);
+
+    const normalizeLocation = (loc) => {
+      if (!loc || typeof loc !== "object") {
+        return { city: "", state: "", country: "", lat: null, lng: null };
+      }
+      return {
+        city: loc.city || "",
+        state: loc.state || "",
+        country: loc.country || "",
+        lat: loc.lat ?? null,
+        lng: loc.lng ?? null,
+      };
     };
+
+    const originalLocation = normalizeLocation(
+      profile?.location || { city: profile?.city || "" }
+    );
+    const currentLocation = normalizeLocation(location);
 
     const changed =
       bio !== originalBio ||
       username !== originalUsername ||
       phone !== originalPhone ||
       email !== originalEmail ||
-      JSON.stringify(pronouns.sort()) !==
-        JSON.stringify(originalPronouns.sort()) ||
-      JSON.stringify(interests.sort()) !==
-        JSON.stringify(originalInterests.sort()) ||
-      JSON.stringify(location) !== JSON.stringify(originalLocation);
+      JSON.stringify(currentPronouns) !== JSON.stringify(originalPronouns) ||
+      JSON.stringify(currentInterests) !== JSON.stringify(originalInterests) ||
+      JSON.stringify(currentLocation) !== JSON.stringify(originalLocation);
 
-    setHasChanges(changed);
+    setHasChanges(!!changed);
   };
 
   const checkUsernameAvailability = useCallback(
@@ -220,6 +268,7 @@ export default function EditProfileScreen({ route, navigation }) {
         15000,
         token
       );
+      setPhotoUrl(secureUrl);
       Alert.alert("Updated", "Profile photo updated");
       // Trigger parent refresh by marking changes (no-op field) or simply navigate back after save
     } catch (e) {
@@ -291,8 +340,16 @@ export default function EditProfileScreen({ route, navigation }) {
         await changeUsername(username, token);
       }
 
+      // Prevent the unsaved guard and go back after user acknowledges
       Alert.alert("Success", "Profile updated successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() },
+        {
+          text: "OK",
+          onPress: () => {
+            allowLeaveRef.current = true;
+            setHasChanges(false);
+            navigation.goBack();
+          },
+        },
       ]);
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -342,8 +399,8 @@ export default function EditProfileScreen({ route, navigation }) {
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Photo Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Profile Photo</Text>
+          <View style={[styles.section, styles.photoSection]}>
+            <Image source={{ uri: photoUrl }} style={styles.profileImage} />
             <TouchableOpacity
               onPress={handleChangePhoto}
               style={[styles.changeButton, styles.photoButton]}
@@ -352,7 +409,9 @@ export default function EditProfileScreen({ route, navigation }) {
               {uploadingPhoto ? (
                 <ActivityIndicator size="small" color={PRIMARY_COLOR} />
               ) : (
-                <Text style={styles.changeButtonText}>Change Photo</Text>
+                <Text style={styles.changeButtonText}>
+                  Change Profile Photo
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -651,7 +710,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   photoButton: {
-    alignSelf: "flex-start",
+    alignSelf: "center",
+  },
+  profileImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: 12,
+    backgroundColor: "#E5E5EA",
+  },
+  photoSection: {
+    alignItems: "center",
   },
   locationButton: {
     flexDirection: "row",
