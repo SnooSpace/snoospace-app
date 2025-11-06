@@ -149,25 +149,7 @@ export default function MemberProfileScreen({ navigation }) {
     navigation.navigate('EditProfile', { profile });
   };
 
-  const handleChangePhoto = async () => {
-    try {
-      const permissionResult = await requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Permission to access photos is required.');
-        return;
-      }
-      const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
-      if (picker.canceled || !picker.assets || !picker.assets[0]) return;
-      const uri = picker.assets[0].uri;
-      const secureUrl = await uploadImage(uri);
-      const token = await getAuthToken();
-      await apiPost('/members/profile/photo', { profile_photo_url: secureUrl }, 15000, token);
-      setProfile(prev => ({ ...prev, profile_photo_url: secureUrl }));
-      Alert.alert('Updated', 'Profile photo updated');
-    } catch (e) {
-      Alert.alert('Update failed', e?.message || 'Could not update photo');
-    }
-  };
+  // Change Photo moved to Edit Profile screen
 
   const handleFollow = async () => {
     try {
@@ -751,7 +733,9 @@ export default function MemberProfileScreen({ navigation }) {
           </View>
           
           <Text style={styles.profileName}>{profile.name}</Text>
-          <Text style={styles.profileTagline}>Event Enthusiast</Text>
+          {profile.bio ? (
+            <Text style={styles.profileTagline}>{profile.bio}</Text>
+          ) : null}
 
           {/* Stats */}
           <View style={styles.statsContainer}>
@@ -769,22 +753,36 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Bio */}
-          {profile.bio ? (
-            <View style={styles.bioContainer}>
-              <Text style={styles.bioText}>
-                {profile.bio}
-              </Text>
+          {/* Pronouns & Interests */}
+          {(Array.isArray(profile.pronouns) && profile.pronouns.length > 0) || (Array.isArray(profile.interests) && profile.interests.length > 0) ? (
+            <View style={styles.metaChipsSection}>
+              {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {profile.pronouns.map((p, idx) => (
+                    <View key={`pronoun-${idx}`} style={[styles.chip, styles.chipFilled]}>
+                      <Text style={[styles.chipText, styles.chipTextFilled]}>{String(p).replace(/^[{\"]+|[}\"]+$/g, '')}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {Array.isArray(profile.interests) && profile.interests.length > 0 ? (
+                <View style={[styles.chipRow, { marginTop: 6 }]}>
+                  {profile.interests.slice(0, 6).map((i, idx) => (
+                    <View key={`interest-${idx}`} style={styles.chip}>
+                      <Text style={styles.chipText}>{String(i)}</Text>
+                    </View>
+                  ))}
+                  {profile.interests.length > 6 ? (
+                    <View style={styles.chip}>
+                      <Text style={styles.chipText}>+{profile.interests.length - 6}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
           {/* Action Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleChangePhoto}
-          >
-            <Text style={styles.actionButtonText}>Change Photo</Text>
-          </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.actionButton, { marginTop: 10 }]}
@@ -978,6 +976,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: PRIMARY_COLOR,
     marginBottom: 20,
+  },
+  metaChipsSection: {
+    width: '100%',
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  chipFilled: {
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
+  },
+  chipText: {
+    fontSize: 12,
+    color: TEXT_COLOR,
+  },
+  chipTextFilled: {
+    color: '#FFFFFF',
   },
   statsContainer: {
     flexDirection: 'row',

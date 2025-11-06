@@ -1,3 +1,22 @@
+function parsePgTextArray(value) {
+  if (!value) return null;
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return [trimmed];
+  const inner = trimmed.substring(1, trimmed.length - 1);
+  if (!inner) return [];
+  return inner
+    .split(',')
+    .map((item) => item.trim())
+    .map((item) => {
+      // remove surrounding quotes if present
+      const m = item.match(/^"(.*)"$/);
+      return m ? m[1] : item;
+    })
+    .filter((s) => s.length > 0);
+}
+
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
@@ -96,7 +115,7 @@ async function getProfile(req, res) {
       interests: JSON.parse(member.interests),
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
-      pronouns: Array.isArray(member.pronouns) ? member.pronouns : (member.pronouns ? [member.pronouns] : null),
+      pronouns: parsePgTextArray(member.pronouns),
       location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
     };
 
@@ -348,7 +367,7 @@ async function patchProfile(req, res) {
       profile: {
         bio: member.bio,
         phone: member.phone,
-        pronouns: Array.isArray(member.pronouns) ? member.pronouns : (member.pronouns ? [member.pronouns] : null),
+        pronouns: parsePgTextArray(member.pronouns),
         interests: typeof member.interests === 'string' ? JSON.parse(member.interests) : member.interests,
         city: member.city,
         location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
@@ -376,7 +395,7 @@ async function changeUsernameEndpoint(req, res) {
     }
 
     const sanitized = username.toLowerCase().trim();
-    if (!/^[a-z0-9_]{3,30}$/.test(sanitized)) {
+    if (!/^[a-z0-9._]{3,30}$/.test(sanitized)) {
       return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, and underscores only" });
     }
 

@@ -100,6 +100,20 @@
   - Profile editing for all user types
   - Image gallery views
 
+### ✅ Recently Completed (since last update)
+- Persistent login with automatic access token refresh
+- Member search screen with debounced input, pagination, and drill-in
+- Member public profile screen with 3-column grid
+- Follow/Unfollow in search and public profile with optimistic updates
+- Notifications: list, unread badge, mark read/all, realtime subscription
+- Notification banner component (Instagram-style), correct safe area placement
+- Delete Account: settings action with type "delete" confirmation, hard delete
+- Profile photo update fix + circular loading indicator during upload
+- Profile/post grids sizing corrected to previous design
+- Edit Profile (Member): bio, username, email change via OTP, phone (no OTP), pronouns, interests (catalog + custom), and auto location (GPS)
+- New components: ChipSelector, EmailChangeModal
+- expo-location dependency added
+
 ### 🔮 P2 — Future Features
 - [ ] Stories feed and create story (photo/video, 24h)
 - [ ] Enhanced matching UI with filters
@@ -119,11 +133,11 @@
 ### Cross-Cutting Features
 - ✅ Role-based navigation guards
 - ⚠️ Media picker/upload to Firebase Storage (UI ready, integration pending)
-- ✅ Multi-select UI for cities/interests (working in signup flows)
+- ✅ Multi-select UI for interests (signup and edit profile)
 - ✅ Error states, loading, empty states (PostCard, forms)
 - ✅ Form validation and progress indicators (all signup flows)
 - ✅ Comprehensive logout handling for all user types
-- ✅ Session persistence across app restarts
+- ✅ Session persistence across app restarts with refresh logic
 
 ### Component Status
 - ✅ Progressbar.js - Reusable progress indicator

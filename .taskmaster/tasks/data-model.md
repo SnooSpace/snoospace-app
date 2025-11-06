@@ -47,7 +47,7 @@
 - **members**
   - id (PK), name, email (unique), phone, dob, gender, city
   - interests (JSONB), username (unique), bio
-  - profile_photo_url, pronouns
+  - profile_photo_url, pronouns (TEXT[]), location (JSONB)
   - created_at
 - **communities**
   - id (PK), name, logo_url, bio, category, location
@@ -121,6 +121,14 @@
   - created_at
   - Unique on (follower_id, follower_type, following_id, following_type)
 - **member_photos**
+ - **notifications**
+  - id (PK)
+  - recipient_id (FK), recipient_type (member/community/sponsor/venue)
+  - type (follow, like, comment, etc.)
+  - payload (JSONB: actor info, post id, etc.)
+  - is_read (BOOLEAN, default false)
+  - created_at
+
   - id (PK), member_id (FK)
   - photo_url, photo_order
   - created_at

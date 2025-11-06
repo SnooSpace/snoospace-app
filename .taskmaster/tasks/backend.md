@@ -80,6 +80,12 @@
   - Comment routes (create, reply, get, delete)
   - Follow routes (follow, unfollow, get lists, counts)
   - Event routes (my events, attendees, swipes, matches, requests)
+  - Member search routes (search, public profile)
+  - Notifications routes (list, unread count, mark read, mark all read)
+  - Account deletion route (hard delete)
+  - Auth refresh route (access via refresh token)
+  - Member profile update route (PATCH) + username + email change (OTP)
+  - Catalog route (interests)
 
 ### 🚧 P1 — In Progress
 - [ ] Signed URL endpoints for Firebase uploads
@@ -130,8 +136,8 @@
   - Payment verification
   - Refund processing
   - Transaction tracking
-- [ ] Notifications API
-  - Push notification scheduling
+- [ ] Notifications API (push layer)
+  - Push notification scheduling/delivery
   - Notification preferences
   - Notification history
 
@@ -181,7 +187,9 @@
 - ✅ Event routes (events, attendees, swipes, matches, requests)
 
 ### Database Schema Status:
-- ✅ Members table with pronouns
+ - ✅ Members table with pronouns (TEXT[])
+ - ✅ Members table location (JSONB)
+ - ✅ Notifications table
 - ✅ Communities table
 - ✅ Community_heads table (private info)
 - ✅ Sponsors table
@@ -202,5 +210,5 @@
 1. Implement signed URL generation for media uploads
 2. Add event creation and management endpoints
 3. Implement collaboration request system
-4. Add notification infrastructure
+4. Add push notification infrastructure
 5. Set up monitoring and analytics

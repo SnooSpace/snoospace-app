@@ -206,6 +206,21 @@ async function checkEmail(req, res) {
   }
 }
 
+function parsePgTextArrayForAuth(val) {
+  if (!val) return null;
+  if (Array.isArray(val)) return val;
+  if (typeof val !== 'string') return null;
+  const s = val.trim();
+  if (!s.startsWith('{') || !s.endsWith('}')) return [s];
+  const inner = s.slice(1, -1);
+  if (!inner) return [];
+  return inner
+    .split(',')
+    .map(x => x.trim())
+    .map(x => (x.startsWith('"') && x.endsWith('"') ? x.slice(1, -1) : x))
+    .filter(Boolean);
+}
+
 async function getUserProfile(req, res) {
   try {
     // Prefer email from authenticated user if present
@@ -225,7 +240,17 @@ async function getUserProfile(req, res) {
     for (const { table, role, column } of tables) {
       const result = await pool.query(`SELECT * FROM ${table} WHERE ${column} = $1`, [email]);
       if (result.rows.length > 0) {
-        return res.json({ role, profile: result.rows[0] });
+        const row = result.rows[0];
+        if (role === 'member') {
+          const normalized = {
+            ...row,
+            interests: typeof row.interests === 'string' ? JSON.parse(row.interests) : row.interests,
+            pronouns: parsePgTextArrayForAuth(row.pronouns),
+            location: typeof row.location === 'string' ? JSON.parse(row.location) : row.location,
+          };
+          return res.json({ role, profile: normalized });
+        }
+        return res.json({ role, profile: row });
       }
     }
     res.status(404).json({ error: "User not found" });

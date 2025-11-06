@@ -48,8 +48,19 @@ This folder contains project tasks organized by development area. Updated to ref
 - Implement media upload to Firebase
 - Complete event registration flow
 - Build collaboration request UI
-- Add real-time notifications
-- Profile editing functionality
+- Push notifications (device)
+- Profile editing for remaining roles
+
+#### ✅ Recently Completed (since last update)
+- Persistent login with automatic token refresh
+- Member search with debounced input, pagination, and public profile
+- Follow/Unfollow in search and public profile with optimistic UI
+- Notifications: list, unread count, mark read/all, realtime subscription
+- Notification banner with safe-area positioning and high z-index
+- Delete Account for all roles with type-to-confirm dialog
+- Profile photo update fix + loading spinner
+- Profile/public image grid sizing corrections (3 columns)
+- Edit Profile (Member): bio, username, email (OTP), phone (no OTP), pronouns, interests, auto location (GPS)
 
 ### 🚀 Getting Started
 1. Review `backlog.md` for overall project priorities
