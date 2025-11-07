@@ -34,6 +34,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
+  const [showAllPronouns, setShowAllPronouns] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -42,20 +43,24 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       const normalized = {
         ...p,
         interests: Array.isArray(p?.interests)
-          ? p.interests.filter(i => i && String(i).trim())
-          : (typeof p?.interests === 'string' && p.interests
-              ? (() => { 
-                  try { 
-                    const parsed = JSON.parse(p.interests);
-                    return Array.isArray(parsed) ? parsed.filter(i => i && String(i).trim()) : [];
-                  } catch { 
-                    return []; 
-                  }
-                })()
-              : []),
+          ? p.interests.filter((i) => i && String(i).trim())
+          : typeof p?.interests === "string" && p.interests
+          ? (() => {
+              try {
+                const parsed = JSON.parse(p.interests);
+                return Array.isArray(parsed)
+                  ? parsed.filter((i) => i && String(i).trim())
+                  : [];
+              } catch {
+                return [];
+              }
+            })()
+          : [],
         pronouns: Array.isArray(p?.pronouns)
-          ? p.pronouns.filter(pron => pron && String(pron).trim())
-          : (p?.pronouns && String(p.pronouns).trim() ? [String(p.pronouns).trim()] : []),
+          ? p.pronouns.filter((pron) => pron && String(pron).trim())
+          : p?.pronouns && String(p.pronouns).trim()
+          ? [String(p.pronouns).trim()]
+          : [],
       };
       setProfile(normalized);
       setIsFollowing(!!p?.is_following);
@@ -137,6 +142,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     );
   };
 
+  // Render bio preserving explicit newlines exactly as typed
+  const renderBio = (bioText) => {
+    if (!bioText) return null;
+    const lines = String(bioText).replace(/\r\n/g, "\n").split("\n");
+    return (
+      <Text style={styles.bioLeft}>
+        {lines.map((line, idx) => (
+          <Text key={`bio-${idx}`}>
+            {line}
+            {idx !== lines.length - 1 ? "\n" : ""}
+          </Text>
+        ))}
+      </Text>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -179,53 +200,139 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   {profile?.full_name || "Member"}
                 </Text>
               </View>
-              {Array.isArray(profile?.pronouns) && profile.pronouns.length > 0 ? (
+              {Array.isArray(profile?.pronouns) &&
+              profile.pronouns.length > 0 ? (
                 <View style={styles.inlinePronounsRow}>
-                  {profile.pronouns.map((p, idx) => (
-                    <View
-                      key={`p-${idx}`}
+                  <View
+                    key={`p-0`}
+                    style={[styles.chip, styles.pronounChipSmall]}
+                  >
+                    <Text style={styles.chipText}>
+                      {String(profile.pronouns[0]).replace(
+                        /^[{\"]+|[}\"]+$/g,
+                        ""
+                      )}
+                    </Text>
+                  </View>
+                  {profile.pronouns.length > 1 && !showAllPronouns ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllPronouns(true)}
                       style={[styles.chip, styles.pronounChipSmall]}
                     >
                       <Text style={styles.chipText}>
-                        {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                        +{profile.pronouns.length - 1}
                       </Text>
-                    </View>
-                  ))}
+                    </TouchableOpacity>
+                  ) : null}
+                  {profile.pronouns.length > 1 && showAllPronouns ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllPronouns(false)}
+                      style={[
+                        styles.chip,
+                        styles.pronounChipSmall,
+                        styles.chipRed,
+                      ]}
+                    >
+                      <Text style={[styles.chipText, styles.chipTextRed]}>
+                        -
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ) : null}
             </View>
-            {!!profile?.bio && (
-              <Text style={styles.bioLeft}>
-                {profile.bio}
-              </Text>
-            )}
+            {Array.isArray(profile?.pronouns) &&
+            profile.pronouns.length > 1 &&
+            showAllPronouns ? (
+              <View style={styles.expandedPronounsRow}>
+                {profile.pronouns.slice(1).map((p, idx) => (
+                  <View
+                    key={`p-expanded-${idx}`}
+                    style={[styles.chip, styles.pronounChipSmall]}
+                  >
+                    <Text style={styles.chipText}>
+                      {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {!!profile?.bio && renderBio(profile.bio)}
 
-            {/* Interests */}
-            {Array.isArray(profile?.interests) && profile.interests.length > 0 ? (
+            <View style={styles.countsRowCenter}>
+              <View style={styles.countItem}>
+                <Text style={styles.countNumLg}>
+                  {profile?.posts_count || 0}
+                </Text>
+                <Text style={styles.countLabel}>Posts</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.countItem}
+                onPress={() =>
+                  navigation.navigate("FollowersList", {
+                    memberId,
+                    title: "Followers",
+                  })
+                }
+              >
+                <Text style={styles.countNumLg}>
+                  {profile?.followers_count || 0}
+                </Text>
+                <Text style={styles.countLabel}>Followers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.countItem}
+                onPress={() =>
+                  navigation.navigate("FollowingList", {
+                    memberId,
+                    title: "Following",
+                  })
+                }
+              >
+                <Text style={styles.countNumLg}>
+                  {profile?.following_count || 0}
+                </Text>
+                <Text style={styles.countLabel}>Following</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Interests below stats */}
+            {Array.isArray(profile?.interests) &&
+            profile.interests.length > 0 ? (
               <View style={styles.metaChipsSection}>
-                <View style={[styles.chipRow, { marginTop: 6 }]}>
+                <View style={[styles.chipGridRow, { marginTop: 6 }]}>
                   {(showAllInterests
                     ? profile.interests
-                    : profile.interests.slice(0, 5)
+                    : profile.interests.slice(0, 6)
                   ).map((i, idx) => (
-                    <View key={`i-${idx}`} style={styles.chip}>
+                    <View
+                      key={`i-${idx}`}
+                      style={[styles.chip, styles.chipGridItem]}
+                    >
                       <Text style={styles.chipText}>{String(i)}</Text>
                     </View>
                   ))}
-                  {profile.interests.length > 5 && !showAllInterests ? (
+                  {profile.interests.length > 6 && !showAllInterests ? (
                     <TouchableOpacity
                       onPress={() => setShowAllInterests(true)}
-                      style={[styles.chip, styles.chipBlue]}
+                      style={[
+                        styles.chip,
+                        styles.chipBlue,
+                        styles.chipGridItem,
+                      ]}
                     >
                       <Text style={[styles.chipText, styles.chipTextBlue]}>
                         See all
                       </Text>
                     </TouchableOpacity>
                   ) : null}
-                  {profile.interests.length > 5 && showAllInterests ? (
+                  {profile.interests.length > 6 && showAllInterests ? (
                     <TouchableOpacity
                       onPress={() => setShowAllInterests(false)}
-                      style={[styles.chip, styles.chipBlue]}
+                      style={[
+                        styles.chip,
+                        styles.chipBlue,
+                        styles.chipGridItem,
+                      ]}
                     >
                       <Text style={[styles.chipText, styles.chipTextBlue]}>
                         Collapse
@@ -235,26 +342,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </View>
               </View>
             ) : null}
-            <View style={styles.countsRowCenter}>
-              <View style={styles.countItem}>
-                <Text style={styles.countNumLg}>
-                  {profile?.posts_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Posts</Text>
-              </View>
-              <TouchableOpacity style={styles.countItem} onPress={() => navigation.navigate('FollowersList', { memberId, title: 'Followers' })}>
-                <Text style={styles.countNumLg}>
-                  {profile?.followers_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Followers</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.countItem} onPress={() => navigation.navigate('FollowingList', { memberId, title: 'Following' })}>
-                <Text style={styles.countNumLg}>
-                  {profile?.following_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Following</Text>
-              </TouchableOpacity>
-            </View>
+
             <View style={{ marginTop: 12 }}>
               <TouchableOpacity
                 style={[
@@ -391,7 +479,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1D1D1F",
   },
-  profileHeader: { alignItems: "center", paddingTop: 8, paddingBottom: 8 },
+  profileHeader: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+  },
   avatarLarge: {
     width: 120,
     height: 120,
@@ -424,6 +517,16 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: 60,
   },
+  expandedPronounsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 8,
+    width: "100%",
+  },
   pronounChipSmall: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -449,6 +552,14 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: "center",
   },
+  chipGridRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    alignItems: "center",
+  },
   chip: {
     borderWidth: 1,
     borderColor: "#E5E5EA",
@@ -457,13 +568,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: "#FFFFFF",
   },
+  chipGridItem: {
+    width: (screenWidth - 40 - 8 * 3) / 4,
+    alignItems: "center",
+  },
   chipFilled: {
     backgroundColor: "#6A0DAD",
     borderColor: "#6A0DAD",
   },
   chipText: { fontSize: 12, color: "#1D1D1F" },
-  chipBlue: { borderColor: '#007AFF' },
-  chipTextBlue: { color: '#007AFF' },
+  chipBlue: { borderColor: "#007AFF" },
+  chipTextBlue: { color: "#007AFF" },
+  chipRed: { borderColor: "#FF3B30" },
+  chipTextRed: { color: "#FF3B30" },
   chipTextFilled: { color: "#FFFFFF" },
   countsRowCenter: {
     flexDirection: "row",

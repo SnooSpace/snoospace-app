@@ -49,6 +49,7 @@ export default function MemberProfileScreen({ navigation }) {
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
+  const [showAllPronouns, setShowAllPronouns] = useState(false);
   // Combine comments modal state into one object to reduce state updates
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
@@ -177,6 +178,21 @@ export default function MemberProfileScreen({ navigation }) {
 
   const handleEditProfile = () => {
     navigation.navigate("EditProfile", { profile });
+  };
+  // Render bio preserving explicit newlines exactly as typed
+  const renderBio = (bioText) => {
+    if (!bioText) return null;
+    const lines = String(bioText).replace(/\r\n/g, "\n").split("\n");
+    return (
+      <Text style={styles.bioLeft}>
+        {lines.map((line, idx) => (
+          <Text key={`bio-${idx}`}>
+            {line}
+            {idx !== lines.length - 1 ? "\n" : ""}
+          </Text>
+        ))}
+      </Text>
+    );
   };
 
   // Change Photo moved to Edit Profile screen
@@ -875,22 +891,50 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
             {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
               <View style={styles.inlinePronounsRow}>
-                {profile.pronouns.map((p, idx) => (
-                  <View
-                    key={`pronoun-${idx}`}
+                <View
+                  key={`pronoun-0`}
+                  style={[styles.chip, styles.pronounChipSmall]}
+                >
+                  <Text style={styles.chipText}>
+                    {String(profile.pronouns[0]).replace(/^[{\"]+|[}\"]+$/g, "")}
+                  </Text>
+                </View>
+                {profile.pronouns.length > 1 && !showAllPronouns ? (
+                  <TouchableOpacity
+                    onPress={() => setShowAllPronouns(true)}
                     style={[styles.chip, styles.pronounChipSmall]}
                   >
                     <Text style={styles.chipText}>
-                      {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                      +{profile.pronouns.length - 1}
                     </Text>
-                  </View>
-                ))}
+                  </TouchableOpacity>
+                ) : null}
+                {profile.pronouns.length > 1 && showAllPronouns ? (
+                  <TouchableOpacity
+                    onPress={() => setShowAllPronouns(false)}
+                    style={[styles.chip, styles.pronounChipSmall, styles.chipRed]}
+                  >
+                    <Text style={[styles.chipText, styles.chipTextRed]}>-</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : null}
           </View>
-          {profile.bio ? (
-            <Text style={styles.profileTagline}>{profile.bio}</Text>
+          {Array.isArray(profile.pronouns) && profile.pronouns.length > 1 && showAllPronouns ? (
+            <View style={styles.expandedPronounsRow}>
+              {profile.pronouns.slice(1).map((p, idx) => (
+                <View
+                  key={`pronoun-expanded-${idx}`}
+                  style={[styles.chip, styles.pronounChipSmall]}
+                >
+                  <Text style={styles.chipText}>
+                    {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                  </Text>
+                </View>
+              ))}
+            </View>
           ) : null}
+          {profile.bio ? renderBio(profile.bio) : null}
 
           {/* Stats */}
           <View style={styles.statsContainer}>
@@ -927,33 +971,29 @@ export default function MemberProfileScreen({ navigation }) {
           {/* Interests */}
           {Array.isArray(profile.interests) && profile.interests.length > 0 ? (
             <View style={styles.metaChipsSection}>
-              <View style={[styles.chipRow, { marginTop: 6 }]}>
+              <View style={[styles.chipGridRow, { marginTop: 6 }]}>
                 {(showAllInterests
                   ? profile.interests
-                  : profile.interests.slice(0, 5)
+                  : profile.interests.slice(0, 6)
                 ).map((i, idx) => (
-                  <View key={`interest-${idx}`} style={styles.chip}>
+                  <View key={`interest-${idx}`} style={[styles.chip, styles.chipGridItem]}>
                     <Text style={styles.chipText}>{String(i)}</Text>
                   </View>
                 ))}
-                {profile.interests.length > 5 && !showAllInterests ? (
+                {profile.interests.length > 6 && !showAllInterests ? (
                   <TouchableOpacity
                     onPress={() => setShowAllInterests(true)}
-                    style={[styles.chip, styles.chipBlue]}
+                    style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
                   >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>
-                      See all
-                    </Text>
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>See all</Text>
                   </TouchableOpacity>
                 ) : null}
-                {profile.interests.length > 5 && showAllInterests ? (
+                {profile.interests.length > 6 && showAllInterests ? (
                   <TouchableOpacity
                     onPress={() => setShowAllInterests(false)}
-                    style={[styles.chip, styles.chipBlue]}
+                    style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
                   >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>
-                      Collapse
-                    </Text>
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>Collapse</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -1203,6 +1243,16 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: 60,
   },
+  expandedPronounsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 8,
+    width: "100%",
+  },
   nameSpacer: {
     flex: 0,
   },
@@ -1215,6 +1265,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: PRIMARY_COLOR,
     marginBottom: 20,
+    lineHeight: 22,
+  },
+  bioLeft: {
+    fontSize: 16,
+    color: PRIMARY_COLOR,
+    marginBottom: 20,
+    textAlign: "left",
+    alignSelf: "flex-start",
+    width: "100%",
   },
   metaChipsSection: {
     width: "100%",
@@ -1227,6 +1286,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
+  chipGridRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+  },
   chip: {
     borderWidth: 1,
     borderColor: "#E5E5EA",
@@ -1234,6 +1300,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: "#FFFFFF",
+  },
+  chipGridItem: {
+    width: (screenWidth - 40 - 8 * 3) / 4,
+    alignItems: "center",
   },
   chipFilled: {
     backgroundColor: PRIMARY_COLOR,
@@ -1248,6 +1318,12 @@ const styles = StyleSheet.create({
   },
   chipTextBlue: {
     color: "#007AFF",
+  },
+  chipRed: {
+    borderColor: "#FF3B30",
+  },
+  chipTextRed: {
+    color: "#FF3B30",
   },
   chipTextFilled: {
     color: "#FFFFFF",
