@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommonActions } from "@react-navigation/native";
+import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import {
@@ -57,35 +57,8 @@ export default function MemberProfileScreen({ navigation }) {
   });
   // Buffer for avoiding parent re-renders during like/unlike inside PostModal
   const pendingPostUpdateRef = React.useRef(null);
-
-  useEffect(() => {
-    // Always load profile once on mount
-    console.log("[Profile] useEffect: initial mount loadProfile call");
-    loadProfile();
-  }, []);
-
-  useEffect(() => {
-    // Also refresh when we actually get focus
-    console.log("[Profile] useEffect: subscribing to navigation focus.");
-    const unsubscribe = navigation.addListener("focus", () => {
-      console.log("[Profile] Screen focused, calling loadProfile");
-      loadProfile();
-    });
-    const off = EventBus.on("follow-updated", (payload) => {
-      // Optimistically adjust following_count for current user when they follow/unfollow someone
-      setProfile((prev) => {
-        if (!prev) return prev;
-        const delta = payload?.isFollowing ? 1 : -1;
-        const next = Math.max(0, (prev.following_count || 0) + delta);
-        return { ...prev, following_count: next };
-      });
-    });
-    return () => {
-      console.log("[Profile] useEffect cleanup (unsubscribing)");
-      unsubscribe();
-      off();
-    };
-  }, [navigation]);
+  const loadProfileRef = React.useRef(null);
+  const isInitialMountRef = React.useRef(true);
 
   const loadProfile = async () => {
     console.log("[Profile] loadProfile: start");
@@ -176,7 +149,47 @@ export default function MemberProfileScreen({ navigation }) {
     }
   };
 
+  // Store loadProfile in ref so it can be accessed in useFocusEffect
+  loadProfileRef.current = loadProfile;
+
+  useEffect(() => {
+    // Always load profile once on mount
+    console.log("[Profile] useEffect: initial mount loadProfile call");
+    loadProfile();
+    const off = EventBus.on("follow-updated", (payload) => {
+      // Optimistically adjust following_count for current user when they follow/unfollow someone
+      setProfile((prev) => {
+        if (!prev) return prev;
+        const delta = payload?.isFollowing ? 1 : -1;
+        const next = Math.max(0, (prev.following_count || 0) + delta);
+        return { ...prev, following_count: next };
+      });
+    });
+    return () => {
+      console.log("[Profile] useEffect cleanup (unsubscribing)");
+      off();
+    };
+  }, []);
+
+  // Reload profile when screen comes into focus (e.g., after returning from EditProfile)
+  useFocusEffect(
+    useCallback(() => {
+      // Skip reload on initial mount (useEffect already handles that)
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+        return;
+      }
+      
+      // Only reload if profile is already loaded and we're returning from another screen
+      if (loadProfileRef.current) {
+        console.log("[Profile] useFocusEffect: reloading profile after returning from another screen");
+        loadProfileRef.current();
+      }
+    }, [])
+  );
+
   const handleEditProfile = () => {
+    // Navigate to EditProfile (same stack - ProfileStackNavigator)
     navigation.navigate("EditProfile", { profile });
   };
   // Render bio preserving explicit newlines exactly as typed
@@ -944,24 +957,26 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
             <TouchableOpacity
               style={styles.statItem}
-              onPress={() =>
+              onPress={() => {
+                // Navigate to FollowersList (same stack - ProfileStackNavigator)
                 navigation.navigate("FollowersList", {
                   memberId: profile.id,
                   title: "Followers",
-                })
-              }
+                });
+              }}
             >
               <Text style={styles.statNumber}>{profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statItem}
-              onPress={() =>
+              onPress={() => {
+                // Navigate to FollowingList (same stack - ProfileStackNavigator)
                 navigation.navigate("FollowingList", {
                   memberId: profile.id,
                   title: "Following",
-                })
-              }
+                });
+              }}
             >
               <Text style={styles.statNumber}>{profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>

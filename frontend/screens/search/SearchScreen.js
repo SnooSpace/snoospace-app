@@ -142,7 +142,10 @@ export default function SearchScreen({ navigation }) {
     Keyboard.dismiss();
     setFocused(false);
     setTimeout(() => {
-      navigation.navigate("MemberPublicProfile", { memberId: item.id });
+      // Navigate to MemberPublicProfile (same stack - SearchStackNavigator)
+      navigation.navigate("MemberPublicProfile", { 
+        memberId: item.id 
+      });
     }, 0);
     // update recents (dedup by id, newest first, max 10)
     const next = [

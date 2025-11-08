@@ -160,7 +160,16 @@ export default function VenueHomeFeedScreen({ navigation }) {
     <View style={styles.header}>
       <View style={styles.headerTop}>
         <Text style={styles.headerTitle}>Venue Dashboard</Text>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => {
+          // Navigate to MemberHome first, then to MemberStack -> Notifications
+          const root = navigation.getParent()?.getParent();
+          if (root) {
+            root.navigate('MemberHome', {
+              screen: 'MemberStack',
+              params: { screen: 'Notifications' }
+            });
+          }
+        }}>
           <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
           {unread > 0 && (
             <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text></View>

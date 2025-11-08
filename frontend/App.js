@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppNavigator from "./navigation/AppNavigator";
 import { getAuthToken, getAuthEmail, getPendingOtp, clearPendingOtp } from "./api/auth";
@@ -14,7 +14,19 @@ function AppContent() {
 
   const handleBannerPress = () => {
     if (currentBanner?.type === 'follow' && currentBanner?.actor_id) {
-      navigationRef.current?.navigate('MemberPublicProfile', { memberId: currentBanner.actor_id });
+      // Navigate through nested structure: MemberHome -> MemberStack -> MemberPublicProfile
+      navigationRef.current?.dispatch(
+        CommonActions.navigate({
+          name: 'MemberHome',
+          params: {
+            screen: 'MemberStack',
+            params: {
+              screen: 'MemberPublicProfile',
+              params: { memberId: currentBanner.actor_id }
+            }
+          }
+        })
+      );
     }
   };
 

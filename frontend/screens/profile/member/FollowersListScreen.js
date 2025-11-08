@@ -91,9 +91,16 @@ export default function FollowersListScreen({ route, navigation }) {
         style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
         onPress={() => {
           if (item.id === myId) {
-            navigation.navigate('MemberHome', { tab: 'Profile' });
+            // Navigate to Profile tab via root navigator
+            const root = navigation.getParent()?.getParent();
+            if (root) {
+              root.navigate('MemberHome', { tab: 'Profile' });
+            }
           } else {
-            navigation.navigate('MemberPublicProfile', { memberId: item.id });
+            // Navigate directly (same stack - ProfileStackNavigator)
+            navigation.navigate("MemberPublicProfile", {
+              memberId: item.id,
+            });
           }
         }}
       >

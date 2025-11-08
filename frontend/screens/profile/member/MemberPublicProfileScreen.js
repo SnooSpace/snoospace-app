@@ -268,12 +268,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </View>
               <TouchableOpacity
                 style={styles.countItem}
-                onPress={() =>
-                  navigation.navigate("FollowersList", {
-                    memberId,
-                    title: "Followers",
-                  })
-                }
+                onPress={() => {
+                  // Navigate to Profile tab's stack for FollowersList (it only exists there)
+                  const root = navigation.getParent()?.getParent();
+                  if (root) {
+                    root.navigate('Profile', {
+                      screen: 'FollowersList',
+                      params: { memberId, title: "Followers" }
+                    });
+                  } else {
+                    // Fallback: try same stack navigation
+                    navigation.navigate("FollowersList", {
+                      memberId,
+                      title: "Followers",
+                    });
+                  }
+                }}
               >
                 <Text style={styles.countNumLg}>
                   {profile?.followers_count || 0}
@@ -282,12 +292,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.countItem}
-                onPress={() =>
-                  navigation.navigate("FollowingList", {
-                    memberId,
-                    title: "Following",
-                  })
-                }
+                onPress={() => {
+                  // Navigate to Profile tab's stack for FollowingList (it only exists there)
+                  const root = navigation.getParent()?.getParent();
+                  if (root) {
+                    root.navigate('Profile', {
+                      screen: 'FollowingList',
+                      params: { memberId, title: "Following" }
+                    });
+                  } else {
+                    // Fallback: try same stack navigation
+                    navigation.navigate("FollowingList", {
+                      memberId,
+                      title: "Following",
+                    });
+                  }
+                }}
               >
                 <Text style={styles.countNumLg}>
                   {profile?.following_count || 0}

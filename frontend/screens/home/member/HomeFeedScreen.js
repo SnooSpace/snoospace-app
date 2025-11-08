@@ -37,18 +37,11 @@ export default function HomeFeedScreen({ navigation }) {
     // Always load feed once on mount
     loadFeed();
     loadGreetingName();
-  }, []);
-
-  useEffect(() => {
-    // Also refresh feed when Home tab is focused
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadFeed();
-    });
     const off = EventBus.on('follow-updated', () => {
       loadFeed();
     });
-    return () => { unsubscribe(); off(); };
-  }, [navigation]);
+    return () => { off(); };
+  }, []);
 
   const loadFeed = async () => {
     try {
@@ -183,7 +176,11 @@ export default function HomeFeedScreen({ navigation }) {
       onComment={handleCommentPress}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          navigation.navigate('MemberPublicProfile', { memberId: userId });
+          // Navigate to MemberStack tab (we're already in BottomTabNavigator)
+          navigation.navigate("MemberStack", {
+            screen: "MemberPublicProfile",
+            params: { memberId: userId },
+          });
         }
       }}
     />
@@ -195,7 +192,10 @@ export default function HomeFeedScreen({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.appTitle}>SnooSpace</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => {
+            // Navigate to Notifications (same stack - HomeStackNavigator)
+            navigation.navigate("Notifications");
+          }}>
             <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
             {unread > 0 && (
               <View style={styles.badge}>

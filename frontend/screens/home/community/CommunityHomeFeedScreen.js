@@ -111,7 +111,17 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
       onFollow={handleFollow}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          navigation.navigate('MemberPublicProfile', { memberId: userId });
+          // Navigate to MemberHome first, then to MemberStack -> MemberPublicProfile
+          const root = navigation.getParent()?.getParent();
+          if (root) {
+            root.navigate('MemberHome', {
+              screen: 'MemberStack',
+              params: {
+                screen: 'MemberPublicProfile',
+                params: { memberId: userId }
+              }
+            });
+          }
         }
       }}
     />
@@ -121,7 +131,16 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     <View style={styles.header}>
       <View style={styles.headerTop}>
         <Text style={styles.headerTitle}>Community Feed</Text>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => {
+          // Navigate to MemberHome first, then to MemberStack -> Notifications
+          const root = navigation.getParent()?.getParent();
+          if (root) {
+            root.navigate('MemberHome', {
+              screen: 'MemberStack',
+              params: { screen: 'Notifications' }
+            });
+          }
+        }}>
           <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
           {unread > 0 && (
             <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text></View>
