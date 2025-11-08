@@ -137,16 +137,12 @@ export default function SearchScreen({ navigation }) {
     }
   };
 
-  const onPressProfile = async (item) => {
-    // Close keyboard and recents UI, then navigate
-    Keyboard.dismiss();
-    setFocused(false);
-    setTimeout(() => {
-      // Navigate to MemberPublicProfile (same stack - SearchStackNavigator)
-      navigation.navigate("MemberPublicProfile", { 
-        memberId: item.id 
-      });
-    }, 0);
+  const onPressProfile = async (item, fromRecent = false) => {
+    // Navigate to profile
+    navigation.navigate("MemberPublicProfile", {
+      memberId: item.id,
+    });
+
     // update recents (dedup by id, newest first, max 10)
     const next = [
       {
@@ -165,7 +161,7 @@ export default function SearchScreen({ navigation }) {
     <View style={styles.row}>
       <TouchableOpacity
         style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-        onPress={() => onPressProfile(item)}
+        onPress={() => onPressProfile(item, false)}
       >
         <Image
           source={{
@@ -209,7 +205,10 @@ export default function SearchScreen({ navigation }) {
     <View style={styles.row}>
       <TouchableOpacity
         style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-        onPress={() => onPressProfile(item)}
+        onPress={() => {
+          onPressProfile(item, true);
+        }}
+        activeOpacity={0.7}
       >
         <Image
           source={{
@@ -231,51 +230,68 @@ export default function SearchScreen({ navigation }) {
           const next = recents.filter((r) => r.id !== item.id);
           setRecents(next);
           saveRecents(next);
-          setFocused(true);
-          setTimeout(() => inputRef.current?.focus(), 10);
         }}
         hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-        style={{ padding: 8 }}
+        style={[styles.followBtn, styles.followingBtn]}
       >
-        <Ionicons name="close" size={22} color="#8E8E93" />
+        <Ionicons name="close" size={16} color="#1D1D1F" />
       </TouchableOpacity>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchBox}>
-        <Ionicons name="search" size={18} color="#8E8E93" />
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          placeholder="Search members by name or username"
-          placeholderTextColor="#8E8E93"
-          value={query}
-          onChangeText={setQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-        />
-        <TouchableOpacity
-          onPress={() => {
-            setQuery("");
-            setFocused(false);
-            setResults([]);
-            setError("");
-            Keyboard.dismiss();
-          }}
-          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-          style={{ padding: 8 }}
-        >
-          <Ionicons name="close" size={20} color="#8E8E93" />
-        </TouchableOpacity>
+      {/* Back Button and Search Bar - Combined */}
+      <View style={styles.headerContainer}>
+        {focused && (
+          <TouchableOpacity
+            onPress={() => {
+              Keyboard.dismiss();
+              setQuery("");
+              setFocused(false);
+              setResults([]);
+              setError("");
+              inputRef.current?.blur();
+            }}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color="#8E8E93" />
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Search members by name or username"
+            placeholderTextColor="#8E8E93"
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onFocus={() => setFocused(true)}
+          />
+        </View>
       </View>
 
+      {/* Overlay layer when search is active */}
+      {focused && (
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            setFocused(false);
+            inputRef.current?.blur();
+          }}
+        />
+      )}
+
       {focused && query.trim().length === 0 ? (
-        <>
+        <View style={styles.contentContainer}>
           <View
             style={{
               flexDirection: "row",
@@ -308,31 +324,33 @@ export default function SearchScreen({ navigation }) {
               </View>
             }
           />
-        </>
+        </View>
       ) : null}
 
       {!!error && (
-        <View style={styles.helper}>
+        <View style={[styles.helper, styles.contentContainer]}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
       {canSearch && (
-        <FlatList
-          data={results}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.6}
-          ListEmptyComponent={
-            canSearch && !loading ? (
-              <View style={styles.helper}>
-                <Text style={styles.helperText}>No members found</Text>
-              </View>
-            ) : null
-          }
-          contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
-        />
+        <View style={styles.contentContainer}>
+          <FlatList
+            data={results}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderItem}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.6}
+            ListEmptyComponent={
+              canSearch && !loading ? (
+                <View style={styles.helper}>
+                  <Text style={styles.helperText}>No members found</Text>
+                </View>
+              ) : null
+            }
+            contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
+          />
+        </View>
       )}
     </View>
   );
@@ -340,16 +358,39 @@ export default function SearchScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  searchBox: {
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    zIndex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    zIndex: 2,
+  },
+  headerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    marginTop: 52,
+    paddingHorizontal: 16,
+    paddingTop: 52,
+    paddingBottom: 12,
+    gap: 12,
+    zIndex: 3,
+  },
+  backButton: {
+    padding: 4,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: "#E5E5EA",
-    borderRadius: 10,
+    borderRadius: 22,
     height: 44,
     gap: 8,
   },

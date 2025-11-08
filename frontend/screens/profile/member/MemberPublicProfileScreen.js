@@ -363,10 +363,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </View>
             ) : null}
 
-            <View style={{ marginTop: 12 }}>
+            <View style={{ marginTop: 12, flexDirection: "row", gap: 10, width: "100%" }}>
               <TouchableOpacity
                 style={[
                   styles.followCta,
+                  { flex: 1 },
                   isFollowing ? styles.followingCta : styles.followPrimary,
                 ]}
                 onPress={async () => {
@@ -430,6 +431,33 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 >
                   {isFollowing ? "Following" : "Follow"}
                 </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.followCta, { flex: 1 }, styles.messageCta]}
+                onPress={() => {
+                  // Navigate to Chat screen via Home stack
+                  const root = navigation.getParent()?.getParent()?.getParent();
+                  if (root) {
+                    root.navigate('MemberHome', {
+                      screen: 'Home',
+                      params: {
+                        screen: 'Chat',
+                        params: { recipientId: memberId }
+                      }
+                    });
+                  } else {
+                    // Fallback: try to navigate through parent
+                    const parent = navigation.getParent();
+                    if (parent) {
+                      parent.navigate('Home', {
+                        screen: 'Chat',
+                        params: { recipientId: memberId }
+                      });
+                    }
+                  }
+                }}
+              >
+                <Text style={styles.messageCtaText}>Message</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -623,4 +651,12 @@ const styles = StyleSheet.create({
   followPrimaryText: { color: "#FFFFFF", fontWeight: "700" },
   followingCta: { backgroundColor: "#FFFFFF", borderColor: "#E5E5EA" },
   followingCtaText: { color: "#1D1D1F", fontWeight: "700" },
+  messageCta: {
+    backgroundColor: "#1D1D1F",
+    borderColor: "#1D1D1F",
+  },
+  messageCtaText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
 });

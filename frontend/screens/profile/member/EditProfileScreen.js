@@ -347,7 +347,8 @@ export default function EditProfileScreen({ route, navigation }) {
           onPress: () => {
             allowLeaveRef.current = true;
             setHasChanges(false);
-            navigation.goBack();
+            // Navigate back to Profile with refresh flag to trigger reload
+            navigation.navigate("Profile", { refreshProfile: true });
           },
         },
       ]);

@@ -14,13 +14,15 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommonActions, useFocusEffect } from "@react-navigation/native";
+import { CommonActions, useRoute } from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
+import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import {
   launchImageLibraryAsync,
   requestMediaLibraryPermissionsAsync,
@@ -37,6 +39,7 @@ const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 
 export default function MemberProfileScreen({ navigation }) {
+  const route = useRoute();
   console.log(
     "[Profile] MemberProfileScreen component function START (mount or render)"
   );
@@ -50,6 +53,10 @@ export default function MemberProfileScreen({ navigation }) {
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
   const [showAllPronouns, setShowAllPronouns] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
   // Combine comments modal state into one object to reduce state updates
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
@@ -58,12 +65,15 @@ export default function MemberProfileScreen({ navigation }) {
   // Buffer for avoiding parent re-renders during like/unlike inside PostModal
   const pendingPostUpdateRef = React.useRef(null);
   const loadProfileRef = React.useRef(null);
-  const isInitialMountRef = React.useRef(true);
 
-  const loadProfile = async () => {
-    console.log("[Profile] loadProfile: start");
+  const loadProfile = async (isRefresh = false) => {
+    console.log("[Profile] loadProfile: start", isRefresh ? "(refresh)" : "");
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const token = await getAuthToken();
       console.log(`[Profile] Token: ${token}`);
@@ -144,12 +154,22 @@ export default function MemberProfileScreen({ navigation }) {
       console.log("[Profile] loadProfile: error caught:", err);
       setError(err.message || "An unexpected error occurred.");
     } finally {
-      setLoading(false);
-      console.log("[Profile] loadProfile: finally, loading set to false");
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+      console.log("[Profile] loadProfile: finally, loading/refreshing set to false");
     }
   };
 
-  // Store loadProfile in ref so it can be accessed in useFocusEffect
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(() => {
+    console.log("[Profile] onRefresh: user pulled to refresh");
+    loadProfile(true);
+  }, []);
+
+  // Store loadProfile in ref so it can be accessed in navigation listener
   loadProfileRef.current = loadProfile;
 
   useEffect(() => {
@@ -171,22 +191,23 @@ export default function MemberProfileScreen({ navigation }) {
     };
   }, []);
 
-  // Reload profile when screen comes into focus (e.g., after returning from EditProfile)
-  useFocusEffect(
-    useCallback(() => {
-      // Skip reload on initial mount (useEffect already handles that)
-      if (isInitialMountRef.current) {
-        isInitialMountRef.current = false;
-        return;
+  // Navigation listener to detect when returning from EditProfile with changes
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      // Check route params for refresh flag from EditProfile
+      const params = route.params;
+      if (params?.refreshProfile === true) {
+        console.log("[Profile] Navigation listener: returning from EditProfile with changes, reloading profile");
+        if (loadProfileRef.current) {
+          loadProfileRef.current();
+        }
+        // Clear the param to avoid reloading again
+        navigation.setParams({ refreshProfile: undefined });
       }
-      
-      // Only reload if profile is already loaded and we're returning from another screen
-      if (loadProfileRef.current) {
-        console.log("[Profile] useFocusEffect: reloading profile after returning from another screen");
-        loadProfileRef.current();
-      }
-    }, [])
-  );
+    });
+
+    return unsubscribe;
+  }, [navigation, route.params]);
 
   const handleEditProfile = () => {
     // Navigate to EditProfile (same stack - ProfileStackNavigator)
@@ -806,6 +827,7 @@ export default function MemberProfileScreen({ navigation }) {
           onClose={() => setLocalCommentsVisible(false)}
           onCommentCountChange={(newCount) => setCommentCount(newCount)}
           embedded
+          navigation={navigation}
         />
       </Modal>
     );
@@ -880,7 +902,18 @@ export default function MemberProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={PRIMARY_COLOR}
+            colors={[PRIMARY_COLOR]}
+          />
+        }
+      >
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>
@@ -1015,16 +1048,32 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
           ) : null}
 
-          {/* Action Button */}
-
-          <TouchableOpacity
-            style={[styles.actionButton, { marginTop: 10 }]}
-            onPress={isOwnProfile ? handleEditProfile : handleFollow}
-          >
-            <Text style={styles.actionButtonText}>
-              {isOwnProfile ? "Edit Profile" : "Follow"}
-            </Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          {isOwnProfile ? (
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10, width: "100%" }}>
+              <TouchableOpacity
+                style={[styles.actionButton, { flex: 1 }]}
+                onPress={handleEditProfile}
+              >
+                <Text style={styles.actionButtonText}>Edit Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, { flex: 1 }]}
+                onPress={() => {
+                  navigation.navigate("CreatePost");
+                }}
+              >
+                <Text style={styles.actionButtonText}>Create Post</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.actionButton, { marginTop: 10 }]}
+              onPress={handleFollow}
+            >
+              <Text style={styles.actionButtonText}>Follow</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Posts Grid */}
@@ -1077,6 +1126,7 @@ export default function MemberProfileScreen({ navigation }) {
           }
           // IMPORTANT: Modal should remain open - don't change commentsModalState
         }}
+        navigation={navigation}
       />
 
       {/* Settings Modal */}
@@ -1105,25 +1155,7 @@ export default function MemberProfileScreen({ navigation }) {
                   handleEditProfile();
                 }}
               >
-                <Ionicons name="person-outline" size={24} color={TEXT_COLOR} />
-                <Text style={styles.settingsOptionText}>Edit Profile</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={LIGHT_TEXT_COLOR}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsOption}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  Alert.alert(
-                    "Notifications",
-                    "Notification settings will be implemented soon!"
-                  );
-                }}
-              >
+                
                 <Ionicons
                   name="notifications-outline"
                   size={24}
@@ -1179,15 +1211,136 @@ export default function MemberProfileScreen({ navigation }) {
                 />
               </TouchableOpacity>
 
-              <View style={styles.divider} />
-
               <TouchableOpacity
                 style={[styles.settingsOption, styles.logoutOption]}
                 onPress={handleLogout}
               >
-                <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+                <Ionicons name="log-out-outline" size={24} color="#007AFF" />
                 <Text style={[styles.settingsOptionText, styles.logoutText]}>
                   Logout
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity
+                style={styles.settingsOption}
+                onPress={() => {
+                  setShowSettingsModal(false);
+                  setShowDeleteModal(true);
+                }}
+              >
+                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                <Text style={[styles.settingsOptionText, styles.deleteText]}>
+                  Delete Account
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Account Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeleteModal(false);
+                  setDeleteInput("");
+                }}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
+                This is permanent and cannot be undone. Type "delete" to confirm.
+              </Text>
+              <TextInput
+                value={deleteInput}
+                onChangeText={setDeleteInput}
+                placeholder="Type delete"
+                autoCapitalize="none"
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#E5E5EA",
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  marginBottom: 16,
+                }}
+              />
+              <TouchableOpacity
+                disabled={
+                  deleting || deleteInput.trim().toLowerCase() !== "delete"
+                }
+                onPress={async () => {
+                  if (deleteInput.trim().toLowerCase() !== "delete") return;
+                  setDeleting(true);
+                  try {
+                    await apiDeleteAccount();
+                    await clearAuthSession();
+                    await AsyncStorage.multiRemove([
+                      "accessToken",
+                      "userData",
+                      "auth_token",
+                      "auth_email",
+                      "pending_otp",
+                    ]);
+                    setShowDeleteModal(false);
+                    // Get the root navigator
+                    let rootNavigator = navigation;
+                    if (navigation.getParent) {
+                      const parent = navigation.getParent();
+                      if (parent) {
+                        rootNavigator = parent.getParent
+                          ? parent.getParent()
+                          : parent;
+                      }
+                    }
+                    rootNavigator.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [{ name: "Landing" }],
+                      })
+                    );
+                  } catch (e) {
+                    Alert.alert(
+                      "Delete failed",
+                      e?.message || "Could not delete account"
+                    );
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                style={{
+                  backgroundColor:
+                    deleteInput.trim().toLowerCase() === "delete"
+                      ? "#FF3B30"
+                      : "#FFAAA3",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  {deleting ? "Deleting..." : "Delete Account"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1380,6 +1533,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   actionButtonText: {
+    textAlign: 'center',
     fontSize: 16,
     fontWeight: "600",
     color: PRIMARY_COLOR,
@@ -1488,6 +1642,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   logoutText: {
+    color: "#007AFF",
+  },
+  deleteText: {
     color: "#FF3B30",
   },
   divider: {

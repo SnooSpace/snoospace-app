@@ -153,8 +153,14 @@ async function ensureTables(pool) {
         commenter_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
         parent_comment_id BIGINT REFERENCES post_comments(id) ON DELETE CASCADE, -- NULL for top-level comments
         comment_text TEXT NOT NULL,
+        tagged_entities JSONB, -- array of {id, type, username} objects for tagged users
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      
+      -- Add tagged_entities column if it doesn't exist (for existing databases)
+      DO $$ BEGIN
+        ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS tagged_entities JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Follows table
       CREATE TABLE IF NOT EXISTS follows (
@@ -231,6 +237,40 @@ async function ensureTables(pool) {
         photo_order INTEGER DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      
+      -- Conversations table for direct messaging
+      CREATE TABLE IF NOT EXISTS conversations (
+        id BIGSERIAL PRIMARY KEY,
+        participant1_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        participant1_type TEXT NOT NULL DEFAULT 'member',
+        participant2_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        participant2_type TEXT NOT NULL DEFAULT 'member',
+        last_message_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(participant1_id, participant2_id)
+      );
+      
+      -- Messages table
+      CREATE TABLE IF NOT EXISTS messages (
+        id BIGSERIAL PRIMARY KEY,
+        conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        sender_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        sender_type TEXT NOT NULL DEFAULT 'member',
+        message_text TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      
+      -- Indexes for messages
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read) WHERE is_read = false;
+      
+      -- Indexes for conversations
+      CREATE INDEX IF NOT EXISTS idx_conversations_participant1 ON conversations(participant1_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_participant2 ON conversations(participant2_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
       
       -- Add missing columns to members table
       DO $$ BEGIN

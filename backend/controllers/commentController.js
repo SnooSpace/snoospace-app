@@ -6,7 +6,7 @@ const pool = createPool();
 const createComment = async (req, res) => {
   try {
     const { postId } = req.params;
-    const { commentText } = req.body;
+    const { commentText, taggedEntities } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
@@ -18,6 +18,18 @@ const createComment = async (req, res) => {
       return res.status(400).json({ error: "Comment text is required" });
     }
 
+    // Validate tagged entities if provided
+    if (taggedEntities && Array.isArray(taggedEntities)) {
+      for (const entity of taggedEntities) {
+        if (!entity.id || !entity.type) {
+          return res.status(400).json({ error: "Invalid tagged entity format" });
+        }
+        if (!['member', 'community', 'sponsor', 'venue'].includes(entity.type)) {
+          return res.status(400).json({ error: "Invalid entity type" });
+        }
+      }
+    }
+
     // Check if post exists
     const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [postId]);
     if (postCheck.rows.length === 0) {
@@ -25,12 +37,16 @@ const createComment = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO post_comments (post_id, commenter_id, commenter_type, comment_text)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO post_comments (post_id, commenter_id, commenter_type, comment_text, tagged_entities)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id, created_at
     `;
 
-    const result = await pool.query(query, [postId, userId, userType, commentText.trim()]);
+    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
+      ? JSON.stringify(taggedEntities)
+      : null;
+
+    const result = await pool.query(query, [postId, userId, userType, commentText.trim(), taggedEntitiesJson]);
     const comment = result.rows[0];
 
     // Update comment count
@@ -48,6 +64,7 @@ const createComment = async (req, res) => {
         commenter_type: userType,
         comment_text: commentText.trim(),
         parent_comment_id: null,
+        tagged_entities: taggedEntities || null,
         created_at: comment.created_at
       }
     });
@@ -62,7 +79,7 @@ const createComment = async (req, res) => {
 const replyToComment = async (req, res) => {
   try {
     const { commentId } = req.params;
-    const { commentText } = req.body;
+    const { commentText, taggedEntities } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
@@ -72,6 +89,18 @@ const replyToComment = async (req, res) => {
 
     if (!commentText || commentText.trim().length === 0) {
       return res.status(400).json({ error: "Comment text is required" });
+    }
+
+    // Validate tagged entities if provided
+    if (taggedEntities && Array.isArray(taggedEntities)) {
+      for (const entity of taggedEntities) {
+        if (!entity.id || !entity.type) {
+          return res.status(400).json({ error: "Invalid tagged entity format" });
+        }
+        if (!['member', 'community', 'sponsor', 'venue'].includes(entity.type)) {
+          return res.status(400).json({ error: "Invalid entity type" });
+        }
+      }
     }
 
     // Check if parent comment exists and get post_id
@@ -87,12 +116,16 @@ const replyToComment = async (req, res) => {
     const postId = parentComment.rows[0].post_id;
 
     const query = `
-      INSERT INTO post_comments (post_id, commenter_id, commenter_type, comment_text, parent_comment_id)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO post_comments (post_id, commenter_id, commenter_type, comment_text, parent_comment_id, tagged_entities)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, created_at
     `;
 
-    const result = await pool.query(query, [postId, userId, userType, commentText.trim(), commentId]);
+    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
+      ? JSON.stringify(taggedEntities)
+      : null;
+
+    const result = await pool.query(query, [postId, userId, userType, commentText.trim(), commentId, taggedEntitiesJson]);
     const comment = result.rows[0];
 
     // Update comment count
@@ -110,6 +143,7 @@ const replyToComment = async (req, res) => {
         commenter_type: userType,
         comment_text: commentText.trim(),
         parent_comment_id: commentId,
+        tagged_entities: taggedEntities || null,
         created_at: comment.created_at
       }
     });
@@ -251,7 +285,15 @@ const getPostComments = async (req, res) => {
         LIMIT $2 OFFSET $3
       `, [postId, limit, offset]);
     });
-    const comments = result.rows;
+    // Parse tagged_entities for each comment
+    const comments = result.rows.map(comment => {
+      try {
+        comment.tagged_entities = comment.tagged_entities ? JSON.parse(comment.tagged_entities) : null;
+      } catch {
+        comment.tagged_entities = null;
+      }
+      return comment;
+    });
 
     // Get replies for each comment
     for (let comment of comments) {
@@ -286,7 +328,15 @@ const getPostComments = async (req, res) => {
       `;
 
       const repliesResult = await pool.query(repliesQuery, [comment.id]);
-      comment.replies = repliesResult.rows;
+      // Parse tagged_entities for replies
+      comment.replies = repliesResult.rows.map(reply => {
+        try {
+          reply.tagged_entities = reply.tagged_entities ? JSON.parse(reply.tagged_entities) : null;
+        } catch {
+          reply.tagged_entities = null;
+        }
+        return reply;
+      });
     }
 
     res.json({ comments });

@@ -12,32 +12,66 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { getAuthToken, getAuthEmail } from '../api/auth';
+import { searchMembers } from '../api/search';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const COLORS = {
-  dark: '#000000',
-  darkGray: '#1a1a1a',
-  text: '#FFFFFF',
-  textSecondary: '#AAAAAA',
-  border: '#333333',
+  dark: '#FFFFFF',
+  darkGray: '#F5F5F5',
+  text: '#000000',
+  textSecondary: '#737373',
+  border: '#EBEBEB',
   primary: '#6A0DAD',
   error: '#FF4444',
 };
 
-const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedded = false }) => {
+const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedded = false, navigation }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [posting, setPosting] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [taggedEntities, setTaggedEntities] = useState([]);
+  const [showTagSearch, setShowTagSearch] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [tagSearchResults, setTagSearchResults] = useState([]);
+  const [tagSearchLoading, setTagSearchLoading] = useState(false);
+  const [atPosition, setAtPosition] = useState(-1);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Track previous postId to prevent reloading when it's the same
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
+  const inputRef = useRef(null);
+  
+  // Track keyboard visibility
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     // Only reload if modal was closed and is now opening, or postId actually changed
@@ -52,6 +86,13 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
       
       prevPostIdRef.current = postId;
       prevVisibleRef.current = true;
+      
+      // Auto-focus input when modal opens
+      if (isNewlyOpened) {
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 300);
+      }
     } else if (!visible && prevVisibleRef.current) {
       // Only reset when modal is actually closing (was visible, now not)
       setComments([]);
@@ -99,6 +140,83 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
     }
   };
 
+  const handleCommentInputChange = (text) => {
+    setCommentInput(text);
+    
+    // Detect '@' character
+    const lastAtIndex = text.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      // Check if there's a space after '@' (meaning '@' is not active)
+      const afterAt = text.substring(lastAtIndex + 1);
+      const spaceIndex = afterAt.indexOf(' ');
+      
+      if (spaceIndex === -1 || spaceIndex > 0) {
+        // '@' is active, show search
+        setAtPosition(lastAtIndex);
+        const query = afterAt.split(' ')[0];
+        setTagSearchQuery(query);
+        if (query.length >= 1) {
+          searchForTagging(query);
+        } else {
+          setShowTagSearch(false);
+        }
+      } else {
+        setShowTagSearch(false);
+        setAtPosition(-1);
+      }
+    } else {
+      setShowTagSearch(false);
+      setAtPosition(-1);
+    }
+  };
+
+  const searchForTagging = async (query) => {
+    if (query.length < 1) {
+      setShowTagSearch(false);
+      return;
+    }
+    
+    setTagSearchLoading(true);
+    setShowTagSearch(true);
+    try {
+      const response = await searchMembers(query, { limit: 10, offset: 0 });
+      setTagSearchResults(response.results || []);
+    } catch (error) {
+      console.error('Error searching for tagging:', error);
+      setTagSearchResults([]);
+    } finally {
+      setTagSearchLoading(false);
+    }
+  };
+
+  const selectTaggedUser = (user) => {
+    if (atPosition === -1) return;
+    
+    const beforeAt = commentInput.substring(0, atPosition);
+    const afterAt = commentInput.substring(atPosition + 1);
+    const spaceIndex = afterAt.indexOf(' ');
+    const afterTag = spaceIndex === -1 ? '' : afterAt.substring(spaceIndex);
+    
+    // Insert username
+    const newText = `${beforeAt}@${user.username}${afterTag}`;
+    setCommentInput(newText);
+    
+    // Add to tagged entities if not already there
+    const existing = taggedEntities.find(t => t.id === user.id && t.type === 'member');
+    if (!existing) {
+      setTaggedEntities([...taggedEntities, {
+        id: user.id,
+        type: 'member',
+        username: user.username,
+      }]);
+    }
+    
+    // Hide search
+    setShowTagSearch(false);
+    setAtPosition(-1);
+    setTagSearchQuery('');
+  };
+
   const handlePostComment = async () => {
     if (!commentInput.trim() || posting) return;
     
@@ -107,7 +225,10 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
       const token = await getAuthToken();
       const result = await apiPost(
         `/posts/${postId}/comments`,
-        { commentText: commentInput.trim() },
+        { 
+          commentText: commentInput.trim(),
+          taggedEntities: taggedEntities.length > 0 ? taggedEntities : undefined,
+        },
         15000,
         token
       );
@@ -141,6 +262,9 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
         // Add the new comment to the list
         setComments(prev => [...prev, enrichedComment]);
         setCommentInput('');
+        setTaggedEntities([]);
+        setShowTagSearch(false);
+        setAtPosition(-1);
         if (onCommentCountChange) {
           // Calculate new count and call the callback
           const newCount = comments.length + 1;
@@ -219,21 +343,129 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
       ? parseInt(item.like_count, 10) || 0 
       : Number(item.like_count) || 0;
     
+    const handleProfilePress = () => {
+      if (navigation && item.commenter_id) {
+        // Navigate to MemberPublicProfile via root navigator
+        const root = navigation.getParent()?.getParent()?.getParent();
+        if (root) {
+          root.navigate('MemberHome', {
+            screen: 'Profile',
+            params: {
+              screen: 'MemberPublicProfile',
+              params: { memberId: item.commenter_id }
+            }
+          });
+        } else {
+          // Fallback: try to navigate through parent
+          const parent = navigation.getParent();
+          if (parent) {
+            parent.navigate('Profile', {
+              screen: 'MemberPublicProfile',
+              params: { memberId: item.commenter_id }
+            });
+          }
+        }
+      }
+    };
+
     return (
       <View style={styles.commentItem}>
-        <Image
-          source={{
-            uri: item.commenter_photo_url ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(item.commenter_name || 'User')}&background=6A0DAD&color=FFFFFF`
-          }}
-          style={styles.commentAvatar}
-        />
+        <TouchableOpacity onPress={handleProfilePress}>
+          <Image
+            source={{
+              uri: item.commenter_photo_url ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.commenter_name || 'User')}&background=6A0DAD&color=FFFFFF`
+            }}
+            style={styles.commentAvatar}
+          />
+        </TouchableOpacity>
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
-            <Text style={styles.commenterName}>{item.commenter_name}</Text>
+            <TouchableOpacity onPress={handleProfilePress}>
+              <Text style={styles.commenterName}>{item.commenter_name}</Text>
+            </TouchableOpacity>
             <Text style={styles.commentTime}>{formatTimeAgo(item.created_at)}</Text>
           </View>
-          <Text style={styles.commentText}>{item.comment_text}</Text>
+          <Text style={styles.commentText}>
+            {(() => {
+              let text = item.comment_text || '';
+              const tagged = item.tagged_entities || [];
+              
+              // If no tagged entities, just return text
+              if (!tagged || tagged.length === 0) {
+                return text;
+              }
+              
+              // Split text and render tagged usernames with styling
+              const parts = [];
+              let lastIndex = 0;
+              
+              tagged.forEach(entity => {
+                const username = entity.username || entity.name || '';
+                const searchText = `@${username}`;
+                const index = text.indexOf(searchText, lastIndex);
+                
+                if (index !== -1) {
+                  // Add text before tag
+                  if (index > lastIndex) {
+                    parts.push({ type: 'text', content: text.substring(lastIndex, index) });
+                  }
+                  // Add tagged username
+                  parts.push({ type: 'tag', content: searchText, entity });
+                  lastIndex = index + searchText.length;
+                }
+              });
+              
+              // Add remaining text
+              if (lastIndex < text.length) {
+                parts.push({ type: 'text', content: text.substring(lastIndex) });
+              }
+              
+              // If no parts were created, just return the text
+              if (parts.length === 0) {
+                return text;
+              }
+              
+              return parts.map((part, idx) => {
+                if (part.type === 'tag') {
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => {
+                        if (navigation && part.entity && part.entity.id && part.entity.type === 'member') {
+                          // Navigate to MemberPublicProfile via root navigator
+                          const root = navigation.getParent()?.getParent()?.getParent();
+                          if (root) {
+                            root.navigate('MemberHome', {
+                              screen: 'Profile',
+                              params: {
+                                screen: 'MemberPublicProfile',
+                                params: { memberId: part.entity.id }
+                              }
+                            });
+                          } else {
+                            // Fallback: try to navigate through parent
+                            const parent = navigation.getParent();
+                            if (parent) {
+                              parent.navigate('Profile', {
+                                screen: 'MemberPublicProfile',
+                                params: { memberId: part.entity.id }
+                              });
+                            }
+                          }
+                        }
+                      }}
+                    >
+                      <Text style={styles.taggedUsername}>
+                        {part.content}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+                return <Text key={idx}>{part.content}</Text>;
+              });
+            })()}
+          </Text>
           {hasReplies && (
             <TouchableOpacity style={styles.viewRepliesButton}>
               <Text style={styles.viewRepliesText}>
@@ -260,11 +492,7 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
   };
 
   const content = (
-      <KeyboardAvoidingView
-        style={embedded ? styles.embeddedContainer : styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+      <View style={embedded ? styles.embeddedContainer : styles.container}>
         <View style={styles.modalContent}>
           {/* Header */}
           <View style={styles.header}>
@@ -277,7 +505,7 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
           {/* Comments List */}
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.text} />
+              <ActivityIndicator size="small" color={COLORS.textSecondary} />
             </View>
           ) : (
             <FlatList
@@ -308,15 +536,59 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
                 }}
                 style={styles.inputAvatar}
               />
-              <TextInput
-                value={commentInput}
-                onChangeText={setCommentInput}
-                placeholder="Add a comment..."
-                placeholderTextColor={COLORS.textSecondary}
-                style={styles.input}
-                multiline
-                editable={!posting}
-              />
+              <View style={{ flex: 1, position: 'relative' }}>
+                <TextInput
+                  ref={inputRef}
+                  value={commentInput}
+                  onChangeText={handleCommentInputChange}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={COLORS.textSecondary}
+                  style={styles.input}
+                  multiline
+                  editable={!posting}
+                />
+                {showTagSearch && (
+                  <View style={styles.tagSearchContainer}>
+                    {tagSearchLoading ? (
+                      <View style={styles.tagSearchItem}>
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                      </View>
+                    ) : tagSearchResults.length > 0 ? (
+                      <FlatList
+                        data={tagSearchResults}
+                        keyExtractor={(item) => String(item.id)}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.tagSearchItem}
+                            onPress={() => selectTaggedUser(item)}
+                          >
+                            <Image
+                              source={{
+                                uri: item.profile_photo_url || 'https://via.placeholder.com/30',
+                              }}
+                              style={styles.tagSearchAvatar}
+                            />
+                            <View style={styles.tagSearchInfo}>
+                              <Text style={styles.tagSearchName} numberOfLines={1}>
+                                {item.full_name || item.name || 'User'}
+                              </Text>
+                              <Text style={styles.tagSearchUsername} numberOfLines={1}>
+                                @{item.username || 'user'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+                        style={styles.tagSearchList}
+                        keyboardShouldPersistTaps="handled"
+                      />
+                    ) : (
+                      <View style={styles.tagSearchItem}>
+                        <Text style={styles.tagSearchEmpty}>No users found</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
               <TouchableOpacity
                 onPress={handlePostComment}
                 disabled={!commentInput.trim() || posting}
@@ -331,7 +603,7 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
   );
 
   if (!visible) return null;
@@ -366,7 +638,7 @@ const styles = StyleSheet.create({
   },
   embeddedContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
+    backgroundColor: COLORS.dark,
   },
   embeddedOverlay: {
     position: 'absolute',
@@ -374,14 +646,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: COLORS.dark,
   },
   modalContent: {
-    height: '85%', // Use fixed percentage height instead of flex: 1
+    height: '95%',
     backgroundColor: COLORS.dark,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -389,6 +661,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -410,7 +683,7 @@ const styles = StyleSheet.create({
   },
   commentsListContent: {
     paddingVertical: 10,
-    paddingBottom: 20, // Extra padding at bottom so last comment isn't hidden behind input
+    paddingBottom: 110,
   },
   commentItem: {
     flexDirection: 'row',
@@ -485,14 +758,16 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   inputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    backgroundColor: COLORS.darkGray,
-    // Ensure modal sits flush at the bottom
-    marginBottom: 0,
+    backgroundColor: COLORS.dark,
   },
   inputRow: {
     flexDirection: 'row',
@@ -506,8 +781,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.dark,
+    backgroundColor: COLORS.darkGray,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
     color: COLORS.text,
@@ -517,7 +794,64 @@ const styles = StyleSheet.create({
   sendButton: {
     padding: 8,
   },
+  tagSearchContainer: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.dark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    maxHeight: 200,
+    marginBottom: 4,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  tagSearchList: {
+    maxHeight: 200,
+  },
+  tagSearchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tagSearchAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  tagSearchInfo: {
+    flex: 1,
+  },
+  tagSearchName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  tagSearchUsername: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  tagSearchEmpty: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
+  taggedUsername: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
 });
 
 export default CommentsModal;
-

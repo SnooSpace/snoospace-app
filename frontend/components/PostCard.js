@@ -96,17 +96,21 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
     return (
       <View style={styles.taggedContainer}>
         <Text style={styles.taggedText}>Tagged: </Text>
-        {post.tagged_entities.map((entity, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => onUserPress && onUserPress(entity.id, entity.type)}
-          >
-            <Text style={styles.taggedEntity}>
-              @{entity.username || entity.name}
-              {index < post.tagged_entities.length - 1 ? ", " : ""}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {post.tagged_entities.map((entity, index) => {
+          // Prioritize username, fallback to name
+          const displayName = entity.username || entity.name || 'user';
+          return (
+            <TouchableOpacity
+              key={`${entity.id}-${entity.type}-${index}`}
+              onPress={() => onUserPress && onUserPress(entity.id, entity.type)}
+            >
+              <Text style={styles.taggedEntity}>
+                @{displayName}
+                {index < post.tagged_entities.length - 1 ? ", " : ""}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };

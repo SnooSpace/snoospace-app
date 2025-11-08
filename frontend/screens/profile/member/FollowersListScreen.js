@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getMemberFollowers, followMember, unfollowMember, getFollowStatusForMember } from '../../../api/members';
@@ -11,19 +11,28 @@ export default function FollowersListScreen({ route, navigation }) {
   const title = route?.params?.title || 'Followers';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [myId, setMyId] = useState(null);
 
-  const load = useCallback(async (reset = false) => {
-    if (loadingMore) return;
+  const load = useCallback(async (reset = false, isRefresh = false) => {
+    if (isRefresh && refreshing) return;
+    if (loadingMore && !isRefresh) return;
     if (!hasMore && !reset) return;
     try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else if (reset) {
+        setLoadingMore(true);
+      }
       if (reset) {
         setOffset(0);
         setHasMore(true);
-        setItems([]);
+        if (!isRefresh) {
+          setItems([]);
+        }
       }
       const data = await getMemberFollowers(memberId, { limit: 30, offset: reset ? 0 : offset });
       const raw = (data?.results || data?.followers || data?.items || data || []);
@@ -57,12 +66,18 @@ export default function FollowersListScreen({ route, navigation }) {
       setOffset((reset ? 0 : offset) + received);
       setHasMore(received >= 30);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-  }, [memberId, offset, hasMore, loadingMore]);
+  }, [memberId, offset, hasMore, loadingMore, refreshing]);
 
-  useEffect(() => { load(true); }, [memberId]);
+  useEffect(() => { 
+    load(true, false); 
+  }, [memberId]);
 
   useEffect(() => {
     (async () => {
@@ -141,6 +156,23 @@ export default function FollowersListScreen({ route, navigation }) {
           renderItem={renderItem}
           onEndReachedThreshold={0.6}
           onEndReached={() => load(false)}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(true, true)}
+              tintColor="#6A0DAD"
+              colors={["#6A0DAD"]}
+            />
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 }}>
+                <Text style={{ color: '#8E8E93', fontSize: 16, textAlign: 'center' }}>
+                  If someone follows you, you'll be able to see them here
+                </Text>
+              </View>
+            ) : null
+          }
         />
       )}
     </SafeAreaView>

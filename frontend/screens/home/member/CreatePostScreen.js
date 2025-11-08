@@ -9,6 +9,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
@@ -75,7 +77,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         taggedEntities: taggedEntitiesData,
       }, 15000, token);
 
-      // 5. Success: navigate to Home tab
+      // 5. Success: navigate back or to Home tab
       Alert.alert("Success", "Post created successfully!", [
         { 
           text: "OK", 
@@ -84,13 +86,22 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             if (onPostCreated) {
               onPostCreated();
             } else {
-              // Fallback: try to navigate to parent
+              // Navigate back to Profile if we came from there, otherwise go to Home
               const parent = navigation.getParent();
               if (parent) {
-                parent.reset({
-                  index: 0,
-                  routes: [{ name: 'MemberHome' }],
-                });
+                // Check if we're in ProfileStackNavigator
+                const state = navigation.getState();
+                const routes = state?.routes || [];
+                const isFromProfile = routes.some(r => r.name === 'Profile');
+                if (isFromProfile) {
+                  navigation.goBack();
+                } else {
+                  // Navigate to Home tab
+                  const root = parent.getParent ? parent.getParent() : parent;
+                  if (root) {
+                    root.navigate('MemberHome', { screen: 'Home' });
+                  }
+                }
               }
             }
           }
@@ -108,25 +119,40 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Create Post</Text>
-        <TouchableOpacity
-          onPress={handleSubmit}
-          disabled={!canSubmit || isSubmitting}
-          style={[
-            styles.shareButton,
-            (!canSubmit || isSubmitting) && styles.shareButtonDisabled
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <Text style={styles.shareButtonText}>Share</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Create Post</Text>
+          <TouchableOpacity
+            onPress={handleSubmit}
+            disabled={!canSubmit || isSubmitting}
+            style={[
+              styles.shareButton,
+              (!canSubmit || isSubmitting) && styles.shareButtonDisabled
+            ]}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Text style={styles.shareButtonText}>Share</Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.container} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
         {/* Caption Input */}
         <View style={styles.captionContainer}>
           <TextInput
@@ -144,17 +170,17 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           </Text>
         </View>
 
+        {/* Entity Tag Selector */}
+        <EntityTagSelector
+          onEntitiesChange={handleEntitiesChange}
+          initialEntities={taggedEntities}
+        />
+
         {/* Image Uploader */}
         <ImageUploader
           maxImages={10}
           onImagesChange={handleImagesChange}
           initialImages={images}
-        />
-
-        {/* Entity Tag Selector */}
-        <EntityTagSelector
-          onEntitiesChange={handleEntitiesChange}
-          initialEntities={taggedEntities}
         />
 
         {/* Post Guidelines */}
@@ -166,12 +192,16 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           <Text style={styles.guideline}>• Share meaningful moments</Text>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safeArea: {
+    flex: 1,
+  },
+  keyboardAvoidingView: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
@@ -184,10 +214,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
   headerTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.textDark,
+    textAlign: "center",
   },
   shareButton: {
     backgroundColor: COLORS.primary,
@@ -205,6 +241,9 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
     paddingHorizontal: 15,
   },
   captionContainer: {

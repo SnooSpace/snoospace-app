@@ -15,6 +15,7 @@ const NotificationController = require("../controllers/notificationController");
 const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
 const CatalogController = require("../controllers/catalogController");
+const MessageController = require("../controllers/messageController");
 
 const router = express.Router();
 
@@ -118,6 +119,13 @@ router.post("/events/:eventId/request-next", authMiddleware, EventController.req
 
 // Catalog
 router.get("/catalog/interests", authMiddleware, CatalogController.getInterests);
+
+// Messages
+router.get("/messages/conversations", authMiddleware, MessageController.getConversations);
+router.get("/messages/conversations/:conversationId", authMiddleware, MessageController.getMessages);
+router.post("/messages", authMiddleware, MessageController.sendMessage);
+router.put("/messages/:messageId/read", authMiddleware, MessageController.markMessageRead);
+router.get("/messages/unread-count", authMiddleware, MessageController.getUnreadCount);
 
 module.exports = router;
 

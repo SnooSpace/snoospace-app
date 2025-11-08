@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,17 +112,23 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
       onFollow={handleFollow}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          // Navigate to MemberHome first, then to MemberStack -> MemberPublicProfile
+          // Navigate to MemberPublicProfile via ProfileStackNavigator
           const root = navigation.getParent()?.getParent();
           if (root) {
             root.navigate('MemberHome', {
-              screen: 'MemberStack',
+              screen: 'Profile',
               params: {
                 screen: 'MemberPublicProfile',
                 params: { memberId: userId }
               }
             });
           }
+        } else if (userType === 'community') {
+          Alert.alert('Community Profile', 'Community profile navigation will be implemented soon');
+        } else if (userType === 'sponsor') {
+          Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
+        } else if (userType === 'venue') {
+          Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
         }
       }}
     />

@@ -8,9 +8,11 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet } from "../api/client";
+import { getAuthToken } from "../api/auth";
 
 const COLORS = {
   primary: "#5E17EB",
@@ -47,12 +49,19 @@ const EntityTagSelector = ({
 
     setIsSearching(true);
     try {
+      const token = await getAuthToken();
+      if (!token) {
+        setSearchResults([]);
+        setShowResults(false);
+        return;
+      }
+
       // Search across all entity types
       const [membersRes, communitiesRes, sponsorsRes, venuesRes] = await Promise.all([
-        apiGet(`/members/search?q=${encodeURIComponent(query)}`).catch(() => ({ members: [] })),
-        apiGet(`/communities/search?q=${encodeURIComponent(query)}`).catch(() => ({ communities: [] })),
-        apiGet(`/sponsors/search?q=${encodeURIComponent(query)}`).catch(() => ({ sponsors: [] })),
-        apiGet(`/venues/search?q=${encodeURIComponent(query)}`).catch(() => ({ venues: [] })),
+        apiGet(`/members/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ members: [] })),
+        apiGet(`/communities/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ communities: [] })),
+        apiGet(`/sponsors/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ sponsors: [] })),
+        apiGet(`/venues/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ venues: [] })),
       ]);
 
       const results = [
@@ -66,7 +75,8 @@ const EntityTagSelector = ({
       setShowResults(true);
     } catch (error) {
       console.error("Error searching entities:", error);
-      Alert.alert("Error", "Failed to search entities");
+      setSearchResults([]);
+      setShowResults(false);
     } finally {
       setIsSearching(false);
     }
@@ -141,6 +151,21 @@ const EntityTagSelector = ({
     );
   };
 
+  const getEntityAvatar = (entity) => {
+    switch (entity.type) {
+      case 'member':
+        return entity.profile_photo_url;
+      case 'community':
+        return entity.logo_url;
+      case 'sponsor':
+        return entity.logo_url;
+      case 'venue':
+        return null; // Venues might not have avatars
+      default:
+        return null;
+    }
+  };
+
   const renderSearchResults = () => {
     if (!showResults || searchResults.length === 0) return null;
 
@@ -151,6 +176,7 @@ const EntityTagSelector = ({
             const isSelected = selectedEntities.some(
               selected => selected.id === entity.id && selected.type === entity.type
             );
+            const avatarUrl = getEntityAvatar(entity);
 
             return (
               <TouchableOpacity
@@ -162,14 +188,26 @@ const EntityTagSelector = ({
                 onPress={() => selectEntity(entity)}
                 disabled={isSelected}
               >
-                <Text style={styles.resultName}>
-                  {getEntityDisplayName(entity)}
-                </Text>
-                <Text style={styles.resultUsername}>
-                  {getEntityUsername(entity)} • {entity.type}
-                </Text>
+                {avatarUrl ? (
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={styles.resultAvatar}
+                  />
+                ) : (
+                  <View style={[styles.resultAvatar, styles.resultAvatarPlaceholder]}>
+                    <Ionicons name="person" size={20} color={COLORS.textLight} />
+                  </View>
+                )}
+                <View style={styles.resultMeta}>
+                  <Text style={styles.resultName} numberOfLines={1}>
+                    {getEntityDisplayName(entity)}
+                  </Text>
+                  <Text style={styles.resultUsername} numberOfLines={1}>
+                    @{entity.username || entity.name?.toLowerCase().replace(/\s+/g, '') || 'user'}
+                  </Text>
+                </View>
                 {isSelected && (
-                  <Ionicons name="checkmark" size={20} color={COLORS.primary} />
+                  <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
                 )}
               </TouchableOpacity>
             );
@@ -278,7 +316,6 @@ const styles = StyleSheet.create({
   resultItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
@@ -287,16 +324,29 @@ const styles = StyleSheet.create({
   resultItemSelected: {
     backgroundColor: "#F0F0FF",
   },
+  resultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  resultAvatarPlaceholder: {
+    backgroundColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultMeta: {
+    flex: 1,
+  },
   resultName: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
     color: COLORS.textDark,
-    flex: 1,
+    marginBottom: 2,
   },
   resultUsername: {
     fontSize: 14,
     color: COLORS.textLight,
-    marginRight: 8,
   },
 });
 

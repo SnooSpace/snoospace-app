@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../../context/NotificationsContext';
 import { apiGet, apiPost } from '../../../api/client'; // Modified imports
 import { getAuthToken, getAuthEmail } from '../../../api/auth';
+import { getUnreadCount as getMessageUnreadCount } from '../../../api/messages';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
 import CommentsModal from '../../../components/CommentsModal'; // Comments modal
 import EventBus from '../../../utils/EventBus';
@@ -32,16 +33,27 @@ export default function HomeFeedScreen({ navigation }) {
   const [selectedPostId, setSelectedPostId] = useState(null);
   const { unread } = useNotifications();
   const [greetingName, setGreetingName] = useState(null);
+  const [messageUnread, setMessageUnread] = useState(0);
 
   useEffect(() => {
     // Always load feed once on mount
     loadFeed();
     loadGreetingName();
+    loadMessageUnreadCount();
     const off = EventBus.on('follow-updated', () => {
       loadFeed();
     });
     return () => { off(); };
   }, []);
+
+  const loadMessageUnreadCount = async () => {
+    try {
+      const response = await getMessageUnreadCount();
+      setMessageUnread(response.unreadCount || 0);
+    } catch (error) {
+      console.error('Error loading message unread count:', error);
+    }
+  };
 
   const loadFeed = async () => {
     try {
@@ -51,7 +63,20 @@ export default function HomeFeedScreen({ navigation }) {
       if (!token) throw new Error("Authentication token not found."); // Added check for token
       
       const response = await apiGet('/posts/feed', 15000, token);
-      setPosts(response.posts || []);
+      // Parse tagged_entities if they come as JSON strings
+      const posts = (response.posts || []).map(post => ({
+        ...post,
+        tagged_entities: (() => {
+          if (!post.tagged_entities) return null;
+          if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
+          try {
+            return JSON.parse(post.tagged_entities);
+          } catch {
+            return null;
+          }
+        })()
+      }));
+      setPosts(posts);
     } catch (error) {
       console.error('Error loading feed:', error);
       setErrorMsg(error?.message || 'Failed to load posts');
@@ -176,11 +201,26 @@ export default function HomeFeedScreen({ navigation }) {
       onComment={handleCommentPress}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          // Navigate to MemberStack tab (we're already in BottomTabNavigator)
-          navigation.navigate("MemberStack", {
-            screen: "MemberPublicProfile",
-            params: { memberId: userId },
-          });
+          // Navigate to MemberPublicProfile via ProfileStackNavigator
+          const root = navigation.getParent()?.getParent();
+          if (root) {
+            root.navigate('MemberHome', {
+              screen: 'Profile',
+              params: {
+                screen: 'MemberPublicProfile',
+                params: { memberId: userId }
+              }
+            });
+          }
+        } else if (userType === 'community') {
+          // Navigate to community profile - for now show alert, can be implemented later
+          Alert.alert('Community Profile', 'Community profile navigation will be implemented soon');
+        } else if (userType === 'sponsor') {
+          // Navigate to sponsor profile - for now show alert, can be implemented later
+          Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
+        } else if (userType === 'venue') {
+          // Navigate to venue profile - for now show alert, can be implemented later
+          Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
         }
       }}
     />
@@ -203,8 +243,18 @@ export default function HomeFeedScreen({ navigation }) {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="menu" size={24} color={TEXT_COLOR} />
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => {
+              navigation.navigate("ConversationsList");
+            }}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={TEXT_COLOR} />
+            {messageUnread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{messageUnread > 9 ? '9+' : String(messageUnread)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -261,6 +311,7 @@ export default function HomeFeedScreen({ navigation }) {
           setSelectedPostId(null);
         }}
         onCommentCountChange={selectedPostId ? handleCommentCountChange(selectedPostId) : undefined}
+        navigation={navigation}
       />
     </SafeAreaView>
   );

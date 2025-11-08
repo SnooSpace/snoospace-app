@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import stack navigators
@@ -8,7 +9,7 @@ import SearchStackNavigator from './SearchStackNavigator';
 import ProfileStackNavigator from './ProfileStackNavigator';
 // Import screens
 import MatchingScreen from '../screens/matching/MatchingScreen';
-import CreatePostScreen from '../screens/home/member/CreatePostScreen';
+import YourEventsScreen from '../screens/events/YourEventsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -24,6 +25,18 @@ const BottomTabNavigator = ({ navigation, route }) => {
     }
   }, [route?.params?.tab, navigation]);
 
+  // Helper function to get tab bar visibility
+  const getTabBarVisibility = (route) => {
+    const routeName = getFocusedRouteNameFromRoute(route) ?? route.name;
+    
+    // Hide tab bar for Messages screens
+    if (routeName === 'ConversationsList' || routeName === 'Chat') {
+      return false;
+    }
+    
+    return true;
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -36,9 +49,9 @@ const BottomTabNavigator = ({ navigation, route }) => {
             iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'Matching') {
             iconName = focused ? 'heart' : 'heart-outline';
-          } else if (route.name === 'Create') {
-            iconName = focused ? 'add-circle' : 'add-circle-outline';
-          } else           if (route.name === 'Profile') {
+          } else if (route.name === 'YourEvents') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
 
@@ -65,7 +78,23 @@ const BottomTabNavigator = ({ navigation, route }) => {
       <Tab.Screen 
         name="Home" 
         component={HomeStackNavigator}
-        options={{ tabBarLabel: 'Home' }}
+        options={({ route }) => ({
+          tabBarLabel: 'Home',
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'HomeFeed';
+            if (routeName === 'ConversationsList' || routeName === 'Chat') {
+              return { display: 'none' };
+            }
+            return {
+              backgroundColor: '#FFFFFF',
+              borderTopWidth: 1,
+              borderTopColor: '#E5E5EA',
+              paddingBottom: 5,
+              paddingTop: 5,
+              height: 90,
+            };
+          })(),
+        })}
       />
       <Tab.Screen 
         name="Search" 
@@ -78,16 +107,10 @@ const BottomTabNavigator = ({ navigation, route }) => {
         options={{ tabBarLabel: 'Matching' }}
       />
       <Tab.Screen 
-        name="Create" 
-        options={{ tabBarLabel: 'Create' }}
-      >
-        {(props) => (
-          <CreatePostScreen 
-            {...props} 
-            onPostCreated={() => navigation.navigate('Home')} 
-          />
-        )}
-      </Tab.Screen>
+        name="YourEvents" 
+        component={YourEventsScreen}
+        options={{ tabBarLabel: 'Your Events' }}
+      />
       <Tab.Screen 
         name="Profile" 
         component={ProfileStackNavigator}

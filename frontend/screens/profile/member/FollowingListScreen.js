@@ -123,6 +123,15 @@ export default function FollowingListScreen({ route, navigation }) {
           renderItem={renderItem}
           onEndReachedThreshold={0.6}
           onEndReached={() => load(false)}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 }}>
+                <Text style={{ color: '#8E8E93', fontSize: 16, textAlign: 'center' }}>
+                  You're not following anyone yet
+                </Text>
+              </View>
+            ) : null
+          }
         />
       )}
     </SafeAreaView>
