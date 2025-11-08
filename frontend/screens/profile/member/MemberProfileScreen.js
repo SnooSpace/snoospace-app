@@ -159,7 +159,9 @@ export default function MemberProfileScreen({ navigation }) {
       } else {
         setLoading(false);
       }
-      console.log("[Profile] loadProfile: finally, loading/refreshing set to false");
+      console.log(
+        "[Profile] loadProfile: finally, loading/refreshing set to false"
+      );
     }
   };
 
@@ -197,7 +199,9 @@ export default function MemberProfileScreen({ navigation }) {
       // Check route params for refresh flag from EditProfile
       const params = route.params;
       if (params?.refreshProfile === true) {
-        console.log("[Profile] Navigation listener: returning from EditProfile with changes, reloading profile");
+        console.log(
+          "[Profile] Navigation listener: returning from EditProfile with changes, reloading profile"
+        );
         if (loadProfileRef.current) {
           loadProfileRef.current();
         }
@@ -820,13 +824,13 @@ export default function MemberProfileScreen({ navigation }) {
             </TouchableOpacity>
           </Modal>
         </SafeAreaView>
-        {/* Embedded Comments Modal overlay positioned relative to Modal root */}
+        {/* Replace the existing CommentsModal inside PostModal with this */}
         <CommentsModal
           visible={localCommentsVisible}
           postId={post?.id}
           onClose={() => setLocalCommentsVisible(false)}
           onCommentCountChange={(newCount) => setCommentCount(newCount)}
-          embedded
+          isNestedModal={true} // Added this prop instead of embedded
           navigation={navigation}
         />
       </Modal>
@@ -902,8 +906,8 @@ export default function MemberProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -942,7 +946,10 @@ export default function MemberProfileScreen({ navigation }) {
                   style={[styles.chip, styles.pronounChipSmall]}
                 >
                   <Text style={styles.chipText}>
-                    {String(profile.pronouns[0]).replace(/^[{\"]+|[}\"]+$/g, "")}
+                    {String(profile.pronouns[0]).replace(
+                      /^[{\"]+|[}\"]+$/g,
+                      ""
+                    )}
                   </Text>
                 </View>
                 {profile.pronouns.length > 1 && !showAllPronouns ? (
@@ -958,7 +965,11 @@ export default function MemberProfileScreen({ navigation }) {
                 {profile.pronouns.length > 1 && showAllPronouns ? (
                   <TouchableOpacity
                     onPress={() => setShowAllPronouns(false)}
-                    style={[styles.chip, styles.pronounChipSmall, styles.chipRed]}
+                    style={[
+                      styles.chip,
+                      styles.pronounChipSmall,
+                      styles.chipRed,
+                    ]}
                   >
                     <Text style={[styles.chipText, styles.chipTextRed]}>-</Text>
                   </TouchableOpacity>
@@ -966,7 +977,9 @@ export default function MemberProfileScreen({ navigation }) {
               </View>
             ) : null}
           </View>
-          {Array.isArray(profile.pronouns) && profile.pronouns.length > 1 && showAllPronouns ? (
+          {Array.isArray(profile.pronouns) &&
+          profile.pronouns.length > 1 &&
+          showAllPronouns ? (
             <View style={styles.expandedPronounsRow}>
               {profile.pronouns.slice(1).map((p, idx) => (
                 <View
@@ -1024,7 +1037,10 @@ export default function MemberProfileScreen({ navigation }) {
                   ? profile.interests
                   : profile.interests.slice(0, 6)
                 ).map((i, idx) => (
-                  <View key={`interest-${idx}`} style={[styles.chip, styles.chipGridItem]}>
+                  <View
+                    key={`interest-${idx}`}
+                    style={[styles.chip, styles.chipGridItem]}
+                  >
                     <Text style={styles.chipText}>{String(i)}</Text>
                   </View>
                 ))}
@@ -1033,7 +1049,9 @@ export default function MemberProfileScreen({ navigation }) {
                     onPress={() => setShowAllInterests(true)}
                     style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
                   >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>See all</Text>
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>
+                      See all
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
                 {profile.interests.length > 6 && showAllInterests ? (
@@ -1041,7 +1059,9 @@ export default function MemberProfileScreen({ navigation }) {
                     onPress={() => setShowAllInterests(false)}
                     style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
                   >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>Collapse</Text>
+                    <Text style={[styles.chipText, styles.chipTextBlue]}>
+                      Collapse
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -1050,7 +1070,14 @@ export default function MemberProfileScreen({ navigation }) {
 
           {/* Action Buttons */}
           {isOwnProfile ? (
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10, width: "100%" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                marginTop: 10,
+                width: "100%",
+              }}
+            >
               <TouchableOpacity
                 style={[styles.actionButton, { flex: 1 }]}
                 onPress={handleEditProfile}
@@ -1155,7 +1182,6 @@ export default function MemberProfileScreen({ navigation }) {
                   handleEditProfile();
                 }}
               >
-                
                 <Ionicons
                   name="notifications-outline"
                   size={24}
@@ -1270,7 +1296,8 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
               <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
-                This is permanent and cannot be undone. Type "delete" to confirm.
+                This is permanent and cannot be undone. Type "delete" to
+                confirm.
               </Text>
               <TextInput
                 value={deleteInput}
@@ -1533,7 +1560,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   actionButtonText: {
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
     color: PRIMARY_COLOR,

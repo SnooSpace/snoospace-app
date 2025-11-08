@@ -41,40 +41,42 @@ const EntityTagSelector = ({
   }, [selectedEntities]);
 
   const searchEntities = async (query) => {
-    if (query.length < 2) {
+    if (query.length < 1) {
       setSearchResults([]);
       setShowResults(false);
       return;
     }
 
     setIsSearching(true);
+    setShowResults(true); // Show results container even while searching
+    
     try {
       const token = await getAuthToken();
       if (!token) {
+        console.warn('No auth token available for search');
         setSearchResults([]);
         setShowResults(false);
         return;
       }
 
-      // Search across all entity types
-      const [membersRes, communitiesRes, sponsorsRes, venuesRes] = await Promise.all([
-        apiGet(`/members/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ members: [] })),
-        apiGet(`/communities/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ communities: [] })),
-        apiGet(`/sponsors/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ sponsors: [] })),
-        apiGet(`/venues/search?q=${encodeURIComponent(query)}`, 15000, token).catch(() => ({ venues: [] })),
-      ]);
-
-      const results = [
-        ...(membersRes.members || []).map(member => ({ ...member, type: 'member' })),
-        ...(communitiesRes.communities || []).map(community => ({ ...community, type: 'community' })),
-        ...(sponsorsRes.sponsors || []).map(sponsor => ({ ...sponsor, type: 'sponsor' })),
-        ...(venuesRes.venues || []).map(venue => ({ ...venue, type: 'venue' })),
-      ];
-
-      setSearchResults(results);
-      setShowResults(true);
+      // Search members (only endpoint currently available)
+      // Other entity types can be added when their search endpoints are implemented
+      try {
+        const membersRes = await apiGet(`/members/search?q=${encodeURIComponent(query)}`, 15000, token);
+        // Backend returns { results: [...], nextOffset: ..., hasMore: ... }
+        const members = membersRes.results || membersRes.members || [];
+        const results = members.map(member => ({ ...member, type: 'member' }));
+        
+        setSearchResults(results);
+        setShowResults(results.length > 0 || query.length > 0); // Show container if there are results or user is typing
+      } catch (memberError) {
+        console.error("Error searching members:", memberError);
+        setSearchResults([]);
+        // Keep showResults true if user is still typing to show "No results" message
+        setShowResults(query.length > 0);
+      }
     } catch (error) {
-      console.error("Error searching entities:", error);
+      console.error("Error in searchEntities:", error);
       setSearchResults([]);
       setShowResults(false);
     } finally {
@@ -167,12 +169,22 @@ const EntityTagSelector = ({
   };
 
   const renderSearchResults = () => {
-    if (!showResults || searchResults.length === 0) return null;
+    if (!showResults) return null;
 
     return (
       <View style={styles.resultsContainer}>
-        <ScrollView style={styles.resultsList}>
-          {searchResults.map((entity, index) => {
+        <ScrollView style={styles.resultsList} keyboardShouldPersistTaps="handled">
+          {isSearching ? (
+            <View style={styles.resultItem}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.resultName}>Searching...</Text>
+            </View>
+          ) : searchResults.length === 0 ? (
+            <View style={styles.resultItem}>
+              <Text style={styles.resultName}>No results found</Text>
+            </View>
+          ) : (
+            searchResults.map((entity, index) => {
             const isSelected = selectedEntities.some(
               selected => selected.id === entity.id && selected.type === entity.type
             );
@@ -211,7 +223,8 @@ const EntityTagSelector = ({
                 )}
               </TouchableOpacity>
             );
-          })}
+          })
+          )}
         </ScrollView>
       </View>
     );
@@ -294,10 +307,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   resultsContainer: {
-    position: "absolute",
-    top: 100,
-    left: 0,
-    right: 0,
+    marginTop: 12,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,

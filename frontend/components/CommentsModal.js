@@ -30,7 +30,7 @@ const COLORS = {
   error: '#FF4444',
 };
 
-const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedded = false, navigation }) => {
+const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedded = false, navigation, isNestedModal = false }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [commentInput, setCommentInput] = useState('');
@@ -524,7 +524,12 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
           )}
 
           {/* Comment Input */}
-          <View style={styles.inputContainer}>
+          <View style={[
+            styles.inputContainer,
+            keyboardVisible && Platform.OS === 'ios' && {
+              bottom: keyboardHeight - 34, // Adjust for safe area
+            }
+          ]}>
             <View style={styles.inputRow}>
               <Image
                 source={{
@@ -616,6 +621,15 @@ const CommentsModal = ({ visible, postId, onClose, onCommentCountChange, embedde
     );
   }
 
+  // If it's a nested modal (inside another modal), render without Modal wrapper
+  if (isNestedModal) {
+    return (
+      <View style={styles.nestedModalOverlay}>
+        {content}
+      </View>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -647,6 +661,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     backgroundColor: COLORS.dark,
+  },
+  nestedModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   modalContent: {
     height: '95%',
@@ -764,7 +786,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     backgroundColor: COLORS.dark,

@@ -34,6 +34,7 @@ export default function HomeFeedScreen({ navigation }) {
   const { unread } = useNotifications();
   const [greetingName, setGreetingName] = useState(null);
   const [messageUnread, setMessageUnread] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
     // Always load feed once on mount
@@ -121,6 +122,7 @@ export default function HomeFeedScreen({ navigation }) {
       const prof = res?.profile || {};
       const name = prof.full_name || prof.name || prof.username || 'Member';
       setGreetingName(name);
+      setCurrentUserId(prof.id); // Store current user ID for profile navigation
     } catch (e) {
       setGreetingName('Member');
     }
@@ -201,16 +203,26 @@ export default function HomeFeedScreen({ navigation }) {
       onComment={handleCommentPress}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          // Navigate to MemberPublicProfile via ProfileStackNavigator
+          // Check if it's the current user's own profile
+          const isOwnProfile = currentUserId && userId === currentUserId;
           const root = navigation.getParent()?.getParent();
           if (root) {
-            root.navigate('MemberHome', {
-              screen: 'Profile',
-              params: {
-                screen: 'MemberPublicProfile',
-                params: { memberId: userId }
-              }
-            });
+            if (isOwnProfile) {
+              root.navigate('MemberHome', {
+                screen: 'Profile',
+                params: {
+                  screen: 'MemberProfile'
+                }
+              });
+            } else {
+              root.navigate('MemberHome', {
+                screen: 'Profile',
+                params: {
+                  screen: 'MemberPublicProfile',
+                  params: { memberId: userId }
+                }
+              });
+            }
           }
         } else if (userType === 'community') {
           // Navigate to community profile - for now show alert, can be implemented later

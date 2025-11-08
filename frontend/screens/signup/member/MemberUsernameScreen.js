@@ -4,11 +4,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { apiPost } from "../../../api/client";
 
 const COLORS = {

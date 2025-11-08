@@ -171,7 +171,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Finish</Text>
+          <Text style={styles.buttonText}>Next</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
