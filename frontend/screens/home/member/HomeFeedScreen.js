@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   View,
@@ -44,8 +45,33 @@ export default function HomeFeedScreen({ navigation }) {
     const off = EventBus.on('follow-updated', () => {
       loadFeed();
     });
-    return () => { off(); };
+    const offMessages = EventBus.on('messages-read', () => {
+      loadMessageUnreadCount();
+    });
+    const offPostCreated = EventBus.on('post-created', () => {
+      loadFeed();
+    });
+    return () => { 
+      off(); 
+      offMessages();
+      offPostCreated();
+    };
   }, []);
+
+  // Refresh message count when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadMessageUnreadCount();
+    }, [])
+  );
+
+  // Refresh notifications when screen gains focus
+  const { loadInitial: loadNotifications } = useNotifications();
+  useFocusEffect(
+    React.useCallback(() => {
+      loadNotifications();
+    }, [loadNotifications])
+  );
 
   const loadMessageUnreadCount = async () => {
     try {

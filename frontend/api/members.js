@@ -46,6 +46,12 @@ export async function verifyEmailChange(newEmail, otp) {
   return apiPost('/members/email/change/verify', { email: newEmail, otp }, 15000, token);
 }
 
+export async function updateLocation(location) {
+  const token = await getAuthToken();
+  // location: { lat, lng, city?, state?, country? }
+  return apiPost('/members/location', { location }, 12000, token);
+}
+
 export async function fetchInterests() {
   const token = await getAuthToken();
   const result = await apiGet('/catalog/interests', 15000, token);

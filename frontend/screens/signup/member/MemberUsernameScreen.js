@@ -7,8 +7,12 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import ProgressBar from "../../../components/Progressbar";
 import { apiPost } from "../../../api/client";
 
 const COLORS = {
@@ -116,6 +120,24 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        {/* Header Section (Back Button) */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Header Section (Progress Bar and Step Text) */}
+        <View style={styles.headerRow}>
+          <Text style={styles.stepText}>Step 8 of 8</Text>
+          <View style={styles.progressBarContainer}>
+            <ProgressBar progress={100} />
+          </View>
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.title}>Choose Your Username</Text>
           <Text style={styles.subtitle}>
@@ -175,11 +197,33 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
     paddingHorizontal: SPACING.horizontal,
     paddingVertical: SPACING.vertical,
+  },
+  headerRow: {
+    paddingVertical: 15,
+    paddingHorizontal: 5,
+  },
+  backButton: {
+    padding: 15,
+    marginLeft: -15,
+  },
+  stepText: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 5,
+    marginLeft: 5,
+  },
+  progressBarContainer: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e9ecef",
+    overflow: "hidden",
+    flexDirection: "row",
   },
   header: {
     marginBottom: 40,

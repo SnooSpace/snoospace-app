@@ -85,11 +85,11 @@ const GenderSelectionScreen = ({ navigation, route }) => {
         </View>
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 3 of 7</Text>
+          <Text style={styles.stepText}>Step 3 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={42} />
+            <ProgressBar progress={37.5} />
           </View>
         </View>
 

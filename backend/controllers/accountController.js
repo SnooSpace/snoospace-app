@@ -12,11 +12,11 @@ const deleteAccount = async (req, res) => {
 
     // Remove dependent rows (order matters for FK constraints)
     // Likes on posts/comments by this user
-    await client.query(`DELETE FROM post_likes WHERE user_id = $1 AND user_type = $2`, [userId, userType]);
-    await client.query(`DELETE FROM comment_likes WHERE user_id = $1 AND user_type = $2`, [userId, userType]);
+    await client.query(`DELETE FROM post_likes WHERE liker_id = $1 AND liker_type = $2`, [userId, userType]);
+    await client.query(`DELETE FROM comment_likes WHERE liker_id = $1 AND liker_type = $2`, [userId, userType]);
 
     // Comments authored by this user
-    await client.query(`DELETE FROM comments WHERE author_id = $1 AND author_type = $2`, [userId, userType]);
+    await client.query(`DELETE FROM post_comments WHERE commenter_id = $1 AND commenter_type = $2`, [userId, userType]);
 
     // Follows where user is follower or following
     await client.query(`DELETE FROM follows WHERE follower_id = $1 AND follower_type = $2`, [userId, userType]);

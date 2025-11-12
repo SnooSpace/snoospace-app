@@ -49,11 +49,11 @@ const NameInputScreen = ({ navigation, route }) => {
 
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 2 of 7</Text>
+          <Text style={styles.stepText}>Step 2 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={28} />
+            <ProgressBar progress={25} />
           </View>
         </View>
 

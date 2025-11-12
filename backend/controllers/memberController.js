@@ -20,9 +20,9 @@ function parsePgTextArray(value) {
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-  const { name, email, phone, dob, gender, city, interests, profile_photo_url } = req.body || {};
-    if (!name || !email || !phone || !dob || !gender || !city || !Array.isArray(interests)) {
-      return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, city, interests[]" });
+  const { name, email, phone, dob, gender, location, interests, profile_photo_url } = req.body || {};
+    if (!name || !email || !phone || !dob || !gender || !location || !Array.isArray(interests)) {
+      return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, location (JSONB), interests[]" });
     }
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: "phone must be 10 digits" });
@@ -34,19 +34,23 @@ async function signup(req, res) {
     if (interests.length < 3 || interests.length > 7) {
       return res.status(400).json({ error: "interests must include between 3 and 7 items" });
     }
+    // Validate location is an object with at least city
+    if (typeof location !== 'object' || location === null || !location.city) {
+      return res.status(400).json({ error: "location must be an object with at least a city field" });
+    }
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, city, interests, profile_photo_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)
        ON CONFLICT (email) DO UPDATE SET
          name=EXCLUDED.name,
          phone=EXCLUDED.phone,
          dob=EXCLUDED.dob,
          gender=EXCLUDED.gender,
-         city=EXCLUDED.city,
+         location=EXCLUDED.location,
          interests=EXCLUDED.interests,
          profile_photo_url=COALESCE(EXCLUDED.profile_photo_url, members.profile_photo_url)
        RETURNING *`,
-      [name, email, phone, dob, gender, city, JSON.stringify(interests), profile_photo_url || null]
+      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {
@@ -74,7 +78,7 @@ async function getProfile(req, res) {
 
     // Get member profile
     const memberResult = await pool.query(
-      `SELECT id, name, email, phone, dob, gender, city, interests, username, bio, profile_photo_url, pronouns, location, created_at
+      `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -337,16 +341,10 @@ async function patchProfile(req, res) {
         const lat = location.lat != null ? parseFloat(location.lat) : null;
         const lng = location.lng != null ? parseFloat(location.lng) : null;
         
-        updates.push(`city = $${paramIndex++}`);
-        values.push(locCity || null);
-        
-        if (locState || locCountry || lat != null || lng != null) {
-          const locationJson = JSON.stringify({ city: locCity, state: locState, country: locCountry, lat, lng });
-          updates.push(`location = $${paramIndex++}::jsonb`);
-          values.push(locationJson);
-        }
+        const locationJson = JSON.stringify({ city: locCity, state: locState, country: locCountry, lat, lng });
+        updates.push(`location = $${paramIndex++}::jsonb`);
+        values.push(locationJson);
       } else if (location === null) {
-        updates.push(`city = NULL`);
         updates.push(`location = NULL`);
       }
     }
@@ -356,7 +354,7 @@ async function patchProfile(req, res) {
     }
 
     values.push(userId);
-    const query = `UPDATE members SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, pronouns, interests, city, location`;
+    const query = `UPDATE members SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, pronouns, interests, location`;
     
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -371,7 +369,6 @@ async function patchProfile(req, res) {
         phone: member.phone,
         pronouns: parsePgTextArray(member.pronouns),
         interests: typeof member.interests === 'string' ? JSON.parse(member.interests) : member.interests,
-        city: member.city,
         location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
       },
     });
@@ -451,10 +448,14 @@ async function startEmailChange(req, res) {
     }
 
     const supabase = require("../supabase");
+    // Use Supabase OTP to deliver a 6-digit code to the new email.
+    // Allow sending to emails that are not yet registered by enabling shouldCreateUser.
+    // This does NOT switch the authenticated user; we only use the OTP as proof of inbox control
+    // before committing the new email to our members table.
     const { data, error } = await supabase.auth.signInWithOtp({
       email: emailTrimmed,
       options: {
-        shouldCreateUser: false,
+        shouldCreateUser: true,
         emailRedirectTo: undefined
       }
     });
@@ -510,6 +511,41 @@ async function verifyEmailChange(req, res) {
   }
 }
 
-module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember, patchProfile, changeUsernameEndpoint, startEmailChange, verifyEmailChange };
+async function updateLocation(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    const body = req.body || {};
+    const loc = body.location;
+    if (!loc || typeof loc !== 'object') {
+      return res.status(400).json({ error: "location object is required" });
+    }
+    const lat = loc.lat != null ? parseFloat(loc.lat) : null;
+    const lng = loc.lng != null ? parseFloat(loc.lng) : null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "lat and lng are required numeric values" });
+    }
+    const city = loc.city ? String(loc.city).trim().substring(0, 100) : null;
+    const state = loc.state ? String(loc.state).trim().substring(0, 100) : null;
+    const country = loc.country ? String(loc.country).trim().substring(0, 100) : null;
+    const locationJson = JSON.stringify({ city, state, country, lat, lng });
+
+    await pool.query(`UPDATE members SET location = $1::jsonb WHERE id = $2`, [locationJson, userId]);
+    await pool.query(
+      `INSERT INTO member_location_history (member_id, location) VALUES ($1, $2::jsonb)`,
+      [userId, locationJson]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("/members/location POST error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to update location" });
+  }
+}
+
+module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember, patchProfile, changeUsernameEndpoint, startEmailChange, verifyEmailChange, updateLocation };
 
 

@@ -58,6 +58,7 @@ router.post("/members/email/change/start", authMiddleware, rateLimitOtp, normali
 router.post("/members/email/change/verify", authMiddleware, rateLimitOtp, normalizeEmail, validateBody(['email', 'otp']), MemberController.verifyEmailChange);
 router.get("/members/search", authMiddleware, MemberController.searchMembers);
 router.get("/members/:id/public", authMiddleware, MemberController.getPublicMember);
+router.post("/members/location", authMiddleware, MemberController.updateLocation);
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);

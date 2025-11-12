@@ -1,3 +1,4 @@
+import "react-native-get-random-values";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { NavigationContainer, CommonActions } from "@react-navigation/native";
@@ -7,10 +8,12 @@ import { getAuthToken, getAuthEmail, getPendingOtp, clearPendingOtp } from "./ap
 import { apiPost } from "./api/client";
 import { NotificationsProvider, useNotifications } from "./context/NotificationsContext";
 import NotificationBanner from "./components/NotificationBanner";
+import { attachAppStateListener, startForegroundWatch, stopForegroundWatch } from "./services/LocationTracker";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
   const navigationRef = React.useRef(null);
+  const removeAppStateListenerRef = React.useRef(null);
 
   const handleBannerPress = () => {
     if (currentBanner?.type === 'follow' && currentBanner?.actor_id) {
@@ -45,6 +48,15 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Start foreground watcher on app mount and attach AppState listener
+    startForegroundWatch();
+    const remove = attachAppStateListener();
+    return () => {
+      try { remove && remove(); } catch {}
+      stopForegroundWatch();
+    };
+  }, []);
   return (
     <SafeAreaProvider>
       <NotificationsProvider>

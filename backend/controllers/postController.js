@@ -52,6 +52,53 @@ const createPost = async (req, res) => {
     const result = await pool.query(query, values);
     const post = result.rows[0];
 
+    // Create notifications for tagged users
+    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+      try {
+        // Get actor info (post author)
+        let actorName = null;
+        let actorUsername = null;
+        let actorAvatar = null;
+        if (userType === 'member') {
+          const actorResult = await pool.query(
+            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        }
+
+        // Create notification for each tagged user (skip if tagging self)
+        for (const entity of taggedEntities) {
+          if (entity.type === 'member' && entity.id !== userId) {
+            await pool.query(
+              `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                entity.id,
+                'member',
+                userId,
+                userType,
+                'tag',
+                JSON.stringify({
+                  actorName,
+                  actorUsername,
+                  actorAvatar,
+                  postId: post.id,
+                })
+              ]
+            );
+          }
+        }
+      } catch (e) {
+        // Non-fatal: do not block post creation if notification fails
+        console.error('Failed to create tag notifications', e);
+      }
+    }
+
     res.status(201).json({
       success: true,
       post: {
@@ -265,6 +312,54 @@ const likePost = async (req, res) => {
       "UPDATE posts SET like_count = like_count + 1 WHERE id = $1",
       [postId]
     );
+
+    // Create notification for post author (skip if user likes their own post)
+    try {
+      const postResult = await pool.query(
+        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        [postId]
+      );
+      const postAuthor = postResult.rows[0];
+      
+      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
+        // Get actor info (liker)
+        let actorName = null;
+        let actorUsername = null;
+        let actorAvatar = null;
+        if (userType === 'member') {
+          const actorResult = await pool.query(
+            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        }
+
+        await pool.query(
+          `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            postAuthor.author_id,
+            postAuthor.author_type,
+            userId,
+            userType,
+            'like',
+            JSON.stringify({
+              actorName,
+              actorUsername,
+              actorAvatar,
+              postId,
+            })
+          ]
+        );
+      }
+    } catch (e) {
+      // Non-fatal: do not block like if notification fails
+      console.error('Failed to create like notification', e);
+    }
 
     res.json({ success: true, message: "Post liked" });
 

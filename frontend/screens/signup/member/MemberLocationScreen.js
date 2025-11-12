@@ -1,17 +1,21 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
-  TextInput,
   TouchableOpacity,
   SafeAreaView,
   Platform,
   StatusBar,
   ScrollView,
+  Alert,
+  ActivityIndicator,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
 import ProgressBar from "../../../components/Progressbar";
+import * as Location from "expo-location";
+// Members flow simplified to current location only; no map/manual required
 
 // --- Design Constants ---
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
@@ -23,7 +27,96 @@ const BORDER_COLOR = "#ced4da"; // Light border color
 const LocationInputScreen = ({ navigation, route }) => {
   const { email, accessToken, phone, name, gender, dob, interests } =
     route.params || {};
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState({
+    address: "",
+    city: "",
+    state: "",
+    country: "",
+    lat: null,
+    lng: null,
+  });
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const navigatedRef = useRef(false);
+
+
+  const handleGetLocation = async () => {
+    try {
+      setLoadingLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "Location permission is required to auto-detect your location.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => {
+                try { Linking.openSettings(); } catch {}
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = loc.coords;
+
+      const reverseGeocode = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+      if (reverseGeocode && reverseGeocode.length > 0) {
+        const addr = reverseGeocode[0];
+        const resolved = {
+          address: addr.street || addr.name || "",
+          city: addr.city || addr.subAdministrativeArea || "",
+          state: addr.region || addr.administrativeArea || "",
+          country: addr.country || "",
+          lat: latitude,
+          lng: longitude,
+        };
+        setLocation(resolved);
+        if (!navigatedRef.current) {
+          navigatedRef.current = true;
+          navigation.navigate("MemberProfilePic", {
+            email,
+            accessToken,
+            phone,
+            name,
+            gender,
+            dob,
+            interests,
+            location: resolved,
+          });
+        }
+      } else {
+        const resolved = { ...location, lat: latitude, lng: longitude };
+        setLocation(resolved);
+        if (!navigatedRef.current) {
+          navigatedRef.current = true;
+          navigation.navigate("MemberProfilePic", {
+            email,
+            accessToken,
+            phone,
+            name,
+            gender,
+            dob,
+            interests,
+            location: resolved,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error getting location:", error);
+      Alert.alert("Error", "Failed to get your location. Please try again.");
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
 
   const handleNext = () => {
     navigation.navigate("MemberProfilePic", {
@@ -34,12 +127,14 @@ const LocationInputScreen = ({ navigation, route }) => {
       gender,
       dob,
       interests,
-      city: location,
+      location: location,
     });
   };
 
-  // Determine if the button should be disabled (e.g., if the location is empty)
-  const isButtonDisabled = location.trim().length === 0;
+
+
+  // Button disabled (kept as fallback, but we auto-navigate on success)
+  const isButtonDisabled = !location.city || location.city.trim().length === 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -60,11 +155,11 @@ const LocationInputScreen = ({ navigation, route }) => {
 
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 6 of 7</Text>
+          <Text style={styles.stepText}>Step 6 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={85} />
+            <ProgressBar progress={75} />
           </View>
         </View>
 
@@ -72,31 +167,31 @@ const LocationInputScreen = ({ navigation, route }) => {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Where are you located?</Text>
 
-          {/* Location Input Field */}
-          <View style={styles.inputWrapper}>
-            <Ionicons
-              name="location-outline"
-              size={20}
-              color={LIGHT_TEXT_COLOR}
-              style={styles.locationIcon}
-            />
-            <TextInput
-              style={styles.input}
-              onChangeText={setLocation}
-              value={location}
-              placeholder="Enter your location"
-              placeholderTextColor="#adb5bd"
-              keyboardType="default"
-              autoCapitalize="words"
-              textContentType="addressCity" // iOS specific (best fit)
-              autoComplete="postal-address-locality" // Android specific (best fit)
-            />
-          </View>
+          {/* Use Current Location Button */}
+          <TouchableOpacity
+            style={styles.locationButton}
+            onPress={handleGetLocation}
+            disabled={loadingLocation}
+          >
+            {loadingLocation ? (
+              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+            ) : (
+              <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
+            )}
+            <Text style={styles.locationButtonText}>
+              {loadingLocation ? "Getting location..." : "Use Current Location"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Helper text */}
+          <Text style={{ color: LIGHT_TEXT_COLOR, marginTop: 8 }}>
+            We only use your location while the app is open to show nearby events and improve recommendations.
+          </Text>
         </View>
       </ScrollView>
 
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
+      {/* No footer button needed; we auto-advance after locating. Keep hidden fallback button for safety. */}
+      <View style={[styles.footer, { display: 'none' }]}>
         <TouchableOpacity
           style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
@@ -105,6 +200,8 @@ const LocationInputScreen = ({ navigation, route }) => {
           <Text style={styles.buttonText}>Next</Text>
         </TouchableOpacity>
       </View>
+
+
     </SafeAreaView>
   );
 };
@@ -195,6 +292,38 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
     paddingVertical: 0, // Ensures text is centered vertically
   },
+  locationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    marginBottom: 12,
+  },
+  locationButtonText: {
+    color: PRIMARY_COLOR,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  locationFields: {
+    gap: 12,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: TEXT_COLOR,
+    backgroundColor: "#FFFFFF",
+  },
+  locationInput: {
+    marginBottom: 0,
+  },
 
   // --- Footer/Button Styles ---
   footer: {
@@ -220,6 +349,51 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 15, // Increase this value to make the touch area larger
     marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+  },
+  // Map Picker Modal Styles
+  mapModalContainer: {
+    flex: 1,
+    backgroundColor: BACKGROUND_COLOR,
+  },
+  mapHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER_COLOR,
+  },
+  mapCloseButton: {
+    padding: 8,
+  },
+  mapHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+  },
+  mapConfirmButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 8,
+  },
+  mapConfirmButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  mapSearchContainer: {
+    position: "absolute",
+    top: 8,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
+    elevation: 5,
+    backgroundColor: "transparent",
+  },
+  map: {
+    flex: 1,
   },
 });
 

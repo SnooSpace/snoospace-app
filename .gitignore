@@ -1,0 +1,16 @@
+/.expo
+/frontend/.expo
+/frontend/dist
+/frontend/web-build
+/frontend/.metro-health-check*
+/frontend/node_modules
+/backend/node_modules
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Env
+.env*
+
+

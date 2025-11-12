@@ -21,6 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { searchMembers } from "../../api/search";
 import { followMember, unfollowMember } from "../../api/members";
 import EventBus from "../../utils/EventBus";
+import { getAuthToken, getAuthEmail } from "../../api/auth";
+import { apiPost } from "../../api/client";
 
 const DEBOUNCE_MS = 300;
 
@@ -37,14 +39,19 @@ export default function SearchScreen({ navigation }) {
   const inputRef = useRef(null);
   const [focused, setFocused] = useState(false);
   const [recents, setRecents] = useState([]);
+  const [userId, setUserId] = useState(null);
 
   const canSearch = query.trim().length >= 2;
 
-  const RECENTS_KEY = "recent_searches";
+  const getRecentsKey = () => {
+    return userId ? `recent_searches_${userId}` : "recent_searches";
+  };
 
   const loadRecents = useCallback(async () => {
+    if (!userId) return;
     try {
-      const raw = await AsyncStorage.getItem(RECENTS_KEY);
+      const key = getRecentsKey();
+      const raw = await AsyncStorage.getItem(key);
       if (!raw) {
         setRecents([]);
         return;
@@ -54,13 +61,15 @@ export default function SearchScreen({ navigation }) {
     } catch {
       setRecents([]);
     }
-  }, []);
+  }, [userId]);
 
   const saveRecents = useCallback(async (items) => {
+    if (!userId) return;
     try {
-      await AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(items));
+      const key = getRecentsKey();
+      await AsyncStorage.setItem(key, JSON.stringify(items));
     } catch {}
-  }, []);
+  }, [userId]);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -109,8 +118,29 @@ export default function SearchScreen({ navigation }) {
   }, [query, doSearch]);
 
   useEffect(() => {
-    loadRecents();
-  }, [loadRecents]);
+    // Load user ID on mount
+    const loadUserId = async () => {
+      try {
+        const token = await getAuthToken();
+        const email = await getAuthEmail();
+        if (token && email) {
+          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          if (profileResponse?.profile?.id) {
+            setUserId(profileResponse.profile.id);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user ID:', error);
+      }
+    };
+    loadUserId();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      loadRecents();
+    }
+  }, [userId, loadRecents]);
 
   const onEndReached = useCallback(() => {
     if (loading || !hasMore) return;

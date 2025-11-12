@@ -30,7 +30,7 @@ import {
 import { uploadImage } from "../../../api/cloudinary";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
-import * as Location from "expo-location";
+
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -67,24 +67,7 @@ export default function EditProfileScreen({ route, navigation }) {
       : []
   );
   const [interests, setInterests] = useState(profile?.interests || []);
-  const [location, setLocation] = useState(() => {
-    if (profile?.location && typeof profile.location === "object") {
-      return {
-        city: profile.location.city || profile?.city || "",
-        state: profile.location.state || "",
-        country: profile.location.country || "",
-        lat: profile.location.lat || null,
-        lng: profile.location.lng || null,
-      };
-    }
-    return {
-      city: profile?.city || "",
-      state: "",
-      country: "",
-      lat: null,
-      lng: null,
-    };
-  });
+  const [location] = useState(profile?.location || null);
 
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
@@ -108,7 +91,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [bio, username, phone, pronouns, interests, location, email]);
+  }, [bio, username, phone, pronouns, interests, email]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -163,32 +146,13 @@ export default function EditProfileScreen({ route, navigation }) {
     const originalInterests = normalizeInterests(profile?.interests || []);
     const currentInterests = normalizeInterests(interests || []);
 
-    const normalizeLocation = (loc) => {
-      if (!loc || typeof loc !== "object") {
-        return { city: "", state: "", country: "", lat: null, lng: null };
-      }
-      return {
-        city: loc.city || "",
-        state: loc.state || "",
-        country: loc.country || "",
-        lat: loc.lat ?? null,
-        lng: loc.lng ?? null,
-      };
-    };
-
-    const originalLocation = normalizeLocation(
-      profile?.location || { city: profile?.city || "" }
-    );
-    const currentLocation = normalizeLocation(location);
-
     const changed =
       bio !== originalBio ||
       username !== originalUsername ||
       phone !== originalPhone ||
       email !== originalEmail ||
       JSON.stringify(currentPronouns) !== JSON.stringify(originalPronouns) ||
-      JSON.stringify(currentInterests) !== JSON.stringify(originalInterests) ||
-      JSON.stringify(currentLocation) !== JSON.stringify(originalLocation);
+      JSON.stringify(currentInterests) !== JSON.stringify(originalInterests);
 
     setHasChanges(!!changed);
   };
@@ -278,46 +242,7 @@ export default function EditProfileScreen({ route, navigation }) {
     }
   };
 
-  const handleGetLocation = async () => {
-    try {
-      setLoadingLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Location permission is required to auto-detect your location."
-        );
-        return;
-      }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude, longitude } = loc.coords;
-
-      const reverseGeocode = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-      if (reverseGeocode && reverseGeocode.length > 0) {
-        const addr = reverseGeocode[0];
-        setLocation({
-          city: addr.city || addr.subAdministrativeArea || "",
-          state: addr.region || addr.administrativeArea || "",
-          country: addr.country || "",
-          lat: latitude,
-          lng: longitude,
-        });
-      } else {
-        setLocation((prev) => ({ ...prev, lat: latitude, lng: longitude }));
-      }
-    } catch (error) {
-      console.error("Error getting location:", error);
-      Alert.alert("Error", "Failed to get your location. Please try again.");
-    } finally {
-      setLoadingLocation(false);
-    }
-  };
 
   const handleSave = async () => {
     if (!hasChanges) return;
@@ -331,7 +256,7 @@ export default function EditProfileScreen({ route, navigation }) {
         phone: phone.trim(),
         pronouns: pronouns.length > 0 ? pronouns.map(cleanLabel) : null,
         interests: interests.length > 0 ? interests : [],
-        location: location,
+        // location is now handled automatically by the app while in use
       };
 
       await updateMemberProfile(updates, token);
@@ -539,56 +464,7 @@ export default function EditProfileScreen({ route, navigation }) {
             />
           </View>
 
-          {/* Location Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Location</Text>
-            <TouchableOpacity
-              style={styles.locationButton}
-              onPress={handleGetLocation}
-              disabled={loadingLocation}
-            >
-              {loadingLocation ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-              ) : (
-                <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
-              )}
-              <Text style={styles.locationButtonText}>
-                {loadingLocation
-                  ? "Getting location..."
-                  : "Use Current Location"}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.locationFields}>
-              <TextInput
-                style={[styles.textInput, styles.locationInput]}
-                placeholder="City"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={location.city}
-                onChangeText={(text) =>
-                  setLocation((prev) => ({ ...prev, city: text }))
-                }
-              />
-              <TextInput
-                style={[styles.textInput, styles.locationInput]}
-                placeholder="State"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={location.state}
-                onChangeText={(text) =>
-                  setLocation((prev) => ({ ...prev, state: text }))
-                }
-              />
-              <TextInput
-                style={[styles.textInput, styles.locationInput]}
-                placeholder="Country"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={location.country}
-                onChangeText={(text) =>
-                  setLocation((prev) => ({ ...prev, country: text }))
-                }
-              />
-            </View>
-          </View>
+          {/* Location is managed automatically while the app is in use */}
         </ScrollView>
       </KeyboardAvoidingView>
 

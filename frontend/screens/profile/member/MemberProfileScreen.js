@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommonActions, useRoute } from "@react-navigation/native";
+import { CommonActions, useRoute, useFocusEffect } from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
@@ -192,6 +192,13 @@ export default function MemberProfileScreen({ navigation }) {
       off();
     };
   }, []);
+
+  // Refresh profile when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile(true);
+    }, [])
+  );
 
   // Navigation listener to detect when returning from EditProfile with changes
   useEffect(() => {
@@ -837,16 +844,7 @@ export default function MemberProfileScreen({ navigation }) {
     );
   };
 
-  if (loading) {
-    console.log("[Profile] rendering: loading spinner");
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Removed loading spinner - content loads immediately with RefreshControl for updates
 
   if (error) {
     console.log("[Profile] rendering: error banner", error);

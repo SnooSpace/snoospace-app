@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getMessages, sendMessage, getConversations } from '../../api/messages';
 import { getPublicMemberProfile } from '../../api/members';
+import EventBus from '../../utils/EventBus';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -118,6 +119,9 @@ export default function ChatScreen({ route, navigation }) {
     try {
       const response = await getMessages(convId);
       setMessages(response.messages || []);
+      
+      // Emit event to refresh unread count (messages are marked as read in getMessages)
+      EventBus.emit('messages-read');
       
       // Scroll to bottom after loading
       setTimeout(() => {

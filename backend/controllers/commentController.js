@@ -55,6 +55,54 @@ const createComment = async (req, res) => {
       [postId]
     );
 
+    // Create notifications for tagged users
+    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+      try {
+        // Get actor info (commenter)
+        let actorName = null;
+        let actorUsername = null;
+        let actorAvatar = null;
+        if (userType === 'member') {
+          const actorResult = await pool.query(
+            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        }
+
+        // Create notification for each tagged user (skip if tagging self)
+        for (const entity of taggedEntities) {
+          if (entity.type === 'member' && entity.id !== userId) {
+            await pool.query(
+              `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                entity.id,
+                'member',
+                userId,
+                userType,
+                'tag',
+                JSON.stringify({
+                  actorName,
+                  actorUsername,
+                  actorAvatar,
+                  postId,
+                  commentId: comment.id,
+                })
+              ]
+            );
+          }
+        }
+      } catch (e) {
+        // Non-fatal: do not block comment creation if notification fails
+        console.error('Failed to create tag notifications', e);
+      }
+    }
+
     res.status(201).json({
       success: true,
       comment: {
@@ -167,9 +215,17 @@ const getPostComments = async (req, res) => {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    // Get current user info for is_liked check
+    // Get current user info for is_liked check and post author info
     const userId = req.user?.id;
     const userType = req.user?.type;
+    
+    // Get post author info
+    const postResult = await pool.query(
+      "SELECT author_id, author_type FROM posts WHERE id = $1",
+      [postId]
+    );
+    const postAuthorId = postResult.rows[0]?.author_id || null;
+    const postAuthorType = postResult.rows[0]?.author_type || null;
 
     // Build query based on whether user is authenticated
     let query, queryParams;
@@ -339,7 +395,11 @@ const getPostComments = async (req, res) => {
       });
     }
 
-    res.json({ comments });
+    res.json({ 
+      comments,
+      post_author_id: postAuthorId,
+      post_author_type: postAuthorType
+    });
 
   } catch (error) {
     console.error("Error getting post comments:", error);
@@ -358,36 +418,38 @@ const deleteComment = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Check if comment exists and belongs to user
-    const commentCheck = await pool.query(
-      "SELECT post_id FROM post_comments WHERE id = $1 AND commenter_id = $2 AND commenter_type = $3",
-      [commentId, userId, userType]
-    );
-
-    if (commentCheck.rows.length === 0) {
-      return res.status(404).json({ error: "Comment not found or not authorized" });
-    }
-
-    const postId = commentCheck.rows[0].post_id;
-
-    // Delete comment (this will also delete replies due to CASCADE)
-    const result = await pool.query(
-      "DELETE FROM post_comments WHERE id = $1",
+    // Get comment to check ownership and post author
+    const commentResult = await pool.query(
+      `SELECT c.id, c.post_id, c.commenter_id, c.commenter_type, p.author_id, p.author_type
+       FROM post_comments c
+       JOIN posts p ON c.post_id = p.id
+       WHERE c.id = $1`,
       [commentId]
     );
 
-    if (result.rowCount === 0) {
+    if (commentResult.rows.length === 0) {
       return res.status(404).json({ error: "Comment not found" });
     }
 
+    const comment = commentResult.rows[0];
+    const isCommentAuthor = comment.commenter_id === userId && comment.commenter_type === userType;
+    const isPostAuthor = comment.author_id === userId && comment.author_type === userType;
+
+    // Only comment author or post author can delete
+    if (!isCommentAuthor && !isPostAuthor) {
+      return res.status(403).json({ error: "You can only delete your own comments or comments on your posts" });
+    }
+
+    // Delete the comment (replies will be deleted via CASCADE if foreign key is set)
+    await pool.query("DELETE FROM post_comments WHERE id = $1", [commentId]);
+
     // Update comment count
     await pool.query(
-      "UPDATE posts SET comment_count = comment_count - 1 WHERE id = $1",
-      [postId]
+      "UPDATE posts SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = $1",
+      [comment.post_id]
     );
 
-    res.json({ success: true, message: "Comment deleted" });
-
+    res.json({ success: true, message: "Comment deleted successfully" });
   } catch (error) {
     console.error("Error deleting comment:", error);
     res.status(500).json({ error: "Internal server error" });

@@ -1,269 +1,210 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from "react-native";
-
+import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 
-// --- CONSTANTS DEFINED LOCALLY ---
-const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#FFFFFF",
-  inputBorder: "#E0E0E0",
-  white: "#fff",
-};
-
-const FONT_SIZES = {
-  largeHeader: 28,
-  mediumHeader: 22,
-  body: 16,
-  small: 13,
-};
-
-const SPACING = {
-  horizontal: 24,
-  vertical: 20,
-};
-// ---------------------------------
-
-const CODE_LENGTH = 6;
+const TEXT_COLOR = "#1e1e1e";
+const RESEND_COOLDOWN = 60;
 
 const VerificationScreen = ({ route, navigation }) => {
   const { email } = route.params || {};
-  const [code, setCode] = useState(Array(CODE_LENGTH).fill(""));
-  const inputRefs = useRef([]);
-
-  useEffect(() => {
-    if (inputRefs.current[0]) {
-      inputRefs.current[0].focus();
-    }
-  }, []);
-
-  const handleChangeCode = (text, index) => {
-    const newCode = [...code];
-    newCode[index] = text.slice(-1);
-
-    setCode(newCode);
-
-    if (text && index < CODE_LENGTH - 1) {
-      inputRefs.current[index + 1].focus();
-    }
-  };
-
-  const handleKeyPress = ({ nativeEvent: { key } }, index) => {
-    if (key === "Backspace" && !code[index] && index > 0) {
-      inputRefs.current[index - 1].focus();
-    }
-  };
-
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
-  const RESEND_COOLDOWN_SECONDS = 60;
-  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
 
-  // Start cooldown timer on mount
   useEffect(() => {
-    setCooldown(RESEND_COOLDOWN_SECONDS);
-  }, []);
-
-  // Tick down cooldown every second
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer((t) => t - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
 
   const handleVerify = async () => {
-    const enteredCode = code.join("");
-    if (enteredCode.length !== CODE_LENGTH) {
-      alert("Please enter the full 6-digit code.");
+    if (!otp || otp.length !== 6) {
+      Alert.alert("Error", "Please enter the 6-digit code.");
       return;
     }
-    setError("");
+
     setLoading(true);
+    setError("");
+
     try {
-      const resp = await apiPost("/auth/verify-otp", { email, token: enteredCode }, 8000);
-      const accessToken = resp.data?.session?.access_token;
+      const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 20000);
+      const accessToken = resp?.data?.session?.access_token;
       if (accessToken) {
         await setAuthSession(accessToken, email);
       }
       await clearPendingOtp();
       navigation.navigate("MemberPhone", { email, accessToken });
     } catch (e) {
-      setError(e.message || "Verification failed");
+      if (e.message && e.message.includes("timed out")) {
+        setError("Request timed out. Please check your internet connection and try again.");
+      } else {
+        setError(e.message || "Verification failed");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (cooldown > 0) return;
+    if (resendTimer > 0) return;
+
+    setResendLoading(true);
+    setError("");
     try {
-      await apiPost("/auth/send-otp", { email }, 8000);
-      setCooldown(RESEND_COOLDOWN_SECONDS);
-      alert(`Code resent to ${email || 'your email'}.`);
+      await apiPost("/auth/send-otp", { email }, 15000);
+      Alert.alert("Success", `Code resent to ${email}.`);
+      setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
-      alert(e.message || "Failed to resend code");
+      setError(e.message || "Failed to resend code");
+    } finally {
+      setResendLoading(false);
     }
   };
 
-  const isCodeComplete = code.every((digit) => digit !== "");
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.content}>
-            <Text style={styles.title}>Enter your code</Text>
-            <Text style={styles.subtitle}>
-              We sent a 6-digit code to {email ? `your email (${email})` : 'your email'}.
-            </Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>Enter verification code</Text>
+        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
-            <View style={styles.codeInputContainer}>
-              {code.map((digit, index) => (
-                <TextInput
-                  key={index}
-                  ref={(el) => (inputRefs.current[index] = el)}
-                  style={styles.codeInput}
-                  value={digit}
-                  onChangeText={(text) => handleChangeCode(text, index)}
-                  onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  caretHidden={true}
-                />
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.verifyButton, !isCodeComplete && styles.disabledButton]}
-              onPress={handleVerify}
-              disabled={!isCodeComplete}
-            >
-              <Text style={styles.buttonText}>{loading ? "Verifying..." : "Verify"}</Text>
-            </TouchableOpacity>
-
-            {!!error && <Text style={[styles.resendText, { color: 'red', textAlign: 'center' }]}>{error}</Text>}
-
-            <TouchableOpacity style={styles.resendButton} onPress={handleResendCode} disabled={cooldown > 0}>
-              <Text style={styles.resendText}>
-                {cooldown > 0
-                  ? `Resend available in ${cooldown}s`
-                  : <>Didn't receive the code? <Text style={styles.resendLink}>Resend</Text></>}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="000000"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+            textAlign="center"
+          />
         </View>
-      </KeyboardAvoidingView>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleVerify}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Continue</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.resendButton}
+          onPress={handleResendCode}
+          disabled={resendTimer > 0 || resendLoading}
+        >
+          {resendLoading ? (
+            <ActivityIndicator color="#5f27cd" size="small" />
+          ) : (
+            <Text style={styles.resendText}>
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
   container: {
     flex: 1,
-    paddingHorizontal: SPACING.horizontal,
-    paddingVertical: SPACING.vertical,
+    backgroundColor: "#fff",
   },
   header: {
-    paddingBottom: SPACING.vertical,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 10,
   },
-  headerTitle: {
-    fontSize: FONT_SIZES.body,
-    fontWeight: "600",
-    color: COLORS.textDark,
+  backButton: {
+    padding: 15,
+    marginLeft: -15,
   },
   content: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 80,
+    paddingHorizontal: 25,
+    paddingTop: 30,
   },
   title: {
-    fontSize: FONT_SIZES.largeHeader,
-    fontWeight: "800",
-    color: COLORS.textDark,
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1D2A32",
     marginBottom: 10,
-    textAlign: "center",
   },
   subtitle: {
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textLight,
-    marginBottom: 40,
-    textAlign: "center",
-    paddingHorizontal: SPACING.horizontal / 2,
-  },
-  codeInputContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    maxWidth: 320,
+    fontSize: 16,
+    color: "#6c757d",
     marginBottom: 40,
   },
-  codeInput: {
-    width: 45,
-    height: 60,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    borderRadius: 8,
-    textAlign: "center",
-    fontSize: FONT_SIZES.mediumHeader,
-    fontWeight: "bold",
-    color: COLORS.textDark,
-  },
-  footer: {
-    paddingBottom: SPACING.vertical,
-  },
-  verifyButton: {
-    backgroundColor: COLORS.primary,
-    height: 56,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+  inputContainer: {
     marginBottom: 20,
   },
-  disabledButton: {
-    opacity: 0.5,
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 24,
+    backgroundColor: "#f8f9fa",
+    letterSpacing: 4,
+  },
+  button: {
+    backgroundColor: "#5f27cd",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.body,
-    fontWeight: "700",
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
   },
   resendButton: {
     alignItems: "center",
-    paddingVertical: 10,
+    marginTop: 20,
   },
   resendText: {
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textDark,
+    color: "#5f27cd",
+    fontSize: 16,
+    fontWeight: "500",
   },
-  resendLink: {
-    color: COLORS.primary,
-    fontWeight: "600",
+  errorText: {
+    color: "#dc3545",
+    fontSize: 14,
+    marginTop: 10,
+    textAlign: "center",
   },
 });
 

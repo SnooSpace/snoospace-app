@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -8,6 +9,9 @@ import {
   FlatList,
   Dimensions,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -18,6 +22,9 @@ import {
 } from "../../../api/members";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
+import { getAuthToken } from "../../../api/auth";
+import { apiPost, apiDelete } from "../../../api/client";
+import CommentsModal from "../../../components/CommentsModal";
 
 const { width: screenWidth } = Dimensions.get("window");
 const GAP = 10;
@@ -35,6 +42,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
   const [showAllPronouns, setShowAllPronouns] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [postModalVisible, setPostModalVisible] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -100,6 +109,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     [memberId, offset, posts, hasMore, loadingMore]
   );
 
+  // Refresh profile when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -111,6 +127,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       mounted = false;
     };
   }, [memberId]);
+
+  const openPostModal = (post) => {
+    setSelectedPost(post);
+    setPostModalVisible(true);
+  };
+
+  const closePostModal = () => {
+    setPostModalVisible(false);
+    setSelectedPost(null);
+  };
 
   const renderGridItem = ({ item, index }) => {
     const isLastInRow = (index + 1) % 3 === 0;
@@ -129,6 +155,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           overflow: "hidden",
           marginRight: isLastInRow ? 0 : GAP,
         }}
+        onPress={() => item && openPostModal(item)}
+        disabled={!item}
       >
         {item ? (
           <Image
@@ -501,9 +529,455 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           />
         </>
       )}
+
+      {/* Post Modal */}
+      {selectedPost && (
+        <PostModal
+          visible={postModalVisible}
+          post={selectedPost}
+          onClose={closePostModal}
+          profile={profile}
+          navigation={navigation}
+        />
+      )}
     </SafeAreaView>
   );
 }
+
+// PostModal Component
+const PostModal = ({ visible, post, onClose, profile: profileProp, navigation }) => {
+  const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
+  const [likes, setLikes] = useState(post?.like_count || 0);
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
+  const [commentCount, setCommentCount] = useState(post?.comment_count || 0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [localCommentsVisible, setLocalCommentsVisible] = useState(false);
+  const justUpdatedRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (justUpdatedRef.current) {
+      justUpdatedRef.current = false;
+      return;
+    }
+    const newIsLiked = post?.is_liked === true || post?.isLiked === true;
+    setIsLiked(newIsLiked);
+    setLikes(post?.like_count || 0);
+    setCommentCount(post?.comment_count || 0);
+  }, [
+    post?.is_liked,
+    post?.isLiked,
+    post?.like_count,
+    post?.comment_count,
+    visible,
+  ]);
+
+  const handleLikeToggle = async () => {
+    if (isLiking) return;
+
+    setIsLiking(true);
+    justUpdatedRef.current = true;
+    try {
+      const token = await getAuthToken();
+
+      if (isLiked) {
+        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
+        setLikes((prev) => prev - 1);
+        setIsLiked(false);
+      } else {
+        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
+        setLikes((prev) => prev + 1);
+        setIsLiked(true);
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
+      Alert.alert("Error", error?.message || "Failed to like post");
+      justUpdatedRef.current = false;
+    } finally {
+      setIsLiking(false);
+      setTimeout(() => {
+        justUpdatedRef.current = false;
+      }, 100);
+    }
+  };
+
+  if (!post) return null;
+  const images = Array.isArray(post.image_urls)
+    ? post.image_urls
+        .flat()
+        .filter((u) => typeof u === "string" && u.startsWith("http"))
+    : [];
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    if (post?.id) {
+      setCurrentImageIndex(0);
+    }
+  }, [post?.id]);
+
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp);
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return `${date.getDate()} ${
+      months[date.getMonth()]
+    } ${date.getFullYear()}`;
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+    >
+      <SafeAreaView style={postModalStyles.postModalSafeArea}>
+        <View style={postModalStyles.postModalContainer}>
+          {/* Header */}
+          <View style={postModalStyles.postModalHeader}>
+            <View style={postModalStyles.postModalHeaderTop}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={postModalStyles.postModalBackButton}
+              >
+                <Ionicons name="arrow-back" size={24} color="#000" />
+              </TouchableOpacity>
+              <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <View style={postModalStyles.postModalHeaderUserInfo}>
+              <Image
+                source={{
+                  uri:
+                    post.author_photo_url ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      post.author_name || "User"
+                    )}&background=6A0DAD&color=FFFFFF`,
+                }}
+                style={postModalStyles.postModalHeaderAvatar}
+              />
+              <View style={postModalStyles.postModalHeaderText}>
+                <Text style={postModalStyles.postModalHeaderUsername}>
+                  {post.author_username}
+                </Text>
+                <Text style={postModalStyles.postModalHeaderDate}>
+                  {formatDate(post.created_at)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <ScrollView
+            style={postModalStyles.postModalScrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Image Carousel */}
+            <View style={postModalStyles.postModalImageWrapper}>
+              {images.length > 0 && (
+                <>
+                  <FlatList
+                    data={images}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(_, idx) => idx.toString()}
+                    onMomentumScrollEnd={(e) => {
+                      const index = Math.round(
+                        e.nativeEvent.contentOffset.x / screenWidth
+                      );
+                      setCurrentImageIndex(index);
+                    }}
+                    renderItem={({ item }) => (
+                      <View style={postModalStyles.postModalImageFrame}>
+                        <Image
+                          source={{ uri: item }}
+                          style={postModalStyles.postModalImage}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    )}
+                    style={postModalStyles.modalImageCarousel}
+                  />
+                  {images.length > 1 && (
+                    <View style={postModalStyles.postModalImageIndicator}>
+                      <Text style={postModalStyles.postModalImageIndicatorText}>
+                        {currentImageIndex + 1}/{images.length}
+                      </Text>
+                    </View>
+                  )}
+                  {images.length > 1 && (
+                    <View style={postModalStyles.postModalImageDots}>
+                      {images.map((_, idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            postModalStyles.postModalDot,
+                            idx === currentImageIndex &&
+                              postModalStyles.postModalDotActive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={postModalStyles.postModalActionsRow}>
+              <TouchableOpacity
+                onPress={handleLikeToggle}
+                style={postModalStyles.modalActionButton}
+                disabled={isLiking}
+              >
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={28}
+                  color={isLiked ? "#FF3040" : "#000"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setLocalCommentsVisible(true);
+                }}
+                style={postModalStyles.modalActionButton}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={26}
+                    color="#000"
+                  />
+                  {commentCount > 0 && (
+                    <Text style={postModalStyles.postModalCommentCount}>
+                      {commentCount}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Likes Count */}
+            {likes > 0 && (
+              <View style={postModalStyles.postModalLikesSection}>
+                <Text style={postModalStyles.postModalLikesText}>
+                  {likes === 1 ? "1 like" : `${likes} likes`}
+                </Text>
+              </View>
+            )}
+
+            {/* Caption */}
+            <View style={postModalStyles.postModalCaptionSection}>
+              <Text style={postModalStyles.postModalCaption}>
+                <Text style={postModalStyles.postModalCaptionUsername}>
+                  {post.author_username}
+                </Text>
+                {post.caption && ` ${post.caption}`}
+              </Text>
+            </View>
+
+            {/* View Comments Button */}
+            {commentCount > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setLocalCommentsVisible(true);
+                }}
+                style={postModalStyles.postModalViewCommentsButton}
+              >
+                <Text style={postModalStyles.postModalViewCommentsText}>
+                  View all {commentCount}{" "}
+                  {commentCount === 1 ? "comment" : "comments"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+        <CommentsModal
+          visible={localCommentsVisible}
+          postId={post?.id}
+          onClose={() => setLocalCommentsVisible(false)}
+          onCommentCountChange={(newCount) => setCommentCount(newCount)}
+          isNestedModal={true}
+          navigation={navigation}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+const postModalStyles = StyleSheet.create({
+  postModalSafeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  postModalContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  postModalHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+  },
+  postModalHeaderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  postModalBackButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  postModalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  postModalHeaderUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  postModalHeaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  postModalHeaderText: {
+    flex: 1,
+  },
+  postModalHeaderUsername: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000",
+  },
+  postModalHeaderDate: {
+    fontSize: 12,
+    color: "#8E8E93",
+    marginTop: 2,
+  },
+  postModalScrollView: {
+    flex: 1,
+  },
+  postModalImageWrapper: {
+    width: screenWidth,
+    height: screenWidth,
+    backgroundColor: "#000",
+    position: "relative",
+  },
+  modalImageCarousel: {
+    width: screenWidth,
+    height: screenWidth,
+  },
+  postModalImageFrame: {
+    width: screenWidth,
+    height: screenWidth,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  postModalImage: {
+    width: screenWidth,
+    height: screenWidth,
+  },
+  postModalImageIndicator: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  postModalImageIndicatorText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  postModalImageDots: {
+    position: "absolute",
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  postModalDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+  },
+  postModalDotActive: {
+    backgroundColor: "#FFFFFF",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  postModalActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  modalActionButton: {
+    padding: 8,
+    marginRight: 16,
+  },
+  postModalCommentCount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000",
+    marginLeft: 6,
+  },
+  postModalLikesSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  postModalLikesText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000",
+  },
+  postModalCaptionSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  postModalCaption: {
+    fontSize: 14,
+    color: "#000",
+    lineHeight: 20,
+  },
+  postModalCaptionUsername: {
+    fontWeight: "600",
+    color: "#000",
+  },
+  postModalViewCommentsButton: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  postModalViewCommentsText: {
+    fontSize: 14,
+    color: "#8E8E93",
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },

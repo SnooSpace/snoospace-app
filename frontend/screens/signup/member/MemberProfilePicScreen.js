@@ -10,6 +10,7 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
 import {
@@ -30,9 +31,10 @@ import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone, name, gender, dob, interests, city } =
+  const { email, accessToken, phone, name, gender, dob, interests, location } =
     route.params || {};
   const [imageUri, setImageUri] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleAddPhoto = async () => {
     console.log("handleAddPhoto called"); // Debug log
@@ -72,6 +74,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
   const handleNext = async () => {
     try {
+      setUploading(true);
       let profileUrl = null;
       if (imageUri) {
         // Upload to Cloudinary and use secure URL
@@ -84,18 +87,20 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         phone,
         dob,
         gender,
-        city,
+        location,
         interests,
         profile_photo_url: profileUrl || null,
       });
-      navigation.navigate("MemberUsername", { userData: { name, email, phone, dob, gender, city, interests }, accessToken });
+      navigation.navigate("MemberUsername", { userData: { name, email, phone, dob, gender, location, interests }, accessToken });
     } catch (e) {
       alert(e.message || "Failed to complete signup");
+    } finally {
+      setUploading(false);
     }
   };
 
-  // Button is always enabled to allow users to skip adding a photo
-  const isButtonDisabled = false;
+  // Button is disabled while uploading
+  const isButtonDisabled = uploading;
 
   // Note: The progress bar is marked as Step 3/5 in the image.
   const progressPercentage = "60%";
@@ -171,7 +176,14 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          {uploading ? (
+            <View style={styles.buttonLoadingContainer}>
+              <ActivityIndicator size="small" color="#fff" style={styles.buttonSpinner} />
+              <Text style={styles.buttonText}>Uploading...</Text>
+            </View>
+          ) : (
+            <Text style={styles.buttonText}>Next</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -307,6 +319,14 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
+  },
+  buttonLoadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonSpinner: {
+    marginRight: 8,
   },
   backButton: {
     padding: 15,

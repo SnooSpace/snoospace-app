@@ -21,12 +21,12 @@ async function ensureTables(pool) {
         phone TEXT NOT NULL,
         dob DATE NOT NULL,
         gender TEXT NOT NULL,
-        city TEXT NOT NULL,
         interests JSONB NOT NULL,
         username TEXT UNIQUE,
         bio TEXT,
         profile_photo_url TEXT,
         pronouns TEXT,
+        location JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -96,15 +96,10 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
-      -- Interests and cities lookup tables
+      -- Interests lookup table
       CREATE TABLE IF NOT EXISTS interests (
         id BIGSERIAL PRIMARY KEY,
         label TEXT UNIQUE NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS cities (
-        id BIGSERIAL PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL
       );
       
       -- Drop deprecated lookups if exist (optional no-op if absent)
@@ -116,11 +111,6 @@ async function ensureTables(pool) {
         PRIMARY KEY (sponsor_id, interest_id)
       );
       
-      CREATE TABLE IF NOT EXISTS sponsor_cities (
-        sponsor_id BIGINT REFERENCES sponsors(id) ON DELETE CASCADE,
-        city_id BIGINT REFERENCES cities(id) ON DELETE CASCADE,
-        PRIMARY KEY (sponsor_id, city_id)
-      );
       
       -- Posts table
       CREATE TABLE IF NOT EXISTS posts (
@@ -288,6 +278,10 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE members ADD COLUMN IF NOT EXISTS location JSONB;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Remove city column if it exists (migration from city to location JSONB)
+      DO $$ BEGIN
+        ALTER TABLE members DROP COLUMN IF EXISTS city;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
       -- Add constraints
       DO $$ BEGIN
@@ -491,6 +485,16 @@ async function ensureTables(pool) {
         ON notifications (recipient_id, recipient_type, is_read);
       CREATE INDEX IF NOT EXISTS idx_notifications_created_at
         ON notifications (created_at DESC);
+
+      -- Member location history for analytics/personalization
+      CREATE TABLE IF NOT EXISTS member_location_history (
+        id BIGSERIAL PRIMARY KEY,
+        member_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        location JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_member_location_history_member_id
+        ON member_location_history (member_id, created_at DESC);
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

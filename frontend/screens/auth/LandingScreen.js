@@ -1,12 +1,15 @@
 // screens/LandingScreen.js
 import React, { useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
+  useWindowDimensions,
+  Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 const COLORS = {
@@ -27,58 +30,71 @@ const FONT_SIZES = {
 };
 
 // --- Graphic Header ---
-const GraphicHeader = () => (
-  <View style={styles.graphicHeaderContainer}>
+const GraphicHeader = () => {
+  const { width } = useWindowDimensions();
+  // Scale circles by screen width for responsiveness
+  const c1 = Math.round(width * 0.45);
+  const c2 = Math.round(width * 0.3);
+  const c3 = Math.round(width * 0.2);
+  const c4 = Math.round(width * 0.14);
+  return (
     <View
       style={[
-        styles.graphicCircle,
-        {
-          width: 180,
-          height: 180,
-          backgroundColor: "rgba(238, 169, 102, 0.6)",
-          top: 20,
-          left: 10,
-        },
+        styles.graphicHeaderContainer,
+        { height: Math.max(160, Math.round(width * 0.45)) },
       ]}
-    />
-    <View
-      style={[
-        styles.graphicCircle,
-        {
-          width: 120,
-          height: 120,
-          backgroundColor: "rgba(94, 23, 235, 0.4)",
-          top: 10,
-          left: 120,
-        },
-      ]}
-    />
-    <View
-      style={[
-        styles.graphicCircle,
-        {
-          width: 80,
-          height: 80,
-          backgroundColor: "rgba(202, 194, 114, 0.5)",
-          top: 100,
-          left: 150,
-        },
-      ]}
-    />
-    <View
-      style={[
-        styles.graphicCircle,
-        {
-          width: 50,
-          height: 50,
-          backgroundColor: "rgba(238, 169, 102, 0.8)",
-          top: 40,
-          right: 20,
-        },
-      ]}
-    />
-  </View>
-);
+    >
+      <View
+        style={[
+          styles.graphicCircle,
+          {
+            width: c1,
+            height: c1,
+            backgroundColor: "rgba(238, 169, 102, 0.6)",
+            top: 8,
+            left: 8,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.graphicCircle,
+          {
+            width: c2,
+            height: c2,
+            backgroundColor: "rgba(94, 23, 235, 0.4)",
+            top: 0,
+            left: Math.min(width * 0.42, 160),
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.graphicCircle,
+          {
+            width: c3,
+            height: c3,
+            backgroundColor: "rgba(202, 194, 114, 0.5)",
+            top: Math.round(c1 * 0.55),
+            left: Math.min(width * 0.5, 180),
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.graphicCircle,
+          {
+            width: c4,
+            height: c4,
+            backgroundColor: "rgba(238, 169, 102, 0.8)",
+            top: Math.round(c1 * 0.2),
+            right: 16,
+          },
+        ]}
+      />
+    </View>
+  );
+};
 
 // --- Selection Item ---
 const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
@@ -107,7 +123,7 @@ const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
     <Ionicons
       name="chevron-forward"
       size={20}
-      color={isSelected ? COLORS.white : COLORS.textDark} // Set color based on selection
+      color={isSelected ? COLORS.white : COLORS.textDark}
     />
   </TouchableOpacity>
 );
@@ -115,6 +131,8 @@ const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
 // --- Landing Screen ---
 const LandingScreen = ({ navigation }) => {
   const [selectedRole, setSelectedRole] = useState(null);
+  const { width } = useWindowDimensions();
+  const isSmallWidth = width < 360;
 
   const handleSelection = (role) => {
     setSelectedRole(role);
@@ -139,96 +157,103 @@ const LandingScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.screenContainer}>
-      <GraphicHeader />
+    <SafeAreaView style={styles.safeContainer} edges={["top"]}>
+      <View style={styles.screenContainer}>
+        <GraphicHeader />
+        <View style={styles.contentWrapper}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+          >
+            <View
+              style={[
+                styles.contentPadding,
+                isSmallWidth ? { paddingHorizontal: 16 } : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.mainTitle,
+                  isSmallWidth
+                    ? { fontSize: Math.max(22, FONT_SIZES.header - 4) }
+                    : null,
+                ]}
+              >
+                Welcome to SnooSpace
+              </Text>
+              <Text
+                style={[
+                  styles.subTitle,
+                  isSmallWidth ? { marginBottom: 24 } : null,
+                ]}
+              >
+                Choose how you want to join our universe.
+              </Text>
 
-      <View style={styles.contentPadding}>
-        <Text style={styles.mainTitle}>Welcome to SnooSpace</Text>
-        <Text style={styles.subTitle}>
-          Choose how you want to join our universe.
-        </Text>
-
-        <View style={styles.selectionList}>
-          <SelectionItem
-            title="I'm a Member"
-            subtitle="Join events and connect"
-            isSelected={selectedRole === "member"}
-            onPress={() => handleSelection("member")}
-          />
-          <SelectionItem
-            title="I'm a Community"
-            subtitle="Host events and grow"
-            isSelected={selectedRole === "community"}
-            onPress={() => handleSelection("community")}
-          />
-          <SelectionItem
-            title="I'm a Sponsor"
-            subtitle="Support communities"
-            isSelected={selectedRole === "sponsor"}
-            onPress={() => handleSelection("sponsor")}
-          />
-          <SelectionItem
-            title="I'm a Venue"
-            subtitle="Host amazing events"
-            isSelected={selectedRole === "venue"}
-            onPress={() => handleSelection("venue")}
-          />
+              <View style={styles.selectionList}>
+                <SelectionItem
+                  title="I'm a Member"
+                  subtitle="Join events and connect"
+                  isSelected={selectedRole === "member"}
+                  onPress={() => handleSelection("member")}
+                />
+                <SelectionItem
+                  title="I'm a Community"
+                  subtitle="Host events and grow"
+                  isSelected={selectedRole === "community"}
+                  onPress={() => handleSelection("community")}
+                />
+                <SelectionItem
+                  title="I'm a Sponsor"
+                  subtitle="Support communities"
+                  isSelected={selectedRole === "sponsor"}
+                  onPress={() => handleSelection("sponsor")}
+                />
+                <SelectionItem
+                  title="I'm a Venue"
+                  subtitle="Host amazing events"
+                  isSelected={selectedRole === "venue"}
+                  onPress={() => handleSelection("venue")}
+                />
+              </View>
+            </View>
+          </ScrollView>
+          <View style={styles.bottomBar}>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                isSmallWidth ? { width: "90%", paddingVertical: 16 } : null,
+              ]}
+              onPress={() => navigation.navigate("Login")}
+            >
+              <Text style={styles.buttonText}>LOGIN</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("Login")}
-      >
-        <Text style={styles.buttonText}>LOGIN</Text>
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 
-
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.white,
-    padding: 20,
-  },
-  title: {
-    fontSize: FONT_SIZES.largeHeader,
-    fontWeight: "800",
-    color: COLORS.textDark,
-    marginBottom: 40,
-    textAlign: "center",
-  },
-  button: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginVertical: 75,
-    width: "85%",
-    alignItems: "center",
-    marginLeft: "auto",
-    marginRight: "auto",
-  },
-  secondaryButton: {
-    backgroundColor: "#999", // temp grey for signup until you design it
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "700",
+    backgroundColor: COLORS.background,
   },
   screenContainer: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentWrapper: {
+    flex: 0,
+  },
+  scrollContent: {
+    flexGrow: 0,
+  },
   contentPadding: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    flex: 1,
   },
   mainTitle: {
     fontSize: FONT_SIZES.header,
@@ -241,23 +266,25 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginBottom: 40,
   },
-  actionButtonBase: {
-    height: 56,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  primaryButton: {
+  button: {
     backgroundColor: COLORS.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: "85%",
+    alignItems: "center",
+    marginLeft: "auto",
+    marginRight: "auto",
   },
-  secondaryButton: {
-    backgroundColor: COLORS.textDark,
+  bottomBar: {
+    paddingHorizontal: 16,
+    paddingTop: 22,
+    paddingBottom: Platform.OS === "ios" ? 30 : 30,
+    backgroundColor: COLORS.background,
   },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  actionButtonText: {
-    fontSize: FONT_SIZES.subtext,
+  buttonText: {
+    color: COLORS.white,
+    fontSize: 18,
     fontWeight: "700",
   },
   graphicHeaderContainer: {
@@ -267,7 +294,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
-    marginBottom: 40,
+    marginBottom: 24,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -314,7 +341,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
   },
- 
 });
 
 export default LandingScreen;

@@ -71,11 +71,11 @@ export default function Example({ navigation, route }) {
 
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 4 of 7</Text>
+          <Text style={styles.stepText}>Step 4 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={57} />
+            <ProgressBar progress={50} />
           </View>
         </View>
 

@@ -46,11 +46,11 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
       >
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 1 of 7</Text>
+          <Text style={styles.stepText}>Step 1 of 8</Text>
 
           {/* Progress Bar Container */}
           <View style={styles.progressBarContainer}>
-            <ProgressBar progress={14} />
+            <ProgressBar progress={12.5} />
           </View>
         </View>
 
@@ -68,7 +68,6 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
               {/* Using a flag emoji for simplicity */}
               <Text style={styles.flagEmoji}>🇮🇳</Text>
               <Text style={styles.countryCodeText}>+91</Text>
-              <Ionicons name="caret-down" size={12} color={TEXT_COLOR} style={{ marginLeft: 5 }} />
             </View>
 
             {/* Actual Phone Number Input Field */}
