@@ -123,11 +123,11 @@ export default function ConversationsListScreen({ navigation }) {
     }
   }, [loading, conversations.length]);
 
-  const handleStartConversation = async (userId) => {
+  const handleStartConversation = async (userId, recipientType = 'member') => {
     try {
       // Send an empty message to create conversation, or navigate directly
       // For now, navigate to chat screen which will handle conversation creation
-      navigation.navigate('Chat', { recipientId: userId });
+      navigation.navigate('Chat', { recipientId: userId, recipientType });
     } catch (error) {
       console.error('Error starting conversation:', error);
     }
@@ -149,43 +149,50 @@ export default function ConversationsListScreen({ navigation }) {
     return date.toLocaleDateString();
   };
 
-  const renderConversation = ({ item }) => (
-    <TouchableOpacity
-      style={styles.conversationItem}
-      onPress={() => navigation.navigate('Chat', { conversationId: item.id })}
-    >
-      <Image
-        source={{
-          uri: item.otherParticipant.profilePhotoUrl || 'https://via.placeholder.com/50',
-        }}
-        style={styles.avatar}
-      />
-      <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <Text style={styles.conversationName} numberOfLines={1}>
-            {item.otherParticipant.name || 'User'}
-          </Text>
-          {item.lastMessageAt && (
-            <Text style={styles.conversationTime}>
-              {formatTime(item.lastMessageAt)}
+  const renderConversation = ({ item }) => {
+    const participantType = item.otherParticipant?.type || 'member';
+    return (
+      <TouchableOpacity
+        style={styles.conversationItem}
+        onPress={() => navigation.navigate('Chat', { 
+          conversationId: item.id,
+          recipientId: item.otherParticipant.id,
+          recipientType: participantType,
+        })}
+      >
+        <Image
+          source={{
+            uri: item.otherParticipant.profilePhotoUrl || 'https://via.placeholder.com/50',
+          }}
+          style={styles.avatar}
+        />
+        <View style={styles.conversationContent}>
+          <View style={styles.conversationHeader}>
+            <Text style={styles.conversationName} numberOfLines={1}>
+              {item.otherParticipant.name || 'User'}
             </Text>
-          )}
-        </View>
-        <View style={styles.conversationFooter}>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage || 'No messages yet'}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>
-                {item.unreadCount > 9 ? '9+' : String(item.unreadCount)}
+            {item.lastMessageAt && (
+              <Text style={styles.conversationTime}>
+                {formatTime(item.lastMessageAt)}
               </Text>
-            </View>
-          )}
+            )}
+          </View>
+          <View style={styles.conversationFooter}>
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessage || 'No messages yet'}
+            </Text>
+            {item.unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {item.unreadCount > 9 ? '9+' : String(item.unreadCount)}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderSuggestion = ({ item }) => (
     <View style={styles.suggestionCard}>

@@ -2,17 +2,28 @@ const { createPool } = require("../config/db");
 
 const pool = createPool();
 
-// Helper function to get or create conversation between two members
-const getOrCreateConversation = async (member1Id, member2Id) => {
-  // Ensure consistent ordering (smaller ID first)
-  const participant1Id = Math.min(member1Id, member2Id);
-  const participant2Id = Math.max(member1Id, member2Id);
+// Helper function to get or create conversation between two participants (member or community)
+const getOrCreateConversation = async (participant1Id, participant1Type, participant2Id, participant2Type) => {
+  // Ensure consistent ordering (smaller ID first, or if same ID, type order)
+  let p1Id, p1Type, p2Id, p2Type;
+  if (participant1Id < participant2Id || (participant1Id === participant2Id && participant1Type < participant2Type)) {
+    p1Id = participant1Id;
+    p1Type = participant1Type;
+    p2Id = participant2Id;
+    p2Type = participant2Type;
+  } else {
+    p1Id = participant2Id;
+    p1Type = participant2Type;
+    p2Id = participant1Id;
+    p2Type = participant1Type;
+  }
 
   // Check if conversation exists
   const existing = await pool.query(
     `SELECT id FROM conversations 
-     WHERE participant1_id = $1 AND participant2_id = $2`,
-    [participant1Id, participant2Id]
+     WHERE participant1_id = $1 AND participant1_type = $2 
+       AND participant2_id = $3 AND participant2_type = $4`,
+    [p1Id, p1Type, p2Id, p2Type]
   );
 
   if (existing.rows.length > 0) {
@@ -21,22 +32,22 @@ const getOrCreateConversation = async (member1Id, member2Id) => {
 
   // Create new conversation
   const result = await pool.query(
-    `INSERT INTO conversations (participant1_id, participant2_id) 
-     VALUES ($1, $2) 
+    `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type) 
+     VALUES ($1, $2, $3, $4) 
      RETURNING id`,
-    [participant1Id, participant2Id]
+    [p1Id, p1Type, p2Id, p2Type]
   );
 
   return result.rows[0].id;
 };
 
-// Get all conversations for current user
+// Get all conversations for current user (member or community)
 const getConversations = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || (userType !== 'member' && userType !== 'community')) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -46,12 +57,16 @@ const getConversations = async (req, res) => {
         c.last_message_at,
         c.created_at,
         CASE 
-          WHEN c.participant1_id = $1 THEN c.participant2_id
+          WHEN c.participant1_id = $1 AND c.participant1_type = $2 THEN c.participant2_id
           ELSE c.participant1_id
         END as other_participant_id,
-        m.name as other_participant_name,
-        m.username as other_participant_username,
-        m.profile_photo_url as other_participant_photo,
+        CASE 
+          WHEN c.participant1_id = $1 AND c.participant1_type = $2 THEN c.participant2_type
+          ELSE c.participant1_type
+        END as other_participant_type,
+        COALESCE(m.name, comm.name) as other_participant_name,
+        COALESCE(m.username, comm.username) as other_participant_username,
+        COALESCE(m.profile_photo_url, comm.logo_url) as other_participant_photo,
         (
           SELECT message_text 
           FROM messages 
@@ -63,23 +78,28 @@ const getConversations = async (req, res) => {
           SELECT COUNT(*) 
           FROM messages 
           WHERE conversation_id = c.id 
-            AND sender_id != $1 
+            AND (sender_id != $1 OR sender_type != $2)
             AND is_read = false
         ) as unread_count
       FROM conversations c
       LEFT JOIN members m ON (
-        (c.participant1_id = $1 AND m.id = c.participant2_id) OR
-        (c.participant2_id = $1 AND m.id = c.participant1_id)
+        ((c.participant1_id = $1 AND c.participant1_type = $2 AND m.id = c.participant2_id AND c.participant2_type = 'member') OR
+         (c.participant2_id = $1 AND c.participant2_type = $2 AND m.id = c.participant1_id AND c.participant1_type = 'member'))
       )
-      WHERE c.participant1_id = $1 OR c.participant2_id = $1
+      LEFT JOIN communities comm ON (
+        ((c.participant1_id = $1 AND c.participant1_type = $2 AND comm.id = c.participant2_id AND c.participant2_type = 'community') OR
+         (c.participant2_id = $1 AND c.participant2_type = $2 AND comm.id = c.participant1_id AND c.participant1_type = 'community'))
+      )
+      WHERE (c.participant1_id = $1 AND c.participant1_type = $2) OR (c.participant2_id = $1 AND c.participant2_type = $2)
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [userId, userType]);
     const conversations = result.rows.map(conv => ({
       id: conv.conversation_id,
       otherParticipant: {
         id: conv.other_participant_id,
+        type: conv.other_participant_type,
         name: conv.other_participant_name,
         username: conv.other_participant_username,
         profilePhotoUrl: conv.other_participant_photo,
@@ -106,15 +126,15 @@ const getMessages = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || (userType !== 'member' && userType !== 'community')) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     // Verify user is part of this conversation
     const convCheck = await pool.query(
       `SELECT id FROM conversations 
-       WHERE id = $1 AND (participant1_id = $2 OR participant2_id = $2)`,
-      [conversationId, userId]
+       WHERE id = $1 AND ((participant1_id = $2 AND participant1_type = $3) OR (participant2_id = $2 AND participant2_type = $3))`,
+      [conversationId, userId, userType]
     );
 
     if (convCheck.rows.length === 0) {
@@ -130,11 +150,12 @@ const getMessages = async (req, res) => {
         m.message_text,
         m.is_read,
         m.created_at,
-        mem.name as sender_name,
-        mem.username as sender_username,
-        mem.profile_photo_url as sender_photo_url
+        COALESCE(mem.name, comm.name) as sender_name,
+        COALESCE(mem.username, comm.username) as sender_username,
+        COALESCE(mem.profile_photo_url, comm.logo_url) as sender_photo_url
       FROM messages m
-      LEFT JOIN members mem ON m.sender_id = mem.id
+      LEFT JOIN members mem ON (m.sender_id = mem.id AND m.sender_type = 'member')
+      LEFT JOIN communities comm ON (m.sender_id = comm.id AND m.sender_type = 'community')
       WHERE m.conversation_id = $1
       ORDER BY m.created_at DESC
       LIMIT $2 OFFSET $3
@@ -158,9 +179,9 @@ const getMessages = async (req, res) => {
       `UPDATE messages 
        SET is_read = true 
        WHERE conversation_id = $1 
-         AND sender_id != $2 
+         AND (sender_id != $2 OR sender_type != $3)
          AND is_read = false`,
-      [conversationId, userId]
+      [conversationId, userId, userType]
     );
 
     res.json({ messages });
@@ -173,11 +194,11 @@ const getMessages = async (req, res) => {
 // Send a message
 const sendMessage = async (req, res) => {
   try {
-    const { recipientId, messageText } = req.body;
+    const { recipientId, recipientType = 'member', messageText } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || (userType !== 'member' && userType !== 'community')) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -185,22 +206,32 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "Recipient ID and message text are required" });
     }
 
-    if (userId === recipientId) {
+    if (userId === recipientId && userType === recipientType) {
       return res.status(400).json({ error: "Cannot send message to yourself" });
     }
 
     // Verify recipient exists
-    const recipientCheck = await pool.query(
-      "SELECT id FROM members WHERE id = $1",
-      [recipientId]
-    );
+    let recipientCheck;
+    if (recipientType === 'member') {
+      recipientCheck = await pool.query(
+        "SELECT id FROM members WHERE id = $1",
+        [recipientId]
+      );
+    } else if (recipientType === 'community') {
+      recipientCheck = await pool.query(
+        "SELECT id FROM communities WHERE id = $1",
+        [recipientId]
+      );
+    } else {
+      return res.status(400).json({ error: "Invalid recipient type" });
+    }
 
     if (recipientCheck.rows.length === 0) {
       return res.status(404).json({ error: "Recipient not found" });
     }
 
     // Get or create conversation
-    const conversationId = await getOrCreateConversation(userId, recipientId);
+    const conversationId = await getOrCreateConversation(userId, userType, recipientId, recipientType);
 
     // Insert message
     const messageQuery = `
@@ -227,10 +258,18 @@ const sendMessage = async (req, res) => {
     );
 
     // Get sender info
-    const senderInfo = await pool.query(
-      "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-      [userId]
-    );
+    let senderInfo;
+    if (userType === 'member') {
+      senderInfo = await pool.query(
+        "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+    } else {
+      senderInfo = await pool.query(
+        "SELECT name, username, logo_url as profile_photo_url FROM communities WHERE id = $1",
+        [userId]
+      );
+    }
 
     res.status(201).json({
       success: true,
@@ -260,7 +299,7 @@ const markMessageRead = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || (userType !== 'member' && userType !== 'community')) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -270,9 +309,9 @@ const markMessageRead = async (req, res) => {
        FROM messages m
        JOIN conversations c ON m.conversation_id = c.id
        WHERE m.id = $1 
-         AND (c.participant1_id = $2 OR c.participant2_id = $2)
-         AND m.sender_id != $2`,
-      [messageId, userId]
+         AND ((c.participant1_id = $2 AND c.participant1_type = $3) OR (c.participant2_id = $2 AND c.participant2_type = $3))
+         AND (m.sender_id != $2 OR m.sender_type != $3)`,
+      [messageId, userId, userType]
     );
 
     if (messageCheck.rows.length === 0) {
@@ -297,7 +336,7 @@ const getUnreadCount = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || (userType !== 'member' && userType !== 'community')) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -305,12 +344,12 @@ const getUnreadCount = async (req, res) => {
       SELECT COUNT(*) as unread_count
       FROM messages m
       JOIN conversations c ON m.conversation_id = c.id
-      WHERE (c.participant1_id = $1 OR c.participant2_id = $1)
-        AND m.sender_id != $1
+      WHERE ((c.participant1_id = $1 AND c.participant1_type = $2) OR (c.participant2_id = $1 AND c.participant2_type = $2))
+        AND (m.sender_id != $1 OR m.sender_type != $2)
         AND m.is_read = false
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [userId, userType]);
     const unreadCount = parseInt(result.rows[0]?.unread_count) || 0;
 
     res.json({ unreadCount });

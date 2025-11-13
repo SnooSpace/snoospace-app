@@ -18,6 +18,7 @@ import { CommonActions } from '@react-navigation/native';
 import { clearAuthSession, getAuthToken } from '../../../api/auth';
 import { deleteAccount as apiDeleteAccount } from '../../../api/account';
 import { apiGet, apiPost } from '../../../api/client';
+import { getCommunityProfile } from '../../../api/communities';
 import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
 import { uploadImage } from '../../../api/cloudinary';
 import PostCard from '../../../components/PostCard';
@@ -46,21 +47,30 @@ export default function CommunityProfileScreen({ navigation }) {
       const token = await getAuthToken();
       console.log('[CommunityProfile] token', token ? 'present' : 'missing');
 
-      // Fetch profile generically (works for member/community/sponsor/venue)
+      // Fetch profile using communities/profile endpoint to get full profile with heads
       let role = 'community';
       let fullProfile = null;
       try {
-        const email = await AsyncStorage.getItem('auth_email');
-        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
-        role = profRes?.role || 'community';
-        fullProfile = profRes?.profile || null;
-        console.log('[CommunityProfile] get-user-profile role:', role, 'profile:', fullProfile ? 'present' : 'missing');
+        const profileRes = await getCommunityProfile();
+        fullProfile = profileRes?.profile || null;
+        role = 'community';
+        console.log('[CommunityProfile] communities/profile profile:', fullProfile ? 'present' : 'missing', 'heads:', fullProfile?.heads?.length || 0);
       } catch (e) {
-        console.log('[CommunityProfile] get-user-profile failed', e?.message);
+        console.log('[CommunityProfile] communities/profile failed', e?.message);
+        // Fallback to get-user-profile
+        try {
+          const email = await AsyncStorage.getItem('auth_email');
+          const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
+          role = profRes?.role || 'community';
+          fullProfile = profRes?.profile || null;
+          console.log('[CommunityProfile] get-user-profile fallback role:', role, 'profile:', fullProfile ? 'present' : 'missing');
+        } catch (e2) {
+          console.log('[CommunityProfile] get-user-profile fallback failed', e2?.message);
+        }
       }
 
       if (!fullProfile) {
-        console.log('[CommunityProfile] Falling back to mock: no profile from get-user-profile');
+        console.log('[CommunityProfile] Falling back to mock: no profile from API');
         const communityProfile = mockData.communities[0];
         const communityPosts = mockData.posts.filter(p => p.author_type === 'community' && p.author_id === communityProfile.id);
         setProfile(communityProfile);
@@ -98,6 +108,7 @@ export default function CommunityProfileScreen({ navigation }) {
         location: fullProfile?.location || fullProfile?.city || '',
         logo_url: fullProfile?.logo_url || fullProfile?.profile_photo_url || '',
         sponsor_types: fullProfile?.sponsor_types || [],
+        heads: fullProfile?.heads || [],
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
@@ -254,12 +265,20 @@ export default function CommunityProfileScreen({ navigation }) {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>Profile</Text>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EditCommunityProfile', { profile })}
+              style={styles.editButton}
+            >
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setShowSettingsModal(true)}
               style={styles.settingsButton}
             >
               <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
+          </View>
           </View>
         </View>
 
@@ -302,6 +321,25 @@ export default function CommunityProfileScreen({ navigation }) {
               <Text style={styles.statLabel}>Posts</Text>
             </View>
           </View>
+
+          {/* Community Heads */}
+          {profile.heads && profile.heads.length > 0 && (
+            <View style={styles.headsContainer}>
+              <Text style={styles.sectionTitle}>Community Heads</Text>
+              <View style={styles.headsList}>
+                {profile.heads.map((head, index) => (
+                  <View key={head.id || index} style={styles.headItem}>
+                    <Text style={styles.headName}>
+                      {head.name}
+                      {head.is_primary && (
+                        <Text style={styles.primaryBadge}> (Primary)</Text>
+                      )}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Sponsor Types */}
           <View style={styles.sponsorTypesContainer}>
@@ -410,6 +448,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: TEXT_COLOR,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: PRIMARY_COLOR,
+  },
+  editButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   settingsButton: {
     padding: 5,
   },
@@ -509,6 +563,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '500',
+  },
+  headsContainer: {
+    marginBottom: 20,
+  },
+  headsList: {
+    gap: 8,
+  },
+  headItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 8,
+  },
+  headName: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+    fontWeight: '500',
+  },
+  primaryBadge: {
+    fontSize: 12,
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
   },
   postsSection: {
     paddingHorizontal: 20,

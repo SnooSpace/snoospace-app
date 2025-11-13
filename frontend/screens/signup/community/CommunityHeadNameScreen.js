@@ -8,15 +8,49 @@ import {
   SafeAreaView,
   ScrollView,
   Dimensions,
+  Platform,
+  StatusBar,
 } from 'react-native';
-import ProgressBar from '../../../components/Progressbar';
+import { Ionicons } from '@expo/vector-icons';
+// import ProgressBar from '../../../components/Progressbar'; // Removed problematic import
 
-// --- Constants & Styling ---
+// --- Consistent Design Constants ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF'; // Vibrant purple for the accent
-const LIGHT_GRAY = '#F0F0F0';   // Screen background color
-const DARK_TEXT = '#1F1F39';    // Main text color
-const PLACEHOLDER_TEXT = '#8888AA'; // Placeholder text color
+const PRIMARY_COLOR = '#5f27cd'; // Consistent Deep Purple
+const TEXT_COLOR = '#1e1e1e';
+const LIGHT_TEXT_COLOR = '#6c757d';
+const BACKGROUND_COLOR = '#ffffff';
+const INPUT_BACKGROUND = '#f8f9fa';
+const PLACEHOLDER_TEXT = '#6c757d';
+const TRACK_COLOR = '#e0e0e0'; // Light gray for the progress bar background/track
+
+// --- Custom Progress Bar Reimplementation ---
+
+/**
+ * Custom Simple Progress Bar Component (Guaranteed to work)
+ */
+const SimpleProgressBar = ({ progress }) => {
+  return (
+    <View style={progressBarStyles.track}>
+      <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
+    </View>
+  );
+};
+
+const progressBarStyles = StyleSheet.create({
+  track: {
+    height: 8,
+    width: '100%',
+    backgroundColor: TRACK_COLOR,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 4,
+  }
+});
 
 // --- Components ---
 
@@ -30,7 +64,6 @@ const CustomInput = ({ placeholder, required = false, value, onChangeText }) => 
     placeholderTextColor={PLACEHOLDER_TEXT}
     value={value}
     onChangeText={onChangeText}
-    // Accessibility properties for screen readers
     aria-label={placeholder}
     accessibilityRole="text"
     autoCapitalize="words"
@@ -41,12 +74,15 @@ const CustomInput = ({ placeholder, required = false, value, onChangeText }) => 
  * Main Screen Component
  */
 const CommunityHeadNameScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, location, phone } = route.params || {};
+  const { email, accessToken, name, logo_url, bio, category, location, phone, secondary_phone } = route.params || {};
   
-  // State management for the three input fields
   const [headName, setHeadName] = useState('');
   const [optionalName1, setOptionalName1] = useState('');
   const [optionalName2, setOptionalName2] = useState('');
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
 
   const handleNext = () => {
     // Basic validation for the required field
@@ -55,17 +91,16 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       return;
     }
     
-    // Create heads array with primary head and optional heads
     const heads = [
-      { name: headName, is_primary: true }
+      { name: headName.trim(), is_primary: true }
     ];
     
     if (optionalName1.trim()) {
-      heads.push({ name: optionalName1, is_primary: false });
+      heads.push({ name: optionalName1.trim(), is_primary: false });
     }
     
     if (optionalName2.trim()) {
-      heads.push({ name: optionalName2, is_primary: false });
+      heads.push({ name: optionalName2.trim(), is_primary: false });
     }
     
     navigation.navigate("CommunitySponsorType", {
@@ -77,68 +112,85 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       category,
       location,
       phone,
+      secondary_phone,
       heads,
     });
   };
 
+  const isButtonDisabled = !headName.trim();
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
-        {/* Optional Header Title - Faded as seen in the image */}
-        <Text style={styles.mainHeaderTitle}>Member Name Input</Text>
-
-        <View style={styles.card}>
-          {/* ScrollView allows content to be scrollable if the screen is small */}
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+      
+      <View style={styles.container}>
+        
+        {/* Header Row (Back Button) */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity 
+            onPress={handleBack} 
+            style={styles.backButton}
+            accessibilityLabel="Go back"
           >
-            {/* Progress Bar */}
-            <View style={styles.progressBarContainer}>
-              <Text style={styles.stepText}>Step 6 of 7</Text>
-              <ProgressBar progress={85} />
-            </View>
-
-            <View style={styles.contentArea}>
-              <Text style={styles.mainTitle}>
-                Name of community head
-              </Text>
-
-              {/* Input Fields Group */}
-              <View style={styles.inputGroup}>
-                <CustomInput
-                  placeholder="Enter name (required)"
-                  required
-                  value={headName}
-                  onChangeText={setHeadName}
-                />
-                <CustomInput
-                  placeholder="Enter name (optional)"
-                  value={optionalName1}
-                  onChangeText={setOptionalName1}
-                />
-                <CustomInput
-                  placeholder="Enter name (optional)"
-                  value={optionalName2}
-                  onChangeText={setOptionalName2}
-                />
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* Fixed Button Container */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Next step"
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
         </View>
+
+        {/* Progress Bar and Step Text */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.stepText}>Step 7 of 9</Text>
+          <SimpleProgressBar progress={78} />
+        </View>
+
+        {/* Scrollable Content */}
+        <ScrollView
+          style={styles.contentScrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentArea}>
+            <Text style={styles.mainTitle}>
+              Name of community head
+            </Text>
+
+            {/* Input Fields Group */}
+            <View style={styles.inputGroup}>
+              <CustomInput
+                placeholder="Enter name (required)"
+                required
+                value={headName}
+                onChangeText={setHeadName}
+              />
+              <CustomInput
+                placeholder="Enter name (optional)"
+                value={optionalName1}
+                onChangeText={setOptionalName1}
+              />
+              <CustomInput
+                placeholder="Enter name (optional)"
+                value={optionalName2}
+                onChangeText={setOptionalName2}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Fixed Button Container (Outside ScrollView) */}
+      <View style={styles.buttonFixedContainer}>
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            isButtonDisabled && styles.disabledButton,
+          ]}
+          onPress={handleNext}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Next step"
+          disabled={isButtonDisabled}
+        >
+          <Text style={styles.buttonText}>Next</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -148,101 +200,99 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: BACKGROUND_COLOR,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  background: {
+  container: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
-    paddingTop: 10,
+    paddingHorizontal: width * 0.05,
+    backgroundColor: BACKGROUND_COLOR,
+  },
+  
+  // --- Header Styles ---
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    width: '100%',
+    paddingTop: 15,
+    paddingBottom: 5,
   },
-  mainHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: DARK_TEXT,
-    opacity: 0.5, // Faded effect
-    marginBottom: 20,
-  },
-  card: {
-    backgroundColor: 'white',
-    width: width * 0.9, // Responsive width
-    flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 100, // Important: Creates space for the fixed button at the bottom
+  backButton: {
+    padding: 10,
+    marginLeft: -10,
   },
 
-  // Progress Bar Styles
-  progressBarContainer: {
+  // --- Progress Bar Styles ---
+  progressContainer: {
+    width: '100%',
     marginBottom: 40,
+    height: 20,
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
-    marginBottom: 8,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 5,
   },
 
-  // Content Styles
+  // --- Content Styles ---
+  contentScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 110, 
+  },
   contentArea: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingTop: 0,
+    width: '100%',
   },
   mainTitle: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '800',
-    color: DARK_TEXT,
-    textAlign: 'center',
+    color: TEXT_COLOR,
+    textAlign: 'left',
     marginBottom: 60,
-    lineHeight: 30,
+    lineHeight: 38,
   },
 
-  // Input Styles
+  // --- Input Styles ---
   inputGroup: {
     width: '100%',
-    gap: 15, // Space between inputs
+    gap: 15,
   },
   input: {
     width: '100%',
-    height: 55,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 15,
+    height: 60,
+    backgroundColor: INPUT_BACKGROUND,
+    borderRadius: 15,
+    paddingHorizontal: 20,
     fontSize: 16,
-    color: DARK_TEXT,
+    color: TEXT_COLOR,
     borderWidth: 1,
-    borderColor: LIGHT_GRAY,
-    // Subtle inner shadow effect on inputs
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: TRACK_COLOR,
   },
 
-  // Button Styles
-  buttonContainer: {
-    // This view creates the fixed positioning for the button at the card's bottom
-    paddingVertical: 15,
+  // --- Button Styles ---
+  buttonFixedContainer: {
     position: 'absolute',
     bottom: 0,
-    left: 20, // Aligns with card's horizontal padding
-    right: 20, // Aligns with card's horizontal padding
-    backgroundColor: 'white',
-    // The ScrollView padding ensures this content is never obscured
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: BACKGROUND_COLOR,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+    // FIX: Removed borderTopWidth and borderTopColor to eliminate the line separator
+    // borderTopWidth: 1,
+    // borderTopColor: TRACK_COLOR,
   },
   nextButton: {
     width: '100%',
-    height: 60,
+    height: 70,
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 15,
     justifyContent: 'center',
@@ -252,6 +302,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

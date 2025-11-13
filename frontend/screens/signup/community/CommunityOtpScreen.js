@@ -8,12 +8,22 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Platform, // Import Platform
+  StatusBar, // Import StatusBar
+  ScrollView, // Import ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiPost } from '../../../api/client';
 import { setAuthSession, clearPendingOtp } from '../../../api/auth';
 
 const RESEND_COOLDOWN = 60; // 60 seconds
+
+// --- Design Constants ---
+const PRIMARY_COLOR = '#5f27cd';
+const TEXT_COLOR = '#1D2A32';
+const LIGHT_TEXT_COLOR = '#6c757d';
+const BACKGROUND_COLOR = '#fff';
+const ERROR_COLOR = '#dc3545';
 
 const CommunityOtpScreen = ({ navigation, route }) => {
   const { email } = route.params || {};
@@ -32,26 +42,26 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+      Alert.alert('Error', 'Please enter the 6-digit code.');
       return;
     }
 
     setLoading(true);
-    setError("");
-    
+    setError('');
+
     try {
-      const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 15000);
+      const resp = await apiPost('/auth/verify-otp', { email, token: otp }, 15000);
       const accessToken = resp.data?.session?.access_token;
       if (accessToken) {
         await setAuthSession(accessToken, email);
       }
       await clearPendingOtp();
-      navigation.navigate("CommunityName", { 
-        email, 
-        accessToken 
+      navigation.navigate('CommunityName', {
+        email,
+        accessToken,
       });
     } catch (e) {
-      setError(e.message || "Invalid verification code.");
+      setError(e.message || 'Invalid verification code.');
     } finally {
       setLoading(false);
     }
@@ -61,93 +71,111 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     if (resendTimer > 0) return;
 
     setResendLoading(true);
-    setError("");
+    setError('');
     try {
-      await apiPost("/auth/send-otp", { email }, 15000);
-      Alert.alert("Success", `Code resent to ${email}.`);
+      await apiPost('/auth/send-otp', { email }, 15000);
+      Alert.alert('Success', `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
-      setError(e.message || "Failed to resend code");
+      setError(e.message || 'Failed to resend code');
     } finally {
       setResendLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1D2A32" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verify Email</Text>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to {email}
-        </Text>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="000000"
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="number-pad"
-            maxLength={6}
-            textAlign="center"
-            fontSize={24}
-            letterSpacing={4}
-          />
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header Section */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+          
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {/* Content Section */}
+        <View style={styles.contentContainer}>
+          <Text style={styles.title}>Enter verification code</Text>
+          <Text style={styles.subtitle}>
+            We sent a 6-digit code to {email}
+          </Text>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleVerify}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Verify</Text>
-          )}
-        </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="000000"
+              placeholderTextColor="#adb5bd"
+              value={otp}
+              onChangeText={setOtp}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              fontSize={24}
+              letterSpacing={4}
+            />
+          </View>
 
-        <TouchableOpacity
-          style={styles.resendButton}
-          onPress={handleResendCode}
-          disabled={resendTimer > 0 || resendLoading}
-        >
-          {resendLoading ? (
-            <ActivityIndicator color="#5f27cd" size="small" />
-          ) : (
-            <Text style={styles.resendText}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleVerify}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Verify</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.resendButton}
+            onPress={handleResendCode}
+            disabled={resendTimer > 0 || resendLoading}
+          >
+            {resendLoading ? (
+              <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+            ) : (
+              <Text
+                style={[
+                  styles.resendText,
+                  (resendTimer > 0) && styles.resendTextDisabled
+                ]}
+              >
+                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: BACKGROUND_COLOR,
+    // Add padding for Android status bar
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    paddingVertical: 15, // Replaced paddingHorizontal/Top/Bottom from original style
   },
   backButton: {
     paddingRight: 15,
@@ -155,28 +183,29 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1D2A32',
+    color: TEXT_COLOR,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 25,
+  contentContainer: {
+    // Used to apply top padding to content section
     paddingTop: 30,
+    flex: 0,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1D2A32',
+    color: TEXT_COLOR,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: LIGHT_TEXT_COLOR,
     marginBottom: 40,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 5, // Reduced margin since error text is separate
   },
   input: {
+    height: 55, // Slightly increased height for better visual appeal
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 12,
@@ -184,14 +213,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 24,
     backgroundColor: '#f8f9fa',
-    letterSpacing: 4,
+    letterSpacing: 8, // Increased letter spacing for better OTP look
+    fontWeight: '600',
+    color: TEXT_COLOR,
   },
   button: {
-    backgroundColor: '#5f27cd',
+    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 40, // Increased spacing from input/error
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -204,16 +235,20 @@ const styles = StyleSheet.create({
   resendButton: {
     alignItems: 'center',
     marginTop: 20,
+    paddingVertical: 10, // Added padding for easier tapping
   },
   resendText: {
-    color: '#5f27cd',
+    color: PRIMARY_COLOR,
     fontSize: 16,
     fontWeight: '500',
   },
+  resendTextDisabled: {
+    color: LIGHT_TEXT_COLOR,
+  },
   errorText: {
-    color: '#dc3545',
+    color: ERROR_COLOR,
     fontSize: 14,
-    marginTop: 10,
+    marginTop: 15,
     textAlign: 'center',
   },
 });

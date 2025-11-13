@@ -73,11 +73,18 @@
   - Handle errors gracefully
 
 ### 📋 P1 — Next Priority (Core Features)
-- [ ] Member Features
+- [ ] Community Features (Replicate Member features)
+  - Edit Profile screen (EditCommunityProfileScreen.js)
+  - Community search screen (CommunitySearchScreen.js)
+  - Public community profile screen (CommunityPublicProfileScreen.js)
+  - Community followers/following lists
+  - Community API client (communities.js)
+  - Community Stack Navigator
+  - Business Location Picker component (for signup and edit)
+- [ ] Member Features (Remaining)
   - Connect community browse to real API
   - Event registration flow integration
-  - Real post feed from API
-  - Profile photo upload and editing
+  - Real post feed from API (partially done)
 - [ ] Community Features
   - Complete event creation form with all fields
   - Event management (edit, delete)
@@ -101,18 +108,21 @@
   - Image gallery views
 
 ### ✅ Recently Completed (since last update)
-- Persistent login with automatic access token refresh
-- Member search screen with debounced input, pagination, and drill-in
-- Member public profile screen with 3-column grid
-- Follow/Unfollow in search and public profile with optimistic updates
-- Notifications: list, unread badge, mark read/all, realtime subscription
+- Persistent login with automatic access token refresh (access + refresh tokens)
+- Member search screen (SearchScreen.js) with debounced input, pagination, and public profile drill-in
+- Member public profile screen (MemberPublicProfileScreen.js) with 3-column posts grid, follow button, follower/following counts
+- Follow/Unfollow in search and public profile with optimistic UI updates
+- Followers/Following list screens (FollowersListScreen.js, FollowingListScreen.js) with pagination
+- Notifications screen (NotificationsScreen.js): list, unread badge, mark read/all, realtime subscription
 - Notification banner component (Instagram-style), correct safe area placement
-- Delete Account: settings action with type "delete" confirmation, hard delete
+- Delete Account: settings action with type "delete" confirmation, hard delete for all roles
 - Profile photo update fix + circular loading indicator during upload
-- Profile/post grids sizing corrected to previous design
-- Edit Profile (Member): bio, username, email change via OTP, phone (no OTP), pronouns, interests (catalog + custom), and auto location (GPS)
+- Profile/post grids sizing corrected to 3-column design
+- Edit Profile (Member) - EditProfileScreen.js: bio, username, email change via OTP, phone (no OTP), pronouns, interests (catalog + custom), and auto location (GPS)
+- Member API client (members.js): Complete API functions for all Member features
+- Member Stack Navigator (MemberStackNavigator.js): Navigation for profile, edit, search, notifications
 - New components: ChipSelector, EmailChangeModal
-- expo-location dependency added
+- expo-location dependency added for GPS location
 
 ### 🔮 P2 — Future Features
 - [ ] Stories feed and create story (photo/video, 24h)
@@ -149,3 +159,5 @@
 - ✅ UserCard.js - User profile preview
 - ✅ FollowButton.js - Follow/unfollow toggle
 - ✅ EntityTagSelector.js - Tag users/communities in posts
+- ✅ ChipSelector.js - Multi-select chip component for interests
+- ✅ EmailChangeModal.js - Email change OTP verification modal

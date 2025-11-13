@@ -62,7 +62,15 @@ router.post("/members/location", authMiddleware, MemberController.updateLocation
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);
+router.get("/communities/profile", authMiddleware, CommunityController.getProfile);
+router.patch("/communities/profile", authMiddleware, CommunityController.patchProfile);
 router.post("/communities/profile/logo", authMiddleware, CommunityController.updateLogo);
+router.post("/communities/username", authMiddleware, CommunityController.changeUsernameEndpoint);
+router.post("/communities/email/change/start", authMiddleware, rateLimitOtp, normalizeEmail, validateBody(['email']), CommunityController.startEmailChange);
+router.post("/communities/email/change/verify", authMiddleware, rateLimitOtp, normalizeEmail, validateBody(['email', 'otp']), CommunityController.verifyEmailChange);
+router.post("/communities/location", authMiddleware, CommunityController.updateLocation);
+router.get("/communities/search", authMiddleware, CommunityController.searchCommunities);
+router.get("/communities/:id/public", authMiddleware, CommunityController.getPublicCommunity);
 
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);

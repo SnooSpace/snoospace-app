@@ -9,7 +9,10 @@ backend/
   controllers/
     authController.js        # OTP auth, user profile endpoints ✅
     communityController.js   # Community signup & management ✅
-    memberController.js      # Member signup & profile ✅
+    memberController.js      # Member signup, profile, search, edit, email change, location ✅
+    notificationController.js # Notifications CRUD ✅
+    accountController.js     # Account deletion ✅
+    catalogController.js     # Catalog endpoints (interests) ✅
     sponsorController.js     # Sponsor signup & profile ✅
     venueController.js       # Venue signup & profile ✅
     postController.js        # Posts CRUD, feed, likes ✅
@@ -32,6 +35,8 @@ frontend/
   api/
     auth.js                 # Auth utilities & session management ✅
     client.js               # API client with auth headers ✅
+    members.js              # Member API functions (profile, search, follow, etc.) ✅
+    communities.js          # Community API functions (profile, search, follow, etc.) ✅
   components/
     Progressbar.js          # Progress indicator component ✅
     PostCard.js             # Post display with interactions ✅
@@ -42,14 +47,27 @@ frontend/
     UserCard.js             # User profile card ✅
     FollowButton.js         # Follow/unfollow button ✅
     EntityTagSelector.js    # Entity tagging selector ✅
+    ChipSelector.js         # Multi-select chip component for interests ✅
+    EmailChangeModal.js     # Email change OTP modal ✅
+    LocationPicker/         # Business location picker components ✅
+      LocationPicker.js     # Main location picker with GPS, search, map
+      LocationConfirmationModal.js # "Are you at business?" modal
+      AddressSearchBar.js   # Search bar with Nominatim integration
+      SearchResultsList.js   # Dropdown search results
+      MapView.js             # Map with draggable marker
+      ConfirmationScreen.js  # Final location confirmation
   data/
     mockData.js             # Centralized mock data for all user types ✅
   navigation/
     AppNavigator.js         # Main navigation setup ✅
     BottomTabNavigator.js   # Member bottom tabs ✅
-    CommunityBottomTabNavigator.js # Community tabs ✅
+    MemberStackNavigator.js # Member stack (profile, edit, search, etc.) ✅
+    CommunityBottomTabNavigator.js # Community tabs (React Navigation) ✅
+    CommunityStackNavigator.js      # Community stack (public profile, followers, following, edit) ✅
+    CommunityProfileStackNavigator.js # Community profile stack (profile, edit, public, followers, following) ✅
     SponsorBottomTabNavigator.js   # Sponsor tabs ✅
     VenueBottomTabNavigator.js     # Venue tabs ✅
+    ProfileStackNavigator.js # Profile stack navigator ✅
   screens/
     auth/
       AuthGate.js           # Auth state routing ✅
@@ -73,7 +91,10 @@ frontend/
         CommunityDashboardScreen.js # Metrics dashboard ✅
         CommunityEventsScreen.js    # Events list ✅
         CommunityRequestsScreen.js  # Collaboration requests ✅
-        CommunitySearchScreen.js    # Search functionality ✅
+        CommunitySearchScreen.js    # General search (members, communities, etc.) ✅
+      search/
+        SearchScreen.js             # Member search ✅
+        CommunitySearchScreen.js    # Community search (for members) ✅
         CommunityCreatePostScreen.js # Create post ✅
       sponsor/
         SponsorHomeScreen.js     # Dashboard ✅
@@ -89,9 +110,17 @@ frontend/
         VenueCreatePostScreen.js  # Create post ✅
     profile/
       member/
-        MemberProfileScreen.js    # Profile with logout ✅
+        MemberProfileScreen.js    # Own profile with edit, posts grid, follow counts ✅
+        MemberPublicProfileScreen.js # Public profile view with follow button ✅
+        EditProfileScreen.js      # Edit bio, username, email (OTP), phone, pronouns, interests, location ✅
+        FollowersListScreen.js    # List of followers ✅
+        FollowingListScreen.js   # List of following ✅
       community/
-        CommunityProfileScreen.js # Profile with logout ✅
+        CommunityProfileScreen.js # Profile with logout & edit button ✅
+        EditCommunityProfileScreen.js # Edit profile (bio, username, email OTP, phone, category, sponsor_types, location, logo) ✅
+        CommunityPublicProfileScreen.js # Public profile with posts grid, follow button ✅
+        CommunityFollowersListScreen.js # Followers list ✅
+        CommunityFollowingListScreen.js # Following list ✅
       sponsor/
         SponsorProfileScreen.js  # Profile with logout ✅
       venue/
@@ -99,7 +128,9 @@ frontend/
     matching/
       MatchingScreen.js          # Event-based matching (Bumble-style) ✅
     search/
-      SearchScreen.js             # Search interface ✅
+      SearchScreen.js             # Member search with debounced input, pagination ✅
+    notifications/
+      NotificationsScreen.js      # Notifications list with unread badge, mark read/all ✅
   App.js
   index.js
   package.json
@@ -123,6 +154,7 @@ frontend/
 ### Current Implementation Status
 
 #### ✅ Completed (P0 - Foundations)
+
 - **Auth System**: Complete OTP-based authentication with Supabase ✅
 - **Database Schema**: Core tables for all user types + events, posts, comments, follows, swipes, matches ✅
 - **Backend API**: Auth endpoints, user profile management, signup flows, posts, comments, follows, events ✅
@@ -137,6 +169,7 @@ frontend/
 - **Matching System**: Bumble-style swipe interface with matches and requests ✅
 
 #### ✅ Recently Completed (Since last update)
+
 - Persistent login with automatic token refresh (access + refresh tokens)
 - Member search with debounced input, pagination, and public profile drill-in
 - Follow/Unfollow from search results and public profiles with optimistic UI
@@ -147,12 +180,21 @@ frontend/
 - Member profile photo update fix + loading spinner during upload
 - Profile and public profile 3-column image grid sizing fixes
 - Member Edit Profile: bio, username, email change (OTP), phone (no OTP), pronouns, interests, and auto location (GPS)
+- Community location migration: Changed from TEXT to JSONB with data migration logic
+- Business Location Picker: GPS detection, Nominatim search, draggable map marker, confirmation flow
+- Community Edit Profile: bio, username, email change (OTP), phone, category, sponsor_types, location (JSONB), logo
+- Community Search: Search communities by name/username with follow/unfollow functionality
+- Community Public Profile: View community profiles with posts grid, follow button, followers/following counts
+- Community Followers/Following Lists: View and manage followers/following with follow/unfollow
+- Community API endpoints: getProfile, patchProfile, searchCommunities, getPublicCommunity, updateLocation, email change
 
 #### 🚧 In Progress (P1 - Core Features)
+
 - Media Upload: Firebase Storage integration configured, upload UI ready ✅
 - Real API Integration: A few screens still use mock data ⚠️
 
 #### 📋 Next Priority (P1 - Core Features)
+
 - **Connect Mock Data to Real API**: Replace mock data calls with real API endpoints
 - **Event Registration Flow**: Complete registration flow for members
 - **Sponsor Collaboration Requests**: Outreach system from sponsors to communities
@@ -160,6 +202,7 @@ frontend/
 - **Community Collaboration**: Cross-community collaboration features
 
 #### 🔮 Future (P2+ - Advanced Features)
+
 - **Stories**: Ephemeral content with 24h expiry (backend support exists)
 - **Payment Integration**: Premium features and payment QR handling
 - **Admin Dashboard**: Content moderation and analytics
@@ -167,6 +210,7 @@ frontend/
 - **Notification System**: Push notifications for interactions
 
 ### Technical Stack Status
+
 - **Frontend**: React Native with Expo ✅
 - **Backend**: Node.js + Express ✅
 - **Database**: PostgreSQL with full schema ✅
@@ -176,6 +220,7 @@ frontend/
 - **UI Components**: PostCard, AttendeeCard, MatchModal, ImageUploader, etc. ✅
 
 ### Key Features Implemented
+
 1. **Complete Authentication**: Email OTP login/signup for all user types ✅
 2. **Role-Based Dashboards**: Unique home screens for Members, Communities, Sponsors, Venues ✅
 3. **Signup Flow**: Multi-step profiles with progress indicators ✅
@@ -191,9 +236,16 @@ frontend/
 13. **Delete Account**: Hard delete with confirmation ✅
 14. **Persistent Login**: Auto refresh access token ✅
 15. **Edit Profile (Member)**: Bio, username, email OTP change, phone, pronouns, interests, auto location ✅
-16. **Mock Data**: Comprehensive mock data for all user types ✅
+16. **Member Search**: Debounced search with pagination, public profile drill-in ✅
+17. **Member Public Profile**: View other members with posts grid, follow button, follower/following counts ✅
+18. **Followers/Following Lists**: Paginated lists with user cards ✅
+19. **Notifications**: In-app list, unread badge, realtime updates, mark read/all ✅
+20. **Account Deletion**: Hard delete with type-to-confirm for all roles ✅
+21. **Location Management**: GPS auto-detection, manual selection, location history tracking ✅
+22. **Mock Data**: Comprehensive mock data for all user types ✅
 
 ### Current Architecture
+
 - **Backend**: RESTful API with controllers for each feature area
 - **Frontend**: Component-based architecture with reusable components
 - **Navigation**: Stack + Bottom Tab navigators for seamless UX

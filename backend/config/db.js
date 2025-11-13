@@ -231,20 +231,20 @@ async function ensureTables(pool) {
       -- Conversations table for direct messaging
       CREATE TABLE IF NOT EXISTS conversations (
         id BIGSERIAL PRIMARY KEY,
-        participant1_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        participant1_id BIGINT NOT NULL,
         participant1_type TEXT NOT NULL DEFAULT 'member',
-        participant2_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        participant2_id BIGINT NOT NULL,
         participant2_type TEXT NOT NULL DEFAULT 'member',
         last_message_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(participant1_id, participant2_id)
+        UNIQUE(participant1_id, participant1_type, participant2_id, participant2_type)
       );
       
       -- Messages table
       CREATE TABLE IF NOT EXISTS messages (
         id BIGSERIAL PRIMARY KEY,
         conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        sender_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        sender_id BIGINT NOT NULL,
         sender_type TEXT NOT NULL DEFAULT 'member',
         message_text TEXT NOT NULL,
         is_read BOOLEAN NOT NULL DEFAULT false,
@@ -311,11 +311,36 @@ async function ensureTables(pool) {
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS phone TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
-        ALTER TABLE communities ADD COLUMN IF NOT EXISTS category TEXT;
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS secondary_phone TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
-        ALTER TABLE communities ADD COLUMN IF NOT EXISTS location TEXT;
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS category TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Migrate location from TEXT to JSONB
+      DO $$ BEGIN
+        -- Check if location column exists and is TEXT
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'communities' AND column_name = 'location' AND data_type = 'text'
+        ) THEN
+          -- Add temporary JSONB column
+          ALTER TABLE communities ADD COLUMN IF NOT EXISTS location_jsonb JSONB;
+          -- Migrate existing TEXT data to JSONB (if any exists)
+          UPDATE communities 
+          SET location_jsonb = jsonb_build_object('address', location, 'city', location)
+          WHERE location IS NOT NULL AND location_jsonb IS NULL;
+          -- Drop old TEXT column
+          ALTER TABLE communities DROP COLUMN location;
+          -- Rename JSONB column to location
+          ALTER TABLE communities RENAME COLUMN location_jsonb TO location;
+        ELSIF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'communities' AND column_name = 'location'
+        ) THEN
+          -- Column doesn't exist, create as JSONB
+          ALTER TABLE communities ADD COLUMN location JSONB;
+        END IF;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS bio TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
@@ -325,6 +350,14 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS username TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Remove themes column if it exists
+      DO $$ BEGIN
+        ALTER TABLE communities DROP COLUMN IF EXISTS themes;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      -- Remove cities column if it exists (should not be in communities table)
+      DO $$ BEGIN
+        ALTER TABLE communities DROP COLUMN IF EXISTS cities;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
       -- Add missing columns to community_heads table if they don't exist
       DO $$ BEGIN

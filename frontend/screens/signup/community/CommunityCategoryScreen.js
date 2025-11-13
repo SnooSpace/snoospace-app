@@ -10,17 +10,21 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons for the back arrow
 
-// --- Constants & Styling ---
-const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const BUTTON_INACTIVE_BG = '#FFFFFF'; // White background for unselected chips
+// --- Consistent Design Constants ---
+const PRIMARY_COLOR = "#5f27cd";       // Deep purple
+const TEXT_COLOR = "#1e1e1e";         // Dark text
+const LIGHT_TEXT_COLOR = "#6c757d";   // Lighter grey for step text
+const BACKGROUND_COLOR = "#ffffff";   // White background
+const INPUT_BG_COLOR = "#f8f9fa"; 
+const INPUT_BORDER_COLOR = "#ced4da"; // Light border color    // Light background for input/modal buttons
+const BUTTON_INACTIVE_BORDER = "#ced4da"; // Light border color
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -41,8 +45,8 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-        borderColor: isSelected ? PRIMARY_COLOR : PLACEHOLDER_TEXT + '40', // Lighter border when unselected
+        backgroundColor: isSelected ? PRIMARY_COLOR : BACKGROUND_COLOR,
+        borderColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BORDER,
       }
     ]}
     onPress={() => onPress(category)}
@@ -54,7 +58,7 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     <Text
       style={[
         styles.chipText,
-        { color: isSelected ? 'white' : DARK_TEXT },
+        { color: isSelected ? 'white' : TEXT_COLOR },
       ]}
     >
       {category}
@@ -82,7 +86,9 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       const savedCategories = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
-        setAvailableCategories([...defaultCategories, ...parsedCategories]);
+        // Ensure unique list by filtering out defaults that might be in savedCategories
+        const uniqueSaved = parsedCategories.filter(c => !defaultCategories.includes(c));
+        setAvailableCategories([...defaultCategories, ...uniqueSaved]);
       }
     } catch (error) {
       console.error('Error loading saved categories:', error);
@@ -111,7 +117,9 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       if (prevSelected.includes(category)) {
         return prevSelected.filter(c => c !== category);
       } else {
-        return [...prevSelected, category];
+        // Allow selection of up to 3 categories (or any defined limit)
+        // For navigation, we only use the first one, but let user select a few.
+        return [...prevSelected, category]; 
       }
     });
   };
@@ -128,7 +136,8 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       return;
     }
     
-    if (availableCategories.includes(trimmedName)) {
+    // Check if category already exists (case-insensitive check)
+    if (availableCategories.map(c => c.toLowerCase()).includes(trimmedName.toLowerCase())) {
       Alert.alert('Error', 'This category already exists.');
       return;
     }
@@ -154,96 +163,88 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
   const handleNext = () => {
     if (selectedCategories.length === 0) {
-      alert('Please select at least one category');
+      Alert.alert('Selection Required', 'Please select at least one category before proceeding.');
       return;
     }
-    navigation.navigate("CommunityLocation", { 
+    navigation.navigate("CommunityLocationQuestion", { 
       email, 
       accessToken, 
       name, 
       logo_url, 
       bio, 
-      category: selectedCategories[0] // Take first selected category
+      category: selectedCategories[0] // Use the first selected category
     });
   };
 
+  // Button is enabled if at least one category is selected
+  const isButtonDisabled = selectedCategories.length === 0;
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         
-        {/* Main Card */}
-        <View style={styles.card}>
-
-          {/* Custom Header with Back button */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Text style={styles.backIcon}>&larr;</Text> 
-            </TouchableOpacity>
-            
-            <Text style={styles.headerTitle}>Choose Community Category</Text>
-            
-            {/* Empty space to align the title center-wise, matching the Skip text on the previous screen */}
-            <View style={styles.headerButton} /> 
-          </View>
-
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
-            <Text style={styles.stepText}>Step 4 of 7</Text>
-            <ProgressBar progress={57} />
-          </View>
-          
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.contentArea}>
-              <Text style={styles.mainTitle}>
-                Choose Community Category
-              </Text>
-              <Text style={styles.subtitle}>
-                Select categories that best fit your community.
-              </Text>
-
-              {/* Category Chips Container */}
-              <View style={styles.chipsContainer}>
-                {availableCategories.map(category => (
-                  <CategoryChip
-                    key={category}
-                    category={category}
-                    isSelected={selectedCategories.includes(category)}
-                    onPress={toggleCategory}
-                  />
-                ))}
-              </View>
-
-              {/* Create New Category Button */}
-              <TouchableOpacity
-                style={styles.createNewButton}
-                onPress={handleCreateNewCategory}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Create New Category"
-              >
-                {/* Plus Icon placeholder */}
-                <Text style={styles.createNewIcon}>+</Text>
-                <Text style={styles.createNewText}>Create New Category</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-
-          {/* Fixed Finish Button Container */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.finishButton}
-              onPress={handleNext}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Next step"
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Header Row (Back Button) */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
         </View>
+
+        {/* Progress Bar and Step Text */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.stepText}>Step 4 of 9</Text>
+          <ProgressBar progress={44} />
+        </View>
+        
+        {/* Content Section */}
+        <View style={styles.contentContainer}>
+          <Text style={styles.title}>
+            Choose Community Category
+          </Text>
+          <Text style={styles.subtitle}>
+            Select the categories that best fit your community.
+          </Text>
+
+          {/* Category Chips Container */}
+          <View style={styles.chipsContainer}>
+            {availableCategories.map(category => (
+              <CategoryChip
+                key={category}
+                category={category}
+                isSelected={selectedCategories.includes(category)}
+                onPress={toggleCategory}
+              />
+            ))}
+          </View>
+
+          {/* Create New Category Button */}
+          <TouchableOpacity
+            style={styles.createNewButton}
+            onPress={handleCreateNewCategory}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} style={styles.createNewIcon} />
+            <Text style={styles.createNewText}>Create New Category</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Fixed Footer/Button Section */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          onPress={handleNext}
+          activeOpacity={0.8}
+          disabled={isButtonDisabled}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>Next</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Create New Category Modal */}
@@ -260,7 +261,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
             <TextInput
               style={styles.modalInput}
               placeholder="Enter category name"
-              placeholderTextColor={PLACEHOLDER_TEXT}
+              placeholderTextColor={LIGHT_TEXT_COLOR}
               value={newCategoryName}
               onChangeText={setNewCategoryName}
               autoFocus={true}
@@ -293,84 +294,55 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: BACKGROUND_COLOR,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  background: {
-    flex: 1,
-    backgroundColor: LIGHT_GRAY,
-    paddingTop: 10,
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
-    flex: 1,
-    borderRadius: 25,
+  scrollContainer: {
+    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
+    paddingBottom: 20,
   },
   
-  // --- Header Styles ---
-  header: {
+  // --- Header Styles (Consistent) ---
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    marginBottom: 25,
+    paddingTop: 15,
+    paddingBottom: 10,
     paddingHorizontal: 5,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: DARK_TEXT,
+  backButton: {
+    padding: 10,
+    marginLeft: -10,
   },
 
-  // --- Progress Bar Styles ---
-  progressBarContainer: {
+  // --- Progress Bar Styles (Consistent) ---
+  progressContainer: {
     marginBottom: 40,
+    paddingHorizontal: 5,
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
-    marginBottom: 8,
-    textAlign: 'right', // Aligned right for a clean look
-    opacity: 0.8,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 5,
   },
 
   // --- Content Styles ---
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 100, // Space for the fixed button
+  contentContainer: {
+    marginTop: 10,
+    paddingHorizontal: 5,
+    flex: 1,
   },
-  contentArea: {
-    alignItems: 'flex-start', // Align text to the left
-  },
-  mainTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: DARK_TEXT,
-    marginBottom: 10,
-    lineHeight: 30,
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: TEXT_COLOR,
+    marginBottom: 10, // Increased spacing
   },
   subtitle: {
     fontSize: 16,
-    color: PLACEHOLDER_TEXT,
+    color: LIGHT_TEXT_COLOR,
     marginBottom: 30,
   },
 
@@ -378,7 +350,7 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12, // Space between chips
+    gap: 12, // Consistent spacing between chips
     marginBottom: 40,
   },
   chip: {
@@ -386,12 +358,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 25,
     borderWidth: 1,
-    // Shadow for unselected state to match the overall design
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
-    elevation: 1,
+    // Removed unnecessary shadows for a flat, clean look
   },
   chipText: {
     fontSize: 15,
@@ -401,20 +368,17 @@ const styles = StyleSheet.create({
   // --- Create New Button Styles ---
   createNewButton: {
     flexDirection: 'row',
-    alignSelf: 'center', // Center the button horizontally
+    alignSelf: 'center', 
     alignItems: 'center',
     paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
+    paddingVertical: 12,
+    borderRadius: 12, // More rounded rectangle vs 25 radius circle
     borderWidth: 2,
     borderColor: PRIMARY_COLOR,
     borderStyle: 'dashed',
-    backgroundColor: LIGHT_GRAY + '80', // Slightly lighter background
+    backgroundColor: BACKGROUND_COLOR, 
   },
   createNewIcon: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: PRIMARY_COLOR,
     marginRight: 8,
   },
   createNewText: {
@@ -423,22 +387,24 @@ const styles = StyleSheet.create({
     color: PRIMARY_COLOR,
   },
 
-  // --- Finish Button Styles ---
-  buttonContainer: {
-    paddingVertical: 15,
-    position: 'absolute',
-    bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+  // --- Footer/Button Styles (Consistent) ---
+  footer: {
+    backgroundColor: BACKGROUND_COLOR,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 25, 
+    borderTopWidth: 0,
   },
-  finishButton: {
-    width: '100%',
-    height: 60,
+  nextButton: {
     backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 60,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   buttonText: {
     color: 'white',
@@ -446,7 +412,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // --- Modal Styles ---
+  // --- Modal Styles (Consistent) ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -455,34 +421,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+    backgroundColor: BACKGROUND_COLOR,
+    borderRadius: 15,
     padding: 25,
     width: '100%',
     maxWidth: 350,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 8,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: DARK_TEXT,
+    color: TEXT_COLOR,
     marginBottom: 20,
     textAlign: 'center',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: LIGHT_GRAY,
-    borderRadius: 12,
+    borderColor: INPUT_BORDER_COLOR,
+    borderRadius: 10,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
-    color: DARK_TEXT,
+    color: TEXT_COLOR,
     marginBottom: 25,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: INPUT_BG_COLOR,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -496,7 +462,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: INPUT_BG_COLOR, // Light background
   },
   createButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -504,7 +470,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: TEXT_COLOR,
   },
   createButtonText: {
     fontSize: 16,

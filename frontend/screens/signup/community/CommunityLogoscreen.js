@@ -10,8 +10,9 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator, // 👈 Imported ActivityIndicator for the spinner
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for icons
+import { Ionicons } from "@expo/vector-icons"; 
 import {
   launchImageLibraryAsync,
   requestMediaLibraryPermissionsAsync,
@@ -32,14 +33,12 @@ import { uploadImage } from "../../../api/cloudinary";
 const CommunityLogoScreen = ({ navigation, route }) => {
   const { email, accessToken, name } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
+  const [isLoading, setIsLoading] = useState(false); // 👈 New state for loading
 
   const handleAddPhoto = async () => {
-    console.log("handleAddPhoto called"); // Debug log
     try {
-      console.log("Requesting permissions..."); // Debug log
       // Request permission to access media library
       const permissionResult = await requestMediaLibraryPermissionsAsync();
-      console.log("Permission result:", permissionResult); // Debug log
 
       if (permissionResult.granted === false) {
         Alert.alert(
@@ -49,7 +48,6 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         return;
       }
 
-      console.log("Launching image picker..."); // Debug log
       // Launch image picker
       const result = await launchImageLibraryAsync({
         mediaTypes: MediaTypeOptions.Images,
@@ -58,10 +56,8 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         quality: 0.8,
       });
 
-      console.log("Image picker result:", result); // Debug log
       if (!result.canceled && result.assets[0]) {
         setImageUri(result.assets[0].uri);
-        console.log("Image selected:", result.assets[0].uri); // Debug log
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -78,21 +74,29 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       );
       return;
     }
+    
+    setIsLoading(true); // 👈 Start loading
     try {
       const secureUrl = await uploadImage(imageUri, () => {});
+      
+      // Navigate on success
       navigation.navigate("CommunityBio", { 
         email, 
         accessToken, 
         name, 
         logo_url: secureUrl
       });
+      
     } catch (e) {
+      console.error('Image upload failed:', e);
       Alert.alert('Upload failed', e?.message || 'Unable to upload logo. Please try again.');
+    } finally {
+      setIsLoading(false); // 👈 Stop loading regardless of success/failure
     }
   };
 
-  // Button is disabled if no photo is selected
-  const isButtonDisabled = !imageUri;
+  // Button is disabled if no photo is selected OR if it is loading
+  const isButtonDisabled = !imageUri || isLoading;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -100,25 +104,20 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
-        <View style={styles.header}>
+        {/* Header Section (Back Button) */}
+        <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
         </View>
 
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 3 of 7</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={43} />
-          </View>
+        {/* Progress Bar and Step Text */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.stepText}>Step 2 of 9</Text>
+          <ProgressBar progress={22} />
         </View>
 
         {/* Content Section */}
@@ -163,8 +162,14 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          {/* 👈 Display ActivityIndicator when loading, otherwise display text */}
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Next</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -182,58 +187,45 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
   },
-  header: {
-    padding: 20,
-    paddingBottom: 10,
-  },
+  
+  // Adjusted header structure for consistency
   headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 15,
+    paddingBottom: 10,
+    paddingHorizontal: 20,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 10,
+    marginLeft: -10, // Adjust negative margin to align icon
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    flex: 1,
-    textAlign: "center",
-    marginLeft: -40, // Visual centering adjustment
-  },
-  progressSection: {
-    paddingHorizontal: 5,
+  
+  // Consistent Progress Container Styles
+  progressContainer: {
+    marginBottom: 40,
+    paddingHorizontal: 20,
   },
   stepText: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
     marginBottom: 5,
   },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
+
   contentContainer: {
     flex: 1,
     marginTop: 30,
     paddingHorizontal: 25,
-    alignItems: "center", // Center content horizontally
+    alignItems: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: TEXT_COLOR,
-    marginBottom: 5,
+    marginBottom: 50, // Increased spacing for better look
   },
-  subtitle: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 50,
-  },
+  
   // --- Photo Upload Area Styles ---
   photoUploadArea: {
     width: CIRCLE_SIZE,
@@ -247,9 +239,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR + "80", // Slightly transparent purple
+    borderColor: PRIMARY_COLOR + "80", 
     borderStyle: "dashed",
-    backgroundColor: PRIMARY_COLOR + "10", // Very light purple background
+    backgroundColor: PRIMARY_COLOR + "10", 
     alignItems: "center",
     justifyContent: "center",
   },
@@ -262,20 +254,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: PRIMARY_COLOR,
   },
-  imagePlaceholderText: {
-    color: PRIMARY_COLOR,
-  },
   profileImage: {
     width: "100%",
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
   },
 
-  // --- Footer/Button Styles ---
+  // --- Footer/Button Styles (Consistent) ---
   footer: {
-    padding: 20,
     backgroundColor: BACKGROUND_COLOR,
-    marginBottom: 50,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 50,
+    borderTopWidth: 0,
   },
   nextButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -283,6 +274,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    height: 60,
   },
   disabledButton: {
     opacity: 0.6,
@@ -290,12 +282,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#fff",
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700", // Changed from 600 to 700 for better contrast
   },
-  backButton: {
-    padding: 15,
-    marginLeft: -15, 
-  }
 });
 
 export default CommunityLogoScreen;

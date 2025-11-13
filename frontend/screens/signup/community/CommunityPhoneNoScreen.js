@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,36 +8,58 @@ import {
   SafeAreaView,
   Dimensions,
   ScrollView,
-} from 'react-native';
+  Platform,
+  StatusBar,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+// import ProgressBar from "../../../components/Progressbar"; // Removed problematic import
 
 // --- Constants & Styling ---
-const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const INPUT_BACKGROUND = '#FFFFFF'; // White background for inputs
+const { width } = Dimensions.get("window");
+const PRIMARY_COLOR = "#5f27cd";
+const LIGHT_GRAY = "#e9ecef";
+const TEXT_COLOR = "#1e1e1e";
+const LIGHT_TEXT_COLOR = "#6c757d";
+const INPUT_BACKGROUND = "#f8f9fa";
+const PLACEHOLDER_TEXT = "#6c757d";
+const TRACK_COLOR = "#e0e0e0"; 
+
+// --- Custom Progress Bar Reimplementation ---
+const SimpleProgressBar = ({ progress }) => {
+  return (
+    <View style={progressBarStyles.track}>
+      <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
+    </View>
+  );
+};
+
+const progressBarStyles = StyleSheet.create({
+  track: {
+    height: 8,
+    width: '100%',
+    backgroundColor: TRACK_COLOR,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 4,
+  }
+});
+
 
 // --- Components ---
-
-/**
- * Custom Phone Number Input Field
- */
 const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
   <View style={styles.phoneInputContainer}>
-    {/* Mock Country Code/Flag Picker */}
     <TouchableOpacity
       style={styles.countryCodePicker}
-      onPress={() => console.log('Action: Open country code selection modal')}
+      onPress={() => console.log("Action: Open country code selection modal")}
       activeOpacity={0.7}
       accessibilityLabel="Select country code"
     >
-      {/* Indian Flag and Country Code */}
-      <Text style={styles.countryCodeText}>🇮🇳 +91 </Text> 
-      <Text style={styles.countryCodeDropdown}>▼</Text>
+      <Text style={styles.countryCodeText}>🇮🇳 +91 </Text>
     </TouchableOpacity>
-
-    {/* Phone Number Input */}
     <TextInput
       style={styles.phoneNumberInput}
       placeholder={placeholder}
@@ -46,19 +68,18 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
       onChangeText={onChangeText}
       keyboardType="phone-pad"
       dataDetectorTypes="phoneNumber"
-      maxLength={10} // Exactly 10 digits for Indian phone numbers
+      maxLength={10}
       autoFocus={isRequired}
     />
   </View>
 );
 
-/**
- * Main Screen Component
- */
+// --- Main Screen Component ---
 const CommunityPhoneNoScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, location } = route.params || {};
-  const [primaryNumber, setPrimaryNumber] = useState('');
-  const [secondaryNumber, setSecondaryNumber] = useState('');
+  const { email, accessToken, name, logo_url, bio, category, location } =
+    route.params || {};
+  const [primaryNumber, setPrimaryNumber] = useState("");
+  const [secondaryNumber, setSecondaryNumber] = useState("");
 
   const handleSkip = () => {
     navigation.navigate("CommunityHeadName", {
@@ -70,6 +91,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       category,
       location,
       phone: null,
+      secondary_phone: null,
     });
   };
 
@@ -78,19 +100,25 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
   };
 
   const handleContinue = () => {
-    // Basic validation for the required field
     if (!primaryNumber.trim()) {
-      alert('Primary phone number is required.');
+      alert("Primary phone number is required.");
       return;
     }
-    
-    // Extract only digits from phone number
-    const phoneDigits = primaryNumber.replace(/\D/g, '');
+
+    const phoneDigits = primaryNumber.replace(/\D/g, "");
     if (phoneDigits.length !== 10) {
-      alert('Phone number must be exactly 10 digits.');
+      alert("Phone number must be exactly 10 digits.");
       return;
     }
-    
+
+    const secondaryPhoneDigits = secondaryNumber.trim()
+      ? secondaryNumber.replace(/\D/g, "")
+      : null;
+    if (secondaryPhoneDigits && secondaryPhoneDigits.length !== 10) {
+      alert("Secondary phone number must be exactly 10 digits if provided.");
+      return;
+    }
+
     navigation.navigate("CommunityHeadName", {
       email,
       accessToken,
@@ -100,71 +128,80 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       category,
       location,
       phone: phoneDigits,
+      secondary_phone: secondaryPhoneDigits || null,
     });
   };
 
+  const isButtonDisabled = primaryNumber.replace(/\D/g, "").length !== 10;
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
-        
-        {/* Header with Back and Skip */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-            <Text style={styles.backIcon}>&larr;</Text> 
-          </TouchableOpacity>
-        </View>
-        
-        {/* ScrollView allows content to be scrollable if the screen is small */}
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+      
+      {/* 1. Header Row (Back and Skip) */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          onPress={handleBack}
+          accessibilityLabel="Go back"
+          style={styles.backButton}
         >
-          <View style={styles.contentArea}>
-            
-            {/* Main Prompt */}
-            <Text style={styles.mainTitle}>
-              What's your number?
-            </Text>
-            <Text style={styles.subtitle}>
-              We'll text you a code to verify your phone.
-            </Text>
+          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
+      </View>
 
-            {/* Primary Phone Input (Required) */}
-            <PhoneInput
-              placeholder="(000) 000-0000"
-              isRequired={true}
-              value={primaryNumber}
-              onChangeText={setPrimaryNumber}
-            />
+      {/* 2. Progress Bar and Step Text */}
+      <View style={styles.progressContainer}>
+        <Text style={styles.stepText}>Step 6 of 9</Text>
+        <SimpleProgressBar progress={67} />
+      </View>
 
-            {/* Secondary Phone Input (Optional) */}
-            <View style={styles.optionalInputSection}>
-              <Text style={styles.optionalInputLabel}>Add another number</Text>
-              <Text style={styles.optionalLabel}>Optional</Text>
-            </View>
-            <PhoneInput
-              placeholder="(000) 000-0000"
-              isRequired={false}
-              value={secondaryNumber}
-              onChangeText={setSecondaryNumber}
-            />
-            
+      {/* 3. Scrollable Content */}
+      <ScrollView
+        style={styles.contentScrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.contentArea}>
+          <Text style={styles.mainTitle}>What's your number?</Text>
+          <Text style={styles.subtitle}>
+            We'll text you a code to verify your phone.
+          </Text>
+
+          <PhoneInput
+            placeholder="(000) 000-0000"
+            isRequired={true}
+            value={primaryNumber}
+            onChangeText={setPrimaryNumber}
+          />
+
+          <View style={styles.optionalInputSection}>
+            <Text style={styles.optionalInputLabel}>Add another number</Text>
+            <Text style={styles.optionalLabel}>Optional</Text>
           </View>
-        </ScrollView>
-
-        {/* Fixed Button Container */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.continueButton}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Continue to verification code input"
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </TouchableOpacity>
+          <PhoneInput
+            placeholder="(000) 000-0000"
+            isRequired={false}
+            value={secondaryNumber}
+            onChangeText={setSecondaryNumber}
+          />
         </View>
+      </ScrollView>
+
+      {/* 4. Fixed Button Container */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            isButtonDisabled && styles.disabledButton,
+          ]}
+          onPress={handleContinue}
+          activeOpacity={0.8}
+          disabled={isButtonDisabled}
+          accessibilityRole="button"
+          accessibilityLabel="Continue to verification code input"
+        >
+          <Text style={styles.buttonText}>Next</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -174,61 +211,59 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: "white",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  background: {
-    flex: 1,
-    backgroundColor: 'white', // The whole screen body is white for this design
-    alignItems: 'center',
-    paddingHorizontal: width * 0.05, // Use screen width for padding
-  },
-  
+
   // --- Header Styles ---
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: '100%',
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
     paddingTop: 15,
-    paddingBottom: 25,
+    paddingBottom: 5,
+    paddingHorizontal: width * 0.05,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+  backButton: {
+    padding: 10,
+    marginLeft: -10,
   },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
+
+  // --- Progress Bar Styles ---
+  progressContainer: {
+    width: "100%",
+    marginBottom: 40,
+    height: 20, 
+    paddingHorizontal: width * 0.05,
   },
-  skipButton: {
-    paddingHorizontal: 10,
-    height: 40,
-    justifyContent: 'center',
-  },
-  skipText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: PRIMARY_COLOR,
+  stepText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 5,
   },
 
   // --- Content Styles ---
+  contentScrollView: {
+    flex: 1,
+    width: "100%",
+  },
   scrollContent: {
     flexGrow: 1,
     width: width * 0.9,
-    paddingBottom: 100, // Space for the fixed button
+    alignSelf: "center",
+    // FIX: Reduced padding bottom here to accommodate the slightly raised button footer
+    paddingBottom: 70, 
   },
   contentArea: {
     flex: 1,
-    alignItems: 'flex-start',
-    paddingTop: 40,
+    alignItems: "flex-start",
+    paddingTop: 0,
   },
   mainTitle: {
     fontSize: 32,
-    fontWeight: '800',
-    color: DARK_TEXT,
+    fontWeight: "800",
+    color: TEXT_COLOR,
     marginBottom: 10,
   },
   subtitle: {
@@ -239,62 +274,51 @@ const styles = StyleSheet.create({
 
   // --- Phone Input Styles ---
   phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    height: 55,
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: 60,
     backgroundColor: INPUT_BACKGROUND,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: LIGHT_GRAY,
-    // Soft shadow for input fields
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
     marginBottom: 20,
   },
   countryCodePicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 15,
     borderRightWidth: 1,
     borderRightColor: LIGHT_GRAY,
-    height: '100%',
-    justifyContent: 'center',
+    height: "100%",
+    justifyContent: "center",
   },
   countryCodeText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: DARK_TEXT,
-  },
-  countryCodeDropdown: {
-    fontSize: 10,
-    color: PLACEHOLDER_TEXT,
-    marginLeft: 5,
+    fontWeight: "600",
+    color: TEXT_COLOR,
   },
   phoneNumberInput: {
     flex: 1,
-    height: '100%',
+    height: "100%",
     paddingHorizontal: 15,
     fontSize: 16,
-    color: DARK_TEXT,
+    color: TEXT_COLOR,
   },
 
   // --- Optional Input Section Styles ---
   optionalInputSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    width: "100%",
     marginTop: 20,
     marginBottom: 10,
   },
   optionalInputLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: DARK_TEXT,
+    fontWeight: "600",
+    color: TEXT_COLOR,
   },
   optionalLabel: {
     fontSize: 14,
@@ -305,23 +329,29 @@ const styles = StyleSheet.create({
   // --- Button Styles ---
   buttonContainer: {
     paddingVertical: 15,
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
-    width: width * 0.9, // Match the padding of the screen
-    backgroundColor: 'white',
+    width: width * 0.9,
+    alignSelf: "center",
+    backgroundColor: "white",
+    // FIX: Increased bottom padding to push the button higher
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25, 
   },
   continueButton: {
-    width: '100%',
-    height: 60,
+    width: "100%",
+    height: 70,
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 

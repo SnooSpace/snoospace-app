@@ -7,6 +7,7 @@ import CommunityNameScreen from "./CommunityNameScreen";
 import CommunityLogoscreen from "./CommunityLogoscreen";
 import CommunityBioScreen from "./CommunityBioScreen";
 import CommunityCategoryScreen from "./CommunityCategoryScreen";
+import CommunityLocationQuestionScreen from "./CommunityLocationQuestionScreen";
 import CommunityLocationScreen from "./CommunityLocationScreen";
 import CommunityPhoneNoScreen from "./CommunityPhoneNoScreen";
 import CommunityHeadNameScreen from "./CommunityHeadNameScreen";
@@ -24,6 +25,7 @@ export default function CommunitySignupNavigator() {
       <Stack.Screen name="CommunityLogo" component={CommunityLogoscreen} />
       <Stack.Screen name="CommunityBio" component={CommunityBioScreen} />
       <Stack.Screen name="CommunityCategory" component={CommunityCategoryScreen} />
+      <Stack.Screen name="CommunityLocationQuestion" component={CommunityLocationQuestionScreen} />
       <Stack.Screen name="CommunityLocation" component={CommunityLocationScreen} />
       <Stack.Screen name="CommunityPhone" component={CommunityPhoneNoScreen} />
       <Stack.Screen name="CommunityHeadName" component={CommunityHeadNameScreen} />

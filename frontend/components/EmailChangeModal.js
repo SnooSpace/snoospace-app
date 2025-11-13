@@ -12,13 +12,23 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { startEmailChange, verifyEmailChange } from '../api/members';
+import { startEmailChange as startMemberEmailChange, verifyEmailChange as verifyMemberEmailChange } from '../api/members';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
-export default function EmailChangeModal({ visible, currentEmail, onClose, onComplete }) {
+export default function EmailChangeModal({ 
+  visible, 
+  currentEmail, 
+  onClose, 
+  onComplete,
+  startEmailChange: customStartEmailChange,
+  verifyEmailChange: customVerifyEmailChange,
+}) {
+  // Use custom functions if provided, otherwise use member functions
+  const startEmailChange = customStartEmailChange || startMemberEmailChange;
+  const verifyEmailChange = customVerifyEmailChange || verifyMemberEmailChange;
   const [newEmail, setNewEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('email'); // 'email' or 'otp'

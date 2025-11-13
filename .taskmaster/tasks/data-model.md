@@ -45,12 +45,12 @@
 
 #### User Tables:
 - **members**
-  - id (PK), name, email (unique), phone, dob, gender, city
+  - id (PK), name, email (unique), phone, dob, gender
   - interests (JSONB), username (unique), bio
-  - profile_photo_url, pronouns (TEXT[]), location (JSONB)
+  - profile_photo_url, pronouns (TEXT[]), location (JSONB: {city, state, country, lat, lng})
   - created_at
 - **communities**
-  - id (PK), name, logo_url, bio, category, location
+  - id (PK), name, logo_url, bio, category, location (TEXT - to be migrated to JSONB)
   - email (unique), phone, sponsor_types (JSONB)
   - username (unique), created_at
 - **community_heads** (private info, admin only)
@@ -124,14 +124,21 @@
  - **notifications**
   - id (PK)
   - recipient_id (FK), recipient_type (member/community/sponsor/venue)
+  - actor_id, actor_type
   - type (follow, like, comment, etc.)
   - payload (JSONB: actor info, post id, etc.)
   - is_read (BOOLEAN, default false)
   - created_at
+  - Indexes: (recipient_id, recipient_type, is_read), (created_at DESC)
 
   - id (PK), member_id (FK)
   - photo_url, photo_order
   - created_at
+- **member_location_history**
+  - id (PK), member_id (FK)
+  - location (JSONB: {city, state, country, lat, lng})
+  - created_at
+  - Index: (member_id, created_at DESC)
 
 #### Lookup Tables:
 - **interests**
@@ -170,6 +177,9 @@
 - ✅ Cross-type following system
 - ✅ Post tagging system for mentions
 - ✅ Nested comments support
+- ✅ Member location history tracking
+- ✅ Notifications system with realtime support
+- ✅ Account deletion (hard delete)
 
 ### 📋 Remaining Schema Tasks
 - [ ] Add indexes for performance optimization

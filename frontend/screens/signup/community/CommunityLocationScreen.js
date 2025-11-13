@@ -1,30 +1,32 @@
 import React, { useState } from "react";
 import {
   StyleSheet,
-  Text,
   View,
-  TextInput,
   TouchableOpacity,
+  Text,
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
+import { Ionicons } from "@expo/vector-icons";
 import ProgressBar from "../../../components/Progressbar";
+import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
-const BORDER_COLOR = "#ced4da"; // Light border color
+// --- Consistent Design Constants ---
+const PRIMARY_COLOR = "#5f27cd";       // Deep purple
+const TEXT_COLOR = "#1e1e1e";         // Dark text
+const LIGHT_TEXT_COLOR = "#6c757d";   // Lighter grey for step text
+const BACKGROUND_COLOR = "#ffffff";   // White background
 
 const CommunityLocationScreen = ({ navigation, route }) => {
   const { email, accessToken, name, logo_url, bio, category } = route.params || {};
-  const [location, setLocation] = useState("");
+  const [showLocationPicker, setShowLocationPicker] = useState(true);
+  const [location, setLocation] = useState(null);
 
-  const handleNext = () => {
+  const handleLocationSelected = (selectedLocation) => {
+    setLocation(selectedLocation);
+    setShowLocationPicker(false);
+    // Navigate to next screen with location object
     navigation.navigate("CommunityPhone", {
       email,
       accessToken,
@@ -32,192 +34,98 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       logo_url,
       bio,
       category,
-      location,
+      location: selectedLocation,
     });
   };
 
-  // Determine if the button should be disabled (e.g., if the location is empty)
-  const isButtonDisabled = location.trim().length === 0;
+  const handleCancel = () => {
+    // Treat 'Cancel' as 'Go Back'
+    setShowLocationPicker(false);
+    navigation.goBack();
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header Section (Only Back Button) */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
+      
+      {/* 1. Location Picker Component (Base Layer, taking up all space) */}
+      <View style={styles.locationPickerWrapper}>
+        <LocationPicker
+          businessName={name}
+          onLocationSelected={handleLocationSelected}
+          onCancel={handleCancel}
+        />
+      </View>
+
+      {/* 2. Header and Progress Bar (Absolute Overlay Layer) */}
+      <View style={styles.headerOverlay}>
+        
+        {/* Header Row (Back Button) */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={handleCancel} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
         </View>
 
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 6 of 7</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={85} />
-          </View>
+        {/* Progress Bar and Step Text */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.stepText}>Step 5 of 9</Text>
+          <ProgressBar progress={56} /> 
         </View>
-
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Where are you located?</Text>
-
-          {/* Location Input Field */}
-          <View style={styles.inputWrapper}>
-            <Ionicons
-              name="location-outline"
-              size={20}
-              color={LIGHT_TEXT_COLOR}
-              style={styles.locationIcon}
-            />
-            <TextInput
-              style={styles.input}
-              onChangeText={setLocation}
-              value={location}
-              placeholder="Enter your location"
-              placeholderTextColor="#adb5bd"
-              keyboardType="default"
-              autoCapitalize="words"
-              textContentType="addressCity" // iOS specific (best fit)
-              autoComplete="postal-address-locality" // Android specific (best fit)
-            />
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-        >
-          <Text style={styles.buttonText}>Next</Text>
-        </TouchableOpacity>
+        
       </View>
     </SafeAreaView>
   );
 };
 
-// --- Styles ---
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    // paddingTop is controlled by headerOverlay's top value now
   },
-  scrollContainer: {
-    flexGrow: 1,
+  
+  // FIX: Absolute positioning container for header/progress bar
+  headerOverlay: {
+    position: 'absolute',
+    top: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    left: 0,
+    right: 0,
+    zIndex: 100, // Highest zIndex ensures it renders on top of the map
+    backgroundColor: BACKGROUND_COLOR, // Crucial: ensures the map doesn't show through the header area
+    paddingBottom: 20, // Add padding at the bottom of the overlay for separation
   },
-  header: {
-    padding: 20,
-    paddingBottom: 5,
-    backgroundColor: BACKGROUND_COLOR, // Ensure header is white
-  },
+  
+  // --- Header Styles (Consistent) ---
   headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 15,
+    paddingBottom: 10,
+    paddingHorizontal: 20,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 10,
+    marginLeft: -10,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    flex: 1, // Pushes back button to the left
-    textAlign: "center",
-    marginLeft: -40, // Adjust to center the text visually
-  },
-  progressSection: {
-    paddingHorizontal: 5,
+
+  // --- Progress Bar Styles (Consistent) ---
+  progressContainer: {
+    // This padding is now relative to the absolute overlay container
+    paddingHorizontal: 20,
   },
   stepText: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
     marginBottom: 5,
   },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
-  },
-  contentContainer: {
-    flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
-    marginBottom: 40,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 50,
-    backgroundColor: "#f8f9fa", // Light background for the input field
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    paddingHorizontal: 15,
-  },
-  locationIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    paddingVertical: 0, // Ensures text is centered vertically
-  },
-
-  // --- Footer/Button Styles ---
-  footer: {
-    padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
-    marginBottom: 50,
-  },
-  nextButton: {
-    backgroundColor: PRIMARY_COLOR,
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+  
+  // Wrapper for the LocationPicker now takes up all available space
+  locationPickerWrapper: {
+    flex: 1, 
+    // The LocationPicker content still needs to start rendering below the overlay.
+    // We add paddingTop to visually shift the map content start point down.
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 120 : 120, // Estimate combined height of status bar + overlay content
   },
 });
 

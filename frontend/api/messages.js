@@ -27,14 +27,16 @@ export async function getMessages(conversationId, { page = 1, limit = 50 } = {})
 
 /**
  * Send a message
- * @param {number} recipientId - The recipient member ID
+ * @param {number} recipientId - The recipient ID (member or community)
  * @param {string} messageText - The message text
+ * @param {string} recipientType - The recipient type ('member' or 'community', default: 'member')
  */
-export async function sendMessage(recipientId, messageText) {
+export async function sendMessage(recipientId, messageText, recipientType = 'member') {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
   return apiPost('/messages', {
     recipientId,
+    recipientType,
     messageText,
   }, 15000, token);
 }

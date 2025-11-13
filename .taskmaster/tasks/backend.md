@@ -80,12 +80,12 @@
   - Comment routes (create, reply, get, delete)
   - Follow routes (follow, unfollow, get lists, counts)
   - Event routes (my events, attendees, swipes, matches, requests)
-  - Member search routes (search, public profile)
+  - Member routes (signup, profile GET, profile PATCH, photo update, username change, email change start/verify, location update, search, public profile)
   - Notifications routes (list, unread count, mark read, mark all read)
   - Account deletion route (hard delete)
   - Auth refresh route (access via refresh token)
-  - Member profile update route (PATCH) + username + email change (OTP)
   - Catalog route (interests)
+  - Messages routes (conversations, messages, mark read, unread count)
 
 ### 🚧 P1 — In Progress
 - [ ] Signed URL endpoints for Firebase uploads
@@ -103,10 +103,14 @@
   - Update event details
   - Delete events
   - Get event details with location gating
-- [ ] Community APIs
-  - Get community details
-  - Update community info
-  - Get community members
+- [ ] Community APIs (Replicate Member features)
+  - Get community profile (with posts, follow counts)
+  - Update community profile (PATCH: bio, username, email, phone, category, sponsor_types, location)
+  - Community search with pagination
+  - Public community profile
+  - Community location update
+  - Community email change (OTP)
+  - Community username change
 - [ ] Venue Management APIs
   - Update venue details
   - Manage booking inquiries
@@ -166,16 +170,19 @@
 ### Current Implementation Status
 
 #### Completed Controllers:
-1. **authController.js** ✅ - Email OTP, login, profile retrieval
-2. **memberController.js** ✅ - Member signup and profile
-3. **communityController.js** ✅ - Community signup
-4. **sponsorController.js** ✅ - Sponsor signup
-5. **venueController.js** ✅ - Venue signup with pricing
-6. **postController.js** ✅ - Full post system
+1. **authController.js** ✅ - Email OTP, login, profile retrieval, refresh token
+2. **memberController.js** ✅ - Member signup, profile, search, public profile, edit profile (PATCH), username change, email change (OTP), location update, photo update
+3. **communityController.js** ✅ - Community signup, logo update
+4. **sponsorController.js** ✅ - Sponsor signup, logo update
+5. **venueController.js** ✅ - Venue signup with pricing, logo update
+6. **postController.js** ✅ - Full post system (CRUD, feed, likes)
 7. **commentController.js** ✅ - Comment system with replies
-8. **followController.js** ✅ - Follow system
-9. **eventController.js** ✅ - Events and matching
-10. **usernameController.js** ✅ - Username management
+8. **followController.js** ✅ - Follow system (follow/unfollow, lists, counts, status)
+9. **eventController.js** ✅ - Events and matching (my events, attendees, swipes, matches, requests)
+10. **usernameController.js** ✅ - Username validation and setting
+11. **notificationController.js** ✅ - Notifications (list, unread count, mark read, mark all read)
+12. **accountController.js** ✅ - Account deletion (hard delete)
+13. **catalogController.js** ✅ - Catalog endpoints (interests)
 
 #### Routes Configured:
 - ✅ Auth routes (OTP, login, profile)

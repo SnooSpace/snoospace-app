@@ -23,7 +23,7 @@ const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
 export default function ChatScreen({ route, navigation }) {
-  const { conversationId, recipientId } = route.params || {};
+  const { conversationId, recipientId, recipientType = 'member' } = route.params || {};
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -248,14 +248,14 @@ export default function ChatScreen({ route, navigation }) {
       
       // If no conversation exists, create one by sending message
       if (!convId && recipientId) {
-        const response = await sendMessage(recipientId, text);
+        const response = await sendMessage(recipientId, text, recipientType);
         convId = response.message.conversationId;
         setCurrentConversationId(convId);
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
       } else if (convId) {
-        const response = await sendMessage(recipientId || recipient?.id, text);
+        const response = await sendMessage(recipientId || recipient?.id, text, recipientType);
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
