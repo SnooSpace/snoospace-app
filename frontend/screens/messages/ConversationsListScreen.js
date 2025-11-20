@@ -73,10 +73,17 @@ export default function ConversationsListScreen({ navigation }) {
       const token = await getAuthToken();
       if (!token) return;
 
-      // Get current user's ID
+      // Get current user's ID and type
       const meResponse = await apiGet('/me', 15000, token);
       const currentUserId = meResponse?.user?.id;
+      const userType = meResponse?.user?.type;
       if (!currentUserId) return;
+
+      // Only load suggestions for members (communities can't use member-specific APIs)
+      if (userType !== 'member') {
+        setSuggestions([]);
+        return;
+      }
 
       // Fetch followers and following
       const [followersRes, followingRes] = await Promise.all([
@@ -92,7 +99,7 @@ export default function ConversationsListScreen({ navigation }) {
       const seenIds = new Set();
 
       [...followers, ...following].forEach(user => {
-        if (user.id && !seenIds.has(user.id) && user.id !== currentUserId) {
+        if (user && user.id && !seenIds.has(user.id) && user.id !== currentUserId) {
           seenIds.add(user.id);
           allUsers.push({
             id: user.id,
@@ -108,6 +115,8 @@ export default function ConversationsListScreen({ navigation }) {
       setSuggestions(shuffled.slice(0, 8));
     } catch (error) {
       console.error('Error loading suggestions:', error);
+      // Silently fail - don't show suggestions if there's an error
+      setSuggestions([]);
     } finally {
       setLoadingSuggestions(false);
     }

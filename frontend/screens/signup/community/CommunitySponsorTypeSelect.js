@@ -98,6 +98,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     logo_url,
     bio,
     category,
+    categories = [],
     location,
     phone,
     secondary_phone,
@@ -150,11 +151,26 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     }
 
     const sponsor_types = isOpenToAll ? ['Open to All'] : selectedTypes;
+    const rawCategories = Array.isArray(categories) && categories.length > 0
+      ? categories
+      : (category ? [category] : []);
+    const categoryList = Array.from(
+      new Set(
+        rawCategories
+          .map((c) => (typeof c === 'string' ? c.trim() : ''))
+          .filter((c) => c)
+      )
+    ).slice(0, 3);
+    if (categoryList.length === 0) {
+      Alert.alert('Missing Categories', 'Please go back and select at least one category.');
+      return;
+    }
     const payload = {
       name,
       logo_url,
       bio,
-      category,
+      category: categoryList[0],
+      categories: categoryList,
       location: location ?? null,
       email,
       phone,

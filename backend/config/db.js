@@ -36,7 +36,8 @@ async function ensureTables(pool) {
         name TEXT NOT NULL,
         logo_url TEXT,
         bio TEXT,
-        category TEXT NOT NULL,
+        category TEXT,
+        categories JSONB NOT NULL DEFAULT '[]'::jsonb,
         location TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         phone TEXT NOT NULL,
@@ -92,6 +93,7 @@ async function ensureTables(pool) {
         hourly_price DECIMAL(10,2) DEFAULT 0,
         daily_price DECIMAL(10,2) DEFAULT 0,
         conditions TEXT,
+        logo_url TEXT,
         username TEXT UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -316,30 +318,30 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS category TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-      -- Migrate location from TEXT to JSONB
       DO $$ BEGIN
-        -- Check if location column exists and is TEXT
-        IF EXISTS (
+        IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'communities' AND column_name = 'location' AND data_type = 'text'
+          WHERE table_name = 'communities' AND column_name = 'categories'
         ) THEN
-          -- Add temporary JSONB column
-          ALTER TABLE communities ADD COLUMN IF NOT EXISTS location_jsonb JSONB;
-          -- Migrate existing TEXT data to JSONB (if any exists)
-          UPDATE communities 
-          SET location_jsonb = jsonb_build_object('address', location, 'city', location)
-          WHERE location IS NOT NULL AND location_jsonb IS NULL;
-          -- Drop old TEXT column
-          ALTER TABLE communities DROP COLUMN location;
-          -- Rename JSONB column to location
-          ALTER TABLE communities RENAME COLUMN location_jsonb TO location;
-        ELSIF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'communities' AND column_name = 'location'
-        ) THEN
-          -- Column doesn't exist, create as JSONB
-          ALTER TABLE communities ADD COLUMN location JSONB;
+          ALTER TABLE communities ADD COLUMN categories JSONB DEFAULT '[]'::jsonb;
+          UPDATE communities
+          SET categories = CASE
+            WHEN category IS NOT NULL THEN jsonb_build_array(category)
+            ELSE '[]'::jsonb
+          END
+          WHERE category IS NOT NULL;
         END IF;
+        UPDATE communities
+        SET categories = CASE
+          WHEN categories IS NULL OR jsonb_typeof(categories) <> 'array' THEN
+            COALESCE(
+              CASE WHEN category IS NOT NULL THEN jsonb_build_array(category) ELSE '[]'::jsonb END,
+              '[]'::jsonb
+            )
+          ELSE categories
+        END;
+        ALTER TABLE communities ALTER COLUMN categories SET DEFAULT '[]'::jsonb;
+        ALTER TABLE communities ALTER COLUMN categories SET NOT NULL;
       EXCEPTION WHEN OTHERS THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS bio TEXT;
@@ -349,6 +351,14 @@ async function ensureTables(pool) {
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD COLUMN IF NOT EXISTS username TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Banner for community profiles
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS banner_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Ensure profile picture URL exists for heads
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       -- Remove themes column if it exists
       DO $$ BEGIN
@@ -372,6 +382,9 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS member_id BIGINT REFERENCES members(id) ON DELETE SET NULL;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Make email and phone nullable if they have NOT NULL constraints
       DO $$ BEGIN
@@ -383,7 +396,12 @@ async function ensureTables(pool) {
 
       -- Constraints for communities
       DO $$ BEGIN
-        ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\\d{10}$');
+        ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\d{10}$');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD CONSTRAINT communities_categories_length CHECK (
+          jsonb_typeof(categories) = 'array' AND jsonb_array_length(categories) <= 3
+        );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'email_unique_comm') THEN
@@ -536,5 +554,3 @@ async function ensureTables(pool) {
 }
 
 module.exports = { createPool, ensureTables };
-
-

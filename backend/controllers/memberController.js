@@ -168,11 +168,11 @@ async function searchMembers(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const q = (req.query.query || '').trim();
+    const q = (req.query.query || req.query.q || '').trim();
     const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
     const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
 
@@ -181,24 +181,39 @@ async function searchMembers(req, res) {
     }
 
     const likeParam = `%${q}%`;
-    const r = await pool.query(
-      `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
-              (SELECT 1 FROM follows f
-                 WHERE f.follower_id = $2 AND f.follower_type = 'member'
-                   AND f.following_id = m.id AND f.following_type = 'member'
-                 LIMIT 1) IS NOT NULL AS is_following
-       FROM members m
-       WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
-         AND m.id <> $2
-       ORDER BY m.name ASC
-       LIMIT $3 OFFSET $4`,
-      [likeParam, userId, limit, offset]
-    );
+    // Only check is_following if the searcher is a member
+    const isMemberSearcher = userType === 'member';
+    let query, params;
+    
+    if (isMemberSearcher) {
+      query = `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
+                      (SELECT 1 FROM follows f
+                         WHERE f.follower_id = $2 AND f.follower_type = 'member'
+                           AND f.following_id = m.id AND f.following_type = 'member'
+                         LIMIT 1) IS NOT NULL AS is_following
+               FROM members m
+               WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+                 AND m.id <> $2
+               ORDER BY m.name ASC
+               LIMIT $3 OFFSET $4`;
+      params = [likeParam, userId, limit, offset];
+    } else {
+      query = `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
+                      false AS is_following
+               FROM members m
+               WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+               ORDER BY m.name ASC
+               LIMIT $2 OFFSET $3`;
+      params = [likeParam, limit, offset];
+    }
+    
+    const r = await pool.query(query, params);
 
     const results = r.rows.map(row => ({
       id: row.id,
       username: row.username,
       full_name: row.full_name,
+      name: row.full_name, // Also include as 'name' for compatibility
       bio: row.bio,
       profile_photo_url: row.profile_photo_url,
       is_following: !!row.is_following,
@@ -219,7 +234,7 @@ async function getPublicMember(req, res) {
     const userType = req.user?.type;
     const targetId = req.params.id;
 
-    if (!authUserId || userType !== 'member') {
+    if (!authUserId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -243,13 +258,19 @@ async function getPublicMember(req, res) {
     );
     const counts = countsR.rows[0];
 
-    const isFollowingR = await pool.query(
-      `SELECT 1 FROM follows 
-       WHERE follower_id = $1 AND follower_type = 'member'
-         AND following_id = $2 AND following_type = 'member'
-       LIMIT 1`,
-      [authUserId, targetId]
-    );
+    // Check cross-entity follow relationships (members, communities, sponsors, venues)
+    const followableTypes = ['member', 'community', 'sponsor', 'venue'];
+    let isFollowing = false;
+    if (followableTypes.includes(userType)) {
+      const isFollowingR = await pool.query(
+        `SELECT 1 FROM follows 
+         WHERE follower_id = $1 AND follower_type = $2
+           AND following_id = $3 AND following_type = 'member'
+         LIMIT 1`,
+        [authUserId, userType, targetId]
+      );
+      isFollowing = isFollowingR.rows.length > 0;
+    }
 
     res.json({
       id: profile.id,
@@ -261,7 +282,7 @@ async function getPublicMember(req, res) {
       posts_count: parseInt(counts.posts_count || 0, 10),
       followers_count: parseInt(counts.followers_count || 0, 10),
       following_count: parseInt(counts.following_count || 0, 10),
-      is_following: isFollowingR.rows.length > 0,
+      is_following: isFollowing,
       interests: typeof profile.interests === 'string' ? JSON.parse(profile.interests) : (profile.interests || []),
       pronouns: parsePgTextArray(profile.pronouns),
     });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,43 +24,27 @@ const COLORS = {
 const FollowButton = ({ 
   userId, 
   userType, 
-  isFollowing: initialIsFollowing = false, 
+  isFollowing = false, 
   onFollowChange,
   style,
-  textStyle 
+  textStyle,
+  isLoading: externalLoading = false
 }) => {
-  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
-  const [isLoading, setIsLoading] = useState(false);
-
+  // Fully controlled component - no internal state, just use props
   const handleFollowToggle = async () => {
-    if (isLoading) return;
+    if (externalLoading) return;
     
-    setIsLoading(true);
     try {
-      const token = await getAuthToken();
-      
-      if (isFollowing) {
-        await apiDelete("/follow", {
-          followingId: userId,
-          followingType: userType,
-        }, 15000, token);
-        setIsFollowing(false);
-        if (onFollowChange) onFollowChange(userId, userType, false);
-      } else {
-        await apiPost("/follow", {
-          followingId: userId,
-          followingType: userType,
-        }, 15000, token);
-        setIsFollowing(true);
-        if (onFollowChange) onFollowChange(userId, userType, true);
+      // Just call the callback - let parent handle API calls and state management
+      if (onFollowChange) {
+        await onFollowChange(userId, userType, !isFollowing);
       }
     } catch (error) {
       console.error("Error toggling follow:", error);
-      Alert.alert("Error", "Failed to update follow status");
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  const combinedLoading = externalLoading;
 
   return (
     <TouchableOpacity
@@ -68,10 +52,10 @@ const FollowButton = ({
         styles.button,
         isFollowing ? styles.followingButton : styles.followButton,
         style,
-        isLoading && styles.loadingButton,
+        combinedLoading && styles.loadingButton,
       ]}
       onPress={handleFollowToggle}
-      disabled={isLoading}
+      disabled={combinedLoading}
     >
       <Text
         style={[
@@ -80,7 +64,7 @@ const FollowButton = ({
           textStyle,
         ]}
       >
-        {isLoading ? "..." : isFollowing ? "Following" : "Follow"}
+        {combinedLoading ? "..." : isFollowing ? "Following" : "Follow"}
       </Text>
     </TouchableOpacity>
   );

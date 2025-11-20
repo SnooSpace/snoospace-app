@@ -19,7 +19,7 @@ const LIGHT_TEXT_COLOR = "#6c757d";   // Lighter grey for step text
 const BACKGROUND_COLOR = "#ffffff";   // White background
 
 const CommunityLocationScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category } = route.params || {};
+  const { email, accessToken, name, logo_url, bio, category, categories } = route.params || {};
   const [showLocationPicker, setShowLocationPicker] = useState(true);
   const [location, setLocation] = useState(null);
 
@@ -34,6 +34,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       logo_url,
       bio,
       category,
+      categories,
       location: selectedLocation,
     });
   };

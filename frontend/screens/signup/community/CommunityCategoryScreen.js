@@ -34,6 +34,7 @@ const defaultCategories = [
 ];
 
 const STORAGE_KEY = 'community_categories';
+const MAX_CATEGORIES = 3;
 
 // --- Components ---
 
@@ -116,11 +117,12 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     setSelectedCategories(prevSelected => {
       if (prevSelected.includes(category)) {
         return prevSelected.filter(c => c !== category);
-      } else {
-        // Allow selection of up to 3 categories (or any defined limit)
-        // For navigation, we only use the first one, but let user select a few.
-        return [...prevSelected, category]; 
       }
+      if (prevSelected.length >= MAX_CATEGORIES) {
+        Alert.alert('Limit Reached', `You can select up to ${MAX_CATEGORIES} categories.`);
+        return prevSelected;
+      }
+      return [...prevSelected, category]; 
     });
   };
 
@@ -172,7 +174,8 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       name, 
       logo_url, 
       bio, 
-      category: selectedCategories[0] // Use the first selected category
+      category: selectedCategories[0],
+      categories: selectedCategories,
     });
   };
 
@@ -206,7 +209,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
             Choose Community Category
           </Text>
           <Text style={styles.subtitle}>
-            Select the categories that best fit your community.
+            Select up to 3 categories that best fit your community.
           </Text>
 
           {/* Category Chips Container */}

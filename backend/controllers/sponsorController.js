@@ -85,4 +85,56 @@ async function updateLogo(req, res) {
 
 module.exports.updateLogo = updateLogo;
 
+async function searchSponsors(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const q = (req.query.query || req.query.q || '').trim();
+    const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+    if (q.length < 2) {
+      return res.json({ results: [], nextOffset: offset, hasMore: false });
+    }
+
+    const likeParam = `%${q}%`;
+    // Sponsors don't have follow relationships yet, so we don't check is_following
+    const query = `SELECT s.id, s.username, s.brand_name as name, s.bio, s.logo_url, s.category,
+                          false AS is_following
+                   FROM sponsors s
+                   WHERE (LOWER(s.username) LIKE LOWER($1) OR LOWER(s.brand_name) LIKE LOWER($1))
+                   ORDER BY s.brand_name ASC
+                   LIMIT $2 OFFSET $3`;
+    const params = [likeParam, limit, offset];
+    
+    const r = await pool.query(query, params);
+
+    const results = r.rows.map(row => ({
+      id: row.id,
+      username: row.username,
+      name: row.name,
+      brand_name: row.name, // Also include as 'brand_name' for compatibility
+      full_name: row.name, // For compatibility with frontend
+      bio: row.bio,
+      logo_url: row.logo_url,
+      category: row.category,
+      is_following: !!row.is_following,
+    }));
+
+    const hasMore = results.length === limit;
+    res.json({ results, nextOffset: offset + results.length, hasMore });
+  } catch (err) {
+    console.error("/sponsors/search error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to search sponsors" });
+  }
+}
+
+module.exports.searchSponsors = searchSponsors;
+
 

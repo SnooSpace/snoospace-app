@@ -90,3 +90,8 @@ export async function getFollowStatusForCommunity(followingCommunityId) {
   return apiGet(`/follow/status?${params.toString()}`, 15000, token);
 }
 
+export async function updateCommunityHeads(heads) {
+  const token = await getAuthToken();
+  return apiPatch('/communities/heads', { heads }, 15000, token);
+}
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,13 +9,18 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ImageUploader from '../../../components/ImageUploader';
-import EntityTagSelector from '../../../components/EntityTagSelector';
+import MentionInput from '../../../components/MentionInput';
 import { apiPost } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
+import { uploadMultipleImages } from '../../../api/cloudinary';
+import { getCommunityProfile } from '../../../api/communities';
+import EventBus from '../../../utils/EventBus';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -27,61 +32,112 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isPosting, setIsPosting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      try {
+        setLoadingProfile(true);
+        const res = await getCommunityProfile();
+        if (!isMounted) return;
+        const profileData = res?.profile || res || null;
+        setProfile(profileData);
+      } catch (error) {
+        if (!isMounted) return;
+        setProfileError(error?.message || 'Failed to load community profile');
+      } finally {
+        if (isMounted) setLoadingProfile(false);
+      }
+    };
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleImageSelect = (selectedUris) => {
     // selectedUris is an array of strings (local URIs before upload, HTTPS URLs after upload)
     setImages(selectedUris);
   };
 
-  const handleEntityTag = (entities) => {
-    setTaggedEntities(entities);
-  };
-
   const handlePost = async () => {
-    if (!caption.trim() && images.length === 0) {
-      Alert.alert('Error', 'Please add a caption or image to your post');
+    if (images.length === 0) {
+      Alert.alert('Error', 'Please add at least one image to your post');
       return;
     }
 
     try {
       setIsPosting(true);
       setErrorMsg('');
-      
+
       const token = await getAuthToken();
-      
-      // Use provided image URLs directly (after Upload to Cloud they will be HTTPS URLs)
-      const imageUrls = images && images.length > 0 
-        ? images 
-        : [];
-      
-      const response = await apiPost('/posts', {
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      let finalImageUrls = [];
+      if (images.length > 0) {
+        const localUris = [];
+        const remoteUris = [];
+        images.forEach((uri) => {
+          if (uri && uri.startsWith('http')) {
+            remoteUris.push(uri);
+          } else if (uri) {
+            localUris.push(uri);
+          }
+        });
+
+        let uploadedUrls = [];
+        if (localUris.length > 0) {
+          uploadedUrls = await uploadMultipleImages(localUris);
+        }
+
+        let uploadIndex = 0;
+        images.forEach((uri) => {
+          if (uri && uri.startsWith('http')) {
+            finalImageUrls.push(uri);
+          } else if (uri) {
+            finalImageUrls.push(uploadedUrls[uploadIndex++] || null);
+          }
+        });
+
+        finalImageUrls = finalImageUrls.filter(Boolean);
+      }
+
+      const taggedPayload = taggedEntities
+        .map((entity) => ({
+          id: entity.id,
+          type: entity.type || entity.entityType || entity.entity_type || 'member',
+        }))
+        .filter((entry) => entry.id && entry.type);
+
+      await apiPost('/posts', {
         caption: caption.trim() || null,
-        imageUrls: imageUrls,
-        taggedEntities: taggedEntities.length > 0 ? taggedEntities : null
+        imageUrls: finalImageUrls,
+        taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
       }, 15000, token);
-      
+
+      EventBus.emit('post-created');
+
       Alert.alert('Success', 'Post created successfully!', [
         {
           text: 'OK',
           onPress: () => {
-            // Reset form
             setCaption('');
             setImages([]);
             setTaggedEntities([]);
-            // Navigate back and refresh feed
             navigation.goBack();
-            // Simple approach: use navigation events to trigger refresh
-            setTimeout(() => {
-              navigation.getParent()?.navigate('CommunityHomeFeed', { refresh: Date.now() });
-            }, 100);
-          }
-        }
+          },
+        },
       ]);
-      
     } catch (error) {
       console.error('Error creating post:', error);
-      setErrorMsg(error?.message || 'Failed to create post');
-      Alert.alert('Error', error?.message || 'Failed to create post. Please try again.');
+      const message = error?.response?.data?.error || error?.message || 'Failed to create post';
+      setErrorMsg(message);
+      Alert.alert('Error', message);
     } finally {
       setIsPosting(false);
     }
@@ -129,13 +185,13 @@ export default function CommunityCreatePostScreen({ navigation }) {
             onPress={handlePost}
             style={[
               styles.postButton,
-              (!caption.trim() && images.length === 0) && styles.postButtonDisabled
+              images.length === 0 && styles.postButtonDisabled
             ]}
-            disabled={!caption.trim() && images.length === 0 || isPosting}
+            disabled={images.length === 0 || isPosting}
           >
             <Text style={[
               styles.postButtonText,
-              (!caption.trim() && images.length === 0) && styles.postButtonTextDisabled
+              images.length === 0 && styles.postButtonTextDisabled
             ]}>
               {isPosting ? 'Posting...' : 'Post'}
             </Text>
@@ -154,24 +210,36 @@ export default function CommunityCreatePostScreen({ navigation }) {
           {/* Author Info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
-              <Ionicons name="people" size={24} color={PRIMARY_COLOR} />
+              {loadingProfile ? (
+                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              ) : profile?.logo_url ? (
+                <Image source={{ uri: profile.logo_url }} style={styles.authorAvatarImage} />
+              ) : (
+                <Ionicons name="people" size={24} color={PRIMARY_COLOR} />
+              )}
             </View>
             <View style={styles.authorDetails}>
-              <Text style={styles.authorName}>Tech Mumbai</Text>
-              <Text style={styles.authorType}>Community</Text>
+              <Text style={styles.authorName}>{profile?.name || 'Your Community'}</Text>
+              {profileError ? (
+                <Text style={styles.authorError}>{profileError}</Text>
+              ) : (
+                <Text style={styles.authorType}>
+                  {profile?.username ? `@${profile.username}` : 'Community'}
+                </Text>
+              )}
             </View>
           </View>
 
-          {/* Caption Input */}
+          {/* Caption Input with @ Mention Support */}
           <View style={styles.captionContainer}>
-            <TextInput
-              style={styles.captionInput}
-              placeholder="What's happening in your community?"
+            <MentionInput
               value={caption}
               onChangeText={setCaption}
-              multiline
-              textAlignVertical="top"
+              onTaggedEntitiesChange={setTaggedEntities}
+              placeholder="What's happening in your community? Use @ to mention someone..."
               placeholderTextColor={LIGHT_TEXT_COLOR}
+              maxLength={2000}
+              style={styles.mentionInput}
             />
           </View>
 
@@ -183,40 +251,6 @@ export default function CommunityCreatePostScreen({ navigation }) {
               maxImages={5}
             />
           </View>
-
-          {/* Entity Tagging */}
-          <View style={styles.tagSection}>
-            <Text style={styles.sectionTitle}>Tag People & Places</Text>
-            <EntityTagSelector
-              onEntitiesSelected={handleEntityTag}
-              placeholder="Tag members, communities, sponsors, or venues"
-            />
-          </View>
-
-          {/* Tagged Entities Display */}
-          {taggedEntities.length > 0 && (
-            <View style={styles.taggedEntitiesContainer}>
-              <Text style={styles.taggedEntitiesTitle}>Tagged:</Text>
-              <View style={styles.taggedEntitiesList}>
-                {taggedEntities.map((entity, index) => (
-                  <View key={index} style={styles.taggedEntity}>
-                    <Text style={styles.taggedEntityText}>
-                      {entity.name} ({entity.type})
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        const newTagged = taggedEntities.filter((_, i) => i !== index);
-                        setTaggedEntities(newTagged);
-                      }}
-                      style={styles.removeTagButton}
-                    >
-                      <Ionicons name="close" size={16} color={LIGHT_TEXT_COLOR} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           {/* Post Guidelines */}
           <View style={styles.guidelinesContainer}>
@@ -300,6 +334,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 15,
   },
+  authorAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
   authorDetails: {
     flex: 1,
   },
@@ -311,6 +350,10 @@ const styles = StyleSheet.create({
   authorType: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
+  },
+  authorError: {
+    fontSize: 12,
+    color: '#FF3B30',
   },
   captionContainer: {
     paddingVertical: 20,
@@ -337,38 +380,6 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
     marginBottom: 15,
   },
-  taggedEntitiesContainer: {
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-  },
-  taggedEntitiesTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
-    marginBottom: 10,
-  },
-  taggedEntitiesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  taggedEntity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  taggedEntityText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    marginRight: 5,
-  },
-  removeTagButton: {
-    padding: 2,
-  },
   guidelinesContainer: {
     paddingVertical: 20,
     borderTopWidth: 1,
@@ -385,5 +396,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
     lineHeight: 18,
+  },
+  errorBanner: {
+    backgroundColor: '#FFE5E5',
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#FF3B30',
+    flex: 1,
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#FF3B30',
+    fontWeight: '600',
   },
 });

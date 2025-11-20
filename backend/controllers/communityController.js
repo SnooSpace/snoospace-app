@@ -2,11 +2,12 @@ async function signup(req, res) {
   try {
     console.log('Community signup request received:', req.body);
     const pool = req.app.locals.pool;
-    const { 
-      name, 
+    const {
+      name,
       logo_url,
       bio,
       category,
+      categories,
       location,
       email,
       phone,
@@ -20,7 +21,8 @@ async function signup(req, res) {
 
     console.log('Validation check:', {
       name: !!name,
-      category: !!category,
+      category,
+      categories,
       location: !!location,
       email: !!email,
       phone: !!phone,
@@ -28,9 +30,9 @@ async function signup(req, res) {
       sponsor_types_value: sponsor_types
     });
     
-    if (!name || !category || !email || !phone || !Array.isArray(sponsor_types)) {
+    if (!name || !email || !phone || !Array.isArray(sponsor_types)) {
       console.log('Validation failed - missing required fields');
-      return res.status(400).json({ error: "Required: name, category, email, phone, sponsor_types[]" });
+      return res.status(400).json({ error: "Required: name, categories, email, phone, sponsor_types[]" });
     }
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: "phone must be 10 digits" });
@@ -50,6 +52,13 @@ async function signup(req, res) {
     } else if (sponsor_types.length < 3) {
       return res.status(400).json({ error: "sponsor_types must include at least 3 items, or select 'Open to All'" });
     }
+
+    const { categories: categoryList, error: categoriesError } = normalizeCategoriesInput(category, categories, { required: true });
+    if (categoriesError) {
+      return res.status(400).json({ error: categoriesError });
+    }
+    const primaryCategory = categoryList[0] || null;
+
     // Heads: expect array of up to 3 with one primary
     console.log('Heads validation:', {
       heads: heads,
@@ -74,22 +83,37 @@ async function signup(req, res) {
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
       const communityResult = await client.query(
-        `INSERT INTO communities (user_id, name, logo_url, bio, category, location, email, phone, secondary_phone, sponsor_types)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb)
+        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb)
          ON CONFLICT (email) DO UPDATE SET
            user_id=EXCLUDED.user_id,
            name=EXCLUDED.name,
            logo_url=EXCLUDED.logo_url,
            bio=EXCLUDED.bio,
            category=EXCLUDED.category,
+           categories=EXCLUDED.categories,
            location=EXCLUDED.location,
            phone=EXCLUDED.phone,
            secondary_phone=EXCLUDED.secondary_phone,
            sponsor_types=EXCLUDED.sponsor_types
          RETURNING *`,
-        [user_id, name, logo_url || null, bio || null, category, locationJson, email, phone, secondary_phone || null, JSON.stringify(sponsor_types)]
+        [
+          user_id,
+          name,
+          logo_url || null,
+          bio || null,
+          primaryCategory,
+          JSON.stringify(categoryList),
+          locationJson,
+          email,
+          phone,
+          secondary_phone || null,
+          JSON.stringify(sponsor_types)
+        ]
       );
       const community = communityResult.rows[0];
+      community.categories = parseCategoriesValue(community.categories, community.category);
+      community.category = community.categories[0] || community.category;
 
       // Clear existing heads and insert provided ones
       await client.query('DELETE FROM community_heads WHERE community_id = $1', [community.id]);
@@ -135,7 +159,7 @@ async function getProfile(req, res) {
 
     // Get community profile
     const communityResult = await pool.query(
-      `SELECT id, name, email, phone, category, location, username, bio, logo_url, sponsor_types, created_at
+      `SELECT id, name, email, phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, created_at
        FROM communities WHERE id = $1`,
       [userId]
     );
@@ -148,10 +172,15 @@ async function getProfile(req, res) {
 
     // Get all community heads
     const headsResult = await pool.query(
-      `SELECT id, name, email, phone, profile_pic_url, is_primary, created_at
-       FROM community_heads
-       WHERE community_id = $1
-       ORDER BY is_primary DESC, created_at ASC`,
+      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.created_at, ch.member_id,
+              COALESCE(m1.id, m2.id) as linked_member_id,
+              COALESCE(m1.username, m2.username) as member_username,
+              COALESCE(m1.profile_photo_url, m2.profile_photo_url) as member_photo_url
+       FROM community_heads ch
+       LEFT JOIN members m1 ON m1.id = ch.member_id
+       LEFT JOIN members m2 ON ch.member_id IS NULL AND LOWER(m2.email) = LOWER(ch.email)
+       WHERE ch.community_id = $1
+       ORDER BY ch.is_primary DESC, ch.created_at ASC`,
       [userId]
     );
 
@@ -163,6 +192,9 @@ async function getProfile(req, res) {
       profile_pic_url: head.profile_pic_url,
       is_primary: head.is_primary,
       created_at: head.created_at,
+      member_id: head.member_id || head.linked_member_id || null,
+      member_username: head.member_username || null,
+      member_photo_url: head.member_photo_url || null,
     }));
 
     // Get follower/following counts
@@ -193,11 +225,14 @@ async function getProfile(req, res) {
     const profileData = {
       ...community,
       sponsor_types: typeof community.sponsor_types === 'string' ? JSON.parse(community.sponsor_types) : community.sponsor_types,
+      categories: parseCategoriesValue(community.categories, community.category),
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
       location: typeof community.location === 'string' ? JSON.parse(community.location) : community.location,
       heads: heads,
+      banner_url: community.banner_url,
     };
+    profileData.category = profileData.categories[0] || community.category || null;
 
     res.json({
       profile: profileData,
@@ -220,7 +255,7 @@ async function patchProfile(req, res) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const { bio, phone, category, sponsor_types, location } = req.body || {};
+    const { bio, phone, category, categories, sponsor_types, location, banner_url } = req.body || {};
 
     const updates = [];
     const values = [];
@@ -244,13 +279,15 @@ async function patchProfile(req, res) {
       values.push(phoneTrimmed || null);
     }
 
-    if (category !== undefined) {
-      const categoryTrimmed = typeof category === 'string' ? category.trim() : null;
-      if (categoryTrimmed && categoryTrimmed.length > 100) {
-        return res.status(400).json({ error: "Category must be 100 characters or less" });
+    if (category !== undefined || categories !== undefined) {
+      const { categories: normalizedCategories, error: categoriesError } = normalizeCategoriesInput(category, categories, { required: true });
+      if (categoriesError) {
+        return res.status(400).json({ error: categoriesError });
       }
+      updates.push(`categories = $${paramIndex++}::jsonb`);
+      values.push(JSON.stringify(normalizedCategories));
       updates.push(`category = $${paramIndex++}`);
-      values.push(categoryTrimmed || null);
+      values.push(normalizedCategories[0] || null);
     }
 
     if (sponsor_types !== undefined) {
@@ -284,12 +321,18 @@ async function patchProfile(req, res) {
       }
     }
 
+    if (banner_url !== undefined) {
+      const sanitizedBanner = banner_url ? String(banner_url).trim() : null;
+      updates.push(`banner_url = $${paramIndex++}`);
+      values.push(sanitizedBanner || null);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
 
     values.push(userId);
-    const query = `UPDATE communities SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, category, sponsor_types, location`;
+    const query = `UPDATE communities SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, category, categories, sponsor_types, location, banner_url`;
     
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -303,8 +346,10 @@ async function patchProfile(req, res) {
         bio: community.bio,
         phone: community.phone,
         category: community.category,
+        categories: parseCategoriesValue(community.categories, community.category),
         sponsor_types: typeof community.sponsor_types === 'string' ? JSON.parse(community.sponsor_types) : community.sponsor_types,
         location: typeof community.location === 'string' ? JSON.parse(community.location) : community.location,
+        banner_url: community.banner_url || null,
       },
     });
   } catch (err) {
@@ -319,7 +364,7 @@ async function searchCommunities(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -332,19 +377,33 @@ async function searchCommunities(req, res) {
     }
 
     const likeParam = `%${q}%`;
-    const r = await pool.query(
-      `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category,
-              (SELECT 1 FROM follows f
-                 WHERE f.follower_id = $2 AND f.follower_type = 'member'
-                   AND f.following_id = c.id AND f.following_type = 'community'
-                 LIMIT 1) IS NOT NULL AS is_following
-       FROM communities c
-       WHERE (LOWER(c.username) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
-         AND c.id <> $2
-       ORDER BY c.name ASC
-       LIMIT $3 OFFSET $4`,
-      [likeParam, userId, limit, offset]
-    );
+    // Only check is_following if the searcher is a member
+    const isMemberSearcher = userType === 'member';
+    let query, params;
+    
+    if (isMemberSearcher) {
+      query = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
+                      (SELECT 1 FROM follows f
+                         WHERE f.follower_id = $2 AND f.follower_type = 'member'
+                           AND f.following_id = c.id AND f.following_type = 'community'
+                         LIMIT 1) IS NOT NULL AS is_following
+               FROM communities c
+               WHERE (LOWER(c.username) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
+                 AND c.id <> $2
+               ORDER BY c.name ASC
+               LIMIT $3 OFFSET $4`;
+      params = [likeParam, userId, limit, offset];
+    } else {
+      query = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
+                      false AS is_following
+               FROM communities c
+               WHERE (LOWER(c.username) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
+               ORDER BY c.name ASC
+               LIMIT $2 OFFSET $3`;
+      params = [likeParam, limit, offset];
+    }
+    
+    const r = await pool.query(query, params);
 
     const results = r.rows.map(row => ({
       id: row.id,
@@ -353,6 +412,7 @@ async function searchCommunities(req, res) {
       bio: row.bio,
       logo_url: row.logo_url,
       category: row.category,
+      categories: parseCategoriesValue(row.categories, row.category),
       is_following: !!row.is_following,
     }));
 
@@ -376,7 +436,7 @@ async function getPublicCommunity(req, res) {
     }
 
     const communityR = await pool.query(
-      `SELECT id, username, name, bio, logo_url, category, created_at, sponsor_types, location
+      `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location
        FROM communities
        WHERE id = $1`,
       [targetId]
@@ -388,10 +448,15 @@ async function getPublicCommunity(req, res) {
 
     // Get all community heads
     const headsResult = await pool.query(
-      `SELECT id, name, email, phone, profile_pic_url, is_primary, created_at
-       FROM community_heads
-       WHERE community_id = $1
-       ORDER BY is_primary DESC, created_at ASC`,
+      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.created_at, ch.member_id,
+              COALESCE(m1.id, m2.id) as linked_member_id,
+              COALESCE(m1.username, m2.username) as member_username,
+              COALESCE(m1.profile_photo_url, m2.profile_photo_url) as member_photo_url
+       FROM community_heads ch
+       LEFT JOIN members m1 ON m1.id = ch.member_id
+       LEFT JOIN members m2 ON ch.member_id IS NULL AND LOWER(m2.email) = LOWER(ch.email)
+       WHERE ch.community_id = $1
+       ORDER BY ch.is_primary DESC, ch.created_at ASC`,
       [targetId]
     );
 
@@ -403,6 +468,9 @@ async function getPublicCommunity(req, res) {
       profile_pic_url: head.profile_pic_url,
       is_primary: head.is_primary,
       created_at: head.created_at,
+      member_id: head.member_id || head.linked_member_id || null,
+      member_username: head.member_username || null,
+      member_photo_url: head.member_photo_url || null,
     }));
 
     const countsR = await pool.query(
@@ -429,6 +497,7 @@ async function getPublicCommunity(req, res) {
       bio: profile.bio,
       logo_url: profile.logo_url,
       category: profile.category,
+      categories: parseCategoriesValue(profile.categories, profile.category),
       created_at: profile.created_at,
       posts_count: parseInt(counts.posts_count || 0, 10),
       followers_count: parseInt(counts.followers_count || 0, 10),
@@ -437,6 +506,7 @@ async function getPublicCommunity(req, res) {
       sponsor_types: typeof profile.sponsor_types === 'string' ? JSON.parse(profile.sponsor_types) : (profile.sponsor_types || []),
       location: typeof profile.location === 'string' ? JSON.parse(profile.location) : profile.location,
       heads: heads,
+      banner_url: profile.banner_url,
     });
   } catch (err) {
     console.error("/communities/:id/public error:", err && err.stack ? err.stack : err);
@@ -625,6 +695,153 @@ async function updateLogo(req, res) {
   }
 }
 
+async function patchHeads(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'community') {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { heads } = req.body || {};
+    if (!Array.isArray(heads) || heads.length === 0) {
+      return res.status(400).json({ error: 'heads[] required' });
+    }
+    if (heads.length > 5) {
+      return res.status(400).json({ error: 'You can add at most 5 heads' });
+    }
+    const primaryCount = heads.filter(h => h && h.is_primary).length;
+    if (primaryCount !== 1) {
+      return res.status(400).json({ error: 'Exactly one primary head is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM community_heads WHERE community_id = $1', [userId]);
+      for (const h of heads) {
+        if (!h || !h.name) continue;
+        const phoneDigits = h.phone ? String(h.phone).replace(/[^0-9]/g, '') : null;
+        if (phoneDigits && phoneDigits.length !== 10) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Head phone numbers must be 10 digits' });
+        }
+        const memberIdValue = h.member_id != null ? parseInt(h.member_id, 10) : null;
+        const memberId = Number.isFinite(memberIdValue) && memberIdValue > 0 ? memberIdValue : null;
+        await client.query(
+          `INSERT INTO community_heads (community_id, name, email, phone, profile_pic_url, is_primary, member_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [
+            userId,
+            String(h.name).trim().substring(0, 120),
+            h.email ? String(h.email).trim().toLowerCase().substring(0, 200) : null,
+            phoneDigits || null,
+            h.profile_pic_url || null,
+            !!h.is_primary,
+            memberId
+          ]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('/communities/heads PATCH error:', err);
+    res.status(500).json({ error: 'Failed to update heads' });
+  }
+}
+
+function normalizeCategoriesInput(singleCategory, categoriesList, { required = true } = {}) {
+  const collected = [];
+
+  const addValue = (raw) => {
+    if (typeof raw !== 'string') {
+      throw new Error('Categories must be provided as strings');
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (trimmed.length > 100) {
+      throw new Error('Each category must be 100 characters or less');
+    }
+    if (!collected.includes(trimmed)) {
+      if (collected.length >= 3) {
+        throw new Error('You can select up to 3 categories');
+      }
+      collected.push(trimmed);
+    }
+  };
+
+  if (categoriesList !== undefined) {
+    if (!Array.isArray(categoriesList)) {
+      return { error: 'categories must be an array of strings' };
+    }
+    try {
+      categoriesList.forEach(addValue);
+    } catch (err) {
+      return { error: err.message || 'Invalid categories' };
+    }
+  }
+
+  if (singleCategory !== undefined && singleCategory !== null) {
+    if (typeof singleCategory !== 'string') {
+      return { error: 'category must be a string' };
+    }
+    try {
+      addValue(singleCategory);
+    } catch (err) {
+      return { error: err.message || 'Invalid category' };
+    }
+  }
+
+  if (!collected.length) {
+    if (required) {
+      return { error: 'At least one category is required' };
+    }
+    return { categories: [] };
+  }
+
+  return { categories: collected };
+}
+
+function parseCategoriesValue(value, fallbackCategory = null) {
+  let categories = [];
+  if (Array.isArray(value)) {
+    categories = value;
+  } else if (value && typeof value === 'object' && typeof value.length === 'number') {
+    categories = Array.from(value);
+  } else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        categories = parsed;
+      }
+    } catch (err) {
+      if (value.trim()) {
+        categories = [value.trim()];
+      }
+    }
+  }
+
+  categories = categories
+    .map((c) => (typeof c === 'string' ? c.trim() : ''))
+    .filter((c) => c);
+
+  if (!categories.length && typeof fallbackCategory === 'string' && fallbackCategory.trim()) {
+    categories = [fallbackCategory.trim()];
+  }
+
+  return categories;
+}
+
 module.exports = { 
   signup, 
   getProfile, 
@@ -635,7 +852,8 @@ module.exports = {
   startEmailChange, 
   verifyEmailChange, 
   updateLocation, 
-  updateLogo 
+  updateLogo, 
+  patchHeads 
 };
 
 

@@ -25,85 +25,99 @@ const UserCard = ({
   showFollowButton = true,
   isFollowing = false,
   onFollowChange,
-  style 
+  style,
+  isLoading = false
 }) => {
+  // Add null check for user
+  if (!user) {
+    return null;
+  }
+
   const handlePress = () => {
-    if (onPress) {
+    if (onPress && user?.id) {
       onPress(user.id, userType);
     }
   };
 
   const getUserDisplayName = () => {
+    if (!user) return 'Unknown User';
     switch (userType) {
       case 'member':
-        return user.name;
+        return user.name || user.full_name || 'Member';
       case 'community':
-        return user.name;
+        return user.name || 'Community';
       case 'sponsor':
-        return user.brand_name;
+        return user.brand_name || user.name || 'Sponsor';
       case 'venue':
-        return user.name;
+        return user.name || 'Venue';
       default:
-        return user.name || user.brand_name;
+        return user.name || user.brand_name || user.full_name || 'User';
     }
   };
 
   const getUserPhoto = () => {
+    if (!user) return null;
     switch (userType) {
       case 'member':
-        return user.profile_photo_url;
+        return user.profile_photo_url || null;
       case 'community':
-        return user.logo_url;
+        return user.logo_url || null;
       case 'sponsor':
-        return user.logo_url;
+        return user.logo_url || null;
       case 'venue':
-        return null; // Venues don't have photos yet
+        return user.logo_url || null;
       default:
-        return user.profile_photo_url || user.logo_url;
+        return user.profile_photo_url || user.logo_url || null;
     }
   };
 
   const getUserSubtitle = () => {
+    if (!user) return '';
     switch (userType) {
       case 'member':
-        return user.bio || `${user.city} • ${user.interests?.length || 0} interests`;
+        return user.bio || (user.city ? `${user.city} • ${user.interests?.length || 0} interests` : '');
       case 'community':
-        return user.bio || `${user.location} • ${user.category}`;
+        return user.bio || (user.location ? `${user.location} • ${user.category || ''}` : '');
       case 'sponsor':
-        return user.bio || `${user.category} • ${user.interests?.length || 0} interests`;
+        return user.bio || (user.category ? `${user.category} • ${user.interests?.length || 0} interests` : '');
       case 'venue':
-        return `${user.city} • Capacity: ${user.capacity_max}`;
+        return user.city ? `${user.city} • Capacity: ${user.capacity_max || 'N/A'}` : '';
       default:
-        return user.bio || user.city;
+        return user.bio || user.city || '';
     }
   };
+
+  const photoUrl = getUserPhoto();
+  const displayName = getUserDisplayName();
+  const subtitle = getUserSubtitle();
 
   return (
     <TouchableOpacity style={[styles.container, style]} onPress={handlePress}>
       <View style={styles.content}>
         <Image
           source={
-            getUserPhoto()
-              ? { uri: getUserPhoto() }
-              : { uri: 'https://via.placeholder.com/50x50/6A0DAD/FFFFFF?text=' + (getUserDisplayName() ? getUserDisplayName().charAt(0).toUpperCase() : 'U') }
+            photoUrl
+              ? { uri: photoUrl }
+              : { uri: 'https://via.placeholder.com/50x50/6A0DAD/FFFFFF?text=' + (displayName ? displayName.charAt(0).toUpperCase() : 'U') }
           }
           style={styles.profileImage}
         />
         <View style={styles.userInfo}>
-          <Text style={styles.userName}>{getUserDisplayName()}</Text>
-          <Text style={styles.userSubtitle}>{getUserSubtitle()}</Text>
-          {user.username && (
+          <Text style={styles.userName}>{displayName}</Text>
+          {subtitle ? <Text style={styles.userSubtitle}>{subtitle}</Text> : null}
+          {user?.username && (
             <Text style={styles.username}>@{user.username}</Text>
           )}
         </View>
       </View>
       
-      {showFollowButton && (
+      {showFollowButton && user?.id && (
         <FollowButton
           userId={user.id}
           userType={userType}
           isFollowing={isFollowing}
           onFollowChange={onFollowChange}
+          isLoading={isLoading}
           style={styles.followButton}
         />
       )}

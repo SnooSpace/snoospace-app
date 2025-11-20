@@ -60,7 +60,14 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
       }
     } catch (error) {
       console.error("Error liking post:", error);
-      Alert.alert("Error", "Failed to like post");
+      // Silently handle "Post already liked" and "Post not liked" errors
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
+        // These are expected errors when double-clicking, just ignore
+        return;
+      }
+      // Only show alert for unexpected errors
+      // Alert.alert("Error", "Failed to like post");
     } finally {
       setIsLiking(false);
     }

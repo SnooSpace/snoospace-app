@@ -54,7 +54,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
   const [phone, setPhone] = useState(profile?.phone || "");
-  const [category, setCategory] = useState(profile?.category || "");
+  const initialCategories = Array.isArray(profile?.categories) && profile.categories.length
+    ? profile.categories
+    : (profile?.category ? [profile.category] : []);
+  const [categories, setCategories] = useState(initialCategories);
   const [sponsorTypes, setSponsorTypes] = useState(
     profile?.sponsor_types || []
   );
@@ -77,7 +80,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [bio, username, phone, category, sponsorTypes, email, location]);
+  }, [bio, username, phone, categories, sponsorTypes, email, location]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -109,19 +112,23 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     const originalUsername = profile?.username || "";
     const originalPhone = profile?.phone || "";
     const originalEmail = profile?.email || "";
-    const originalCategory = profile?.category || "";
+    const originalCategories = Array.isArray(profile?.categories) && profile.categories.length
+      ? profile.categories
+      : (profile?.category ? [profile.category] : []);
     const originalSponsorTypes = (profile?.sponsor_types || []).sort();
     const originalLocation = profile?.location || null;
 
     const normalizeArray = (arr) => (arr ? [...arr].sort() : []);
     const currentSponsorTypes = normalizeArray(sponsorTypes);
+    const currentCategories = normalizeArray(categories);
+    const originalCategoriesNormalized = normalizeArray(originalCategories);
 
     const changed =
       bio !== originalBio ||
       username !== originalUsername ||
       phone !== originalPhone ||
       email !== originalEmail ||
-      category !== originalCategory ||
+      JSON.stringify(currentCategories) !== JSON.stringify(originalCategoriesNormalized) ||
       JSON.stringify(currentSponsorTypes) !== JSON.stringify(originalSponsorTypes) ||
       JSON.stringify(location) !== JSON.stringify(originalLocation);
 
@@ -226,10 +233,25 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       setSaving(true);
       const token = await getAuthToken();
 
+      const normalizedCategories = Array.from(
+        new Set(
+          (categories || [])
+            .map((c) => (typeof c === 'string' ? c.trim() : ''))
+            .filter((c) => c)
+        )
+      ).slice(0, 3);
+
+      if (normalizedCategories.length === 0) {
+        Alert.alert('Error', 'Please select at least one category.');
+        setSaving(false);
+        return;
+      }
+
       const updates = {
         bio: bio.trim(),
         phone: phone.trim(),
-        category: category.trim(),
+        category: normalizedCategories[0],
+        categories: normalizedCategories,
         sponsor_types: sponsorTypes.length > 0 ? sponsorTypes : [],
         location: location,
       };
@@ -418,14 +440,26 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
           {/* Category Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Category</Text>
+            <Text style={styles.sectionTitle}>Categories</Text>
+            <Text style={styles.sectionSubtitle}>
+              Select up to 3 categories that best describe your community
+            </Text>
             <ChipSelector
-              selected={category ? [category] : []}
-              onSelectionChange={(selected) => setCategory(selected[0] || "")}
+              selected={categories}
+              onSelectionChange={(selected) => {
+                const sanitized = Array.from(
+                  new Set(
+                    (selected || [])
+                      .map((c) => (typeof c === 'string' ? c.trim() : ''))
+                      .filter((c) => c)
+                  )
+                ).slice(0, 3);
+                setCategories(sanitized);
+              }}
               presets={CATEGORIES}
               allowCustom={true}
-              maxSelections={1}
-              placeholder="Select category"
+              maxSelections={3}
+              placeholder="Select categories"
             />
           </View>
 

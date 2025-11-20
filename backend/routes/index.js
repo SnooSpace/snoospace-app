@@ -16,6 +16,7 @@ const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
 const CatalogController = require("../controllers/catalogController");
 const MessageController = require("../controllers/messageController");
+const SearchController = require("../controllers/searchController");
 
 const router = express.Router();
 
@@ -71,14 +72,20 @@ router.post("/communities/email/change/verify", authMiddleware, rateLimitOtp, no
 router.post("/communities/location", authMiddleware, CommunityController.updateLocation);
 router.get("/communities/search", authMiddleware, CommunityController.searchCommunities);
 router.get("/communities/:id/public", authMiddleware, CommunityController.getPublicCommunity);
+router.patch("/communities/heads", authMiddleware, CommunityController.patchHeads);
 
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);
 router.post("/sponsors/profile/logo", authMiddleware, SponsorController.updateLogo);
+router.get("/sponsors/search", authMiddleware, SponsorController.searchSponsors);
 
 // Venues
 router.post("/venues/signup", VenueController.signup);
 router.post("/venues/profile/logo", authMiddleware, VenueController.updateLogo);
+router.get("/venues/search", authMiddleware, VenueController.searchVenues);
+
+// Global Search
+router.get("/search/global", authMiddleware, SearchController.globalSearch);
 
 // Username management
 router.post("/username/check", UsernameController.checkUsername);

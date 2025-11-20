@@ -15,10 +15,17 @@ import {
   StyleSheet,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { searchCommunities, followCommunity, unfollowCommunity } from "../../api/communities";
+import {
+  searchCommunities,
+  followCommunity,
+  unfollowCommunity,
+} from "../../api/communities";
+import { searchMembers, globalSearch } from "../../api/search";
+import { followMember, unfollowMember } from "../../api/members";
 import EventBus from "../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
@@ -43,7 +50,9 @@ export default function CommunitySearchScreen({ navigation }) {
   const canSearch = query.trim().length >= 2;
 
   const getRecentsKey = () => {
-    return userId ? `recent_community_searches_${userId}` : "recent_community_searches";
+    return userId
+      ? `recent_community_searches_${userId}`
+      : "recent_community_searches";
   };
 
   const loadRecents = useCallback(async () => {
@@ -62,13 +71,16 @@ export default function CommunitySearchScreen({ navigation }) {
     }
   }, [userId]);
 
-  const saveRecents = useCallback(async (items) => {
-    if (!userId) return;
-    try {
-      const key = getRecentsKey();
-      await AsyncStorage.setItem(key, JSON.stringify(items));
-    } catch {}
-  }, [userId]);
+  const saveRecents = useCallback(
+    async (items) => {
+      if (!userId) return;
+      try {
+        const key = getRecentsKey();
+        await AsyncStorage.setItem(key, JSON.stringify(items));
+      } catch {}
+    },
+    [userId]
+  );
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -83,29 +95,40 @@ export default function CommunitySearchScreen({ navigation }) {
       const nextOffset = reset ? 0 : offset;
       setLoading(true);
       setError("");
-      const p = searchCommunities(query.trim(), { limit: 20, offset: nextOffset });
-      inFlightRef.current = p;
+
+      // Use global search endpoint that searches all entity types
       try {
-        const data = await p;
-        if (inFlightRef.current !== p) return; // stale
-        const newResults = reset ? data.results : [...results, ...data.results];
+        const globalData = await globalSearch(query.trim(), {
+          limit: 20,
+          offset: nextOffset,
+        });
+
+        // Global search returns results with type already set
+        const combinedResults = globalData.results || [];
+
+        const newResults = reset
+          ? combinedResults
+          : [...results, ...combinedResults];
         setResults(newResults);
+
         // initialize following map from payload
         setFollowing((prev) => {
           const copy = { ...prev };
-          (data.results || []).forEach((r) => {
+          combinedResults.forEach((r) => {
             if (typeof r.is_following === "boolean")
               copy[r.id] = r.is_following;
           });
           return copy;
         });
-        setOffset(data.nextOffset || nextOffset + (data.results?.length || 0));
-        setHasMore(!!data.hasMore);
-      } catch (e) {
-        if (inFlightRef.current !== p) return;
-        setError(e?.message || "Failed to search");
-      } finally {
-        if (inFlightRef.current === p) setLoading(false);
+
+        const totalResults = combinedResults.length;
+        setOffset(nextOffset + totalResults);
+        setHasMore(!!globalData.hasMore);
+        setLoading(false);
+      } catch (err) {
+        console.error("Global search error:", err);
+        setError("Failed to search");
+        setLoading(false);
       }
     },
     [query, offset, results, canSearch]
@@ -123,13 +146,18 @@ export default function CommunitySearchScreen({ navigation }) {
         const token = await getAuthToken();
         const email = await getAuthEmail();
         if (token && email) {
-          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          const profileResponse = await apiPost(
+            "/auth/get-user-profile",
+            { email },
+            10000,
+            token
+          );
           if (profileResponse?.profile?.id) {
             setUserId(profileResponse.profile.id);
           }
         }
       } catch (error) {
-        console.error('Error loading user ID:', error);
+        console.error("Error loading user ID:", error);
       }
     };
     loadUserId();
@@ -146,136 +174,228 @@ export default function CommunitySearchScreen({ navigation }) {
     doSearch(false);
   }, [loading, hasMore, doSearch]);
 
-  const toggleFollow = async (communityId) => {
-    if (pending[communityId]) return;
-    const isFollowing = !!following[communityId];
-    setFollowing((prev) => ({ ...prev, [communityId]: !isFollowing }));
-    setPending((prev) => ({ ...prev, [communityId]: true }));
+  const toggleFollow = async (entityId, entityType = "community") => {
+    if (pending[entityId]) return;
+    const isFollowing = !!following[entityId];
+    setFollowing((prev) => ({ ...prev, [entityId]: !isFollowing }));
+    setPending((prev) => ({ ...prev, [entityId]: true }));
     try {
-      if (isFollowing) {
-        await unfollowCommunity(communityId);
+      // Use userId from state if available
+      const currentUserId = userId;
+      const currentUserType = "community";
+
+      if (entityType === "member") {
+        if (isFollowing) {
+          await unfollowMember(entityId);
+        } else {
+          await followMember(entityId);
+        }
+        EventBus.emit("follow-updated", {
+          memberId: entityId,
+          isFollowing: !isFollowing,
+          followerId: currentUserId,
+          followerType: currentUserType,
+        });
       } else {
-        await followCommunity(communityId);
+        if (isFollowing) {
+          await unfollowCommunity(entityId);
+        } else {
+          await followCommunity(entityId);
+        }
+        EventBus.emit("follow-updated", {
+          communityId: entityId,
+          isFollowing: !isFollowing,
+          followerId: currentUserId,
+          followerType: currentUserType,
+        });
       }
-      EventBus.emit("follow-updated", { communityId, isFollowing: !isFollowing });
     } catch (e) {
       // rollback on error
-      setFollowing((prev) => ({ ...prev, [communityId]: isFollowing }));
+      setFollowing((prev) => ({ ...prev, [entityId]: isFollowing }));
     } finally {
-      setPending((prev) => ({ ...prev, [communityId]: false }));
+      setPending((prev) => ({ ...prev, [entityId]: false }));
     }
   };
 
   const onPressProfile = async (item, fromRecent = false) => {
-    // Navigate to profile
-    navigation.navigate("CommunityPublicProfile", {
-      communityId: item.id,
-    });
+    const entityType = item.type || "community";
+
+    // Navigate to appropriate profile within Community navigation stack
+    if (entityType === "community") {
+      navigation.navigate("CommunityPublicProfile", {
+        communityId: item.id,
+      });
+    } else if (entityType === "member") {
+      // Navigate to member profile within Community's Profile stack
+      navigation.navigate("Profile", {
+        screen: "MemberPublicProfile",
+        params: { memberId: item.id },
+      });
+    } else if (entityType === "sponsor") {
+      // Sponsor profile navigation will be implemented later
+      Alert.alert(
+        "Sponsor Profile",
+        "Sponsor profile navigation will be implemented soon"
+      );
+    } else if (entityType === "venue") {
+      // Venue profile navigation will be implemented later
+      Alert.alert(
+        "Venue Profile",
+        "Venue profile navigation will be implemented soon"
+      );
+    }
 
     // update recents (dedup by id, newest first, max 10)
     const next = [
       {
         id: item.id,
+        type: entityType,
         username: item.username,
-        name: item.name,
+        name: item.name || item.full_name,
+        full_name: item.full_name || item.name,
         logo_url: item.logo_url,
+        profile_photo_url: item.profile_photo_url,
       },
-      ...recents.filter((r) => r.id !== item.id),
+      ...recents.filter((r) => r.id !== item.id || r.type !== entityType),
     ].slice(0, 10);
     setRecents(next);
     saveRecents(next);
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.row}>
-      <TouchableOpacity
-        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-        onPress={() => onPressProfile(item, false)}
-      >
-        <Image
-          source={{
-            uri: item.logo_url || "https://via.placeholder.com/64",
-          }}
-          style={styles.avatar}
-        />
-        <View style={styles.meta}>
-          <Text style={styles.name} numberOfLines={1}>
-            {item.name || "Community"}
-          </Text>
-          {item.username && (
-            <Text style={styles.username} numberOfLines={1}>
-              @{item.username}
-            </Text>
-          )}
-          {item.category && (
-            <Text style={styles.category} numberOfLines={1}>
-              {item.category}
-            </Text>
-          )}
-        </View>
-      </TouchableOpacity>
-      <TouchableOpacity
-        disabled={!!pending[item.id]}
-        style={[
-          styles.followBtn,
-          following[item.id] ? styles.followingBtn : styles.followBtnPrimary,
-          pending[item.id] ? { opacity: 0.6 } : null,
-        ]}
-        onPress={() => toggleFollow(item.id)}
-      >
-        <Text
-          style={[
-            styles.followText,
-            following[item.id]
-              ? styles.followingText
-              : styles.followTextPrimary,
-          ]}
-        >
-          {following[item.id] ? "Following" : "Follow"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderItem = ({ item }) => {
+    const entityType = item.type || "community";
+    const displayName =
+      item.full_name ||
+      item.name ||
+      (entityType === "community"
+        ? "Community"
+        : entityType === "member"
+        ? "Member"
+        : entityType === "sponsor"
+        ? "Sponsor"
+        : entityType === "venue"
+        ? "Venue"
+        : "User");
+    const photoUrl =
+      item.profile_photo_url ||
+      item.logo_url ||
+      "https://via.placeholder.com/64";
 
-  const renderRecentItem = ({ item }) => (
-    <View style={styles.row}>
-      <TouchableOpacity
-        style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-        onPress={() => {
-          onPressProfile(item, true);
-        }}
-        activeOpacity={0.7}
-      >
-        <Image
-          source={{
-            uri: item.logo_url || "https://via.placeholder.com/64",
-          }}
-          style={styles.avatar}
-        />
-        <View style={styles.meta}>
-          <Text style={styles.name} numberOfLines={1}>
-            {item.name || "Community"}
-          </Text>
-          {item.username && (
-            <Text style={styles.username} numberOfLines={1}>
-              @{item.username}
+    // Build subtitle text
+    let subtitle = "";
+    if (item.username) {
+      subtitle = `@${item.username}`;
+    }
+    if (entityType === "community" && item.category) {
+      subtitle += ` • ${item.category}`;
+    } else if (entityType === "sponsor" && item.category) {
+      subtitle += ` • ${item.category}`;
+    } else if (entityType === "venue" && item.city) {
+      subtitle += ` • ${item.city}`;
+    }
+
+    return (
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          onPress={() => onPressProfile(item, false)}
+        >
+          <Image source={{ uri: photoUrl }} style={styles.avatar} />
+          <View style={styles.meta}>
+            <Text style={styles.name} numberOfLines={1}>
+              {displayName}
             </Text>
-          )}
-        </View>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => {
-          const next = recents.filter((r) => r.id !== item.id);
-          setRecents(next);
-          saveRecents(next);
-        }}
-        hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-        style={[styles.followBtn, styles.followingBtn]}
-      >
-        <Ionicons name="close" size={16} color="#1D1D1F" />
-      </TouchableOpacity>
-    </View>
-  );
+            {subtitle && (
+              <Text style={styles.username} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+        </TouchableOpacity>
+        {(entityType === "member" || entityType === "community") && (
+          <TouchableOpacity
+            disabled={!!pending[item.id]}
+            style={[
+              styles.followBtn,
+              following[item.id]
+                ? styles.followingBtn
+                : styles.followBtnPrimary,
+              pending[item.id] ? { opacity: 0.6 } : null,
+            ]}
+            onPress={() => toggleFollow(item.id, entityType)}
+          >
+            <Text
+              style={[
+                styles.followText,
+                following[item.id]
+                  ? styles.followingText
+                  : styles.followTextPrimary,
+              ]}
+            >
+              {following[item.id] ? "Following" : "Follow"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const renderRecentItem = ({ item }) => {
+    const entityType = item.type || "community";
+    const displayName =
+      item.full_name ||
+      item.name ||
+      (entityType === "community"
+        ? "Community"
+        : entityType === "member"
+        ? "Member"
+        : entityType === "sponsor"
+        ? "Sponsor"
+        : entityType === "venue"
+        ? "Venue"
+        : "User");
+    const photoUrl =
+      item.profile_photo_url ||
+      item.logo_url ||
+      "https://via.placeholder.com/64";
+
+    return (
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          onPress={() => {
+            onPressProfile(item, true);
+          }}
+          activeOpacity={0.7}
+        >
+          <Image source={{ uri: photoUrl }} style={styles.avatar} />
+          <View style={styles.meta}>
+            <Text style={styles.name} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {item.username && (
+              <Text style={styles.username} numberOfLines={1}>
+                @{item.username}
+              </Text>
+            )}
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            const next = recents.filter(
+              (r) => r.id !== item.id || r.type !== entityType
+            );
+            setRecents(next);
+            saveRecents(next);
+          }}
+          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          style={[styles.followBtn, styles.followingBtn]}
+        >
+          <Ionicons name="close" size={16} color="#1D1D1F" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -499,4 +619,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-

@@ -5,6 +5,7 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
+import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 
 const Stack = createStackNavigator();
 
@@ -19,6 +20,7 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="CommunityFollowingList" component={CommunityFollowingListScreen} />
       <Stack.Screen name="CommunityPublicProfile" component={CommunityPublicProfileScreen} />
       <Stack.Screen name="EditCommunityProfile" component={EditCommunityProfileScreen} />
+      <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} />
     </Stack.Navigator>
   );
 }

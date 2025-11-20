@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,12 +10,16 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
-import { apiGet } from '../../../api/client';
+import { apiGet, apiPost, apiDelete } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import { useNotifications } from '../../../context/NotificationsContext';
+import { getUnreadCount as getMessageUnreadCount } from '../../../api/messages';
+import EventBus from '../../../utils/EventBus';
+import CommentsModal from '../../../components/CommentsModal';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -25,27 +29,16 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { unread } = useNotifications();
+  const [messageUnread, setMessageUnread] = useState(0);
+  const [selectedPostId, setSelectedPostId] = useState(null);
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const { unread, loadInitial: refreshNotifications } = useNotifications();
 
-  useEffect(() => {
-    loadFeed();
-  }, []);
-
-  // Listen for refresh triggers from create post screen
-  useEffect(() => {
-    if (route?.params?.refresh) {
-      console.log('Refreshing feed due to new post');
-      loadFeed();
-    }
-  }, [route?.params?.refresh]);
-
-  const loadFeed = async () => {
+  const loadFeed = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      console.log('Loading feed with token:', token ? 'present' : 'missing');
       const response = await apiGet('/posts/feed', 15000, token);
-      console.log('Feed response:', response);
       const apiPosts = Array.isArray(response.posts) ? response.posts : [];
       // Ensure image_urls is an array (backend sends array; guard for strings)
       const normalized = apiPosts.map(p => ({
@@ -67,7 +60,45 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadFeed();
+    loadMessageUnreadCount();
+  }, [loadFeed]);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on('post-created', () => {
+      loadFeed();
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [loadFeed]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadMessageUnreadCount();
+      refreshNotifications?.();
+    }, [refreshNotifications])
+  );
+
+  // Listen for refresh triggers from create post screen
+  useEffect(() => {
+    if (route?.params?.refresh) {
+      console.log('Refreshing feed due to new post');
+      loadFeed();
+    }
+  }, [route?.params?.refresh]);
+
+  const loadMessageUnreadCount = useCallback(async () => {
+    try {
+      const response = await getMessageUnreadCount();
+      setMessageUnread(response?.unreadCount || 0);
+    } catch (error) {
+      console.error('Error loading message unread count:', error);
+    }
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -75,24 +106,44 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     setRefreshing(false);
   };
 
-  const handleLike = async (postId) => {
+  const handleLike = async (postId, isLiked) => {
     try {
-      // In real app, this would be API call
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { ...post, like_count: post.like_count + 1 }
-            : post
-        )
+      const token = await getAuthToken();
+      if (isLiked) {
+        await apiPost(`/posts/${postId}/like`, {}, 15000, token);
+      } else {
+        await apiDelete(`/posts/${postId}/like`, null, 15000, token);
+      }
+      // Update local state
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post.id === postId) {
+            return {
+              ...post,
+              is_liked: isLiked,
+              isLiked: isLiked,
+              like_count: isLiked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1),
+            };
+          }
+          return post;
+        })
       );
     } catch (error) {
-      console.error('Error liking post:', error);
+      console.error('Error updating like status:', error);
+      // Silently handle "Post already liked" and "Post not liked" errors
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
+        // These are expected errors when double-clicking, just ignore
+        return;
+      }
+      // Only show alert for unexpected errors
+      // Alert.alert('Error', 'Failed to update like status');
     }
   };
 
   const handleComment = (postId) => {
-    // Navigate to comments screen
-    console.log('Navigate to comments for post:', postId);
+    setSelectedPostId(postId);
+    setCommentsModalVisible(true);
   };
 
   const handleFollow = async (entityId, entityType) => {
@@ -107,24 +158,20 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   const renderPost = ({ item }) => (
     <PostCard
       post={item}
-      onLike={handleLike}
+      onLike={(postId, isLiked) => {
+        handleLike(postId, isLiked);
+      }}
       onComment={handleComment}
       onFollow={handleFollow}
       onUserPress={(userId, userType) => {
         if (userType === 'member' || !userType) {
-          // Navigate to MemberPublicProfile via ProfileStackNavigator
-          const root = navigation.getParent()?.getParent();
-          if (root) {
-            root.navigate('MemberHome', {
-              screen: 'Profile',
-              params: {
-                screen: 'MemberPublicProfile',
-                params: { memberId: userId }
-              }
-            });
-          }
+          // Navigate to member profile within Community's Home stack
+          navigation.navigate('MemberPublicProfile', { memberId: userId });
         } else if (userType === 'community') {
-          Alert.alert('Community Profile', 'Community profile navigation will be implemented soon');
+          navigation.navigate('Profile', {
+            screen: 'CommunityPublicProfile',
+            params: { communityId: userId }
+          });
         } else if (userType === 'sponsor') {
           Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
         } else if (userType === 'venue') {
@@ -138,21 +185,26 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     <View style={styles.header}>
       <View style={styles.headerTop}>
         <Text style={styles.headerTitle}>Community Feed</Text>
-        <TouchableOpacity style={styles.headerButton} onPress={() => {
-          // Navigate to MemberHome first, then to MemberStack -> Notifications
-          const root = navigation.getParent()?.getParent();
-          if (root) {
-            root.navigate('MemberHome', {
-              screen: 'MemberStack',
-              params: { screen: 'Notifications' }
-            });
-          }
-        }}>
-          <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
-          {unread > 0 && (
-            <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text></View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+            {unread > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text></View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('ConversationsList')}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={TEXT_COLOR} />
+            {messageUnread > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{messageUnread > 9 ? '9+' : String(messageUnread)}</Text></View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
       <Text style={styles.headerSubtitle}>
         Stay updated with posts from communities and members you follow
@@ -206,6 +258,27 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
+
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={selectedPostId}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedPostId(null);
+        }}
+        onCommentCountChange={(newCount) => {
+          if (selectedPostId) {
+            setPosts(prevPosts =>
+              prevPosts.map(p =>
+                p.id === selectedPostId
+                  ? { ...p, comment_count: newCount }
+                  : p
+              )
+            );
+          }
+        }}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }
@@ -242,6 +315,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: TEXT_COLOR,
     marginBottom: 5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   headerButton: { padding: 4 },
   badge: { position: 'absolute', right: -2, top: -4, backgroundColor: '#D93025', borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },

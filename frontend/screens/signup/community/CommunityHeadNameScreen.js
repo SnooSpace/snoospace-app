@@ -74,7 +74,7 @@ const CustomInput = ({ placeholder, required = false, value, onChangeText }) => 
  * Main Screen Component
  */
 const CommunityHeadNameScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, location, phone, secondary_phone } = route.params || {};
+  const { email, accessToken, name, logo_url, bio, category, categories, location, phone, secondary_phone } = route.params || {};
   
   const [headName, setHeadName] = useState('');
   const [optionalName1, setOptionalName1] = useState('');
@@ -110,6 +110,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       logo_url,
       bio,
       category,
+      categories,
       location,
       phone,
       secondary_phone,

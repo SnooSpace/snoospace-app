@@ -191,6 +191,7 @@ export default function SearchScreen({ navigation }) {
     if (entityType === 'community') {
       navigation.navigate("CommunityPublicProfile", {
         communityId: item.id,
+        viewerRole: 'member',
       });
     } else {
       navigation.navigate("MemberPublicProfile", {

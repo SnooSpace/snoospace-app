@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,11 +9,17 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import UserCard from '../../../components/UserCard';
-import { mockData } from '../../../data/mockData';
+import { globalSearch } from '../../../api/search';
+import { followMember, unfollowMember } from '../../../api/members';
+import { followCommunity, unfollowCommunity } from '../../../api/communities';
+import { getAuthToken, getAuthEmail } from '../../../api/auth';
+import { apiPost } from '../../../api/client';
+import EventBus from '../../../utils/EventBus';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -24,84 +30,190 @@ export default function CommunitySearchScreen({ navigation }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
+  const [following, setFollowing] = useState({}); // id -> boolean
+  const [pending, setPending] = useState({}); // id -> boolean
 
   const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
 
+  const DEBOUNCE_MS = 300;
+
   useEffect(() => {
-    if (searchQuery.length > 0) {
-      performSearch();
-    } else {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        performSearch();
+      } else {
+        setSearchResults([]);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, activeTab, performSearch]);
+
+  const performSearch = useCallback(async () => {
+    if (searchQuery.trim().length < 2) {
       setSearchResults([]);
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const globalData = await globalSearch(searchQuery.trim(), { limit: 50, offset: 0 });
+      const allResults = globalData.results || [];
+      
+      // Filter by active tab
+      let filteredResults = allResults;
+      if (activeTab === 'Members') {
+        filteredResults = allResults.filter(r => r.type === 'member');
+      } else if (activeTab === 'Communities') {
+        filteredResults = allResults.filter(r => r.type === 'community');
+      } else if (activeTab === 'Sponsors') {
+        filteredResults = allResults.filter(r => r.type === 'sponsor');
+      } else if (activeTab === 'Venues') {
+        filteredResults = allResults.filter(r => r.type === 'venue');
+      }
+      
+      setSearchResults(filteredResults);
+      
+      // Initialize following map from payload - use is_following from API response
+      setFollowing((prev) => {
+        const copy = { ...prev };
+        filteredResults.forEach((r) => {
+          if (r && r.id) {
+            // Use is_following from API, explicitly check for true
+            // Handle both is_following and isFollowing for compatibility
+            const isFollowing = r.is_following === true || r.isFollowing === true;
+            copy[r.id] = isFollowing;
+            // Debug log to help diagnose issues
+            if (r.type === 'member' || r.type === 'community') {
+              console.log(`[Search] Initialized follow state for ${r.type} ${r.id}: ${isFollowing} (from API: ${r.is_following})`);
+            }
+          }
+        });
+        return copy;
+      });
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
     }
   }, [searchQuery, activeTab]);
 
-  const performSearch = async () => {
-    setLoading(true);
+  const handleFollow = async (entityId, entityType, newFollowingState = null) => {
+    if (pending[entityId]) return;
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Use newFollowingState if provided, otherwise toggle based on current state
+    const currentFollowing = !!following[entityId];
+    const targetState = newFollowingState !== null ? newFollowingState : !currentFollowing;
     
-    let results = [];
+    console.log(`[Follow] ${entityType} ${entityId}: current=${currentFollowing}, target=${targetState}, newState=${newFollowingState}`);
     
-    if (activeTab === 'All' || activeTab === 'Members') {
-      const memberResults = mockData.members
-        .filter(member => 
-          member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          member.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .map(member => ({ ...member, type: 'member' }));
-      results = [...results, ...memberResults];
-    }
+    // Optimistically update state
+    setFollowing((prev) => ({ ...prev, [entityId]: targetState }));
+    setPending((prev) => ({ ...prev, [entityId]: true }));
     
-    if (activeTab === 'All' || activeTab === 'Communities') {
-      const communityResults = mockData.communities
-        .filter(community => 
-          community.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          community.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .map(community => ({ ...community, type: 'community' }));
-      results = [...results, ...communityResults];
-    }
-    
-    if (activeTab === 'All' || activeTab === 'Sponsors') {
-      const sponsorResults = mockData.sponsors
-        .filter(sponsor => 
-          sponsor.brand_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          sponsor.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .map(sponsor => ({ ...sponsor, type: 'sponsor' }));
-      results = [...results, ...sponsorResults];
-    }
-    
-    if (activeTab === 'All' || activeTab === 'Venues') {
-      const venueResults = mockData.venues
-        .filter(venue => 
-          venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          venue.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .map(venue => ({ ...venue, type: 'venue' }));
-      results = [...results, ...venueResults];
-    }
-    
-    setSearchResults(results);
-    setLoading(false);
-  };
-
-  const handleFollow = async (entityId, entityType) => {
     try {
-      // In real app, this would be API call
-      console.log('Follow entity:', entityId, entityType);
-    } catch (error) {
-      console.error('Error following entity:', error);
+      // Get current user info for EventBus
+      let currentUserId = null;
+      let currentUserType = 'community';
+      try {
+        const token = await getAuthToken();
+        const email = await getAuthEmail();
+        if (token && email) {
+          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          if (profileResponse?.profile?.id) {
+            currentUserId = profileResponse.profile.id;
+            currentUserType = profileResponse.role || 'community';
+          }
+        }
+      } catch (e) {
+        console.error('Error getting current user:', e);
+      }
+      
+      if (entityType === 'member') {
+        if (targetState) {
+          await followMember(entityId);
+        } else {
+          await unfollowMember(entityId);
+        }
+        EventBus.emit("follow-updated", { 
+          memberId: entityId, 
+          isFollowing: targetState,
+          followerId: currentUserId,
+          followerType: currentUserType
+        });
+      } else if (entityType === 'community') {
+        if (targetState) {
+          await followCommunity(entityId);
+        } else {
+          await unfollowCommunity(entityId);
+        }
+        EventBus.emit("follow-updated", { 
+          communityId: entityId, 
+          isFollowing: targetState,
+          followerId: currentUserId,
+          followerType: currentUserType
+        });
+      }
+    } catch (e) {
+      // Check for "already following" or "not following" errors - these are expected in race conditions
+      const errorMsg = e?.message || String(e || '');
+      if (errorMsg.includes('Already following') || errorMsg.includes('Not following')) {
+        // If we get "Already following" but we thought we weren't, update state to true
+        // If we get "Not following" but we thought we were, update state to false
+        if (errorMsg.includes('Already following') && !targetState) {
+          setFollowing((prev) => ({ ...prev, [entityId]: true }));
+        } else if (errorMsg.includes('Not following') && targetState) {
+          setFollowing((prev) => ({ ...prev, [entityId]: false }));
+        }
+        // Otherwise, state is already correct, just log
+        console.log('Follow/unfollow race condition handled:', errorMsg);
+      } else {
+        // Rollback on unexpected error
+        setFollowing((prev) => ({ ...prev, [entityId]: currentFollowing }));
+        console.error('Error following/unfollowing:', e);
+      }
+    } finally {
+      setPending((prev) => ({ ...prev, [entityId]: false }));
     }
   };
 
-  const renderEntity = ({ item }) => (
-    <UserCard
-      entity={item}
-      onFollow={handleFollow}
-    />
-  );
+  const renderEntity = ({ item }) => {
+    if (!item) return null;
+    const entityType = item.type || 'member';
+    
+    return (
+      <UserCard
+        user={item}
+        userType={entityType}
+        onPress={(userId, userType) => {
+          // Handle navigation based on userType
+          if (userType === 'community') {
+            navigation.navigate('Profile', {
+              screen: 'CommunityPublicProfile',
+              params: { communityId: userId }
+            });
+          } else if (userType === 'member') {
+            navigation.navigate('Profile', {
+              screen: 'MemberPublicProfile',
+              params: { memberId: userId }
+            });
+          } else if (userType === 'sponsor') {
+            Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
+          } else if (userType === 'venue') {
+            Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
+          }
+        }}
+        showFollowButton={entityType === 'member' || entityType === 'community'}
+        isFollowing={!!following[item.id]}
+        isLoading={!!pending[item.id]}
+        onFollowChange={(userId, userType, newFollowingState) => {
+          handleFollow(userId, userType, newFollowingState);
+        }}
+      />
+    );
+  };
 
   const renderTab = (tab) => (
     <TouchableOpacity

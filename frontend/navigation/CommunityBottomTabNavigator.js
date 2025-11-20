@@ -1,9 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import Community screens
-import CommunityHomeFeedScreen from '../screens/home/community/CommunityHomeFeedScreen';
+import CommunityHomeStackNavigator from './CommunityHomeStackNavigator';
 import CommunitySearchScreen from '../screens/home/community/CommunitySearchScreen';
 import CommunityDashboardScreen from '../screens/home/community/CommunityDashboardScreen';
 import CommunityRequestsScreen from '../screens/home/community/CommunityRequestsScreen';
@@ -55,8 +56,24 @@ const CommunityBottomTabNavigator = () => {
     >
       <Tab.Screen 
         name="Home" 
-        component={CommunityHomeFeedScreen}
-        options={{ tabBarLabel: 'Home' }}
+        component={CommunityHomeStackNavigator}
+        options={({ route }) => ({
+          tabBarLabel: 'Home',
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'HomeFeed';
+            if (routeName === 'ConversationsList' || routeName === 'Chat' || routeName === 'Notifications') {
+              return { display: 'none' };
+            }
+            return {
+              backgroundColor: '#FFFFFF',
+              borderTopWidth: 1,
+              borderTopColor: '#E5E5EA',
+              paddingBottom: 5,
+              paddingTop: 5,
+              height: 90,
+            };
+          })(),
+        })}
       />
       <Tab.Screen 
         name="Search" 

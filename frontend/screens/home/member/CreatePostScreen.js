@@ -17,7 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiGet } from "../../../api/client";
 import ImageUploader from "../../../components/ImageUploader";
-import EntityTagSelector from "../../../components/EntityTagSelector";
+import MentionInput from "../../../components/MentionInput";
 import { getAuthToken } from "../../../api/auth";
 import { uploadMultipleImages } from "../../../api/cloudinary";
 import EventBus from "../../../utils/EventBus";
@@ -36,108 +36,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [images, setImages] = useState([]);
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showTagSearch, setShowTagSearch] = useState(false);
-  const [tagSearchQuery, setTagSearchQuery] = useState("");
-  const [tagSearchResults, setTagSearchResults] = useState([]);
-  const [tagSearchLoading, setTagSearchLoading] = useState(false);
-  const [atPosition, setAtPosition] = useState(-1);
 
   const handleImagesChange = (newImages) => {
     setImages(newImages);
   };
 
-  const handleEntitiesChange = (entities) => {
-    setTaggedEntities(entities);
-  };
-
-  const handleCaptionChange = (text) => {
-    setCaption(text);
-    
-    // Detect '@' character
-    const lastAtIndex = text.lastIndexOf('@');
-    if (lastAtIndex !== -1) {
-      // Check if there's a space after '@' (meaning '@' is not active)
-      const afterAt = text.substring(lastAtIndex + 1);
-      const spaceIndex = afterAt.indexOf(' ');
-      
-      if (spaceIndex === -1 || spaceIndex > 0) {
-        // '@' is active, show search
-        setAtPosition(lastAtIndex);
-        const query = afterAt.split(' ')[0];
-        setTagSearchQuery(query);
-        // Minimum 1 character like comments
-        if (query.length >= 1) {
-          searchForTagging(query);
-        } else {
-          setShowTagSearch(false);
-        }
-      } else {
-        setShowTagSearch(false);
-        setAtPosition(-1);
-      }
-    } else {
-      setShowTagSearch(false);
-      setAtPosition(-1);
-    }
-  };
-
-  const searchForTagging = async (query) => {
-    if (query.length < 1) {
-      setShowTagSearch(false);
-      return;
-    }
-    
-    setTagSearchLoading(true);
-    setShowTagSearch(true);
-    
-    try {
-      const token = await getAuthToken();
-      if (!token) {
-        console.warn('No auth token available for search');
-        setTagSearchResults([]);
-        setShowTagSearch(false);
-        return;
-      }
-
-      // Use the same endpoint as EntityTagSelector
-      const membersRes = await apiGet(`/members/search?q=${encodeURIComponent(query)}`, 15000, token);
-      const members = membersRes.results || membersRes.members || [];
-      setTagSearchResults(members);
-    } catch (error) {
-      console.error('Error searching for tagging:', error);
-      setTagSearchResults([]);
-    } finally {
-      setTagSearchLoading(false);
-    }
-  };
-
-  const selectTaggedUser = (user) => {
-    if (atPosition === -1) return;
-    
-    const beforeAt = caption.substring(0, atPosition);
-    const afterAt = caption.substring(atPosition + 1);
-    const spaceIndex = afterAt.indexOf(' ');
-    const afterTag = spaceIndex === -1 ? '' : afterAt.substring(spaceIndex);
-    
-    // Insert username
-    const newText = `${beforeAt}@${user.username}${afterTag}`;
-    setCaption(newText);
-    
-    // Add to tagged entities if not already there
-    const existing = taggedEntities.find(t => t.id === user.id && t.type === 'member');
-    if (!existing) {
-      setTaggedEntities([...taggedEntities, {
-        id: user.id,
-        type: 'member',
-        username: user.username,
-      }]);
-    }
-    
-    // Hide search
-    setShowTagSearch(false);
-    setAtPosition(-1);
-    setTagSearchQuery('');
-  };
 
   const handleSubmit = async () => {
     if (images.length === 0) {
@@ -253,69 +156,21 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-        {/* Caption Input */}
-        <View style={[styles.captionContainer, { position: 'relative' }]}>
-          <TextInput
-            style={styles.captionInput}
-            placeholder="What's on your mind?"
-            placeholderTextColor={COLORS.textLight}
+        {/* Caption Input with @ Mention Support */}
+        <View style={styles.captionContainer}>
+          <MentionInput
             value={caption}
-            onChangeText={handleCaptionChange}
-            multiline
+            onChangeText={setCaption}
+            onTaggedEntitiesChange={setTaggedEntities}
+            placeholder="What's on your mind? Use @ to mention someone..."
+            placeholderTextColor={COLORS.textLight}
             maxLength={2000}
-            textAlignVertical="top"
+            style={styles.mentionInput}
           />
           <Text style={styles.characterCount}>
             {caption.length}/2000
           </Text>
-          {showTagSearch && (
-            <View style={styles.tagSearchContainer}>
-              {tagSearchLoading ? (
-                <View style={styles.tagSearchItem}>
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                </View>
-              ) : tagSearchResults.length > 0 ? (
-                <FlatList
-                  data={tagSearchResults}
-                  keyExtractor={(item) => String(item.id)}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.tagSearchItem}
-                      onPress={() => selectTaggedUser(item)}
-                    >
-                      <Image
-                        source={{
-                          uri: item.profile_photo_url || 'https://via.placeholder.com/30',
-                        }}
-                        style={styles.tagSearchAvatar}
-                      />
-                      <View style={styles.tagSearchInfo}>
-                        <Text style={styles.tagSearchName} numberOfLines={1}>
-                          {item.full_name || item.name || 'User'}
-                        </Text>
-                        <Text style={styles.tagSearchUsername} numberOfLines={1}>
-                          @{item.username || 'user'}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                  style={styles.tagSearchList}
-                  keyboardShouldPersistTaps="handled"
-                />
-              ) : (
-                <View style={styles.tagSearchItem}>
-                  <Text style={styles.tagSearchEmpty}>No users found</Text>
-                </View>
-              )}
-            </View>
-          )}
         </View>
-
-        {/* Entity Tag Selector */}
-        <EntityTagSelector
-          onEntitiesChange={handleEntitiesChange}
-          initialEntities={taggedEntities}
-        />
 
         {/* Image Uploader */}
         <ImageUploader
@@ -396,6 +251,9 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
     minHeight: 100,
     textAlignVertical: "top",
+  },
+  mentionInput: {
+    flex: 1,
   },
   characterCount: {
     fontSize: 12,

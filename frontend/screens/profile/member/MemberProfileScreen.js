@@ -558,7 +558,15 @@ export default function MemberProfileScreen({ navigation }) {
         }
       } catch (error) {
         console.error("Error liking post:", error);
-        Alert.alert("Error", error?.message || "Failed to like post");
+        // Silently handle "Post already liked" and "Post not liked" errors
+        const errorMessage = error?.message || '';
+        if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
+          // These are expected errors when double-clicking, just ignore
+          justUpdatedRef.current = false;
+          return;
+        }
+        // Only show alert for unexpected errors
+        // Alert.alert("Error", error?.message || "Failed to like post");
         justUpdatedRef.current = false; // Reset on error so we can sync
       } finally {
         setIsLiking(false);
