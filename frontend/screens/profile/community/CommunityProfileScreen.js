@@ -404,7 +404,14 @@ export default function CommunityProfileScreen({ navigation }) {
   const followingCount = (profile?.following_count ?? profile?.following ?? 0);
 
   const openPostModal = (post) => {
-    setSelectedPost(post);
+    // Normalize is_liked field - only use is_liked, ignore isLiked completely
+    const normalizedIsLiked = post.is_liked === true;
+    const normalizedPost = {
+      ...post,
+      is_liked: normalizedIsLiked,
+      isLiked: normalizedIsLiked,
+    };
+    setSelectedPost(normalizedPost);
     setPostModalVisible(true);
   };
 
@@ -802,7 +809,7 @@ const PostModal = ({
   onCloseComments,
   navigation,
 }) => {
-  const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
+  const initialIsLiked = post?.is_liked === true;
   const [likes, setLikes] = useState(post?.like_count || 0);
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [commentCount, setCommentCount] = useState(post?.comment_count || 0);
@@ -818,7 +825,7 @@ const PostModal = ({
       justUpdatedRef.current = false;
       return;
     }
-    const newIsLiked = post?.is_liked === true || post?.isLiked === true;
+    const newIsLiked = post?.is_liked === true;
     setIsLiked(newIsLiked);
     setLikes(post?.like_count || 0);
     setCommentCount(post?.comment_count || 0);

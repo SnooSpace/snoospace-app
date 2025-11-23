@@ -101,10 +101,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           limit: 21,
           offset: reset ? 0 : offset,
         });
-        const newPosts = reset
+        const rawPosts = reset
           ? data?.posts || data || []
           : [...posts, ...(data?.posts || data || [])];
-        setPosts(newPosts);
+        // Normalize is_liked field for all posts - ensure it's explicitly true or false
+        const normalizedPosts = rawPosts.map((post) => ({
+          ...post,
+          is_liked: post.is_liked === true,
+          isLiked: post.is_liked === true,
+        }));
+        setPosts(normalizedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
         setOffset(nextOffset);
@@ -239,7 +245,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   }, []);
 
   const openPostModal = (post) => {
-    setSelectedPost(post);
+    // Normalize is_liked field - only use is_liked, ignore isLiked completely
+    const normalizedIsLiked = post.is_liked === true;
+    const normalizedPost = {
+      ...post,
+      is_liked: normalizedIsLiked,
+      isLiked: normalizedIsLiked,
+    };
+    setSelectedPost(normalizedPost);
     setPostModalVisible(true);
   };
 
@@ -782,7 +795,7 @@ const PostModal = ({
   onCloseComments,
   navigation,
 }) => {
-  const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
+  const initialIsLiked = post?.is_liked === true;
   const [likes, setLikes] = useState(post?.like_count || 0);
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [commentCount, setCommentCount] = useState(post?.comment_count || 0);
@@ -798,7 +811,7 @@ const PostModal = ({
       justUpdatedRef.current = false;
       return;
     }
-    const newIsLiked = post?.is_liked === true || post?.isLiked === true;
+    const newIsLiked = post?.is_liked === true;
     setIsLiked(newIsLiked);
     setLikes(post?.like_count || 0);
     setCommentCount(post?.comment_count || 0);

@@ -27,19 +27,26 @@ const COLORS = {
   border: "#E5E5E5",
 };
 
-const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, currentUserType }) => {
-  // Initialize from post data (backend sends is_liked, handle both snake_case and camelCase)
-  const initialIsLiked = post.is_liked === true || post.isLiked === true;
+const PostCard = ({
+  post,
+  onUserPress,
+  onLike,
+  onComment,
+  currentUserId,
+  currentUserType,
+}) => {
+  // Initialize from post data (backend sends is_liked, only use is_liked field)
+  const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
 
   // Sync state when post prop changes (e.g., after navigation and feed reload)
   useEffect(() => {
-    const newIsLiked = post.is_liked === true || post.isLiked === true;
+    const newIsLiked = post.is_liked === true;
     setIsLiked(newIsLiked);
     setLikeCount(post.like_count || 0);
-  }, [post.is_liked, post.isLiked, post.like_count]);
+  }, [post.is_liked, post.like_count]);
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -78,7 +85,10 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
         likeCount: prevLikeCount,
       });
       const errorMessage = error?.message || "";
-      if (!errorMessage.includes("already liked") && !errorMessage.includes("not liked")) {
+      if (
+        !errorMessage.includes("already liked") &&
+        !errorMessage.includes("not liked")
+      ) {
         // Alert.alert("Error", "Failed to update like status");
       }
     } finally {
@@ -90,22 +100,30 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
     if (onUserPress) {
       const authorId = post.author_id;
       let authorType = post.author_type;
-      
+
       // Fallback: Try to infer type if missing
       // Communities typically have logo_url in author_photo_url, but this is not reliable
       // The backend should always provide author_type, so this is just a safety check
       if (!authorType) {
-        console.warn('[PostCard] author_type is missing for post:', post.id, 'Attempting to infer from post data');
+        console.warn(
+          "[PostCard] author_type is missing for post:",
+          post.id,
+          "Attempting to infer from post data"
+        );
         // We can't reliably infer, so we'll pass undefined and let the handler deal with it
       }
-      
-      console.log('[PostCard] handleUserPress:', { 
-        authorId, 
-        authorType, 
-        postId: post.id, 
+
+      console.log("[PostCard] handleUserPress:", {
+        authorId,
+        authorType,
+        postId: post.id,
         authorName: post.author_name,
         authorUsername: post.author_username,
-        fullPost: { id: post.id, author_id: post.author_id, author_type: post.author_type }
+        fullPost: {
+          id: post.id,
+          author_id: post.author_id,
+          author_type: post.author_type,
+        },
       });
       onUserPress(authorId, authorType);
     }
@@ -137,7 +155,7 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
         <Text style={styles.taggedText}>Tagged: </Text>
         {post.tagged_entities.map((entity, index) => {
           // Prioritize username, fallback to name
-          const displayName = entity.username || entity.name || 'user';
+          const displayName = entity.username || entity.name || "user";
           return (
             <TouchableOpacity
               key={`${entity.id}-${entity.type}-${index}`}
@@ -163,7 +181,13 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
             source={
               post.author_photo_url
                 ? { uri: post.author_photo_url }
-                : { uri: 'https://via.placeholder.com/40x40/6A0DAD/FFFFFF?text=' + (post.author_name ? post.author_name.charAt(0).toUpperCase() : 'U') }
+                : {
+                    uri:
+                      "https://via.placeholder.com/40x40/6A0DAD/FFFFFF?text=" +
+                      (post.author_name
+                        ? post.author_name.charAt(0).toUpperCase()
+                        : "U"),
+                  }
             }
             style={styles.profileImage}
           />
@@ -185,7 +209,7 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
         >
           {post.image_urls.flat().map((imageUrl, index) => {
             // Ensure imageUrl is a string and is a valid URL format
-            if (typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+            if (typeof imageUrl !== "string" || !imageUrl.startsWith("http")) {
               return null;
             }
             return (
@@ -215,8 +239,15 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
           <Text style={styles.actionText}>{likeCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleCommentPress}>
-          <Ionicons name="chatbubble-outline" size={24} color={COLORS.textDark} />
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={handleCommentPress}
+        >
+          <Ionicons
+            name="chatbubble-outline"
+            size={24}
+            color={COLORS.textDark}
+          />
           <Text style={styles.actionText}>{post.comment_count || 0}</Text>
         </TouchableOpacity>
       </View>
