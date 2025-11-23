@@ -185,6 +185,25 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             : post
         )
       );
+      // Also update selectedPost if it matches
+      setSelectedPost((prevSelected) => {
+        if (prevSelected && prevSelected.id === payload.postId) {
+          return {
+            ...prevSelected,
+            is_liked: payload.isLiked,
+            isLiked: payload.isLiked,
+            like_count:
+              typeof payload.likeCount === "number"
+                ? payload.likeCount
+                : prevSelected.like_count,
+            comment_count:
+              typeof payload.commentCount === "number"
+                ? payload.commentCount
+                : prevSelected.comment_count,
+          };
+        }
+        return prevSelected;
+      });
     };
 
     const handlePostCommentUpdate = (payload) => {

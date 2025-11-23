@@ -150,6 +150,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   typeof payload.likeCount === "number"
                     ? payload.likeCount
                     : post.like_count,
+                comment_count:
+                  typeof payload.commentCount === "number"
+                    ? payload.commentCount
+                    : post.comment_count,
               }
             : post
         )
