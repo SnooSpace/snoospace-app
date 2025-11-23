@@ -4,6 +4,7 @@ import HomeFeedScreen from "../screens/home/member/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
+import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 
 const Stack = createStackNavigator();
 
@@ -31,6 +32,13 @@ export default function HomeStackNavigator() {
       <Stack.Screen 
         name="Chat" 
         component={ChatScreen}
+        options={{ 
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="CommunityPublicProfile" 
+        component={CommunityPublicProfileScreen}
         options={{ 
           headerShown: false,
         }}

@@ -79,7 +79,7 @@ export async function getCommunityFollowing(communityId, { limit = 30, offset = 
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('page', String(page));
-  return apiGet(`/following/${communityId}/member?${params.toString()}`, 15000, token);
+  return apiGet(`/following/${communityId}/community?${params.toString()}`, 15000, token);
 }
 
 export async function getFollowStatusForCommunity(followingCommunityId) {

@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { searchMembers } from "../api/search";
+import EventBus from "../utils/EventBus";
 
 const COLORS = {
   dark: "#FFFFFF",
@@ -191,9 +192,15 @@ const CommentsModal = ({
 
               setComments((prev) => prev.filter((c) => c.id !== commentId));
 
+              const newCount = Math.max(0, comments.length - 1);
               if (onCommentCountChange) {
-                onCommentCountChange((prev) => Math.max(0, (prev || 0) - 1));
+                onCommentCountChange(newCount);
               }
+              // Emit event for other screens to update
+              EventBus.emit("post-comment-updated", {
+                postId: postId,
+                commentCount: newCount,
+              });
             } catch (error) {
               console.error("Error deleting comment:", error);
               Alert.alert("Error", "Failed to delete comment");
@@ -300,7 +307,7 @@ const CommentsModal = ({
 
       if (result?.comment) {
         let currentProfile = userProfile;
-        if (!currentProfile || !currentProfile.profile_photo_url) {
+        if (!currentProfile || (!currentProfile.profile_photo_url && !currentProfile.logo_url)) {
           try {
             const email = await getAuthEmail();
             const profileResponse = await apiPost(
@@ -322,7 +329,7 @@ const CommentsModal = ({
           ...result.comment,
           commenter_name: currentProfile?.name || "User",
           commenter_username: currentProfile?.username || "",
-          commenter_photo_url: currentProfile?.profile_photo_url || null,
+          commenter_photo_url: currentProfile?.profile_photo_url || currentProfile?.logo_url || null,
           like_count: 0,
           is_liked: false,
         };
@@ -332,10 +339,15 @@ const CommentsModal = ({
         setTaggedEntities([]);
         setShowTagSearch(false);
         setAtPosition(-1);
+        const newCount = comments.length + 1;
         if (onCommentCountChange) {
-          const newCount = comments.length + 1;
           onCommentCountChange(newCount);
         }
+        // Emit event for other screens to update
+        EventBus.emit("post-comment-updated", {
+          postId: postId,
+          commentCount: newCount,
+        });
       }
     } catch (error) {
       console.error("Error posting comment:", error);
@@ -460,17 +472,23 @@ const CommentsModal = ({
       }
     };
 
+    // Determine placeholder color based on commenter type
+    const isCommunity = item.commenter_type === 'community';
+    const placeholderBg = isCommunity ? '5f27cd' : '6A0DAD';
+    
+    // Get photo URL - backend maps both member profile_photo_url and community logo_url to commenter_photo_url
+    // Use same approach as PostCard: check if URL exists, otherwise use placeholder
+    const photoUri = item.commenter_photo_url && item.commenter_photo_url.trim() !== ''
+      ? item.commenter_photo_url
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          item.commenter_name || "User"
+        )}&background=${placeholderBg}&color=FFFFFF`;
+
     return (
       <View style={styles.commentItem}>
         <TouchableOpacity onPress={handleProfilePress}>
           <Image
-            source={{
-              uri:
-                item.commenter_photo_url ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  item.commenter_name || "User"
-                )}&background=6A0DAD&color=FFFFFF`,
-            }}
+            source={{ uri: photoUri }}
             style={styles.commentAvatar}
           />
         </TouchableOpacity>
@@ -676,13 +694,13 @@ const CommentsModal = ({
             <Image
               source={{
                 uri:
-                  userProfile?.profile_photo_url &&
-                  /^https?:\/\//.test(userProfile.profile_photo_url)
-                    ? userProfile.profile_photo_url
+                  (userProfile?.profile_photo_url && /^https?:\/\//.test(userProfile.profile_photo_url)) ||
+                  (userProfile?.logo_url && /^https?:\/\//.test(userProfile.logo_url))
+                    ? (userProfile.profile_photo_url || userProfile.logo_url)
                     : userProfile?.name
                     ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
                         userProfile.name
-                      )}&background=6A0DAD&color=FFFFFF&size=32`
+                      )}&background=${userProfile?.logo_url ? '5f27cd' : '6A0DAD'}&color=FFFFFF&size=32`
                     : `https://ui-avatars.com/api/?name=User&background=6A0DAD&color=FFFFFF&size=32`,
               }}
               style={styles.inputAvatar}

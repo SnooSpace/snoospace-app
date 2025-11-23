@@ -6,6 +6,7 @@ import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
 import CreatePostScreen from "../screens/home/member/CreatePostScreen";
+import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 
 const Stack = createStackNavigator();
 
@@ -19,6 +20,7 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} />
+      <Stack.Screen name="CommunityPublicProfile" component={CommunityPublicProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
     </Stack.Navigator>

@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiDelete } from "../api/client";
 import { getAuthToken } from "../api/auth";
+import EventBus from "../utils/EventBus";
 
 const { width } = Dimensions.get("window");
 
@@ -42,32 +43,44 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
 
   const handleLike = async () => {
     if (isLiking) return;
-    
+
+    const prevLiked = isLiked;
+    const prevLikeCount = likeCount;
+    const nextLiked = !prevLiked;
+    const delta = nextLiked ? 1 : -1;
+    const nextLikes = Math.max(0, prevLikeCount + delta);
+
+    setIsLiked(nextLiked);
+    setLikeCount(nextLikes);
+    if (onLike) onLike(post.id, nextLiked);
+
     setIsLiking(true);
     try {
       const token = await getAuthToken();
-      
-      if (isLiked) {
-        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-        setLikeCount(prev => prev - 1);
-        setIsLiked(false);
-        if (onLike) onLike(post.id, false);
-      } else {
+      if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-        setLikeCount(prev => prev + 1);
-        setIsLiked(true);
-        if (onLike) onLike(post.id, true);
+      } else {
+        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
+      EventBus.emit("post-like-updated", {
+        postId: post.id,
+        isLiked: nextLiked,
+        likeCount: nextLikes,
+      });
     } catch (error) {
       console.error("Error liking post:", error);
-      // Silently handle "Post already liked" and "Post not liked" errors
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
-        // These are expected errors when double-clicking, just ignore
-        return;
+      setIsLiked(prevLiked);
+      setLikeCount(prevLikeCount);
+      if (onLike) onLike(post.id, prevLiked);
+      EventBus.emit("post-like-updated", {
+        postId: post.id,
+        isLiked: prevLiked,
+        likeCount: prevLikeCount,
+      });
+      const errorMessage = error?.message || "";
+      if (!errorMessage.includes("already liked") && !errorMessage.includes("not liked")) {
+        // Alert.alert("Error", "Failed to update like status");
       }
-      // Only show alert for unexpected errors
-      // Alert.alert("Error", "Failed to like post");
     } finally {
       setIsLiking(false);
     }
@@ -75,7 +88,26 @@ const PostCard = ({ post, onUserPress, onLike, onComment, currentUserId, current
 
   const handleUserPress = () => {
     if (onUserPress) {
-      onUserPress(post.author_id, post.author_type);
+      const authorId = post.author_id;
+      let authorType = post.author_type;
+      
+      // Fallback: Try to infer type if missing
+      // Communities typically have logo_url in author_photo_url, but this is not reliable
+      // The backend should always provide author_type, so this is just a safety check
+      if (!authorType) {
+        console.warn('[PostCard] author_type is missing for post:', post.id, 'Attempting to infer from post data');
+        // We can't reliably infer, so we'll pass undefined and let the handler deal with it
+      }
+      
+      console.log('[PostCard] handleUserPress:', { 
+        authorId, 
+        authorType, 
+        postId: post.id, 
+        authorName: post.author_name,
+        authorUsername: post.author_username,
+        fullPost: { id: post.id, author_id: post.author_id, author_type: post.author_type }
+      });
+      onUserPress(authorId, authorType);
     }
   };
 

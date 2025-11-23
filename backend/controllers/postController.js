@@ -137,6 +137,9 @@ const getFeed = async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get posts from followed entities AND own posts
+    const viewerId = req.user?.id || null;
+    const viewerType = req.user?.type || null;
+
     const query = `
       SELECT 
         p.*,
@@ -158,10 +161,13 @@ const getFeed = async (req, res) => {
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
-        EXISTS (
-          SELECT 1 FROM post_likes l
-          WHERE l.post_id = p.id AND l.liker_id = $1 AND l.liker_type = $2
-        ) AS is_liked
+        CASE 
+          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_likes l
+            WHERE l.post_id = p.id AND l.liker_id = $5 AND l.liker_type = $6
+          )
+          ELSE false
+        END AS is_liked
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -174,7 +180,7 @@ const getFeed = async (req, res) => {
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset]);
+    const result = await pool.query(query, [userId, userType, limit, offset, viewerId, viewerType]);
     
     console.log('Feed query result:', result.rows.length, 'posts found');
     

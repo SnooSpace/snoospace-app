@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
-import { apiGet, apiPost, apiDelete } from '../../../api/client';
+import { apiGet } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import { useNotifications } from '../../../context/NotificationsContext';
 import { getUnreadCount as getMessageUnreadCount } from '../../../api/messages';
@@ -68,6 +68,28 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   }, [loadFeed]);
 
   useEffect(() => {
+    const unsubscribe = EventBus.on('post-like-updated', (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                is_liked: payload.isLiked,
+                isLiked: payload.isLiked,
+                like_count:
+                  typeof payload.likeCount === 'number'
+                    ? payload.likeCount
+                    : post.like_count,
+              }
+            : post
+        )
+      );
+    });
+    return () => unsubscribe && unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = EventBus.on('post-created', () => {
       loadFeed();
     });
@@ -106,39 +128,19 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     setRefreshing(false);
   };
 
-  const handleLike = async (postId, isLiked) => {
-    try {
-      const token = await getAuthToken();
-      if (isLiked) {
-        await apiPost(`/posts/${postId}/like`, {}, 15000, token);
-      } else {
-        await apiDelete(`/posts/${postId}/like`, null, 15000, token);
-      }
-      // Update local state
-      setPosts(prevPosts =>
-        prevPosts.map(post => {
-          if (post.id === postId) {
-            return {
+  const handleLike = (postId, nextLiked) => {
+    setPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? {
               ...post,
-              is_liked: isLiked,
-              isLiked: isLiked,
-              like_count: isLiked ? (post.like_count || 0) + 1 : Math.max(0, (post.like_count || 0) - 1),
-            };
-          }
-          return post;
-        })
-      );
-    } catch (error) {
-      console.error('Error updating like status:', error);
-      // Silently handle "Post already liked" and "Post not liked" errors
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
-        // These are expected errors when double-clicking, just ignore
-        return;
-      }
-      // Only show alert for unexpected errors
-      // Alert.alert('Error', 'Failed to update like status');
-    }
+              is_liked: nextLiked,
+              isLiked: nextLiked,
+              like_count: Math.max(0, (post.like_count || 0) + (nextLiked ? 1 : -1)),
+            }
+          : post
+      )
+    );
   };
 
   const handleComment = (postId) => {
@@ -158,9 +160,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   const renderPost = ({ item }) => (
     <PostCard
       post={item}
-      onLike={(postId, isLiked) => {
-        handleLike(postId, isLiked);
-      }}
+      onLike={handleLike}
       onComment={handleComment}
       onFollow={handleFollow}
       onUserPress={(userId, userType) => {

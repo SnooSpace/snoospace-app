@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken } from '../../../api/auth';
+import { clearAuthSession, getAuthToken, getAuthEmail } from '../../../api/auth';
 import { deleteAccount as apiDeleteAccount } from '../../../api/account';
 import { apiGet, apiPost, apiDelete } from '../../../api/client';
 import { getCommunityProfile, updateCommunityProfile, updateCommunityHeads } from '../../../api/communities';
@@ -60,6 +60,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
   const pendingPostUpdateRef = useRef(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
     loadProfile();
@@ -101,6 +102,77 @@ export default function CommunityProfileScreen({ navigation }) {
     };
   }, [profile]);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const email = await getAuthEmail();
+        if (token && email && mounted) {
+          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          if (profileResponse?.profile?.id && mounted) {
+            setCurrentUserId(profileResponse.profile.id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load current user info:', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Listen for post like/comment updates to refresh posts immediately
+  useEffect(() => {
+    const handlePostLikeUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                is_liked: payload.isLiked,
+                isLiked: payload.isLiked,
+                like_count:
+                  typeof payload.likeCount === 'number'
+                    ? payload.likeCount
+                    : post.like_count,
+                comment_count:
+                  typeof payload.commentCount === 'number'
+                    ? payload.commentCount
+                    : post.comment_count,
+              }
+            : post
+        )
+      );
+    };
+
+    const handlePostCommentUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                comment_count:
+                  typeof payload.commentCount === 'number'
+                    ? payload.commentCount
+                    : post.comment_count,
+              }
+            : post
+        )
+      );
+    };
+
+    const unsubscribeLike = EventBus.on('post-like-updated', handlePostLikeUpdate);
+    const unsubscribeComment = EventBus.on('post-comment-updated', handlePostCommentUpdate);
+
+    return () => {
+      if (unsubscribeLike) unsubscribeLike();
+      if (unsubscribeComment) unsubscribeComment();
+    };
+  }, []);
 
   const loadProfile = async () => {
     try {
@@ -304,8 +376,26 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const handleHeadPress = (head) => {
     if (head?.member_id) {
-      // Navigate to MemberPublicProfile within Community's Profile stack
-      navigation.navigate('MemberPublicProfile', { memberId: head.member_id });
+      // Check if it's the current user's own profile
+      const isOwnProfile = currentUserId && head.member_id === currentUserId;
+      if (isOwnProfile) {
+        // Navigate to own profile screen
+        const root = navigation.getParent()?.getParent();
+        if (root) {
+          root.navigate('MemberHome', {
+            screen: 'Profile',
+            params: {
+              screen: 'MemberProfile'
+            }
+          });
+        } else {
+          // Fallback navigation
+          navigation.navigate('MemberProfile');
+        }
+      } else {
+        // Navigate to MemberPublicProfile within Community's Profile stack
+        navigation.navigate('MemberPublicProfile', { memberId: head.member_id });
+      }
     }
   };
 
@@ -804,6 +894,13 @@ const PostModal = ({
           if (onLikeUpdate) {
             onLikeUpdate(post.id, false, newCount);
           }
+          // Emit event for other screens to update
+          EventBus.emit("post-like-updated", {
+            postId: post.id,
+            isLiked: false,
+            likeCount: newCount,
+            commentCount: commentCount,
+          });
           return newCount;
         });
         setIsLiked(false);
@@ -814,6 +911,13 @@ const PostModal = ({
           if (onLikeUpdate) {
             onLikeUpdate(post.id, true, newCount);
           }
+          // Emit event for other screens to update
+          EventBus.emit("post-like-updated", {
+            postId: post.id,
+            isLiked: true,
+            likeCount: newCount,
+            commentCount: commentCount,
+          });
           return newCount;
         });
         setIsLiked(true);

@@ -941,12 +941,10 @@ export default function MemberProfileScreen({ navigation }) {
             />
           </View>
 
-          <View style={styles.nameRowContainer}>
-            <View style={styles.nameContainer}>
-              <Text style={styles.profileName}>{profile.name}</Text>
-            </View>
+          <View style={styles.nameAndPronounsContainer}>
+            <Text style={styles.profileName}>{profile.name}</Text>
             {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
-              <View style={styles.inlinePronounsRow}>
+              <View style={styles.pronounsRowCentered}>
                 <View
                   key={`pronoun-0`}
                   style={[styles.chip, styles.pronounChipSmall]}
@@ -1424,25 +1422,19 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: TEXT_COLOR,
+    textAlign: "center",
   },
-  nameRowContainer: {
-    flexDirection: "row",
+  nameAndPronounsContainer: {
     alignItems: "center",
     marginBottom: 5,
-    justifyContent: "center",
     width: "100%",
-    position: "relative",
   },
-  nameContainer: {
-    alignItems: "center",
-  },
-  inlinePronounsRow: {
+  pronounsRowCentered: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    position: "absolute",
-    left: "50%",
-    marginLeft: 60,
+    marginTop: 8,
   },
   expandedPronounsRow: {
     flexDirection: "row",

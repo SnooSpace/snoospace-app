@@ -42,6 +42,7 @@ export default function SearchScreen({ navigation }) {
   const [focused, setFocused] = useState(false);
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [userType, setUserType] = useState(null);
 
   const canSearch = query.trim().length >= 2;
 
@@ -135,6 +136,7 @@ export default function SearchScreen({ navigation }) {
           const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
           if (profileResponse?.profile?.id) {
             setUserId(profileResponse.profile.id);
+            setUserType(profileResponse.role || 'member');
           }
         }
       } catch (error) {
@@ -167,14 +169,24 @@ export default function SearchScreen({ navigation }) {
         } else {
           await followMember(entityId);
         }
-        EventBus.emit("follow-updated", { memberId: entityId, isFollowing: !isFollowing });
+        EventBus.emit("follow-updated", { 
+          memberId: entityId, 
+          isFollowing: !isFollowing,
+          followerId: userId || null,
+          followerType: userType || null,
+        });
       } else if (entityType === 'community') {
         if (isFollowing) {
           await unfollowCommunity(entityId);
         } else {
           await followCommunity(entityId);
         }
-        EventBus.emit("follow-updated", { communityId: entityId, isFollowing: !isFollowing });
+        EventBus.emit("follow-updated", { 
+          communityId: entityId, 
+          isFollowing: !isFollowing,
+          followerId: userId || null,
+          followerType: userType || null,
+        });
       }
     } catch (e) {
       // rollback on error

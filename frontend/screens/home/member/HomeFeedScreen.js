@@ -58,6 +58,56 @@ export default function HomeFeedScreen({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    const handlePostLikeUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                is_liked: payload.isLiked,
+                isLiked: payload.isLiked,
+                like_count:
+                  typeof payload.likeCount === 'number'
+                    ? payload.likeCount
+                    : post.like_count,
+                comment_count:
+                  typeof payload.commentCount === 'number'
+                    ? payload.commentCount
+                    : post.comment_count,
+              }
+            : post
+        )
+      );
+    };
+
+    const handlePostCommentUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                comment_count:
+                  typeof payload.commentCount === 'number'
+                    ? payload.commentCount
+                    : post.comment_count,
+              }
+            : post
+        )
+      );
+    };
+
+    const unsubscribeLike = EventBus.on('post-like-updated', handlePostLikeUpdate);
+    const unsubscribeComment = EventBus.on('post-comment-updated', handlePostCommentUpdate);
+
+    return () => {
+      if (unsubscribeLike) unsubscribeLike();
+      if (unsubscribeComment) unsubscribeComment();
+    };
+  }, []);
+
   // Refresh message count when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
@@ -91,18 +141,33 @@ export default function HomeFeedScreen({ navigation }) {
       
       const response = await apiGet('/posts/feed', 15000, token);
       // Parse tagged_entities if they come as JSON strings
-      const posts = (response.posts || []).map(post => ({
-        ...post,
-        tagged_entities: (() => {
-          if (!post.tagged_entities) return null;
-          if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
-          try {
-            return JSON.parse(post.tagged_entities);
-          } catch {
-            return null;
-          }
-        })()
-      }));
+      const posts = (response.posts || []).map(post => {
+        const mappedPost = {
+          ...post,
+          // Explicitly preserve author_id and author_type
+          author_id: post.author_id,
+          author_type: post.author_type,
+          tagged_entities: (() => {
+            if (!post.tagged_entities) return null;
+            if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
+            try {
+              return JSON.parse(post.tagged_entities);
+            } catch {
+              return null;
+            }
+          })()
+        };
+        // Debug log for community posts
+        if (post.author_type === 'community') {
+          console.log('[HomeFeedScreen] Community post loaded:', {
+            postId: post.id,
+            author_id: post.author_id,
+            author_type: post.author_type,
+            author_name: post.author_name
+          });
+        }
+        return mappedPost;
+      });
       setPosts(posts);
     } catch (error) {
       console.error('Error loading feed:', error);
@@ -160,19 +225,19 @@ export default function HomeFeedScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const handleLike = async (postId, isLiked) => { // Modified handleLike
-    try {
-      const token = await getAuthToken();
-      if (isLiked) {
-        await apiPost(`/posts/${postId}/like`, {}, 15000, token);
-      } else {
-        await apiPost(`/posts/${postId}/unlike`, {}, 15000, token);
-      }
-    } catch (error) {
-      console.error('Error updating like status:', error);
-      // Note: A robust implementation would revert the optimistic UI update on failure.
-      // For now, we'll keep it simple and just log the error.
-    }
+  const handleLikeUpdate = (postId, isLiked) => {
+    setPosts(prevPosts =>
+      prevPosts.map(p =>
+        p.id === postId
+          ? {
+              ...p,
+              is_liked: isLiked,
+              isLiked,
+              like_count: Math.max(0, (p.like_count || 0) + (isLiked ? 1 : -1)),
+            }
+          : p
+      )
+    );
   };
 
   const formatCount = (count) => {
@@ -211,26 +276,71 @@ export default function HomeFeedScreen({ navigation }) {
     };
   };
 
-  const renderPost = ({ item }) => ( // Modified renderPost
-    <PostCard 
-      post={item}
-      onLike={(postId, isLiked) => {
-        // Optimistic UI update (preserve both snake_case and camelCase for consistency)
-        setPosts(prevPosts =>
-          prevPosts.map(p =>
-            p.id === postId
-              ? { ...p, is_liked: isLiked, isLiked, like_count: p.like_count + (isLiked ? 1 : -1) }
-              : p
-          )
-        );
-        // API call
-        handleLike(postId, isLiked);
-      }}
-      onComment={handleCommentPress}
-      onUserPress={(userId, userType) => {
-        if (userType === 'member' || !userType) {
+  const renderPost = ({ item }) => {
+    // Debug: Log post data for community posts
+    if (item?.author_type === 'community') {
+      console.log('[HomeFeedScreen] Rendering community post:', {
+        postId: item.id,
+        author_id: item.author_id,
+        author_type: item.author_type,
+        author_name: item.author_name,
+        currentUserId
+      });
+    }
+    
+    return (
+      <PostCard 
+        post={item}
+        onLike={handleLikeUpdate}
+        onComment={handleCommentPress}
+        onUserPress={(userId, userType) => {
+          // Fallback: Use post item's author_type if userType is missing
+          const actualUserType = userType || item?.author_type;
+          const actualUserId = userId || item?.author_id;
+          
+          console.log('[HomeFeedScreen] onUserPress called:', { 
+            userId, 
+            userType, 
+            actualUserId,
+            actualUserType,
+            currentUserId,
+            postId: item?.id,
+            postAuthorId: item?.author_id,
+            postAuthorType: item?.author_type,
+            fullItem: item
+          });
+          
+          // Check for community first to ensure it's handled correctly
+          if (actualUserType === 'community') {
+            console.log('[HomeFeedScreen] Navigating to community profile:', actualUserId);
+            // Try direct navigation through HomeStackNavigator first (simpler and more direct)
+            try {
+              navigation.navigate('CommunityPublicProfile', {
+                communityId: actualUserId,
+                viewerRole: 'member'
+              });
+            } catch (error) {
+              // Fallback: Navigate through Profile tab if direct navigation fails
+              console.log('[HomeFeedScreen] Direct navigation failed, trying Profile tab route');
+              const root = navigation.getParent()?.getParent();
+              if (root) {
+                root.navigate('MemberHome', {
+                  screen: 'Profile',
+                  params: {
+                    screen: 'CommunityPublicProfile',
+                    params: { communityId: actualUserId, viewerRole: 'member' }
+                  }
+                });
+              }
+            }
+            return; // Important: return early to prevent fallthrough
+          }
+        
+        // Only handle member if explicitly member type
+        if (actualUserType === 'member') {
           // Check if it's the current user's own profile
-          const isOwnProfile = currentUserId && userId === currentUserId;
+          const isOwnProfile = currentUserId && actualUserId === currentUserId;
+          console.log('[HomeFeedScreen] Member navigation:', { actualUserId, isOwnProfile, currentUserId });
           const root = navigation.getParent()?.getParent();
           if (root) {
             if (isOwnProfile) {
@@ -245,24 +355,33 @@ export default function HomeFeedScreen({ navigation }) {
                 screen: 'Profile',
                 params: {
                   screen: 'MemberPublicProfile',
-                  params: { memberId: userId }
+                  params: { memberId: actualUserId }
                 }
               });
             }
           }
-        } else if (userType === 'community') {
-          // Navigate to community profile - for now show alert, can be implemented later
-          Alert.alert('Community Profile', 'Community profile navigation will be implemented soon');
-        } else if (userType === 'sponsor') {
+          return;
+        }
+        
+        // If userType is undefined/null, log warning and don't navigate
+        // This prevents incorrect navigation when author_type is missing
+        if (!actualUserType) {
+          console.warn('[HomeFeedScreen] userType is undefined/null for userId:', actualUserId, 'Post data:', item);
+          Alert.alert('Navigation Error', 'Unable to determine profile type. Please try again.');
+          return;
+        }
+        
+        if (actualUserType === 'sponsor') {
           // Navigate to sponsor profile - for now show alert, can be implemented later
           Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
-        } else if (userType === 'venue') {
+        } else if (actualUserType === 'venue') {
           // Navigate to venue profile - for now show alert, can be implemented later
           Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
         }
       }}
     />
   );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
