@@ -339,7 +339,7 @@ const CommentsModal = ({
         setTaggedEntities([]);
         setShowTagSearch(false);
         setAtPosition(-1);
-        const newCount = comments.length + 1;
+          const newCount = comments.length + 1;
         if (onCommentCountChange) {
           onCommentCountChange(newCount);
         }

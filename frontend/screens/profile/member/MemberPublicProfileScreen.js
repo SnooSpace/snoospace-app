@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -44,6 +50,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [showAllPronouns, setShowAllPronouns] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
+  const pendingPostUpdateRef = useRef(null);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -128,12 +135,81 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     };
   }, [memberId]);
 
+  // Listen for like updates from other screens (e.g., home feed)
+  useEffect(() => {
+    const unsubscribe = EventBus.on("post-like-updated", (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === payload.postId
+            ? {
+                ...post,
+                is_liked: payload.isLiked,
+                isLiked: payload.isLiked,
+                like_count:
+                  typeof payload.likeCount === "number"
+                    ? payload.likeCount
+                    : post.like_count,
+              }
+            : post
+        )
+      );
+      // Also update selectedPost if it matches
+      setSelectedPost((prevSelected) => {
+        if (prevSelected && prevSelected.id === payload.postId) {
+          return {
+            ...prevSelected,
+            is_liked: payload.isLiked,
+            isLiked: payload.isLiked,
+            like_count:
+              typeof payload.likeCount === "number"
+                ? payload.likeCount
+                : prevSelected.like_count,
+            comment_count:
+              typeof payload.commentCount === "number"
+                ? payload.commentCount
+                : prevSelected.comment_count,
+          };
+        }
+        return prevSelected;
+      });
+    });
+    return () => unsubscribe && unsubscribe();
+  }, []);
+
   const openPostModal = (post) => {
-    setSelectedPost(post);
+    // Find the latest version of this post from the posts array
+    const latestPost = posts.find((p) => p.id === post.id) || post;
+    setSelectedPost(latestPost);
     setPostModalVisible(true);
   };
 
+  const handlePostLike = (postId, isLiked, likeCount) => {
+    pendingPostUpdateRef.current = {
+      postId,
+      is_liked: isLiked,
+      like_count: likeCount,
+    };
+  };
+
   const closePostModal = () => {
+    // Apply any buffered like updates once when the modal closes
+    const pending = pendingPostUpdateRef.current;
+    if (pending && pending.postId != null) {
+      setPosts((prevPosts) =>
+        prevPosts.map((p) =>
+          p.id === pending.postId
+            ? {
+                ...p,
+                is_liked: pending.is_liked,
+                isLiked: pending.is_liked,
+                like_count: pending.like_count,
+              }
+            : p
+        )
+      );
+      pendingPostUpdateRef.current = null;
+    }
     setPostModalVisible(false);
     setSelectedPost(null);
   };
@@ -298,9 +374,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   // Navigate to Profile tab's stack for FollowersList (it only exists there)
                   const root = navigation.getParent()?.getParent();
                   if (root) {
-                    root.navigate('Profile', {
-                      screen: 'FollowersList',
-                      params: { memberId, title: "Followers" }
+                    root.navigate("Profile", {
+                      screen: "FollowersList",
+                      params: { memberId, title: "Followers" },
                     });
                   } else {
                     // Fallback: try same stack navigation
@@ -322,9 +398,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   // Navigate to Profile tab's stack for FollowingList (it only exists there)
                   const root = navigation.getParent()?.getParent();
                   if (root) {
-                    root.navigate('Profile', {
-                      screen: 'FollowingList',
-                      params: { memberId, title: "Following" }
+                    root.navigate("Profile", {
+                      screen: "FollowingList",
+                      params: { memberId, title: "Following" },
                     });
                   } else {
                     // Fallback: try same stack navigation
@@ -389,7 +465,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </View>
             ) : null}
 
-            <View style={{ marginTop: 12, flexDirection: "row", gap: 10, width: "100%" }}>
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: "row",
+                gap: 10,
+                width: "100%",
+              }}
+            >
               <TouchableOpacity
                 style={[
                   styles.followCta,
@@ -464,20 +547,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   // Navigate to Chat screen via Home stack
                   const root = navigation.getParent()?.getParent()?.getParent();
                   if (root) {
-                    root.navigate('MemberHome', {
-                      screen: 'Home',
+                    root.navigate("MemberHome", {
+                      screen: "Home",
                       params: {
-                        screen: 'Chat',
-                        params: { recipientId: memberId }
-                      }
+                        screen: "Chat",
+                        params: { recipientId: memberId },
+                      },
                     });
                   } else {
                     // Fallback: try to navigate through parent
                     const parent = navigation.getParent();
                     if (parent) {
-                      parent.navigate('Home', {
-                        screen: 'Chat',
-                        params: { recipientId: memberId }
+                      parent.navigate("Home", {
+                        screen: "Chat",
+                        params: { recipientId: memberId },
                       });
                     }
                   }
@@ -536,6 +619,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           onClose={closePostModal}
           profile={profile}
           navigation={navigation}
+          onLikeUpdate={handlePostLike}
         />
       )}
     </SafeAreaView>
@@ -543,7 +627,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 }
 
 // PostModal Component
-const PostModal = ({ visible, post, onClose, profile: profileProp, navigation }) => {
+const PostModal = ({
+  visible,
+  post,
+  onClose,
+  profile: profileProp,
+  navigation,
+  onLikeUpdate,
+}) => {
   const initialIsLiked = post?.is_liked === true || post?.isLiked === true;
   const [likes, setLikes] = useState(post?.like_count || 0);
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -580,15 +671,52 @@ const PostModal = ({ visible, post, onClose, profile: profileProp, navigation })
 
       if (isLiked) {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-        setLikes((prev) => prev - 1);
+        setLikes((prev) => {
+          const newCount = prev - 1;
+          if (onLikeUpdate) {
+            onLikeUpdate(post.id, false, newCount);
+          }
+          // Emit event for other screens to update
+          EventBus.emit("post-like-updated", {
+            postId: post.id,
+            isLiked: false,
+            likeCount: newCount,
+            commentCount: commentCount,
+          });
+          return newCount;
+        });
         setIsLiked(false);
       } else {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-        setLikes((prev) => prev + 1);
+        setLikes((prev) => {
+          const newCount = prev + 1;
+          if (onLikeUpdate) {
+            onLikeUpdate(post.id, true, newCount);
+          }
+          // Emit event for other screens to update
+          EventBus.emit("post-like-updated", {
+            postId: post.id,
+            isLiked: true,
+            likeCount: newCount,
+            commentCount: commentCount,
+          });
+          return newCount;
+        });
         setIsLiked(true);
       }
     } catch (error) {
       console.error("Error liking post:", error);
+      // Silently handle "already liked" and "not liked" errors
+      const errorMessage = error?.message || "";
+      if (
+        errorMessage.includes("already liked") ||
+        errorMessage.includes("not liked")
+      ) {
+        // These are expected errors when double-clicking, just ignore
+        justUpdatedRef.current = false;
+        return;
+      }
+      // Only show alert for unexpected errors
       Alert.alert("Error", error?.message || "Failed to like post");
       justUpdatedRef.current = false;
     } finally {
@@ -630,9 +758,7 @@ const PostModal = ({ visible, post, onClose, profile: profileProp, navigation })
       "November",
       "December",
     ];
-    return `${date.getDate()} ${
-      months[date.getMonth()]
-    } ${date.getFullYear()}`;
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
   return (
@@ -755,11 +881,7 @@ const PostModal = ({ visible, post, onClose, profile: profileProp, navigation })
                 style={postModalStyles.modalActionButton}
               >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={26}
-                    color="#000"
-                  />
+                  <Ionicons name="chatbubble-outline" size={26} color="#000" />
                   {commentCount > 0 && (
                     <Text style={postModalStyles.postModalCommentCount}>
                       {commentCount}
