@@ -2,19 +2,17 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  FlatList,
-  Image,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
-import { apiPost, apiGet } from "../../../api/client";
+import { apiPost } from "../../../api/client";
 import ImageUploader from "../../../components/ImageUploader";
 import MentionInput from "../../../components/MentionInput";
 import { getAuthToken } from "../../../api/auth";
@@ -31,6 +29,7 @@ const COLORS = {
 };
 
 const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
+  const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [taggedEntities, setTaggedEntities] = useState([]);
@@ -39,7 +38,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const handleImagesChange = (newImages) => {
     setImages(newImages);
   };
-
 
   const handleSubmit = async () => {
     if (images.length === 0) {
@@ -120,37 +118,44 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const canSubmit = images.length > 0 && (caption.trim() || taggedEntities.length > 0);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create Post</Text>
+        <TouchableOpacity
+          onPress={handleSubmit}
+          disabled={!canSubmit || isSubmitting}
+          style={[
+            styles.shareButton,
+            (!canSubmit || isSubmitting) && styles.shareButtonDisabled
+          ]}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text style={styles.shareButtonText}>Share</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Post</Text>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={!canSubmit || isSubmitting}
-            style={[
-              styles.shareButton,
-              (!canSubmit || isSubmitting) && styles.shareButtonDisabled
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Text style={styles.shareButtonText}>Share</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+        >
           {/* Caption Input with @ Mention Support */}
           <View style={styles.captionContainer}>
             <MentionInput
@@ -182,17 +187,14 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             <Text style={styles.guideline}>• Tag relevant people and places</Text>
             <Text style={styles.guideline}>• Share meaningful moments</Text>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
-  },
-  keyboardAvoidingView: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
@@ -200,14 +202,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 15,
-    paddingVertical: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    padding: 4,
+    marginRight: 4,
   },
   headerTitle: {
     flex: 1,
@@ -230,19 +233,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  container: {
+  keyboardAvoidingView: {
     flex: 1,
-    paddingHorizontal: 15,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 30,
   },
   captionContainer: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  captionInput: {
-    fontSize: 16,
-    color: COLORS.textDark,
-    minHeight: 100,
-    textAlignVertical: "top",
+    marginTop: 16,
+    marginBottom: 12,
   },
   mentionInput: {
     flex: 1,

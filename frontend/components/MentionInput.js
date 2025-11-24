@@ -39,6 +39,7 @@ const MentionInput = ({
   const [isSearching, setIsSearching] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const inputRef = useRef(null);
+  const cursorPositionRef = useRef(0);
 
   useEffect(() => {
     if (onChangeText) {
@@ -93,33 +94,58 @@ const MentionInput = ({
 
   const handleTextChange = (newText) => {
     setText(newText);
+
+    const currentCursorPosition = cursorPositionRef.current ?? 0;
+    if (currentCursorPosition <= 0) {
+      setShowSearch(false);
+      setSearchQuery('');
+      return;
+    }
+
+    const boundedCursorPos = Math.min(currentCursorPosition, newText.length);
+    const charBeforeCursor = newText[boundedCursorPos - 1];
+
+    // If cursor sits on whitespace or we don't have a valid char, mention is done
+    if (!charBeforeCursor || /\s/.test(charBeforeCursor)) {
+      setShowSearch(false);
+      setSearchQuery('');
+      return;
+    }
+
+    // Find @ mentions in the text up to the cursor
+    const atIndex = newText.lastIndexOf('@', boundedCursorPos - 1);
+    if (atIndex === -1 || atIndex >= boundedCursorPos) {
+      setShowSearch(false);
+      setSearchQuery('');
+      return;
+    }
+
+    const mentionSlice = newText.substring(atIndex + 1, boundedCursorPos);
+    if (/\s/.test(mentionSlice)) {
+      setShowSearch(false);
+      setSearchQuery('');
+      return;
+    }
+
+    const afterAt = newText.substring(atIndex + 1);
+    const spaceIndex = afterAt.indexOf(' ');
+    const newlineIndex = afterAt.indexOf('\n');
+    const endIndex = spaceIndex !== -1 && newlineIndex !== -1
+      ? Math.min(spaceIndex, newlineIndex)
+      : spaceIndex !== -1
+      ? spaceIndex
+      : newlineIndex !== -1
+      ? newlineIndex
+      : afterAt.length;
     
-    // Find @ mentions in the text
-    const atIndex = newText.lastIndexOf('@', cursorPosition);
-    if (atIndex !== -1) {
-      const afterAt = newText.substring(atIndex + 1);
-      const spaceIndex = afterAt.indexOf(' ');
-      const newlineIndex = afterAt.indexOf('\n');
-      const endIndex = spaceIndex !== -1 && newlineIndex !== -1
-        ? Math.min(spaceIndex, newlineIndex)
-        : spaceIndex !== -1
-        ? spaceIndex
-        : newlineIndex !== -1
-        ? newlineIndex
-        : afterAt.length;
-      
-      const mentionQuery = afterAt.substring(0, endIndex);
-      if (mentionQuery.length >= 1) {
-        setSearchQuery(mentionQuery);
-        setShowSearch(true);
-        if (mentionQuery.length >= 2) {
-          searchMembers(mentionQuery);
-        } else {
-          setSearchResults([]);
-        }
+    const mentionQuery = afterAt.substring(0, endIndex);
+    if (mentionQuery.length >= 1) {
+      setSearchQuery(mentionQuery);
+      setShowSearch(true);
+      if (mentionQuery.length >= 2) {
+        searchMembers(mentionQuery);
       } else {
-        setShowSearch(false);
-        setSearchQuery('');
+        setSearchResults([]);
       }
     } else {
       setShowSearch(false);
@@ -128,7 +154,9 @@ const MentionInput = ({
   };
 
   const handleSelectionChange = (event) => {
-    setCursorPosition(event.nativeEvent.selection.start);
+    const position = event.nativeEvent.selection.start;
+    cursorPositionRef.current = position;
+    setCursorPosition(position);
   };
 
   const selectEntity = (entity) => {
@@ -146,10 +174,21 @@ const MentionInput = ({
         ? newlineIndex
         : afterAt.length;
       
-      const newText = beforeAt + `@${entity.username || entity.full_name || entity.name} ` + afterAt.substring(endIndex);
+      const mentionText = `@${entity.username || entity.full_name || entity.name} `;
+      const newText = beforeAt + mentionText + afterAt.substring(endIndex);
       setText(newText);
       setShowSearch(false);
       setSearchQuery('');
+      const newCursorPos = beforeAt.length + mentionText.length;
+      cursorPositionRef.current = newCursorPos;
+      setCursorPosition(newCursorPos);
+      requestAnimationFrame(() => {
+        if (inputRef.current?.setNativeProps) {
+          inputRef.current.setNativeProps({
+            selection: { start: newCursorPos, end: newCursorPos },
+          });
+        }
+      });
       
       // Add to tagged entities if not already present
       const isAlreadyTagged = taggedEntities.some(
