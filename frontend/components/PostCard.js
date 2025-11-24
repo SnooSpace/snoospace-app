@@ -69,6 +69,7 @@ const PostCard = ({
       } else {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
+      console.log('[PostCard] Emitting post-like-updated event:', { postId: post.id, isLiked: nextLiked, likeCount: nextLikes });
       EventBus.emit("post-like-updated", {
         postId: post.id,
         isLiked: nextLiked,

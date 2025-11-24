@@ -20,6 +20,7 @@ import { getUnreadCount as getMessageUnreadCount } from '../../../api/messages';
 import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
 import CommentsModal from '../../../components/CommentsModal'; // Comments modal
 import EventBus from '../../../utils/EventBus';
+import LikeStateManager from '../../../utils/LikeStateManager';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -61,6 +62,10 @@ export default function HomeFeedScreen({ navigation }) {
   useEffect(() => {
     const handlePostLikeUpdate = (payload) => {
       if (!payload?.postId) return;
+      
+      // Cache the like state to persist across screens
+      LikeStateManager.setLikeState(payload.postId, payload.isLiked);
+      
       setPosts((prev) =>
         prev.map((post) =>
           post.id === payload.postId
