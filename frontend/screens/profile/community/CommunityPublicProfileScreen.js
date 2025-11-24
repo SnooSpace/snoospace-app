@@ -25,6 +25,7 @@ import EventBus from "../../../utils/EventBus";
 import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { apiPost, apiDelete } from "../../../api/client";
+import LikeStateManager from "../../../utils/LikeStateManager";
 
 const formatPhoneNumber = (value) => {
   if (!value) return "";
@@ -110,7 +111,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           is_liked: post.is_liked === true,
           isLiked: post.is_liked === true,
         }));
-        setPosts(normalizedPosts);
+        
+        // Merge with cached like states to fix backend returning stale is_liked data
+        const mergedPosts = LikeStateManager.mergeLikeStates(normalizedPosts);
+        
+        console.log('[CommunityPublicProfile] loadPosts - Setting posts, first post:', mergedPosts[0] ? { id: mergedPosts[0].id, is_liked: mergedPosts[0].is_liked, like_count: mergedPosts[0].like_count } : 'NO POSTS');
+        setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
         setOffset(nextOffset);
@@ -171,9 +177,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   // Listen for post like/comment updates to refresh posts immediately
   useEffect(() => {
     const handlePostLikeUpdate = (payload) => {
+      console.log('[CommunityPublicProfile] EventBus post-like-updated received:', payload);
       if (!payload?.postId) return;
-      setPosts((prevPosts) =>
-        prevPosts.map((post) =>
+      
+      // Cache the like state to persist across component unmounts
+      LikeStateManager.setLikeState(payload.postId, payload.isLiked);
+      
+      setPosts((prevPosts) => {
+        const updatedPosts = prevPosts.map((post) =>
           post.id === payload.postId
             ? {
                 ...post,
@@ -189,8 +200,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     : post.comment_count,
               }
             : post
-        )
-      );
+        );
+        console.log('[CommunityPublicProfile] Posts updated via EventBus, updated post:', updatedPosts.find(p => p.id === payload.postId));
+        return updatedPosts;
+      });
       // Also update selectedPost if it matches
       setSelectedPost((prevSelected) => {
         if (prevSelected && prevSelected.id === payload.postId) {
@@ -244,9 +257,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     };
   }, []);
 
-  const openPostModal = (post) => {
+  const openPostModal = (postId) => {
+    console.log('[CommunityPublicProfile] openPostModal called with postId:', postId);
+    // Look up the post from current state to ensure we have fresh data
+    const post = posts.find(p => p.id === postId);
+    console.log('[CommunityPublicProfile] Found post from state:', post ? { id: post.id, is_liked: post.is_liked, like_count: post.like_count } : 'NOT FOUND');
+    if (!post) return;
+    
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = post.is_liked === true;
+    console.log('[CommunityPublicProfile] Normalized is_liked:', normalizedIsLiked, 'from post.is_liked:', post.is_liked);
     const normalizedPost = {
       ...post,
       is_liked: normalizedIsLiked,
@@ -304,7 +324,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     return (
       <TouchableOpacity
         activeOpacity={0.9}
-        onPress={() => openPostModal(item)}
+        onPress={() => openPostModal(item.id)}
         style={[
           styles.gridItem,
           {
@@ -694,7 +714,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       marginRight: (index + 1) % 3 === 0 ? 0 : gap,
                       marginBottom: gap,
                     }}
-                    onPress={() => openPostModal(item)}
+                    onPress={() => openPostModal(item.id)}
                   >
                     {(() => {
                       let firstImageUrl = null;
@@ -817,7 +837,6 @@ const PostModal = ({
     setCommentCount(post?.comment_count || 0);
   }, [
     post?.is_liked,
-    post?.isLiked,
     post?.like_count,
     post?.comment_count,
     visible,
