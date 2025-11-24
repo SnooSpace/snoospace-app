@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiDelete } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
+import MentionTextRenderer from "./MentionTextRenderer";
 
 const { width } = Dimensions.get("window");
 
@@ -25,6 +26,20 @@ const COLORS = {
   error: "#FF4444",
   success: "#00C851",
   border: "#E5E5E5",
+};
+
+const normalizeTaggedEntities = (entities) => {
+  if (Array.isArray(entities)) return entities;
+  if (typeof entities === "string") {
+    try {
+      const parsed = JSON.parse(entities);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn("[PostCard] Failed to parse tagged_entities:", error);
+      return [];
+    }
+  }
+  return [];
 };
 
 const PostCard = ({
@@ -40,6 +55,10 @@ const PostCard = ({
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
+  const taggedEntities = useMemo(
+    () => normalizeTaggedEntities(post.tagged_entities),
+    [post.tagged_entities]
+  );
 
   // Sync state when post prop changes (e.g., after navigation and feed reload)
   useEffect(() => {
@@ -149,12 +168,12 @@ const PostCard = ({
   };
 
   const renderTaggedEntities = () => {
-    if (!post.tagged_entities || post.tagged_entities.length === 0) return null;
+    if (!taggedEntities || taggedEntities.length === 0) return null;
 
     return (
       <View style={styles.taggedContainer}>
         <Text style={styles.taggedText}>Tagged: </Text>
-        {post.tagged_entities.map((entity, index) => {
+        {taggedEntities.map((entity, index) => {
           // Prioritize username, fallback to name
           const displayName = entity.username || entity.name || "user";
           return (
@@ -164,7 +183,7 @@ const PostCard = ({
             >
               <Text style={styles.taggedEntity}>
                 @{displayName}
-                {index < post.tagged_entities.length - 1 ? ", " : ""}
+                {index < taggedEntities.length - 1 ? ", " : ""}
               </Text>
             </TouchableOpacity>
           );
@@ -256,10 +275,21 @@ const PostCard = ({
       {/* Caption */}
       {post.caption && (
         <View style={styles.captionContainer}>
-          <Text style={styles.caption}>
-            <Text style={styles.authorNameInline}>{post.author_name}</Text>{" "}
-            {post.caption}
-          </Text>
+          <MentionTextRenderer
+            prefix={
+              <Text style={styles.authorNameInline}>
+                {post.author_name || "Community"}
+              </Text>
+            }
+            text={post.caption}
+            taggedEntities={taggedEntities}
+            textStyle={styles.caption}
+            mentionStyle={styles.mentionText}
+            onMentionPress={(entity) => {
+              if (!entity?.id || !onUserPress) return;
+              onUserPress(entity.id, entity.type || "member");
+            }}
+          />
         </View>
       )}
 
@@ -347,6 +377,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textDark,
     lineHeight: 20,
+  },
+  mentionText: {
+    color: COLORS.primary,
+    fontWeight: "600",
   },
   taggedContainer: {
     flexDirection: "row",

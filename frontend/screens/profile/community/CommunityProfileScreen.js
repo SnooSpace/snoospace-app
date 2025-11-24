@@ -30,6 +30,7 @@ import { mockData } from '../../../data/mockData';
 import HeadsEditorModal from '../../../components/modals/HeadsEditorModal';
 import CommentsModal from '../../../components/CommentsModal';
 import EventBus from '../../../utils/EventBus';
+import MentionTextRenderer from '../../../components/MentionTextRenderer';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -60,11 +61,29 @@ export default function CommunityProfileScreen({ navigation }) {
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
   const pendingPostUpdateRef = useRef(null);
+  const hasInitialLoadRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    let isMounted = true;
+    (async () => {
+      await loadProfile();
+      if (isMounted) {
+        hasInitialLoadRef.current = true;
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [loadProfile]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasInitialLoadRef.current) {
+        loadProfile();
+      }
+    }, [loadProfile])
+  );
 
   // Listen for follow updates to refresh follower and following counts
   useEffect(() => {
@@ -174,7 +193,16 @@ export default function CommunityProfileScreen({ navigation }) {
     };
   }, []);
 
-  const loadProfile = async () => {
+  useEffect(() => {
+    const unsubscribe = EventBus.on('post-created', () => {
+      loadProfile();
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [loadProfile]);
+
+  const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
@@ -280,7 +308,7 @@ export default function CommunityProfileScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleLogout = () => {
     Alert.alert(
@@ -524,7 +552,11 @@ export default function CommunityProfileScreen({ navigation }) {
           <View style={styles.topBar}>
             <Text style={styles.handle}>{profile.username ? `@${profile.username}` : profile.name}</Text>
             <View style={styles.iconButtons}>
-              <TouchableOpacity onPress={() => setShowSettingsModal(true)} style={styles.iconButton}>
+              <TouchableOpacity
+                onPress={() => setShowSettingsModal(true)}
+                style={styles.iconButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="settings-outline" size={22} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
@@ -1123,12 +1155,30 @@ const PostModal = ({
             )}
 
             <View style={postModalStyles.postModalCaptionSection}>
-              <Text style={postModalStyles.postModalCaption}>
-                <Text style={postModalStyles.postModalCaptionUsername}>
-                  {post.author_username || post.author_name || 'Community'}
-                </Text>
-                {post.caption && ` ${post.caption}`}
-              </Text>
+              <MentionTextRenderer
+                prefix={
+                  <Text style={postModalStyles.postModalCaptionUsername}>
+                    {post.author_username || post.author_name || 'Community'}
+                  </Text>
+                }
+                text={post.caption || ''}
+                taggedEntities={post?.tagged_entities}
+                textStyle={postModalStyles.postModalCaption}
+                mentionStyle={postModalStyles.postModalCaptionMention}
+                onMentionPress={(entity) => {
+                  if (!entity?.id) return;
+                  const type = (entity.type || 'member').toLowerCase();
+                  if (type === 'member') {
+                    navigation.navigate('MemberPublicProfile', { memberId: entity.id });
+                  } else if (type === 'community') {
+                    navigation.navigate('CommunityPublicProfile', { communityId: entity.id });
+                  } else if (type === 'sponsor') {
+                    Alert.alert('Coming soon', 'Sponsor profile navigation will be available soon.');
+                  } else if (type === 'venue') {
+                    Alert.alert('Coming soon', 'Venue profile navigation will be available soon.');
+                  }
+                }}
+              />
             </View>
 
             {commentCount > 0 && (
@@ -1257,7 +1307,6 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 6,
     borderRadius: 10,
-    backgroundColor: '#F2F2F7',
   },
   profileHeader: {
     alignItems: 'center',
@@ -1629,6 +1678,10 @@ const postModalStyles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     lineHeight: 20,
+  },
+  postModalCaptionMention: {
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
   },
   postModalCaptionUsername: {
     fontWeight: '600',

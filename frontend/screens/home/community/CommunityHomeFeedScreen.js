@@ -147,8 +147,9 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     if (route?.params?.refresh) {
       console.log('Refreshing feed due to new post');
       loadFeed();
+      navigation.setParams({ refresh: null });
     }
-  }, [route?.params?.refresh]);
+  }, [route?.params?.refresh, loadFeed, navigation]);
 
   const loadMessageUnreadCount = useCallback(async () => {
     try {

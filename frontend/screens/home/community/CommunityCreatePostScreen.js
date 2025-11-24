@@ -122,17 +122,17 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
       EventBus.emit('post-created');
 
-      Alert.alert('Success', 'Post created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setCaption('');
-            setImages([]);
-            setTaggedEntities([]);
-            navigation.goBack();
-          },
+      setCaption('');
+      setImages([]);
+      setTaggedEntities([]);
+
+      navigation.navigate('CommunityHome', {
+        screen: 'Home',
+        params: {
+          screen: 'HomeFeed',
+          params: { refresh: Date.now() },
         },
-      ]);
+      });
     } catch (error) {
       console.error('Error creating post:', error);
       const message = error?.response?.data?.error || error?.message || 'Failed to create post';
