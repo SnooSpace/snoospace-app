@@ -31,6 +31,7 @@ import EventBus from "../../../utils/EventBus";
 import { getAuthToken } from "../../../api/auth";
 import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
+import LikeStateManager from "../../../utils/LikeStateManager";
 
 const { width: screenWidth } = Dimensions.get("window");
 const GAP = 10;
@@ -108,7 +109,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           is_liked: post.is_liked === true,
           isLiked: post.is_liked === true,
         }));
-        setPosts(normalizedPosts);
+        
+        // Merge with cached like states to fix backend returning stale is_liked data
+        const mergedPosts = LikeStateManager.mergeLikeStates(normalizedPosts);
+        
+        setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
         setOffset(nextOffset);
@@ -145,6 +150,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     const unsubscribe = EventBus.on("post-like-updated", (payload) => {
       if (!payload?.postId) return;
+      
+      // Cache the like state to persist across component unmounts
+      LikeStateManager.setLikeState(payload.postId, payload.isLiked);
+      
       setPosts((prev) =>
         prev.map((post) =>
           post.id === payload.postId
@@ -184,7 +193,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         return prevSelected;
       });
     });
-    return () => unsubscribe && unsubscribe();
+    return () => unsubscribe &&unsubscribe();
   }, []);
 
   const openPostModal = (post) => {

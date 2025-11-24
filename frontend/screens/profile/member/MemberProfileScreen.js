@@ -542,6 +542,13 @@ export default function MemberProfileScreen({ navigation }) {
             if (onLikeUpdate) {
               onLikeUpdate(post.id, false, newCount);
             }
+            // Emit event for other screens to update
+            EventBus.emit("post-like-updated", {
+              postId: post.id,
+              isLiked: false,
+              likeCount: newCount,
+              commentCount: commentCount,
+            });
             return newCount;
           });
           setIsLiked(false);
@@ -552,6 +559,13 @@ export default function MemberProfileScreen({ navigation }) {
             if (onLikeUpdate) {
               onLikeUpdate(post.id, true, newCount);
             }
+            // Emit event for other screens to update
+            EventBus.emit("post-like-updated", {
+              postId: post.id,
+              isLiked: true,
+              likeCount: newCount,
+              commentCount: commentCount,
+            });
             return newCount;
           });
           setIsLiked(true);
