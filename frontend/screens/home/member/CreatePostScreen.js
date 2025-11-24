@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StyleSheet,
-  ScrollView,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -151,43 +150,39 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          style={styles.container} 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-        {/* Caption Input with @ Mention Support */}
-        <View style={styles.captionContainer}>
-          <MentionInput
-            value={caption}
-            onChangeText={setCaption}
-            onTaggedEntitiesChange={setTaggedEntities}
-            placeholder="What's on your mind? Use @ to mention someone..."
-            placeholderTextColor={COLORS.textLight}
-            maxLength={2000}
-            style={styles.mentionInput}
+        <View style={styles.container}>
+          {/* Caption Input with @ Mention Support */}
+          <View style={styles.captionContainer}>
+            <MentionInput
+              value={caption}
+              onChangeText={setCaption}
+              onTaggedEntitiesChange={setTaggedEntities}
+              placeholder="What's on your mind? Use @ to mention someone..."
+              placeholderTextColor={COLORS.textLight}
+              maxLength={2000}
+              style={styles.mentionInput}
+            />
+            <Text style={styles.characterCount}>
+              {caption.length}/2000
+            </Text>
+          </View>
+
+          {/* Image Uploader */}
+          <ImageUploader
+            maxImages={10}
+            onImagesChange={handleImagesChange}
+            initialImages={images}
           />
-          <Text style={styles.characterCount}>
-            {caption.length}/2000
-          </Text>
-        </View>
 
-        {/* Image Uploader */}
-        <ImageUploader
-          maxImages={10}
-          onImagesChange={handleImagesChange}
-          initialImages={images}
-        />
-
-        {/* Post Guidelines */}
-        <View style={styles.guidelinesContainer}>
-          <Text style={styles.guidelinesTitle}>Post Guidelines:</Text>
-          <Text style={styles.guideline}>• Be respectful and kind</Text>
-          <Text style={styles.guideline}>• No spam or inappropriate content</Text>
-          <Text style={styles.guideline}>• Tag relevant people and places</Text>
-          <Text style={styles.guideline}>• Share meaningful moments</Text>
+          {/* Post Guidelines */}
+          <View style={styles.guidelinesContainer}>
+            <Text style={styles.guidelinesTitle}>Post Guidelines:</Text>
+            <Text style={styles.guideline}>• Be respectful and kind</Text>
+            <Text style={styles.guideline}>• No spam or inappropriate content</Text>
+            <Text style={styles.guideline}>• Tag relevant people and places</Text>
+            <Text style={styles.guideline}>• Share meaningful moments</Text>
+          </View>
         </View>
-      </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -237,9 +232,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
     paddingHorizontal: 15,
   },
   captionContainer: {
@@ -279,60 +271,6 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginBottom: 4,
     lineHeight: 18,
-  },
-  tagSearchContainer: {
-    position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    maxHeight: 200,
-    marginBottom: 4,
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  tagSearchList: {
-    maxHeight: 200,
-  },
-  tagSearchItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  tagSearchAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-  tagSearchInfo: {
-    flex: 1,
-  },
-  tagSearchName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    marginBottom: 2,
-  },
-  tagSearchUsername: {
-    fontSize: 12,
-    color: COLORS.textLight,
-  },
-  tagSearchEmpty: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    paddingVertical: 10,
   },
 });
 

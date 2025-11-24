@@ -4,10 +4,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   Image,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiGet } from '../api/client';
@@ -261,17 +261,19 @@ const MentionInput = ({
               <ActivityIndicator size="small" color={COLORS.primary} />
             </View>
           ) : searchResults.length > 0 ? (
-            <FlatList
-              data={searchResults.filter(item => item != null && item.id)}
-              renderItem={renderSearchResult}
-              keyExtractor={(item, index) => {
-                if (!item || !item.id) return `search-result-${index}`;
-                return `${item.id}-${item.type || 'member'}`;
-              }}
+            <ScrollView
               style={styles.searchResults}
               keyboardShouldPersistTaps="handled"
-              maxToRenderPerBatch={10}
-            />
+              nestedScrollEnabled
+            >
+              {searchResults
+                .filter(item => item != null && item.id)
+                .map((item, index) => (
+                  <View key={item?.id ? `${item.id}-${item.type || 'member'}` : `search-result-${index}`}>
+                    {renderSearchResult({ item })}
+                  </View>
+                ))}
+            </ScrollView>
           ) : searchQuery.length >= 2 ? (
             <View style={styles.searchEmpty}>
               <Text style={styles.searchEmptyText}>No results found</Text>
