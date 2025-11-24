@@ -2,6 +2,14 @@
 
 This document captures how posts, likes, comments, modals, and the profile grid are implemented today for the Member user type. Mirror these patterns for Community, Sponsor, and Venue when extending the feature set.
 
+## Recent Fixes / Notes
+
+- Unified `is_liked` normalization so every PostCard/PostModal trusts `post.is_liked === true`. This eliminated stale booleans that previously came from legacy props.
+- `EventBus` now broadcasts both `post-like-updated` and `post-comment-updated` events from Home feeds, profile screens, and the `CommentsModal`. All profile screens listen and merge those payloads into their `posts` arrays plus any open PostModal state.
+- When posts reload after navigation (e.g., refetch on focus), we preserve the locally updated `is_liked` + counts to avoid reverting hearts to the wrong state.
+- `CommentsModal` avatar resolution checks both `profile_photo_url` (members) and `logo_url` (communities) so the composer shows the real image before & after sending comments.
+- Member profile header now wraps `displayName` + pronouns with `flexWrap` to prevent overlap on long names.
+
 ## Components and Files
 
 - `frontend/screens/profile/member/MemberProfileScreen.js`

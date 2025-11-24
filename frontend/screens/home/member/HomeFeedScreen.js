@@ -173,7 +173,12 @@ export default function HomeFeedScreen({ navigation }) {
         }
         return mappedPost;
       });
-      setPosts(posts);
+      
+      console.log('[HomeFeedScreen] About to merge like states, posts count:', posts.length);
+      // Apply cached like states from LikeStateManager
+      const mergedPosts = LikeStateManager.mergeLikeStates(posts);
+      console.log('[HomeFeedScreen] After merge, checking post 24:', mergedPosts.find(p => p.id === '24' || p.id === 24));
+      setPosts(mergedPosts);
     } catch (error) {
       console.error('Error loading feed:', error);
       setErrorMsg(error?.message || 'Failed to load posts');

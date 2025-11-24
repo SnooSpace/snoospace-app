@@ -110,8 +110,29 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           isLiked: post.is_liked === true,
         }));
         
+        console.log('[MemberPublicProfile] About to merge like states, posts count:', normalizedPosts.length);
+        if (normalizedPosts.length > 0) {
+          normalizedPosts.forEach((post, idx) => {
+            console.log(`[MemberPublicProfile] Post ${idx + 1} before merge:`, { 
+              id: post.id,
+              author: post.author_name,
+              is_liked: post.is_liked 
+            });
+          });
+        }
+        
         // Merge with cached like states to fix backend returning stale is_liked data
         const mergedPosts = LikeStateManager.mergeLikeStates(normalizedPosts);
+        
+        if (mergedPosts.length > 0) {
+          mergedPosts.forEach((post, idx) => {
+            console.log(`[MemberPublicProfile] Post ${idx + 1} after merge:`, { 
+              id: post.id,
+              author: post.author_name,
+              is_liked: post.is_liked 
+            });
+          });
+        }
         
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
@@ -197,8 +218,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   }, []);
 
   const openPostModal = (post) => {
+    console.log('[MemberPublicProfile] openPostModal called with post:', { 
+      id: post.id,
+      author: post.author_name,
+      is_liked: post.is_liked
+    });
     // Find the latest version of this post from the posts array
     const latestPost = posts.find((p) => p.id === post.id) || post;
+    console.log('[MemberPublicProfile] Latest post from state:', { 
+      id: latestPost.id,
+      is_liked: latestPost.is_liked 
+    });
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = latestPost.is_liked === true;
     const normalizedPost = {
@@ -206,6 +236,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       is_liked: normalizedIsLiked,
       isLiked: normalizedIsLiked,
     };
+    console.log('[MemberPublicProfile] Normalized post for modal:', { 
+      id: normalizedPost.id,
+      is_liked: normalizedPost.is_liked 
+    });
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
   };

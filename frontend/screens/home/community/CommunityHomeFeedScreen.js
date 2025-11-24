@@ -41,6 +41,8 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
       const token = await getAuthToken();
       const response = await apiGet('/posts/feed', 15000, token);
       const apiPosts = Array.isArray(response.posts) ? response.posts : [];
+      console.log('[CommunityHomeFeed] Received posts from API:', apiPosts.length);
+      
       // Ensure image_urls is an array (backend sends array; guard for strings)
       const normalized = apiPosts.map(p => ({
         ...p,
@@ -48,7 +50,36 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
           ? p.image_urls
           : (typeof p.image_urls === 'string' ? (() => { try { return JSON.parse(p.image_urls); } catch { return []; } })() : []),
       }));
-      setPosts(normalized);
+      
+      console.log('[CommunityHomeFeed] About to merge like states, posts count:', normalized.length);
+      if (normalized.length > 0) {
+        // Log ALL posts to see like states
+        normalized.forEach((post, idx) => {
+          console.log(`[CommunityHomeFeed] Post ${idx + 1} before merge:`, { 
+            id: post.id, 
+            author: post.author_name,
+            is_liked: post.is_liked, 
+            like_count: post.like_count 
+          });
+        });
+      }
+      
+      // Apply cached like states from LikeStateManager
+      const mergedPosts = LikeStateManager.mergeLikeStates(normalized);
+      
+      if (mergedPosts.length > 0) {
+        // Log ALL posts after merge
+        mergedPosts.forEach((post, idx) => {
+          console.log(`[CommunityHomeFeed] Post ${idx + 1} after merge:`, { 
+            id: post.id,
+            author: post.author_name,
+            is_liked: post.is_liked, 
+            like_count: post.like_count 
+          });
+        });
+      }
+      
+      setPosts(mergedPosts);
     } catch (error) {
       console.error('Error loading feed:', error);
       console.log('Falling back to mock data');
@@ -70,6 +101,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
 
   useEffect(() => {
     const unsubscribe = EventBus.on('post-like-updated', (payload) => {
+      console.log('[CommunityHomeFeed] EventBus post-like-updated received:', payload);
       if (!payload?.postId) return;
       
       // Cache the like state to persist across screens

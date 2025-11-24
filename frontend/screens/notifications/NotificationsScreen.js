@@ -13,20 +13,26 @@ export default function NotificationsScreen({ navigation }) {
     return () => clearTimeout(t);
   }, [markAllRead]);
 
+  const navigateToProfile = (actorId, actorType) => {
+    if (actorType === 'member') {
+      navigation.navigate('MemberPublicProfile', { memberId: actorId });
+    } else if (actorType === 'community') {
+      navigation.navigate('CommunityPublicProfile', { communityId: actorId });
+    } else if (actorType === 'sponsor') {
+      // Navigate to sponsor profile if you have one
+      navigation.navigate('SponsorProfile', { sponsorId: actorId });
+    } else if (actorType === 'venue') {
+      // Navigate to venue profile if you have one
+      navigation.navigate('VenueProfile', { venueId: actorId });
+    }
+  };
+
   const renderItem = ({ item }) => {
+    const payload = item.payload || {};
+    
     if (item.type === 'follow') {
-      const payload = item.payload || {};
       return (
-        <TouchableOpacity style={styles.row} onPress={() => {
-          // Navigate to Profile tab's stack, then to MemberPublicProfile
-          const root = navigation.getParent()?.getParent();
-          if (root) {
-            root.navigate('Profile', {
-              screen: 'MemberPublicProfile',
-              params: { memberId: item.actor_id }
-            });
-          }
-        }}>
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
           <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
           <View style={styles.rowBody}>
             <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> started following you</Text>
@@ -35,6 +41,49 @@ export default function NotificationsScreen({ navigation }) {
         </TouchableOpacity>
       );
     }
+    
+    if (item.type === 'like') {
+      return (
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+          <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
+          <View style={styles.rowBody}>
+            <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> liked your post</Text>
+            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+          </View>
+          <Ionicons name="heart" size={20} color="#FF3B30" style={styles.icon} />
+        </TouchableOpacity>
+      );
+    }
+    
+    if (item.type === 'comment') {
+      const commentPreview = payload.commentText || 'commented on your post';
+      return (
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+          <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> commented: {commentPreview}
+            </Text>
+            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+          </View>
+          <Ionicons name="chatbubble" size={18} color="#007AFF" style={styles.icon} />
+        </TouchableOpacity>
+      );
+    }
+    
+    if (item.type === 'tag') {
+      return (
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+          <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
+          <View style={styles.rowBody}>
+            <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> tagged you in a {payload.commentId ? 'comment' : 'post'}</Text>
+            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+          </View>
+          <Ionicons name="at" size={18} color="#34C759" style={styles.icon} />
+        </TouchableOpacity>
+      );
+    }
+    
     return null;
   };
 
@@ -89,6 +138,7 @@ const styles = StyleSheet.create({
   title: { color: '#1D1D1F' },
   bold: { fontWeight: '600' },
   time: { color: '#8E8E93', fontSize: 12, marginTop: 4 },
+  icon: { marginLeft: 8 },
   empty: { textAlign: 'center', marginTop: 40, color: '#8E8E93' },
 });
 

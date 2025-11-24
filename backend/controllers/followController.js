@@ -50,12 +50,34 @@ const follow = async (req, res) => {
       let actorName = null;
       let actorUsername = null;
       let actorAvatar = null;
+      
       if (followerType === 'member') {
         const r = await pool.query('SELECT name, username, profile_photo_url FROM members WHERE id = $1', [followerId]);
         if (r.rows[0]) {
           actorName = r.rows[0].name || null;
           actorUsername = r.rows[0].username || null;
           actorAvatar = r.rows[0].profile_photo_url || null;
+        }
+      } else if (followerType === 'community') {
+        const r = await pool.query('SELECT name, username, logo_url FROM communities WHERE id = $1', [followerId]);
+        if (r.rows[0]) {
+          actorName = r.rows[0].name || null;
+          actorUsername = r.rows[0].username || null;
+          actorAvatar = r.rows[0].logo_url || null;
+        }
+      } else if (followerType === 'sponsor') {
+        const r = await pool.query('SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1', [followerId]);
+        if (r.rows[0]) {
+          actorName = r.rows[0].name || null;
+          actorUsername = r.rows[0].username || null;
+          actorAvatar = r.rows[0].logo_url || null;
+        }
+      } else if (followerType === 'venue') {
+        const r = await pool.query('SELECT name, username FROM venues WHERE id = $1', [followerId]);
+        if (r.rows[0]) {
+          actorName = r.rows[0].name || null;
+          actorUsername = r.rows[0].username || null;
+          actorAvatar = null; // venues don't have avatars
         }
       }
       await pool.query(

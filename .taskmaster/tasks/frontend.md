@@ -123,6 +123,9 @@
 - Member Stack Navigator (MemberStackNavigator.js): Navigation for profile, edit, search, notifications
 - New components: ChipSelector, EmailChangeModal
 - expo-location dependency added for GPS location
+- Post like-state persistence fixes (Member/Community Home + Profile + PostModal) with EventBus merging and strict `is_liked` normalization
+- Member public profile header layout fixes (name/pronouns flex wrap) to prevent overlap
+- CommentsModal avatar handling updated to prefer `logo_url` so communities see their logos while typing/sending comments
 
 ### 🔮 P2 — Future Features
 - [ ] Stories feed and create story (photo/video, 24h)

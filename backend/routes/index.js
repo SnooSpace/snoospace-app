@@ -96,7 +96,7 @@ router.post("/posts", authMiddleware, PostController.createPost);
 router.get("/posts/feed", authMiddleware, PostController.getFeed);
 router.get("/posts/explore", authMiddleware, PostController.getExplore);
 router.get("/posts/:postId", PostController.getPost);
-router.get("/posts/user/:userId/:userType", PostController.getUserPosts);
+router.get("/posts/user/:userId/:userType", authMiddleware, PostController.getUserPosts);
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);

@@ -59,6 +59,7 @@ const createPost = async (req, res) => {
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
+        
         if (userType === 'member') {
           const actorResult = await pool.query(
             'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
@@ -68,6 +69,36 @@ const createPost = async (req, res) => {
             actorName = actorResult.rows[0].name;
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        } else if (userType === 'community') {
+          const actorResult = await pool.query(
+            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'sponsor') {
+          const actorResult = await pool.query(
+            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'venue') {
+          const actorResult = await pool.query(
+            'SELECT name, username FROM venues WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = null; // venues don't have avatars
           }
         }
 
@@ -332,6 +363,7 @@ const likePost = async (req, res) => {
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
+        
         if (userType === 'member') {
           const actorResult = await pool.query(
             'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
@@ -341,6 +373,36 @@ const likePost = async (req, res) => {
             actorName = actorResult.rows[0].name;
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        } else if (userType === 'community') {
+          const actorResult = await pool.query(
+            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'sponsor') {
+          const actorResult = await pool.query(
+            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'venue') {
+          const actorResult = await pool.query(
+            'SELECT name, username FROM venues WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = null; // venues don't have avatars
           }
         }
 
@@ -486,8 +548,13 @@ const getUserPosts = async (req, res) => {
     const { userId, userType } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
+    
+    // Get viewer info from auth (the person viewing the profile)
+    const viewerId = req.user?.id || null;
+    const viewerType = req.user?.type || null;
 
     console.log(`[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`);
+    console.log(`[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`);
 
     const query = `
       SELECT 
@@ -510,10 +577,13 @@ const getUserPosts = async (req, res) => {
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
-        EXISTS (
-          SELECT 1 FROM post_likes l
-          WHERE l.post_id = p.id AND l.liker_id = $1 AND l.liker_type = $2
-        ) AS is_liked
+        CASE 
+          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_likes l
+            WHERE l.post_id = p.id AND l.liker_id = $5 AND l.liker_type = $6
+          )
+          ELSE false
+        END AS is_liked
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -524,7 +594,7 @@ const getUserPosts = async (req, res) => {
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset]);
+    const result = await pool.query(query, [userId, userType, limit, offset, viewerId, viewerType]);
     
     console.log(`[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`);
     

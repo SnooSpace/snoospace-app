@@ -55,13 +55,20 @@ const createComment = async (req, res) => {
       [postId]
     );
 
-    // Create notifications for tagged users
-    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
-      try {
+    // Create notification for post author (skip if user comments on their own post)
+    try {
+      const postResult = await pool.query(
+        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        [postId]
+      );
+      const postAuthor = postResult.rows[0];
+      
+      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
         // Get actor info (commenter)
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
+        
         if (userType === 'member') {
           const actorResult = await pool.query(
             'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
@@ -71,6 +78,111 @@ const createComment = async (req, res) => {
             actorName = actorResult.rows[0].name;
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        } else if (userType === 'community') {
+          const actorResult = await pool.query(
+            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'sponsor') {
+          const actorResult = await pool.query(
+            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'venue') {
+          const actorResult = await pool.query(
+            'SELECT name, username FROM venues WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = null; // venues don't have avatars
+          }
+        }
+
+        await pool.query(
+          `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            postAuthor.author_id,
+            postAuthor.author_type,
+            userId,
+            userType,
+            'comment',
+            JSON.stringify({
+              actorName,
+              actorUsername,
+              actorAvatar,
+              postId,
+              commentId: comment.id,
+              commentText: commentText.trim().substring(0, 100),
+            })
+          ]
+        );
+      }
+    } catch (e) {
+      // Non-fatal: do not block comment creation if notification fails
+      console.error('Failed to create comment notification', e);
+    }
+
+    // Create notifications for tagged users
+    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+      try {
+        // Get actor info (commenter) - reuse from above if already fetched
+        let actorName = null;
+        let actorUsername = null;
+        let actorAvatar = null;
+        
+        if (userType === 'member') {
+          const actorResult = await pool.query(
+            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        } else if (userType === 'community') {
+          const actorResult = await pool.query(
+            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'sponsor') {
+          const actorResult = await pool.query(
+            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'venue') {
+          const actorResult = await pool.query(
+            'SELECT name, username FROM venues WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = null; // venues don't have avatars
           }
         }
 
@@ -181,6 +293,87 @@ const replyToComment = async (req, res) => {
       "UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1",
       [postId]
     );
+
+    // Create notification for post author (skip if user comments on their own post)
+    try {
+      const postResult = await pool.query(
+        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        [postId]
+      );
+      const postAuthor = postResult.rows[0];
+      
+      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
+        // Get actor info (commenter)
+        let actorName = null;
+        let actorUsername = null;
+        let actorAvatar = null;
+        
+        if (userType === 'member') {
+          const actorResult = await pool.query(
+            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].profile_photo_url;
+          }
+        } else if (userType === 'community') {
+          const actorResult = await pool.query(
+            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'sponsor') {
+          const actorResult = await pool.query(
+            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = actorResult.rows[0].logo_url;
+          }
+        } else if (userType === 'venue') {
+          const actorResult = await pool.query(
+            'SELECT name, username FROM venues WHERE id = $1',
+            [userId]
+          );
+          if (actorResult.rows[0]) {
+            actorName = actorResult.rows[0].name;
+            actorUsername = actorResult.rows[0].username;
+            actorAvatar = null; // venues don't have avatars
+          }
+        }
+
+        await pool.query(
+          `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            postAuthor.author_id,
+            postAuthor.author_type,
+            userId,
+            userType,
+            'comment',
+            JSON.stringify({
+              actorName,
+              actorUsername,
+              actorAvatar,
+              postId,
+              commentId: comment.id,
+              commentText: commentText.trim().substring(0, 100),
+            })
+          ]
+        );
+      }
+    } catch (e) {
+      // Non-fatal: do not block comment creation if notification fails
+      console.error('Failed to create comment notification for reply', e);
+    }
 
     res.status(201).json({
       success: true,
