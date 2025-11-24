@@ -11,11 +11,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   PanResponder,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getMessages, sendMessage, getConversations } from '../../api/messages';
 import { getPublicMemberProfile } from '../../api/members';
+import { getPublicCommunity } from '../../api/communities';
 import EventBus from '../../utils/EventBus';
 
 const PRIMARY_COLOR = '#6A0DAD';
@@ -30,6 +32,8 @@ export default function ChatScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
   const [recipient, setRecipient] = useState(null);
   const [currentConversationId, setCurrentConversationId] = useState(conversationId);
+  const [currentRecipientType, setCurrentRecipientType] = useState(recipientType);
+  const [currentRecipientId, setCurrentRecipientId] = useState(recipientId);
   const flatListRef = useRef(null);
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
@@ -77,24 +81,49 @@ export default function ChatScreen({ route, navigation }) {
             setCurrentConversationId(null);
           }
           
-          // Load recipient profile
-          const recipientProfile = await getPublicMemberProfile(recipientId);
-          setRecipient({
-            id: recipientProfile.id,
-            name: recipientProfile.full_name || recipientProfile.name,
-            username: recipientProfile.username,
-            profilePhotoUrl: recipientProfile.profile_photo_url,
-          });
+          // Load recipient profile based on type
+          let recipientProfile;
+          const actualRecipientType = recipientType || 'member';
+          setCurrentRecipientId(recipientId);
+          setCurrentRecipientType(actualRecipientType);
+          if (actualRecipientType === 'community') {
+            recipientProfile = await getPublicCommunity(recipientId);
+            setRecipient({
+              id: recipientProfile.id,
+              name: recipientProfile.name,
+              username: recipientProfile.username,
+              profilePhotoUrl: recipientProfile.logo_url,
+            });
+          } else {
+            // Default to member
+            recipientProfile = await getPublicMemberProfile(recipientId);
+            setRecipient({
+              id: recipientProfile.id,
+              name: recipientProfile.full_name || recipientProfile.name,
+              username: recipientProfile.username,
+              profilePhotoUrl: recipientProfile.profile_photo_url,
+            });
+          }
         }
       } catch (error) {
         console.error('Error initializing conversation:', error);
+        Alert.alert(
+          'Error',
+          error?.message || 'Failed to load conversation. Please try again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
       } finally {
         setLoading(false);
       }
     };
 
     initializeConversation();
-  }, [conversationId, recipientId]);
+  }, [conversationId, recipientId, recipientType]);
 
   // Load recipient info if we have conversationId
   useEffect(() => {
@@ -103,8 +132,15 @@ export default function ChatScreen({ route, navigation }) {
         try {
           const conversationsRes = await getConversations();
           const conv = conversationsRes.conversations?.find(c => c.id === conversationId);
-          if (conv) {
+          if (conv && conv.otherParticipant) {
             setRecipient(conv.otherParticipant);
+            // Store recipient ID and type from conversation
+            if (conv.otherParticipant.id) {
+              setCurrentRecipientId(conv.otherParticipant.id);
+            }
+            if (conv.otherParticipant.type) {
+              setCurrentRecipientType(conv.otherParticipant.type);
+            }
           }
         } catch (error) {
           console.error('Error loading recipient:', error);
@@ -113,7 +149,7 @@ export default function ChatScreen({ route, navigation }) {
     };
 
     loadRecipientFromConversation();
-  }, [conversationId]);
+  }, [conversationId, recipient]);
 
   const loadMessages = async (convId) => {
     try {
@@ -244,18 +280,27 @@ export default function ChatScreen({ route, navigation }) {
     setSending(true);
 
     try {
+      // Determine recipient ID and type - use stored values with fallbacks
+      const finalRecipientId = currentRecipientId || recipientId || recipient?.id;
+      const finalRecipientType = currentRecipientType || recipientType || recipient?.type || 'member';
+      
+      if (!finalRecipientId) {
+        throw new Error('Recipient information is missing. Please try again.');
+      }
+
       let convId = currentConversationId;
       
       // If no conversation exists, create one by sending message
-      if (!convId && recipientId) {
-        const response = await sendMessage(recipientId, text, recipientType);
+      if (!convId) {
+        const response = await sendMessage(finalRecipientId, text, finalRecipientType);
         convId = response.message.conversationId;
         setCurrentConversationId(convId);
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
-      } else if (convId) {
-        const response = await sendMessage(recipientId || recipient?.id, text, recipientType);
+      } else {
+        // Send message to existing conversation
+        const response = await sendMessage(finalRecipientId, text, finalRecipientType);
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
@@ -268,6 +313,11 @@ export default function ChatScreen({ route, navigation }) {
     } catch (error) {
       console.error('Error sending message:', error);
       setMessageText(text); // Restore text on error
+      Alert.alert(
+        'Error',
+        error?.message || 'Failed to send message. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setSending(false);
     }
