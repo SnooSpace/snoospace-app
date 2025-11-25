@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -215,6 +216,12 @@ export default function SearchScreen({ navigation }) {
     }
   };
 
+  const handleBackButton = () => {
+    Keyboard.dismiss();
+    setFocused(false);
+    setSearchQuery('');
+  };
+
   const renderEntity = ({ item }) => {
     if (!item) return null;
     const entityType = item.type || 'member';
@@ -343,7 +350,15 @@ export default function SearchScreen({ navigation }) {
       </View>
 
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
+        {focused && (
+          <TouchableOpacity 
+            onPress={handleBackButton} 
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+        )}
+        <View style={[styles.searchBar, focused && styles.searchBarFocused]}>
           <Ionicons name="search" size={20} color={LIGHT_TEXT_COLOR} />
           <TextInput
             style={styles.searchInput}
@@ -427,14 +442,24 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: 20,
     marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    padding: 4,
   },
   searchBar: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8F9FA',
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
+  },
+  searchBarFocused: {
+    backgroundColor: '#ECECEC',
   },
   searchInput: {
     flex: 1,
