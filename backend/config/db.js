@@ -241,6 +241,13 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(participant1_id, participant1_type, participant2_id, participant2_type)
       );
+      -- Drop legacy foreign key constraints that forced member-only participants
+      DO $$ BEGIN
+        ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_participant1_id_fkey;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_participant2_id_fkey;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
       
       -- Messages table
       CREATE TABLE IF NOT EXISTS messages (
@@ -252,6 +259,9 @@ async function ensureTables(pool) {
         is_read BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      DO $$ BEGIN
+        ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_sender_id_fkey;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
       
       -- Indexes for messages
       CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);

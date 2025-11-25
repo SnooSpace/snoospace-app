@@ -226,9 +226,15 @@ export default function SearchScreen({ navigation }) {
     saveRecents(next);
   };
 
+  const normalizeDisplayName = (name, entityType) => {
+    const fallback = entityType === 'community' ? 'Community' : 'Member';
+    if (!name) return fallback;
+    return String(name).split(/\r?\n/)[0];
+  };
+
   const renderItem = ({ item }) => {
     const entityType = item.type || 'member';
-    const displayName = item.full_name || item.name || (entityType === 'community' ? 'Community' : 'Member');
+    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
     const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
     
     return (
@@ -277,7 +283,7 @@ export default function SearchScreen({ navigation }) {
 
   const renderRecentItem = ({ item }) => {
     const entityType = item.type || 'member';
-    const displayName = item.full_name || item.name || (entityType === 'community' ? 'Community' : 'Member');
+    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
     const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
     
     return (

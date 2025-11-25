@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { getConversations, sendMessage } from "../../api/messages";
+import { getConversations } from "../../api/messages";
 import { getMemberFollowers, getMemberFollowing } from "../../api/members";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiGet, apiPost } from "../../api/client";
+import EventBus from "../../utils/EventBus";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -141,6 +142,44 @@ export default function ConversationsListScreen({ navigation }) {
 
   useEffect(() => {
     loadConversations();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on("conversation-updated", (payload) => {
+      if (!payload?.conversationId) return;
+
+      setConversations((prev) => {
+        const updated = [...prev];
+        const idx = updated.findIndex(
+          (conv) => conv.id === payload.conversationId
+        );
+
+        if (idx !== -1) {
+          updated[idx] = {
+            ...updated[idx],
+            lastMessage: payload.lastMessage || updated[idx].lastMessage,
+            lastMessageAt: payload.lastMessageAt || updated[idx].lastMessageAt,
+          };
+        } else if (payload.otherParticipant) {
+          updated.unshift({
+            id: payload.conversationId,
+            otherParticipant: payload.otherParticipant,
+            lastMessage: payload.lastMessage,
+            lastMessageAt: payload.lastMessageAt,
+            unreadCount: 0,
+            createdAt: payload.lastMessageAt,
+          });
+        }
+
+        return updated.sort((a, b) => {
+          const aTime = new Date(a.lastMessageAt || a.createdAt || 0).getTime();
+          const bTime = new Date(b.lastMessageAt || b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
+      });
+    });
+
+    return () => unsubscribe && unsubscribe();
   }, []);
 
   useEffect(() => {

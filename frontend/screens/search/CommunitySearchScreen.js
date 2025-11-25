@@ -1,621 +1,396 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useState, useEffect, useCallback } from 'react';
 import {
+  StyleSheet,
   View,
+  Text,
   TextInput,
   FlatList,
-  Text,
-  Image,
   TouchableOpacity,
-  StyleSheet,
+  Image,
   ActivityIndicator,
-  Keyboard,
+  ScrollView,
   Alert,
-} from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
-import {
-  searchCommunities,
-  followCommunity,
-  unfollowCommunity,
-} from "../../api/communities";
-import { searchMembers, globalSearch } from "../../api/search";
-import { followMember, unfollowMember } from "../../api/members";
-import EventBus from "../../utils/EventBus";
-import { getAuthToken, getAuthEmail } from "../../api/auth";
-import { apiPost } from "../../api/client";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import UserCard from '../../components/UserCard';
+import { globalSearch } from '../../api/search';
+import { followMember, unfollowMember } from '../../api/members';
+import { followCommunity, unfollowCommunity } from '../../api/communities';
+import { getAuthToken, getAuthEmail } from '../../api/auth';
+import { apiPost } from '../../api/client';
+import EventBus from '../../utils/EventBus';
 
-const DEBOUNCE_MS = 300;
+const PRIMARY_COLOR = '#6A0DAD';
+const TEXT_COLOR = '#1D1D1F';
+const LIGHT_TEXT_COLOR = '#8E8E93';
 
 export default function CommunitySearchScreen({ navigation }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('All');
   const [following, setFollowing] = useState({}); // id -> boolean
   const [pending, setPending] = useState({}); // id -> boolean
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const inFlightRef = useRef(null);
-  const inputRef = useRef(null);
-  const [focused, setFocused] = useState(false);
-  const [recents, setRecents] = useState([]);
-  const [userId, setUserId] = useState(null);
 
-  const canSearch = query.trim().length >= 2;
+  const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
 
-  const getRecentsKey = () => {
-    return userId
-      ? `recent_community_searches_${userId}`
-      : "recent_community_searches";
-  };
+  const DEBOUNCE_MS = 300;
 
-  const loadRecents = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const key = getRecentsKey();
-      const raw = await AsyncStorage.getItem(key);
-      if (!raw) {
-        setRecents([]);
-        return;
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        performSearch();
+      } else {
+        setSearchResults([]);
       }
-      const arr = JSON.parse(raw);
-      setRecents(Array.isArray(arr) ? arr : []);
-    } catch {
-      setRecents([]);
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, activeTab, performSearch]);
+
+  const performSearch = useCallback(async () => {
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      return;
     }
-  }, [userId]);
 
-  const saveRecents = useCallback(
-    async (items) => {
-      if (!userId) return;
-      try {
-        const key = getRecentsKey();
-        await AsyncStorage.setItem(key, JSON.stringify(items));
-      } catch {}
-    },
-    [userId]
-  );
-
-  const doSearch = useCallback(
-    async (reset = false) => {
-      if (!canSearch) {
-        setResults([]);
-        setOffset(0);
-        setHasMore(false);
-        setLoading(false);
-        setError("");
-        return;
+    setLoading(true);
+    
+    try {
+      const globalData = await globalSearch(searchQuery.trim(), { limit: 50, offset: 0 });
+      const allResults = globalData.results || [];
+      
+      // Filter by active tab
+      let filteredResults = allResults;
+      if (activeTab === 'Members') {
+        filteredResults = allResults.filter(r => r.type === 'member');
+      } else if (activeTab === 'Communities') {
+        filteredResults = allResults.filter(r => r.type === 'community');
+      } else if (activeTab === 'Sponsors') {
+        filteredResults = allResults.filter(r => r.type === 'sponsor');
+      } else if (activeTab === 'Venues') {
+        filteredResults = allResults.filter(r => r.type === 'venue');
       }
-      const nextOffset = reset ? 0 : offset;
-      setLoading(true);
-      setError("");
-
-      // Use global search endpoint that searches all entity types
-      try {
-        const globalData = await globalSearch(query.trim(), {
-          limit: 20,
-          offset: nextOffset,
+      
+      setSearchResults(filteredResults);
+      
+      // Initialize following map from payload - use is_following from API response
+      setFollowing((prev) => {
+        const copy = { ...prev };
+        filteredResults.forEach((r) => {
+          if (r && r.id) {
+            // Use is_following from API, explicitly check for true
+            // Handle both is_following and isFollowing for compatibility
+            const isFollowing = r.is_following === true || r.isFollowing === true;
+            copy[r.id] = isFollowing;
+            // Debug log to help diagnose issues
+            if (r.type === 'member' || r.type === 'community') {
+              console.log(`[Search] Initialized follow state for ${r.type} ${r.id}: ${isFollowing} (from API: ${r.is_following})`);
+            }
+          }
         });
+        return copy;
+      });
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, activeTab]);
 
-        // Global search returns results with type already set
-        const combinedResults = globalData.results || [];
-
-        const newResults = reset
-          ? combinedResults
-          : [...results, ...combinedResults];
-        setResults(newResults);
-
-        // initialize following map from payload
-        setFollowing((prev) => {
-          const copy = { ...prev };
-          combinedResults.forEach((r) => {
-            if (typeof r.is_following === "boolean")
-              copy[r.id] = r.is_following;
-          });
-          return copy;
-        });
-
-        const totalResults = combinedResults.length;
-        setOffset(nextOffset + totalResults);
-        setHasMore(!!globalData.hasMore);
-        setLoading(false);
-      } catch (err) {
-        console.error("Global search error:", err);
-        setError("Failed to search");
-        setLoading(false);
-      }
-    },
-    [query, offset, results, canSearch]
-  );
-
-  useEffect(() => {
-    const h = setTimeout(() => doSearch(true), DEBOUNCE_MS);
-    return () => clearTimeout(h);
-  }, [query, doSearch]);
-
-  useEffect(() => {
-    // Load user ID on mount
-    const loadUserId = async () => {
+  const handleFollow = async (entityId, entityType, newFollowingState = null) => {
+    if (pending[entityId]) return;
+    
+    // Use newFollowingState if provided, otherwise toggle based on current state
+    const currentFollowing = !!following[entityId];
+    const targetState = newFollowingState !== null ? newFollowingState : !currentFollowing;
+    
+    console.log(`[Follow] ${entityType} ${entityId}: current=${currentFollowing}, target=${targetState}, newState=${newFollowingState}`);
+    
+    // Optimistically update state
+    setFollowing((prev) => ({ ...prev, [entityId]: targetState }));
+    setPending((prev) => ({ ...prev, [entityId]: true }));
+    
+    try {
+      // Get current user info for EventBus
+      let currentUserId = null;
+      let currentUserType = 'community';
       try {
         const token = await getAuthToken();
         const email = await getAuthEmail();
         if (token && email) {
-          const profileResponse = await apiPost(
-            "/auth/get-user-profile",
-            { email },
-            10000,
-            token
-          );
+          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
           if (profileResponse?.profile?.id) {
-            setUserId(profileResponse.profile.id);
+            currentUserId = profileResponse.profile.id;
+            currentUserType = profileResponse.role || 'community';
           }
         }
-      } catch (error) {
-        console.error("Error loading user ID:", error);
+      } catch (e) {
+        console.error('Error getting current user:', e);
       }
-    };
-    loadUserId();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
-      loadRecents();
-    }
-  }, [userId, loadRecents]);
-
-  const onEndReached = useCallback(() => {
-    if (loading || !hasMore) return;
-    doSearch(false);
-  }, [loading, hasMore, doSearch]);
-
-  const toggleFollow = async (entityId, entityType = "community") => {
-    if (pending[entityId]) return;
-    const isFollowing = !!following[entityId];
-    setFollowing((prev) => ({ ...prev, [entityId]: !isFollowing }));
-    setPending((prev) => ({ ...prev, [entityId]: true }));
-    try {
-      // Use userId from state if available
-      const currentUserId = userId;
-      const currentUserType = "community";
-
-      if (entityType === "member") {
-        if (isFollowing) {
-          await unfollowMember(entityId);
-        } else {
+      
+      if (entityType === 'member') {
+        if (targetState) {
           await followMember(entityId);
-        }
-        EventBus.emit("follow-updated", {
-          memberId: entityId,
-          isFollowing: !isFollowing,
-          followerId: currentUserId,
-          followerType: currentUserType,
-        });
-      } else {
-        if (isFollowing) {
-          await unfollowCommunity(entityId);
         } else {
-          await followCommunity(entityId);
+          await unfollowMember(entityId);
         }
-        EventBus.emit("follow-updated", {
-          communityId: entityId,
-          isFollowing: !isFollowing,
+        EventBus.emit("follow-updated", { 
+          memberId: entityId, 
+          isFollowing: targetState,
           followerId: currentUserId,
-          followerType: currentUserType,
+          followerType: currentUserType
+        });
+      } else if (entityType === 'community') {
+        if (targetState) {
+          await followCommunity(entityId);
+        } else {
+          await unfollowCommunity(entityId);
+        }
+        EventBus.emit("follow-updated", { 
+          communityId: entityId, 
+          isFollowing: targetState,
+          followerId: currentUserId,
+          followerType: currentUserType
         });
       }
     } catch (e) {
-      // rollback on error
-      setFollowing((prev) => ({ ...prev, [entityId]: isFollowing }));
+      // Check for "already following" or "not following" errors - these are expected in race conditions
+      const errorMsg = e?.message || String(e || '');
+      if (errorMsg.includes('Already following') || errorMsg.includes('Not following')) {
+        // If we get "Already following" but we thought we weren't, update state to true
+        // If we get "Not following" but we thought we were, update state to false
+        if (errorMsg.includes('Already following') && !targetState) {
+          setFollowing((prev) => ({ ...prev, [entityId]: true }));
+        } else if (errorMsg.includes('Not following') && targetState) {
+          setFollowing((prev) => ({ ...prev, [entityId]: false }));
+        }
+        // Otherwise, state is already correct, just log
+        console.log('Follow/unfollow race condition handled:', errorMsg);
+      } else {
+        // Rollback on unexpected error
+        setFollowing((prev) => ({ ...prev, [entityId]: currentFollowing }));
+        console.error('Error following/unfollowing:', e);
+      }
     } finally {
       setPending((prev) => ({ ...prev, [entityId]: false }));
     }
   };
 
-  const onPressProfile = async (item, fromRecent = false) => {
-    const entityType = item.type || "community";
-
-    // Navigate to appropriate profile within Community navigation stack
-    if (entityType === "community") {
-      navigation.navigate("CommunityPublicProfile", {
-        communityId: item.id,
-      });
-    } else if (entityType === "member") {
-      // Navigate to member profile within Community's Profile stack
-      navigation.navigate("Profile", {
-        screen: "MemberPublicProfile",
-        params: { memberId: item.id },
-      });
-    } else if (entityType === "sponsor") {
-      // Sponsor profile navigation will be implemented later
-      Alert.alert(
-        "Sponsor Profile",
-        "Sponsor profile navigation will be implemented soon"
-      );
-    } else if (entityType === "venue") {
-      // Venue profile navigation will be implemented later
-      Alert.alert(
-        "Venue Profile",
-        "Venue profile navigation will be implemented soon"
-      );
-    }
-
-    // update recents (dedup by id, newest first, max 10)
-    const next = [
-      {
-        id: item.id,
-        type: entityType,
-        username: item.username,
-        name: item.name || item.full_name,
-        full_name: item.full_name || item.name,
-        logo_url: item.logo_url,
-        profile_photo_url: item.profile_photo_url,
-      },
-      ...recents.filter((r) => r.id !== item.id || r.type !== entityType),
-    ].slice(0, 10);
-    setRecents(next);
-    saveRecents(next);
-  };
-
-  const renderItem = ({ item }) => {
-    const entityType = item.type || "community";
-    const displayName =
-      item.full_name ||
-      item.name ||
-      (entityType === "community"
-        ? "Community"
-        : entityType === "member"
-        ? "Member"
-        : entityType === "sponsor"
-        ? "Sponsor"
-        : entityType === "venue"
-        ? "Venue"
-        : "User");
-    const photoUrl =
-      item.profile_photo_url ||
-      item.logo_url ||
-      "https://via.placeholder.com/64";
-
-    // Build subtitle text
-    let subtitle = "";
-    if (item.username) {
-      subtitle = `@${item.username}`;
-    }
-    if (entityType === "community" && item.category) {
-      subtitle += ` • ${item.category}`;
-    } else if (entityType === "sponsor" && item.category) {
-      subtitle += ` • ${item.category}`;
-    } else if (entityType === "venue" && item.city) {
-      subtitle += ` • ${item.city}`;
-    }
-
+  const renderEntity = ({ item }) => {
+    if (!item) return null;
+    const entityType = item.type || 'member';
+    
     return (
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-          onPress={() => onPressProfile(item, false)}
-        >
-          <Image source={{ uri: photoUrl }} style={styles.avatar} />
-          <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>
-              {displayName}
-            </Text>
-            {subtitle && (
-              <Text style={styles.username} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-        {(entityType === "member" || entityType === "community") && (
-          <TouchableOpacity
-            disabled={!!pending[item.id]}
-            style={[
-              styles.followBtn,
-              following[item.id]
-                ? styles.followingBtn
-                : styles.followBtnPrimary,
-              pending[item.id] ? { opacity: 0.6 } : null,
-            ]}
-            onPress={() => toggleFollow(item.id, entityType)}
-          >
-            <Text
-              style={[
-                styles.followText,
-                following[item.id]
-                  ? styles.followingText
-                  : styles.followTextPrimary,
-              ]}
-            >
-              {following[item.id] ? "Following" : "Follow"}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <UserCard
+        user={item}
+        userType={entityType}
+        onPress={(userId, userType) => {
+          // Handle navigation based on userType
+          if (userType === 'community') {
+            navigation.navigate('Profile', {
+              screen: 'CommunityPublicProfile',
+              params: { communityId: userId }
+            });
+          } else if (userType === 'member') {
+            navigation.navigate('Profile', {
+              screen: 'MemberPublicProfile',
+              params: { memberId: userId }
+            });
+          } else if (userType === 'sponsor') {
+            Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
+          } else if (userType === 'venue') {
+            Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
+          }
+        }}
+        showFollowButton={entityType === 'member' || entityType === 'community'}
+        isFollowing={!!following[item.id]}
+        isLoading={!!pending[item.id]}
+        onFollowChange={(userId, userType, newFollowingState) => {
+          handleFollow(userId, userType, newFollowingState);
+        }}
+      />
     );
   };
 
-  const renderRecentItem = ({ item }) => {
-    const entityType = item.type || "community";
-    const displayName =
-      item.full_name ||
-      item.name ||
-      (entityType === "community"
-        ? "Community"
-        : entityType === "member"
-        ? "Member"
-        : entityType === "sponsor"
-        ? "Sponsor"
-        : entityType === "venue"
-        ? "Venue"
-        : "User");
-    const photoUrl =
-      item.profile_photo_url ||
-      item.logo_url ||
-      "https://via.placeholder.com/64";
+  const renderTab = (tab) => (
+    <TouchableOpacity
+      key={tab}
+      style={[
+        styles.tab,
+        activeTab === tab && styles.activeTab
+      ]}
+      onPress={() => setActiveTab(tab)}
+    >
+      <Text style={[
+        styles.tabText,
+        activeTab === tab && styles.activeTabText
+      ]}>
+        {tab}
+      </Text>
+    </TouchableOpacity>
+  );
 
-    return (
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-          onPress={() => {
-            onPressProfile(item, true);
-          }}
-          activeOpacity={0.7}
-        >
-          <Image source={{ uri: photoUrl }} style={styles.avatar} />
-          <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>
-              {displayName}
-            </Text>
-            {item.username && (
-              <Text style={styles.username} numberOfLines={1}>
-                @{item.username}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            const next = recents.filter(
-              (r) => r.id !== item.id || r.type !== entityType
-            );
-            setRecents(next);
-            saveRecents(next);
-          }}
-          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-          style={[styles.followBtn, styles.followingBtn]}
-        >
-          <Ionicons name="close" size={16} color="#1D1D1F" />
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="search-outline" size={60} color={LIGHT_TEXT_COLOR} />
+      <Text style={styles.emptyTitle}>
+        {searchQuery ? 'No Results Found' : 'Search for Communities'}
+      </Text>
+      <Text style={styles.emptyText}>
+        {searchQuery 
+          ? `No ${activeTab.toLowerCase()} found for "${searchQuery}"`
+          : 'Find members, communities, sponsors, and venues to follow'
+        }
+      </Text>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      {/* Back Button and Search Bar - Combined */}
-      <View style={styles.headerContainer}>
-        {focused && (
-          <TouchableOpacity
-            onPress={() => {
-              Keyboard.dismiss();
-              setQuery("");
-              setFocused(false);
-              setResults([]);
-              setError("");
-              inputRef.current?.blur();
-            }}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
-          </TouchableOpacity>
-        )}
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Search</Text>
+      </View>
 
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#8E8E93" />
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color={LIGHT_TEXT_COLOR} />
           <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder="Search communities by name or username"
-            placeholderTextColor="#8E8E93"
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => setFocused(true)}
-            onBlur={() => {
-              if (!query.trim()) setFocused(false);
-            }}
-            autoCapitalize="none"
-            returnKeyType="search"
+            style={styles.searchInput}
+            placeholder="Search members, communities, sponsors, venues..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={LIGHT_TEXT_COLOR}
           />
-          {query.length > 0 && (
-            <TouchableOpacity
-              onPress={() => {
-                setQuery("");
-                setResults([]);
-                setError("");
-                inputRef.current?.blur();
-              }}
-              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-            >
-              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {tabs.map(renderTab)}
+        </ScrollView>
+      </View>
 
-      {loading && results.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#6A0DAD" />
-        </View>
-      ) : query.trim().length < 2 && recents.length > 0 ? (
-        <View style={styles.content}>
-          <Text style={styles.sectionTitle}>Recent Searches</Text>
+      {/* Results */}
+      <View style={styles.resultsContainer}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+            <Text style={styles.loadingText}>Searching...</Text>
+          </View>
+        ) : (
           <FlatList
-            data={recents}
-            renderItem={renderRecentItem}
-            keyExtractor={(item) => `recent-${item.id}`}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No recent searches</Text>
-            }
+            data={searchResults}
+            renderItem={renderEntity}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
+            ListEmptyComponent={renderEmpty}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContainer}
           />
-        </View>
-      ) : results.length > 0 ? (
-        <FlatList
-          data={results}
-          renderItem={renderItem}
-          keyExtractor={(item) => `result-${item.id}`}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loading && results.length > 0 ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color="#6A0DAD" />
-              </View>
-            ) : null
-          }
-        />
-      ) : query.trim().length >= 2 ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>No communities found</Text>
-        </View>
-      ) : null}
-    </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
   },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    paddingHorizontal: 15,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
   },
-  backButton: {
-    marginRight: 8,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F2F2F7",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  input: {
+  searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#1D1D1F",
-    padding: 0,
+    color: TEXT_COLOR,
+    marginLeft: 10,
   },
-  errorContainer: {
-    padding: 16,
-    backgroundColor: "#FFEBEE",
+  tabsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
-  errorText: {
-    color: "#C62828",
-    fontSize: 14,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1D1D1F",
-    marginBottom: 12,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#E5E5EA",
-    marginRight: 12,
-  },
-  meta: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1D1D1F",
-    marginBottom: 2,
-  },
-  username: {
-    fontSize: 14,
-    color: "#8E8E93",
-  },
-  category: {
-    fontSize: 12,
-    color: "#8E8E93",
-    marginTop: 2,
-  },
-  followBtn: {
+  tab: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: "center",
+    marginRight: 10,
+    borderRadius: 20,
+    backgroundColor: '#F8F9FA',
   },
-  followBtnPrimary: {
-    backgroundColor: "#6A0DAD",
+  activeTab: {
+    backgroundColor: PRIMARY_COLOR,
   },
-  followingBtn: {
-    backgroundColor: "#F2F2F7",
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-  },
-  followText: {
+  tabText: {
     fontSize: 14,
-    fontWeight: "600",
+    color: LIGHT_TEXT_COLOR,
+    fontWeight: '500',
   },
-  followTextPrimary: {
-    color: "#FFFFFF",
+  activeTabText: {
+    color: '#FFFFFF',
   },
-  followingText: {
-    color: "#1D1D1F",
+  resultsContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 10,
+  },
+  listContainer: {
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
+    marginTop: 20,
+    marginBottom: 10,
   },
   emptyText: {
     fontSize: 16,
-    color: "#8E8E93",
-    textAlign: "center",
-  },
-  footerLoader: {
-    paddingVertical: 16,
-    alignItems: "center",
+    color: LIGHT_TEXT_COLOR,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

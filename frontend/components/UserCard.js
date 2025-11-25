@@ -18,15 +18,16 @@ const COLORS = {
   border: "#E5E5E5",
 };
 
-const UserCard = ({ 
-  user, 
-  userType, 
+const UserCard = ({
+  user,
+  userType,
   onPress,
   showFollowButton = true,
+  showSubtitle = true,
   isFollowing = false,
   onFollowChange,
   style,
-  isLoading = false
+  isLoading = false,
 }) => {
   // Add null check for user
   if (!user) {
@@ -104,7 +105,9 @@ const UserCard = ({
         />
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{displayName}</Text>
-          {subtitle ? <Text style={styles.userSubtitle}>{subtitle}</Text> : null}
+          {showSubtitle && subtitle ? (
+            <Text style={styles.userSubtitle}>{subtitle}</Text>
+          ) : null}
           {user?.username && (
             <Text style={styles.username}>@{user.username}</Text>
           )}

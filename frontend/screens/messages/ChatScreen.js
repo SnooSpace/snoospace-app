@@ -291,6 +291,32 @@ export default function ChatScreen({ route, navigation }) {
       let convId = currentConversationId;
       
       // If no conversation exists, create one by sending message
+      const emitUpdate = (messagePayload) => {
+        if (!messagePayload) return;
+        const otherParticipantPayload = recipient
+          ? {
+              id: recipient.id,
+              name: recipient.name,
+              username: recipient.username,
+              profilePhotoUrl: recipient.profilePhotoUrl,
+              type: currentRecipientType || finalRecipientType,
+            }
+          : {
+              id: finalRecipientId,
+              name: recipient?.name || '',
+              username: recipient?.username || '',
+              profilePhotoUrl: recipient?.profilePhotoUrl || '',
+              type: currentRecipientType || finalRecipientType,
+            };
+
+        EventBus.emit('conversation-updated', {
+          conversationId: convId,
+          lastMessage: messagePayload.messageText || text,
+          lastMessageAt: messagePayload.createdAt || new Date().toISOString(),
+          otherParticipant: otherParticipantPayload,
+        });
+      };
+
       if (!convId) {
         const response = await sendMessage(finalRecipientId, text, finalRecipientType);
         convId = response.message.conversationId;
@@ -298,12 +324,14 @@ export default function ChatScreen({ route, navigation }) {
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
+        emitUpdate(response.message);
       } else {
         // Send message to existing conversation
         const response = await sendMessage(finalRecipientId, text, finalRecipientType);
         
         // Add message to state optimistically
         setMessages(prev => [...prev, response.message]);
+        emitUpdate(response.message);
       }
       
       // Scroll to bottom

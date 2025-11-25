@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Import Community screens
 import CommunityHomeStackNavigator from './CommunityHomeStackNavigator';
-import CommunitySearchScreen from '../screens/home/community/CommunitySearchScreen';
+import CommunitySearchStackNavigator from './CommunitySearchStackNavigator';
 import CommunityDashboardScreen from '../screens/home/community/CommunityDashboardScreen';
 import CommunityRequestsScreen from '../screens/home/community/CommunityRequestsScreen';
 import CommunityProfileStackNavigator from './CommunityProfileStackNavigator';
@@ -77,7 +77,7 @@ const CommunityBottomTabNavigator = () => {
       />
       <Tab.Screen 
         name="Search" 
-        component={CommunitySearchScreen}
+        component={CommunitySearchStackNavigator}
         options={{ tabBarLabel: 'Search' }}
       />
       <Tab.Screen 

@@ -14,6 +14,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,6 +52,8 @@ export default function CommunityProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
@@ -62,6 +65,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
+  const initialLoadCompletedRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
@@ -80,7 +84,7 @@ export default function CommunityProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       if (hasInitialLoadRef.current) {
-        loadProfile();
+        loadProfile(true);
       }
     }, [loadProfile])
   );
@@ -202,9 +206,14 @@ export default function CommunityProfileScreen({ navigation }) {
     };
   }, [loadProfile]);
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!initialLoadCompletedRef.current) {
+        setLoading(true);
+      }
+      if (isRefresh) {
+        setRefreshing(true);
+      }
       const token = await getAuthToken();
 
       // Fetch profile using communities/profile endpoint to get full profile with heads
@@ -306,7 +315,12 @@ export default function CommunityProfileScreen({ navigation }) {
       setProfile(communityProfile);
       setPosts(communityPosts);
     } finally {
-      setLoading(false);
+      if (!initialLoadCompletedRef.current) {
+        setLoading(false);
+        initialLoadCompletedRef.current = true;
+        setInitialLoadCompleted(true);
+      }
+      setRefreshing(false);
     }
   }, []);
 
@@ -520,7 +534,7 @@ export default function CommunityProfileScreen({ navigation }) {
     </Modal>
   );
 
-  if (loading || !profile) {
+  if (!initialLoadCompleted && (loading || !profile)) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -530,7 +544,17 @@ export default function CommunityProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadProfile(true)}
+            colors={[PRIMARY_COLOR]}
+            tintColor={PRIMARY_COLOR}
+          />
+        }
+      >
         <View style={styles.bannerContainer}>
           {profile.banner_url ? (
             <Image source={{ uri: profile.banner_url }} style={styles.bannerImage} />
