@@ -6,7 +6,7 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
-import CommunitySearchScreen from "../screens/search/CommunitySearchScreen";
+import SearchScreen from "../screens/search/SearchScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import SponsorProfileScreen from "../screens/profile/sponsor/SponsorProfileScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
@@ -23,7 +23,7 @@ export default function CommunityStackNavigator() {
       <Stack.Screen name="CommunityFollowersList" component={CommunityFollowersListScreen} />
       <Stack.Screen name="CommunityFollowingList" component={CommunityFollowingListScreen} />
       <Stack.Screen name="EditCommunityProfile" component={EditCommunityProfileScreen} />
-      <Stack.Screen name="CommunitySearch" component={CommunitySearchScreen} />
+      <Stack.Screen name="CommunitySearch" component={SearchScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
     </Stack.Navigator>
   );

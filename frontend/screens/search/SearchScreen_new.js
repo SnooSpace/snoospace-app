@@ -5,18 +5,6 @@ import {
   Text,
   TextInput,
   FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import UserCard from '../../components/UserCard';
-import { globalSearch } from '../../api/search';
-import { followMember, unfollowMember } from '../../api/members';
-import { followCommunity, unfollowCommunity } from '../../api/communities';
 import { getAuthToken, getAuthEmail } from '../../api/auth';
 import { apiPost } from '../../api/client';
 import EventBus from '../../utils/EventBus';
@@ -24,19 +12,6 @@ import EventBus from '../../utils/EventBus';
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
-
-export default function SearchScreen({ navigation }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('All');
-  const [following, setFollowing] = useState({}); // id -> boolean
-  const [pending, setPending] = useState({}); // id -> boolean
-
-  const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
-
-  const DEBOUNCE_MS = 300;
-
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim().length >= 2) {
@@ -190,13 +165,14 @@ export default function SearchScreen({ navigation }) {
         onPress={(userId, userType) => {
           // Handle navigation based on userType
           if (userType === 'community') {
-            navigation.navigate("CommunityPublicProfile", {
-              communityId: userId,
-              viewerRole: 'member',
+            navigation.navigate('Profile', {
+              screen: 'CommunityPublicProfile',
+              params: { communityId: userId }
             });
           } else if (userType === 'member') {
-            navigation.navigate("MemberPublicProfile", {
-              memberId: userId,
+            navigation.navigate('Profile', {
+              screen: 'MemberPublicProfile',
+              params: { memberId: userId }
             });
           } else if (userType === 'sponsor') {
             Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
