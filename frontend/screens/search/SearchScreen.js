@@ -12,12 +12,13 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import UserCard from '../../components/UserCard';
 import { globalSearch } from '../../api/search';
 import { followMember, unfollowMember } from '../../api/members';
 import { followCommunity, unfollowCommunity } from '../../api/communities';
-import { getAuthToken, getAuthEmail } from '../../api/auth';
+import { getAuthToken, getAuthEmail} from '../../api/auth';
 import { apiPost } from '../../api/client';
 import EventBus from '../../utils/EventBus';
 
@@ -32,10 +33,65 @@ export default function SearchScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('All');
   const [following, setFollowing] = useState({}); // id -> boolean
   const [pending, setPending] = useState({}); // id -> boolean
+  const [recents, setRecents] = useState([]);
+  const [userId, setUserId] = useState(null);
 
   const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
-
   const DEBOUNCE_MS = 300;
+
+  // Recent searches helpers
+  const getRecentsKey = () => {
+    return userId ?  `recent_searches_${userId}` : "recent_searches";
+  };
+
+  const loadRecents = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const key = getRecentsKey();
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw) {
+        setRecents([]);
+        return;
+      }
+      const arr = JSON.parse(raw);
+      setRecents(Array.isArray(arr) ? arr : []);
+    } catch {
+      setRecents([]);
+    }
+  }, [userId]);
+
+  const saveRecents = useCallback(async (items) => {
+    if (!userId) return;
+    try {
+      const key = getRecentsKey();
+      await AsyncStorage.setItem(key, JSON.stringify(items));
+    } catch {}
+  }, [userId]);
+
+  // Load user ID on mount
+  useEffect(() => {
+    const loadUserId = async () => {
+      try {
+        const token = await getAuthToken();
+        const email = await getAuthEmail();
+        if (token && email) {
+          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          if (profileResponse?.profile?.id) {
+            setUserId(profileResponse.profile.id);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user ID:', error);
+      }
+    };
+    loadUserId();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      loadRecents();
+    }
+  }, [userId, loadRecents]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -75,19 +131,13 @@ export default function SearchScreen({ navigation }) {
       
       setSearchResults(filteredResults);
       
-      // Initialize following map from payload - use is_following from API response
+      // Initialize following map from payload
       setFollowing((prev) => {
         const copy = { ...prev };
         filteredResults.forEach((r) => {
           if (r && r.id) {
-            // Use is_following from API, explicitly check for true
-            // Handle both is_following and isFollowing for compatibility
             const isFollowing = r.is_following === true || r.isFollowing === true;
             copy[r.id] = isFollowing;
-            // Debug log to help diagnose issues
-            if (r.type === 'member' || r.type === 'community') {
-              console.log(`[Search] Initialized follow state for ${r.type} ${r.id}: ${isFollowing} (from API: ${r.is_following})`);
-            }
           }
         });
         return copy;
@@ -103,18 +153,13 @@ export default function SearchScreen({ navigation }) {
   const handleFollow = async (entityId, entityType, newFollowingState = null) => {
     if (pending[entityId]) return;
     
-    // Use newFollowingState if provided, otherwise toggle based on current state
     const currentFollowing = !!following[entityId];
     const targetState = newFollowingState !== null ? newFollowingState : !currentFollowing;
     
-    console.log(`[Follow] ${entityType} ${entityId}: current=${currentFollowing}, target=${targetState}, newState=${newFollowingState}`);
-    
-    // Optimistically update state
     setFollowing((prev) => ({ ...prev, [entityId]: targetState }));
     setPending((prev) => ({ ...prev, [entityId]: true }));
     
     try {
-      // Get current user info for EventBus
       let currentUserId = null;
       let currentUserType = 'community';
       try {
@@ -157,20 +202,14 @@ export default function SearchScreen({ navigation }) {
         });
       }
     } catch (e) {
-      // Check for "already following" or "not following" errors - these are expected in race conditions
       const errorMsg = e?.message || String(e || '');
       if (errorMsg.includes('Already following') || errorMsg.includes('Not following')) {
-        // If we get "Already following" but we thought we weren't, update state to true
-        // If we get "Not following" but we thought we were, update state to false
         if (errorMsg.includes('Already following') && !targetState) {
           setFollowing((prev) => ({ ...prev, [entityId]: true }));
         } else if (errorMsg.includes('Not following') && targetState) {
           setFollowing((prev) => ({ ...prev, [entityId]: false }));
         }
-        // Otherwise, state is already correct, just log
-        console.log('Follow/unfollow race condition handled:', errorMsg);
       } else {
-        // Rollback on unexpected error
         setFollowing((prev) => ({ ...prev, [entityId]: currentFollowing }));
         console.error('Error following/unfollowing:', e);
       }
@@ -187,8 +226,23 @@ export default function SearchScreen({ navigation }) {
       <UserCard
         user={item}
         userType={entityType}
+        showSubtitle={false}
         onPress={(userId, userType) => {
-          // Handle navigation based on userType
+          // Save to recents
+          const next = [
+            {
+              id: item.id,
+              type: entityType,
+              username: item.username,
+              full_name: item.full_name || item.name,
+              profile_photo_url: item.profile_photo_url || item.logo_url,
+            },
+            ...recents.filter((r) => r.id !== item.id || r.type !== entityType),
+          ].slice(0, 10);
+          setRecents(next);
+          saveRecents(next);
+          
+          // Navigate
           if (userType === 'community') {
             navigation.navigate("CommunityPublicProfile", {
               communityId: userId,
@@ -231,6 +285,46 @@ export default function SearchScreen({ navigation }) {
       </Text>
     </TouchableOpacity>
   );
+
+  const renderRecentItem = ({ item }) => {
+    const entityType = item.type || 'member';
+    const displayName = item.full_name || item.name || 'User';
+    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/50";
+    
+    return (
+      <TouchableOpacity
+        style={styles.recentItemContainer}
+        onPress={() => {
+          if (entityType === 'community') {
+            navigation.navigate("CommunityPublicProfile", {
+              communityId: item.id,
+              viewerRole: 'member',
+            });
+          } else if (entityType === 'member') {
+            navigation.navigate("MemberPublicProfile", {
+              memberId: item.id,
+            });
+          }
+        }}
+      >
+        <Image source={{ uri: photoUrl }} style={styles.recentAvatar} />
+        <View style={styles.recentInfo}>
+          <Text style={styles.recentName}>{displayName}</Text>
+          <Text style={styles.recentUsername}>@{item.username}</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            const next = recents.filter((r) => r.id !== item.id || r.type !== entityType);
+            setRecents(next);
+            saveRecents(next);
+          }}
+          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        >
+          <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
@@ -280,24 +374,46 @@ export default function SearchScreen({ navigation }) {
         </ScrollView>
       </View>
 
-      {/* Results */}
-      <View style={styles.resultsContainer}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-            <Text style={styles.loadingText}>Searching...</Text>
+      {/* Recent Searches */}
+      {!searchQuery && recents.length > 0 && (
+        <View style={styles.recentsSection}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.recentHeaderText}>Recent</Text>
+            <TouchableOpacity onPress={() => {
+              setRecents([]);
+              saveRecents([]);
+            }}>
+              <Text style={styles.clearAllText}>Clear all</Text>
+            </TouchableOpacity>
           </View>
-        ) : (
           <FlatList
-            data={searchResults}
-            renderItem={renderEntity}
+            data={recents}
+            renderItem={renderRecentItem}
             keyExtractor={(item) => `${item.type}-${item.id}`}
-            ListEmptyComponent={renderEmpty}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
           />
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Results */}
+      {searchQuery && (
+        <View style={styles.resultsContainer}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+              <Text style={styles.loadingText}>Searching...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults}
+              renderItem={renderEntity}
+              keyExtractor={(item) => `${item.type}-${item.id}`}
+              ListEmptyComponent={renderEmpty}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContainer}
+            />
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -391,5 +507,52 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  recentsSection: {
+    flex: 1,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  recentHeaderText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: TEXT_COLOR,
+  },
+  clearAllText: {
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
+  },
+  recentItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  recentAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  recentInfo: {
+    flex: 1,
+  },
+  recentName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT_COLOR,
+    marginBottom: 2,
+  },
+  recentUsername: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
   },
 });
