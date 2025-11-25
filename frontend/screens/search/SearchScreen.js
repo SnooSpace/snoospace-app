@@ -31,15 +31,15 @@ export default function SearchScreen({ navigation }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
-  const [following, setFollowing] = useState({}); // id -> boolean
-  const [pending, setPending] = useState({}); // id -> boolean
+  const [following, setFollowing] = useState({});
+  const [pending, setPending] = useState({});
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [focused, setFocused] = useState(false);
 
   const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
   const DEBOUNCE_MS = 300;
 
-  // Recent searches helpers
   const getRecentsKey = () => {
     return userId ?  `recent_searches_${userId}` : "recent_searches";
   };
@@ -68,7 +68,6 @@ export default function SearchScreen({ navigation }) {
     } catch {}
   }, [userId]);
 
-  // Load user ID on mount
   useEffect(() => {
     const loadUserId = async () => {
       try {
@@ -117,7 +116,6 @@ export default function SearchScreen({ navigation }) {
       const globalData = await globalSearch(searchQuery.trim(), { limit: 50, offset: 0 });
       const allResults = globalData.results || [];
       
-      // Filter by active tab
       let filteredResults = allResults;
       if (activeTab === 'Members') {
         filteredResults = allResults.filter(r => r.type === 'member');
@@ -131,7 +129,6 @@ export default function SearchScreen({ navigation }) {
       
       setSearchResults(filteredResults);
       
-      // Initialize following map from payload
       setFollowing((prev) => {
         const copy = { ...prev };
         filteredResults.forEach((r) => {
@@ -228,7 +225,6 @@ export default function SearchScreen({ navigation }) {
         userType={entityType}
         showSubtitle={false}
         onPress={(userId, userType) => {
-          // Save to recents
           const next = [
             {
               id: item.id,
@@ -242,7 +238,6 @@ export default function SearchScreen({ navigation }) {
           setRecents(next);
           saveRecents(next);
           
-          // Navigate
           if (userType === 'community') {
             navigation.navigate("CommunityPublicProfile", {
               communityId: userId,
@@ -343,12 +338,10 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Search</Text>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color={LIGHT_TEXT_COLOR} />
@@ -357,6 +350,8 @@ export default function SearchScreen({ navigation }) {
             placeholder="Search members, communities, sponsors, venues..."
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             placeholderTextColor={LIGHT_TEXT_COLOR}
           />
           {searchQuery.length > 0 && (
@@ -367,15 +362,13 @@ export default function SearchScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {tabs.map(renderTab)}
         </ScrollView>
       </View>
 
-      {/* Recent Searches */}
-      {!searchQuery && recents.length > 0 && (
+      {focused && !searchQuery && recents.length > 0 && (
         <View style={styles.recentsSection}>
           <View style={styles.recentHeader}>
             <Text style={styles.recentHeaderText}>Recent</Text>
@@ -394,7 +387,6 @@ export default function SearchScreen({ navigation }) {
         </View>
       )}
 
-      {/* Results */}
       {searchQuery && (
         <View style={styles.resultsContainer}>
           {loading ? (
