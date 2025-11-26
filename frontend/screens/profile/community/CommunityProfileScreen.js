@@ -516,27 +516,110 @@ export default function CommunityProfileScreen({ navigation }) {
     <Modal
       visible={showSettingsModal}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={() => setShowSettingsModal(false)}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Settings</Text>
-            <TouchableOpacity onPress={() => setShowSettingsModal(false)} style={styles.closeButton}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowSettingsModal(false)}
+            >
               <Ionicons name="close" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
+          <View style={styles.modalBody}>
+            <TouchableOpacity
+              style={styles.settingsOption}
+              onPress={() => {
+                setShowSettingsModal(false);
+                // Navigate to notifications or show alert
+                Alert.alert('Notifications', 'Notification settings coming soon!');
+              }}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={24}
+                color={TEXT_COLOR}
+              />
+              <Text style={styles.settingsOptionText}>Notifications</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
-            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsOption}
+              onPress={() => {
+                setShowSettingsModal(false);
+                Alert.alert('Privacy', 'Privacy settings coming soon!');
+              }}
+            >
+              <Ionicons name="shield-outline" size={24} color={TEXT_COLOR} />
+              <Text style={styles.settingsOptionText}>Privacy</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsOption}
+              onPress={() => {
+                setShowSettingsModal(false);
+                Alert.alert('Help', 'Help & Support coming soon!');
+              }}
+            >
+              <Ionicons
+                name="help-circle-outline"
+                size={24}
+                color={TEXT_COLOR}
+              />
+              <Text style={styles.settingsOptionText}>Help & Support</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingsOption, styles.logoutOption]}
+              onPress={handleLogout}
+            >
+              <Ionicons name="log-out-outline" size={24} color="#007AFF" />
+              <Text style={[styles.settingsOptionText, styles.logoutText]}>
+                Logout
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.settingsOption}
+              onPress={() => {
+                setShowSettingsModal(false);
+                setShowDeleteModal(true);
+              }}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              <Text style={[styles.settingsOptionText, styles.deleteText]}>
+                Delete Account
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -1563,20 +1646,34 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 5,
   },
-  settingsItem: {
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  settingsOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
     paddingVertical: 15,
+    gap: 15,
   },
-  settingsText: {
+  settingsOptionText: {
+    flex: 1,
     fontSize: 16,
-    marginLeft: 15,
+    color: TEXT_COLOR,
   },
-  bannerPlaceholderText: {
-    color: '#8E8E93',
-    fontSize: 12,
-    textAlign: 'center',
+  logoutOption: {
+    marginTop: 10,
+  },
+  logoutText: {
+    color: '#007AFF',
+  },
+  deleteText: {
+    color: '#FF3B30',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    marginVertical: 10,
   },
   emptyPostsContainer: {
     paddingVertical: 40,
