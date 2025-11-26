@@ -714,33 +714,34 @@ export default function CommunityProfileScreen({ navigation }) {
         <View style={styles.postsSection}>
           <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
-            <View style={styles.postsGrid}>
-              {posts.map((item, index) => {
+            <FlatList
+              data={posts}
+              keyExtractor={(item) => item.id.toString()}
+              numColumns={3}
+              columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: 10 }}
+              renderItem={({ item, index }) => {
                 const gap = 10;
                 const itemSize = (screenWidth - 40 - gap * 2) / 3;
+                const isLastInRow = (index + 1) % 3 === 0;
                 return (
                   <TouchableOpacity
+                    activeOpacity={0.8}
                     key={item.id.toString()}
                     style={{
                       width: itemSize,
                       height: itemSize,
                       borderRadius: 8,
                       overflow: 'hidden',
-                      marginRight: (index + 1) % 3 === 0 ? 0 : gap,
-                      marginBottom: gap,
+                      marginRight: isLastInRow ? 0 : gap,
                     }}
                     onPress={() => openPostModal(item)}
                   >
                     {(() => {
-                      let firstImageUrl = null;
-                      if (item?.image_urls) {
-                        if (Array.isArray(item.image_urls)) {
-                          const flatUrls = item.image_urls.flat();
-                          firstImageUrl = flatUrls.find(u => typeof u === 'string' && u.startsWith('http'));
-                        } else if (typeof item.image_urls === 'string' && item.image_urls.startsWith('http')) {
-                          firstImageUrl = item.image_urls;
-                        }
-                      }
+                      const firstImageUrl = Array.isArray(item.image_urls)
+                        ? item.image_urls
+                            .flat()
+                            .find((u) => typeof u === 'string' && u.startsWith('http'))
+                        : undefined;
                       return firstImageUrl ? (
                         <Image
                           source={{ uri: firstImageUrl }}
@@ -755,8 +756,9 @@ export default function CommunityProfileScreen({ navigation }) {
                     })()}
                   </TouchableOpacity>
                 );
-              })}
-            </View>
+              }}
+              scrollEnabled={false}
+            />
           ) : (
             <View style={styles.emptyPostsContainer}>
               <Text style={styles.emptyPostsText}>No posts yet</Text>

@@ -701,70 +701,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         <View style={styles.postsSection}>
           <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
-            <View style={styles.postsGrid}>
-              {posts.map((item, index) => {
-                const gap = 10;
-                const itemSize = (screenWidth - 40 - gap * 2) / 3;
-                return (
-                  <TouchableOpacity
-                    key={item.id.toString()}
-                    style={{
-                      width: itemSize,
-                      height: itemSize,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      marginRight: (index + 1) % 3 === 0 ? 0 : gap,
-                      marginBottom: gap,
-                    }}
-                    onPress={() => openPostModal(item.id)}
-                  >
-                    {(() => {
-                      let firstImageUrl = null;
-                      if (item?.image_urls) {
-                        if (Array.isArray(item.image_urls)) {
-                          const flatUrls = item.image_urls.flat();
-                          firstImageUrl = flatUrls.find(
-                            (u) => typeof u === "string" && u.startsWith("http")
-                          );
-                        } else if (
-                          typeof item.image_urls === "string" &&
-                          item.image_urls.startsWith("http")
-                        ) {
-                          firstImageUrl = item.image_urls;
-                        }
-                      }
-                      return firstImageUrl ? (
-                        <Image
-                          source={{ uri: firstImageUrl }}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            backgroundColor: "#E5E5EA",
-                          }}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            backgroundColor: "#E5E5EA",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Ionicons
-                            name="image-outline"
-                            size={30}
-                            color="#8E8E93"
-                          />
-                        </View>
-                      );
-                    })()}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <FlatList
+              data={posts}
+              keyExtractor={(item) => item.id.toString()}
+              numColumns={3}
+              columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: GAP }}
+              renderItem={renderGridItem}
+              scrollEnabled={false}
+            />
           ) : (
             <View style={styles.emptyPostsContainer}>
               <Text style={styles.emptyPostsText}>No posts yet</Text>
