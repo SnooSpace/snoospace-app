@@ -5,7 +5,7 @@ import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
-import CreatePostScreen from "../screens/home/member/CreatePostScreen";
+import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 
 const Stack = createStackNavigator();
@@ -26,4 +26,3 @@ export default function ProfileStackNavigator() {
     </Stack.Navigator>
   );
 }
-

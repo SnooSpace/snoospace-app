@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SponsorHomeFeedScreen from '../screens/home/sponsor/SponsorHomeFeedScreen';
 import SponsorBrowseScreen from '../screens/home/sponsor/SponsorBrowseScreen';
 import SponsorOffersScreen from '../screens/home/sponsor/SponsorOffersScreen';
-import SponsorCreatePostScreen from '../screens/home/sponsor/SponsorCreatePostScreen';
+import CreatePostScreen from '../components/CreatePostScreen';
 import SponsorProfileScreen from '../screens/profile/sponsor/SponsorProfileScreen';
 
 const PRIMARY_COLOR = '#6A0DAD';
@@ -39,7 +39,7 @@ const SponsorBottomTabNavigator = ({ navigation }) => {
       name: 'Create',
       icon: 'add-circle-outline',
       activeIcon: 'add-circle',
-      component: SponsorCreatePostScreen
+      component: CreatePostScreen
     },
     {
       name: 'Profile',

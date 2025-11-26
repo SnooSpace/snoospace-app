@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import VenueHomeFeedScreen from '../screens/home/venue/VenueHomeFeedScreen';
 import VenueBrowseScreen from '../screens/home/venue/VenueBrowseScreen';
 import VenueBookingsScreen from '../screens/home/venue/VenueBookingsScreen';
-import VenueCreatePostScreen from '../screens/home/venue/VenueCreatePostScreen';
+import CreatePostScreen from '../components/CreatePostScreen';
 import VenueProfileScreen from '../screens/profile/venue/VenueProfileScreen';
 
 const PRIMARY_COLOR = '#6A0DAD';
@@ -39,7 +39,7 @@ const VenueBottomTabNavigator = ({ navigation }) => {
       name: 'Create',
       icon: 'add-circle-outline',
       activeIcon: 'add-circle',
-      component: VenueCreatePostScreen
+      component: CreatePostScreen
     },
     {
       name: 'Profile',

@@ -30,6 +30,7 @@ const MentionInput = ({
   style,
   maxLength = 2000,
   onTaggedEntitiesChange,
+  currentUser = null, // { id, type, name, username, profile_photo_url }
 }) => {
   const [text, setText] = useState(value);
   const [taggedEntities, setTaggedEntities] = useState([]);
@@ -53,10 +54,27 @@ const MentionInput = ({
     }
   }, [taggedEntities, onTaggedEntitiesChange]);
 
-  const searchMembers = async (query) => {
+  const searchEntities = async (query) => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      setSearchResults([]);
+      // If query is too short, only show current user if available
+      if (currentUser && trimmed.length >= 1) {
+        const matchesCurrentUser = 
+          currentUser.name?.toLowerCase().includes(trimmed.toLowerCase()) ||
+          currentUser.username?.toLowerCase().includes(trimmed.toLowerCase());
+        if (matchesCurrentUser) {
+          setSearchResults([{
+            ...currentUser,
+            full_name: currentUser.name || currentUser.full_name || '',
+            name: currentUser.name || currentUser.full_name || '',
+            isCurrentUser: true,
+          }]);
+        } else {
+          setSearchResults([]);
+        }
+      } else {
+        setSearchResults([]);
+      }
       return;
     }
     try {
@@ -66,25 +84,50 @@ const MentionInput = ({
         setSearchResults([]);
         return;
       }
-      // Use global search but filter to only members (mentions are typically for members)
+      // Use global search and accept all entity types
       const res = await globalSearch(trimmed, { limit: 20, offset: 0 });
       const allResults = res?.results || [];
-      // Filter to only members for mentions
-      const memberResults = allResults.filter(r => r.type === 'member');
+      
       // Filter out null/undefined and ensure each item has required properties
-      const validResults = memberResults
-        .filter(m => m != null && typeof m === 'object' && m.id)
-        .map(m => ({ 
-          ...m, 
-          type: 'member',
-          profile_photo_url: m.profile_photo_url || null,
-          full_name: m.full_name || m.name || '',
-          name: m.name || m.full_name || '',
-          username: m.username || ''
+      const validResults = allResults
+        .filter(item => item != null && typeof item === 'object' && item.id)
+        .map(item => ({ 
+          ...item, 
+          profile_photo_url: item.profile_photo_url || item.logo_url || null,
+          full_name: item.full_name || item.name || '',
+          name: item.name || item.full_name || '',
+          username: item.username || '',
+          isCurrentUser: false,
         }));
-      setSearchResults(validResults);
+      
+      // Add current user to results if they match the query and aren't already included
+      let finalResults = validResults;
+      if (currentUser) {
+        const currentUserAlreadyIncluded = validResults.some(
+          r => r.id === currentUser.id && r.type === currentUser.type
+        );
+        
+        const matchesCurrentUser = 
+          currentUser.name?.toLowerCase().includes(trimmed.toLowerCase()) ||
+          currentUser.username?.toLowerCase().includes(trimmed.toLowerCase());
+        
+        if (!currentUserAlreadyIncluded && matchesCurrentUser) {
+          finalResults = [
+            {
+              ...currentUser,
+              full_name: currentUser.name || currentUser.full_name || '',
+              name: currentUser.name || currentUser.full_name || '',
+              profile_photo_url: currentUser.profile_photo_url || currentUser.logo_url || null,
+              isCurrentUser: true,
+            },
+            ...validResults
+          ];
+        }
+      }
+      
+      setSearchResults(finalResults);
     } catch (error) {
-      console.error('Error searching members:', error);
+      console.error('Error searching entities:', error);
       // Don't show error to user, just silently fail
       setSearchResults([]);
     } finally {
@@ -142,8 +185,8 @@ const MentionInput = ({
     if (mentionQuery.length >= 1) {
       setSearchQuery(mentionQuery);
       setShowSearch(true);
-      if (mentionQuery.length >= 2) {
-        searchMembers(mentionQuery);
+      if (mentionQuery.length >= 1) {
+        searchEntities(mentionQuery);
       } else {
         setSearchResults([]);
       }
@@ -229,8 +272,20 @@ const MentionInput = ({
     if (!item || !item.id) return null;
     
     const profilePhotoUrl = item?.profile_photo_url;
-    const fullName = item?.full_name || item?.name || 'Member';
+    const fullName = item?.full_name || item?.name || 'User';
     const username = item?.username || 'user';
+    const entityType = item?.type || 'member';
+    const isCurrentUser = item?.isCurrentUser || false;
+    
+    // Determine icon based on entity type
+    const getEntityIcon = (type) => {
+      switch (type) {
+        case 'community': return 'people';
+        case 'sponsor': return 'briefcase';
+        case 'venue': return 'location';
+        default: return 'person';
+      }
+    };
     
     return (
       <TouchableOpacity
@@ -241,13 +296,20 @@ const MentionInput = ({
           <Image source={{ uri: profilePhotoUrl }} style={styles.searchResultAvatar} />
         ) : (
           <View style={[styles.searchResultAvatar, styles.searchResultAvatarPlaceholder]}>
-            <Ionicons name="person" size={18} color={COLORS.textLight} />
+            <Ionicons name={getEntityIcon(entityType)} size={18} color={COLORS.textLight} />
           </View>
         )}
         <View style={styles.searchResultInfo}>
-          <Text style={styles.searchResultName} numberOfLines={1}>
-            {fullName}
-          </Text>
+          <View style={styles.searchResultNameRow}>
+            <Text style={styles.searchResultName} numberOfLines={1}>
+              {fullName}
+            </Text>
+            {isCurrentUser && (
+              <View style={styles.youBadge}>
+                <Text style={styles.youBadgeText}>You</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.searchResultUsername} numberOfLines={1}>
             @{username}
           </Text>
@@ -408,10 +470,26 @@ const styles = StyleSheet.create({
   searchResultInfo: {
     flex: 1,
   },
+  searchResultNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   searchResultName: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.textDark,
+  },
+  youBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  youBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.white,
   },
   searchResultUsername: {
     fontSize: 13,
