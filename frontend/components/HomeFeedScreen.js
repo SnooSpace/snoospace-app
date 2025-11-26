@@ -37,6 +37,17 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       default: return 'SnooSpace';
     }
   };
+
+  // Determine navigation stack based on current role
+  const getNavigationStack = () => {
+    switch (role) {
+      case 'community': return 'CommunityHome';
+      case 'sponsor': return 'SponsorHome';
+      case 'venue': return 'VenueHome';
+      case 'member':
+      default: return 'MemberHome';
+    }
+  };
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -332,26 +343,32 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
           
           // Check for community first to ensure it's handled correctly
           if (actualUserType === 'community') {
-            console.log('[HomeFeedScreen] Navigating to community profile:', actualUserId);
-            // Try direct navigation through HomeStackNavigator first (simpler and more direct)
-            try {
+            console.log('[HomeFeedScreen] Navigating to community profile:', { actualUserId, currentUserId, role });
+            
+            // Check if it's the user's own community
+            const isOwnCommunity = currentUserId && String(actualUserId) === String(currentUserId);
+            
+            if (isOwnCommunity && role === 'community') {
+              // Navigate to own profile (Profile tab)
+              const root = navigation.getParent()?.getParent();
+              if (root) {
+                root.navigate(getNavigationStack(), {
+                  screen: 'Profile',
+                  params: {
+                    screen: 'CommunityProfile'
+                  }
+                });
+              }
+            } else if (role === 'member') {
+              // Member viewing a community profile - navigate within Home stack
               navigation.navigate('CommunityPublicProfile', {
                 communityId: actualUserId,
                 viewerRole: 'member'
               });
-            } catch (error) {
-              // Fallback: Navigate through Profile tab if direct navigation fails
-              console.log('[HomeFeedScreen] Direct navigation failed, trying Profile tab route');
-              const root = navigation.getParent()?.getParent();
-              if (root) {
-                root.navigate('MemberHome', {
-                  screen: 'Profile',
-                  params: {
-                    screen: 'CommunityPublicProfile',
-                    params: { communityId: actualUserId, viewerRole: 'member' }
-                  }
-                });
-              }
+            } else {
+              // Community viewing another community's profile
+              // For now, show alert since CommunityPublicProfile might not be in Community's Home stack
+              Alert.alert('Community Profile', `Viewing community: ${actualUserId}\n\nNote: Community-to-community navigation will be enhanced soon.`);
             }
             return; // Important: return early to prevent fallthrough
           }
@@ -360,25 +377,31 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
         if (actualUserType === 'member') {
           // Check if it's the current user's own profile
           const isOwnProfile = currentUserId && actualUserId === currentUserId;
-          console.log('[HomeFeedScreen] Member navigation:', { actualUserId, isOwnProfile, currentUserId });
-          const root = navigation.getParent()?.getParent();
-          if (root) {
-            if (isOwnProfile) {
-              root.navigate('MemberHome', {
-                screen: 'Profile',
-                params: {
-                  screen: 'MemberProfile'
-                }
-              });
+          console.log('[HomeFeedScreen] Member navigation:', { actualUserId, isOwnProfile, currentUserId, role });
+          
+          // Member and Community have nested stack navigation with Profile tabs
+          // Sponsor and Venue have simple tab navigation without nested stacks
+          if (role === 'member' || role === 'community') {
+            // Navigate directly to MemberPublicProfile within the current Home stack
+            // This keeps the Home tab active instead of switching to Profile tab
+            if (!isOwnProfile) {
+              navigation.navigate('MemberPublicProfile', { memberId: actualUserId });
             } else {
-              root.navigate('MemberHome', {
-                screen: 'Profile',
-                params: {
-                  screen: 'MemberPublicProfile',
-                  params: { memberId: actualUserId }
-                }
-              });
+              // For own profile, navigate to Profile tab
+              const root = navigation.getParent()?.getParent();
+              if (root) {
+                root.navigate(getNavigationStack(), {
+                  screen: 'Profile',
+                  params: {
+                    screen: 'MemberProfile'
+                  }
+                });
+              }
             }
+          } else {
+            // For Sponsor/Venue, navigate using simple navigation (they don't have nested stacks)
+            // Just show an alert for now since they don't have MemberPublicProfile in their navigation
+            Alert.alert('Member Profile', `Viewing member profile: ${actualUserId}\n\nNote: Full profile navigation for Sponsor/Venue roles will be implemented soon.`);
           }
           return;
         }
