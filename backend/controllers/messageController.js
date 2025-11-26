@@ -4,9 +4,13 @@ const pool = createPool();
 
 // Helper function to get or create conversation between two participants (member or community)
 const getOrCreateConversation = async (participant1Id, participant1Type, participant2Id, participant2Type) => {
-  // Ensure consistent ordering (smaller ID first, or if same ID, type order)
+  // Convert IDs to numbers for consistent comparison
+  const id1 = Number(participant1Id);
+  const id2 = Number(participant2Id);
+  
+  // Ensure consistent ordering (smaller ID first, or if same ID, alphabetically by type)
   let p1Id, p1Type, p2Id, p2Type;
-  if (participant1Id < participant2Id || (participant1Id === participant2Id && participant1Type < participant2Type)) {
+  if (id1 < id2 || (id1 === id2 && participant1Type < participant2Type)) {
     p1Id = participant1Id;
     p1Type = participant1Type;
     p2Id = participant2Id;
