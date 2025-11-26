@@ -364,7 +364,8 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderMessage = ({ item, index }) => {
     const isMyMessage = item.senderId !== (recipient?.id || recipientId);
-    const showAvatar = index === 0 || messages[index - 1]?.senderId !== item.senderId;
+    // Show avatar if it's the last message in the list OR the next message is from a different sender
+    const showAvatar = index === messages.length - 1 || messages[index + 1]?.senderId !== item.senderId;
     
     return (
       <View
@@ -373,13 +374,18 @@ export default function ChatScreen({ route, navigation }) {
           isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
         ]}
       >
-        {!isMyMessage && showAvatar && (
-          <Image
-            source={{
-              uri: recipient?.profilePhotoUrl || 'https://via.placeholder.com/30',
-            }}
-            style={styles.messageAvatar}
-          />
+        {!isMyMessage && (
+          showAvatar ? (
+            <Image
+              source={{
+                uri: recipient?.profilePhotoUrl || 'https://via.placeholder.com/30',
+              }}
+              style={styles.messageAvatar}
+            />
+          ) : (
+            // Placeholder to maintain alignment for messages in the same block
+            <View style={{ width: 30, marginRight: 8 }} />
+          )
         )}
         <View
           style={[
