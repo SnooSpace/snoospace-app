@@ -113,18 +113,65 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       // Emit event to refresh feed
       EventBus.emit('post-created');
 
-      // 5. Success: navigate back or to Home tab
+
+      // 5. Success: navigate to Home tab
       Alert.alert("Success", "Post created successfully!", [
         { 
           text: "OK", 
           onPress: () => {
-            // Use callback to switch to Home tab if provided (from BottomTabNavigator)
-            if (onPostCreated) {
-              onPostCreated();
-            } else {
-              // Navigate back to previous screen
-              navigation.goBack();
-            }
+            // Navigate to Home tab for all roles
+            // First, close the CreatePost screen
+            navigation.goBack();
+            
+            // Then navigate to Home tab
+            // Use setTimeout to ensure goBack completes first
+            setTimeout(() => {
+              // Find the tab navigator by traversing up the navigation tree
+              let currentNav = navigation;
+              let tabNavigator = null;
+              
+              console.log('[CreatePostScreen] Starting navigation tree traversal');
+              
+              // Try to find the tab navigator (has jumpTo method)
+              for (let i = 0; i < 5; i++) {
+                const parent = currentNav.getParent();
+                if (!parent) {
+                  console.log(`[CreatePostScreen] No parent at level ${i}`);
+                  break;
+                }
+                
+                console.log(`[CreatePostScreen] Level ${i}:`, {
+                  hasJumpTo: !!parent.jumpTo,
+                  hasNavigate: !!parent.navigate,
+                  state: parent.getState?.()
+                });
+                
+                if (parent.jumpTo) {
+                  tabNavigator = parent;
+                  console.log(`[CreatePostScreen] Found tab navigator at level ${i}`);
+                  break;
+                }
+                currentNav = parent;
+              }
+              
+              if (tabNavigator && tabNavigator.jumpTo) {
+                console.log('[CreatePostScreen] Jumping to Home tab');
+                // For tab navigators, use jumpTo to switch to Home tab
+                tabNavigator.jumpTo('Home');
+              } else {
+                console.log('[CreatePostScreen] Tab navigator not found, trying alternative navigation');
+                // Alternative: Try to navigate to the home screen directly
+                try {
+                  const root = navigation.getParent()?.getParent();
+                  if (root && root.navigate) {
+                    // For Community, navigate to CommunityHome and then to Home tab
+                    root.navigate('CommunityHome', { screen: 'Home' });
+                  }
+                } catch (error) {
+                  console.log('[CreatePostScreen] Alternative navigation failed:', error);
+                }
+              }
+            }, 100);
           }
         }
       ]);

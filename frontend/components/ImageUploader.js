@@ -146,11 +146,6 @@ const ImageUploader = ({
     <View style={[styles.container, style]}>
       <Text style={styles.label}>Photos ({images.length}/{maxImages})</Text>
       {renderImageGrid()}
-      {images.length > 0 ? (
-        <TouchableOpacity style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]} onPress={uploadAll} disabled={uploading}>
-          <Text style={styles.uploadButtonText}>{uploading ? 'Uploading...' : 'Upload to Cloud'}</Text>
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 };
