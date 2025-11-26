@@ -341,7 +341,7 @@ const getUnreadCount = async (req, res) => {
     }
 
     const query = `
-      SELECT COUNT(*) as unread_count
+      SELECT COUNT(DISTINCT m.conversation_id) as unread_count
       FROM messages m
       JOIN conversations c ON m.conversation_id = c.id
       WHERE ((c.participant1_id = $1 AND c.participant1_type = $2) OR (c.participant2_id = $1 AND c.participant2_type = $2))
