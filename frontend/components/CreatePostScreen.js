@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../api/client";
@@ -34,6 +35,41 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [images, setImages] = useState([]);
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Load current user profile for self-tagging
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const email = await AsyncStorage.getItem("auth_email");
+        const token = await getAuthToken();
+        if (!email || !token) return;
+        
+        const userProfileResponse = await apiPost(
+          "/auth/get-user-profile",
+          { email },
+          15000,
+          token
+        );
+        
+        const userData = userProfileResponse?.profile;
+        if (userData) {
+          setCurrentUser({
+            id: userData.id,
+            type: userData.user_type || 'member',
+            name: userData.full_name || userData.name || '',
+            username: userData.username || '',
+            profile_photo_url: userData.profile_photo_url || userData.logo_url || null,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading current user for tagging:', error);
+        // Silent fail - self-tagging just won't be available
+      }
+    };
+    
+    loadCurrentUser();
+  }, []);
 
   const handleImagesChange = (newImages) => {
     setImages(newImages);
@@ -175,6 +211,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               placeholderTextColor={COLORS.textLight}
               maxLength={2000}
               style={styles.mentionInput}
+              currentUser={currentUser}
             />
             <Text style={styles.characterCount}>
               {caption.length}/2000
