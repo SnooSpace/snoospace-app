@@ -1,6 +1,6 @@
 import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import CommunityHomeFeedScreen from "../screens/home/community/CommunityHomeFeedScreen";
+import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
@@ -14,7 +14,9 @@ export default function CommunityHomeStackNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName="HomeFeed"
     >
-      <Stack.Screen name="HomeFeed" component={CommunityHomeFeedScreen} />
+      <Stack.Screen name="HomeFeed">
+        {(props) => <HomeFeedScreen {...props} role="community" />}
+      </Stack.Screen>
       <Stack.Screen 
         name="Notifications" 
         component={NotificationsScreen}

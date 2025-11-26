@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import Sponsor screens
-import SponsorHomeFeedScreen from '../screens/home/sponsor/SponsorHomeFeedScreen';
+import HomeFeedScreen from '../components/HomeFeedScreen';
 import SponsorBrowseScreen from '../screens/home/sponsor/SponsorBrowseScreen';
 import SponsorOffersScreen from '../screens/home/sponsor/SponsorOffersScreen';
 import CreatePostScreen from '../components/CreatePostScreen';
@@ -21,7 +21,7 @@ const SponsorBottomTabNavigator = ({ navigation }) => {
       name: 'Home',
       icon: 'home-outline',
       activeIcon: 'home',
-      component: SponsorHomeFeedScreen
+      component: (props) => <HomeFeedScreen {...props} role="sponsor" />
     },
     {
       name: 'Browse',
@@ -51,7 +51,7 @@ const SponsorBottomTabNavigator = ({ navigation }) => {
 
   const renderScreen = () => {
     const activeTabData = tabs.find(tab => tab.name === activeTab);
-    const ScreenComponent = activeTabData?.component || SponsorHomeFeedScreen;
+    const ScreenComponent = activeTabData?.component || ((props) => <HomeFeedScreen {...props} role="sponsor" />);
     return <ScreenComponent navigation={navigation} />;
   };
 

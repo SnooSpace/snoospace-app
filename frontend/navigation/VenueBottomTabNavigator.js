@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import Venue screens
-import VenueHomeFeedScreen from '../screens/home/venue/VenueHomeFeedScreen';
+import HomeFeedScreen from '../components/HomeFeedScreen';
 import VenueBrowseScreen from '../screens/home/venue/VenueBrowseScreen';
 import VenueBookingsScreen from '../screens/home/venue/VenueBookingsScreen';
 import CreatePostScreen from '../components/CreatePostScreen';
@@ -21,7 +21,7 @@ const VenueBottomTabNavigator = ({ navigation }) => {
       name: 'Home',
       icon: 'home-outline',
       activeIcon: 'home',
-      component: VenueHomeFeedScreen
+      component: (props) => <HomeFeedScreen {...props} role="venue" />
     },
     {
       name: 'Browse',
@@ -51,7 +51,7 @@ const VenueBottomTabNavigator = ({ navigation }) => {
 
   const renderScreen = () => {
     const activeTabData = tabs.find(tab => tab.name === activeTab);
-    const ScreenComponent = activeTabData?.component || VenueHomeFeedScreen;
+    const ScreenComponent = activeTabData?.component || ((props) => <HomeFeedScreen {...props} role="venue" />);
     return <ScreenComponent navigation={navigation} />;
   };
 

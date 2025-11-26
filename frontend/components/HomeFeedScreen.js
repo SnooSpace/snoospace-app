@@ -13,20 +13,30 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNotifications } from '../../../context/NotificationsContext';
-import { apiGet, apiPost } from '../../../api/client'; // Modified imports
-import { getAuthToken, getAuthEmail } from '../../../api/auth';
-import { getUnreadCount as getMessageUnreadCount } from '../../../api/messages';
-import PostCard from '../../../components/PostCard'; // Use the robust PostCard component
-import CommentsModal from '../../../components/CommentsModal'; // Comments modal
-import EventBus from '../../../utils/EventBus';
-import LikeStateManager from '../../../utils/LikeStateManager';
+import { useNotifications } from '../context/NotificationsContext';
+import { apiGet, apiPost } from '../api/client';
+import { getAuthToken, getAuthEmail } from '../api/auth';
+import { getUnreadCount as getMessageUnreadCount } from '../api/messages';
+import PostCard from './PostCard';
+import CommentsModal from './CommentsModal';
+import EventBus from '../utils/EventBus';
+import LikeStateManager from '../utils/LikeStateManager';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
-export default function HomeFeedScreen({ navigation }) {
+export default function HomeFeedScreen({ navigation, role = 'member' }) {
+  // Determine header title based on role
+  const getHeaderTitle = () => {
+    switch (role) {
+      case 'community': return 'SnooSpace';
+      case 'sponsor': return 'SnooSpace';
+      case 'venue': return 'SnooSpace';
+      case 'member':
+      default: return 'SnooSpace';
+    }
+  };
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -397,7 +407,7 @@ export default function HomeFeedScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.appTitle}>SnooSpace</Text>
+        <Text style={styles.appTitle}>{getHeaderTitle()}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerButton} onPress={() => {
             // Navigate to Notifications (same stack - HomeStackNavigator)
@@ -436,7 +446,7 @@ export default function HomeFeedScreen({ navigation }) {
       ) : null}
 
       <View style={styles.greeting}>
-        <Text style={styles.greetingText}>Hi {greetingName || 'Member'}!</Text>
+        <Text style={styles.greetingText}>Hi {greetingName || 'User'}!</Text>
         <Text style={styles.greetingSubtext}>Discover what's happening</Text>
       </View>
 
