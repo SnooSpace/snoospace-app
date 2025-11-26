@@ -434,7 +434,7 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container} {...panResponder.panHandlers}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardView}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
