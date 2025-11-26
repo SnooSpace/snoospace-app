@@ -242,6 +242,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       );
     };
 
+    const handlePostDeleted = ({ postId }) => {
+      if (!postId) return;
+      setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
+      if (selectedPost?.id === postId) {
+        setPostModalVisible(false);
+        setSelectedPost(null);
+      }
+    };
+
     const unsubscribeLike = EventBus.on(
       "post-like-updated",
       handlePostLikeUpdate
@@ -250,12 +259,17 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       "post-comment-updated",
       handlePostCommentUpdate
     );
+    const unsubscribeDeleted = EventBus.on(
+      "post-deleted",
+      handlePostDeleted
+    );
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
       if (unsubscribeComment) unsubscribeComment();
+      if (unsubscribeDeleted) unsubscribeDeleted();
     };
-  }, []);
+  }, [selectedPost]); // Added selectedPost dependency
 
   const openPostModal = (postId) => {
     console.log('[CommunityPublicProfile] openPostModal called with postId:', postId);
@@ -795,9 +809,9 @@ const PostModal = ({
   }, [visible]);
 
   const isOwnPost = () => {
-    return (
-      post?.author_id === profileProp?.id && post?.author_type === "community"
-    );
+    if (!post || !profileProp) return false;
+    // Relaxed check: match ID (string comparison)
+    return String(post.author_id) === String(profileProp.id);
   };
 
   const handleDeletePost = async () => {

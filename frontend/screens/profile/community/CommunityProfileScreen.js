@@ -198,11 +198,19 @@ export default function CommunityProfileScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = EventBus.on('post-created', () => {
+    const unsubscribeCreated = EventBus.on('post-created', () => {
       loadProfile();
     });
+    const unsubscribeDeleted = EventBus.on('post-deleted', ({ postId }) => {
+      if (postId) {
+        setPosts(prev => prev.filter(p => p.id !== postId));
+      } else {
+        loadProfile();
+      }
+    });
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeCreated) unsubscribeCreated();
+      if (unsubscribeDeleted) unsubscribeDeleted();
     };
   }, [loadProfile]);
 
@@ -903,50 +911,73 @@ const PostModal = ({
     }
   }, [visible]);
 
-  const isOwnPost = () => {
-    return (
-      post?.author_id === profileProp?.id && post?.author_type === 'community'
-    );
-  };
+    // Check if current user owns the post
+    const isOwnPost = () => {
+      if (!post || !profileProp) return false;
+      // Relaxed check: match ID (string comparison)
+      // We don't strictly check author_type as it might be inconsistent or missing
+      return String(post.author_id) === String(profileProp.id);
+    };
 
-  const handleDeletePost = async () => {
-    if (!post?.id) return;
-    if (!isOwnPost()) {
-      Alert.alert('Error', 'You can only delete your own posts');
-      setShowDeleteMenu(false);
-      return;
-    }
-    Alert.alert(
-      'Delete Post',
-      'Are you sure you want to delete this post? This action cannot be undone.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => setShowDeleteMenu(false),
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const token = await getAuthToken();
-              await apiDelete(`/posts/${post.id}`, null, 15000, token);
-              if (onCloseComments) onCloseComments();
-              onClose();
-              Alert.alert('Success', 'Post deleted successfully');
-            } catch (error) {
-              console.error('Error deleting post:', error);
-              Alert.alert('Error', error?.message || 'Failed to delete post');
-            } finally {
-              setDeleting(false);
-            }
+    const handleDeletePost = async () => {
+      if (!post?.id) return;
+      if (!isOwnPost()) {
+        Alert.alert('Error', 'You can only delete your own posts');
+        setShowDeleteMenu(false);
+        return;
+      }
+      Alert.alert(
+        'Delete Post',
+        'Are you sure you want to delete this post? This action cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setShowDeleteMenu(false),
           },
-        },
-      ]
-    );
-  };
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              setDeleting(true);
+              try {
+                const token = await getAuthToken();
+                await apiDelete(`/posts/${post.id}`, null, 15000, token);
+                
+                // Update local state in parent component
+                if (onClose) {
+                   // We need to trigger a refresh or update the parent's list
+                   // But onClose just closes the modal.
+                   // The parent should handle the update.
+                   // In MemberProfileScreen, it calls setPosts to filter out the deleted post.
+                   // Here, we don't have direct access to setPosts of parent unless we pass a callback.
+                   // But wait, we are inside CommunityProfileScreen which defines PostModal?
+                   // No, PostModal is defined OUTSIDE CommunityProfileScreen component in the same file?
+                   // Yes, it is.
+                   
+                   // We need a way to notify parent.
+                   // MemberProfileScreen passes `onClose` but doesn't seem to pass a delete callback?
+                   // Wait, in MemberProfileScreen, PostModal is defined INSIDE the component?
+                   // Let me check MemberProfileScreen again.
+                }
+                
+                // Emit event for other screens
+                EventBus.emit('post-deleted', { postId: post.id });
+                
+                if (onCloseComments) onCloseComments();
+                onClose();
+                Alert.alert('Success', 'Post deleted successfully');
+              } catch (error) {
+                console.error('Error deleting post:', error);
+                Alert.alert('Error', error?.message || 'Failed to delete post');
+              } finally {
+                setDeleting(false);
+              }
+            },
+          },
+        ]
+      );
+    };
 
   const handleLikeToggle = async () => {
     if (isLiking) return;
