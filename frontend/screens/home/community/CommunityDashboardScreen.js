@@ -51,8 +51,8 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   const handleCreatePost = () => {
-    // Navigate to post creation screen
-    navigation.navigate('CommunityCreatePost');
+    // Navigate to post creation screen with role param
+    navigation.navigate('CommunityCreatePost', { role: 'community' });
   };
 
   const handleViewEvent = (event) => {

@@ -123,53 +123,73 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             // First, close the CreatePost screen
             navigation.goBack();
             
-            // Then navigate to Home tab
-            // Use setTimeout to ensure goBack completes first
-            setTimeout(() => {
-              // Find the tab navigator by traversing up the navigation tree
-              let currentNav = navigation;
-              let tabNavigator = null;
-              
-              console.log('[CreatePostScreen] Starting navigation tree traversal');
-              
-              // Try to find the tab navigator (has jumpTo method)
-              for (let i = 0; i < 5; i++) {
-                const parent = currentNav.getParent();
-                if (!parent) {
-                  console.log(`[CreatePostScreen] No parent at level ${i}`);
-                  break;
-                }
+            // Then navigate to the correct Home screen based on user role
+            setTimeout(async () => {
+              try {
+                // Determine the target screen based on user type
+                // Priority: 1. route params, 2. currentUser state, 3. AsyncStorage (fallback)
+                let userType = route.params?.role || currentUser?.type;
                 
-                console.log(`[CreatePostScreen] Level ${i}:`, {
-                  hasJumpTo: !!parent.jumpTo,
-                  hasNavigate: !!parent.navigate,
-                  state: parent.getState?.()
-                });
-                
-                if (parent.jumpTo) {
-                  tabNavigator = parent;
-                  console.log(`[CreatePostScreen] Found tab navigator at level ${i}`);
-                  break;
-                }
-                currentNav = parent;
-              }
-              
-              if (tabNavigator && tabNavigator.jumpTo) {
-                console.log('[CreatePostScreen] Jumping to Home tab');
-                // For tab navigators, use jumpTo to switch to Home tab
-                tabNavigator.jumpTo('Home');
-              } else {
-                console.log('[CreatePostScreen] Tab navigator not found, trying alternative navigation');
-                // Alternative: Try to navigate to the home screen directly
-                try {
-                  const root = navigation.getParent()?.getParent();
-                  if (root && root.navigate) {
-                    // For Community, navigate to CommunityHome and then to Home tab
-                    root.navigate('CommunityHome', { screen: 'Home' });
+                if (!userType) {
+                  // Fallback: try to get from AsyncStorage if not available in state/params
+                  try {
+                    const storedUserType = await AsyncStorage.getItem("user_type"); // If we store this
+                    // Or try to fetch profile again quickly if needed, but for now default to member
+                    // Actually, let's try to infer from the previous screen or just default to member
+                    // But wait, if we are community, we MUST know it.
+                    
+                    // Let's check if we can get it from auth_email and profile fetch if absolutely needed
+                    // But we already tried loading it in useEffect.
+                    
+                    // If we are here, it means load failed or is too slow.
+                    // Let's check if we have a stored profile in AsyncStorage
+                    const storedProfile = await AsyncStorage.getItem("user_profile");
+                    if (storedProfile) {
+                      const parsed = JSON.parse(storedProfile);
+                      userType = parsed.user_type || parsed.role;
+                    }
+                  } catch (e) {
+                    console.log('Error fetching fallback user type:', e);
                   }
-                } catch (error) {
-                  console.log('[CreatePostScreen] Alternative navigation failed:', error);
                 }
+                
+                // Default to member if still unknown
+                userType = userType || 'member';
+                
+                let targetScreen = 'MemberHome';
+                let params = { screen: 'Home' };
+                
+                switch (userType) {
+                  case 'community':
+                    targetScreen = 'CommunityHome';
+                    params = { screen: 'Home' };
+                    break;
+                  case 'sponsor':
+                    targetScreen = 'SponsorHome';
+                    params = undefined; // Sponsor uses custom tabs, default is Home
+                    break;
+                  case 'venue':
+                    targetScreen = 'VenueHome';
+                    params = undefined; // Venue uses custom tabs, default is Home
+                    break;
+                  case 'member':
+                  default:
+                    targetScreen = 'MemberHome';
+                    params = { screen: 'Home' };
+                    break;
+                }
+                
+                console.log(`[CreatePostScreen] Navigating to ${targetScreen} for user type ${userType}`);
+                
+                // Navigate to the target screen
+                // We use the root navigator (AppNavigator) which CreatePostScreen is part of
+                if (params) {
+                  navigation.navigate(targetScreen, params);
+                } else {
+                  navigation.navigate(targetScreen);
+                }
+              } catch (error) {
+                console.log('[CreatePostScreen] Navigation failed:', error);
               }
             }, 100);
           }
