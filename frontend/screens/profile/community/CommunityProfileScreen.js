@@ -724,6 +724,8 @@ export default function CommunityProfileScreen({ navigation }) {
                     style={{
                       width: itemSize,
                       height: itemSize,
+                      borderRadius: 8,
+                      overflow: 'hidden',
                       marginRight: (index + 1) % 3 === 0 ? 0 : gap,
                       marginBottom: gap,
                     }}
