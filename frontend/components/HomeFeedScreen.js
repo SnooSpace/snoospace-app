@@ -21,6 +21,7 @@ import PostCard from './PostCard';
 import CommentsModal from './CommentsModal';
 import EventBus from '../utils/EventBus';
 import LikeStateManager from '../utils/LikeStateManager';
+import { useMessagePolling } from '../hooks/useMessagePolling';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -59,6 +60,15 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
 
+  // Auto-poll for message count updates (Instagram-like)
+  // Features: 3-second interval, exponential backoff, stops when screen off, adaptive night polling
+  useMessagePolling((count) => {
+    setMessageUnread(count);
+  }, {
+    baseInterval: 3000, // Poll every 3 seconds
+    enabled: true,
+  });
+
   useEffect(() => {
     // Always load feed once on mount
     loadFeed();
@@ -70,12 +80,16 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     const offMessages = EventBus.on('messages-read', () => {
       loadMessageUnreadCount();
     });
+    const offNewMessage = EventBus.on('new-message', () => {
+      loadMessageUnreadCount();
+    });
     const offPostCreated = EventBus.on('post-created', () => {
       loadFeed();
     });
     return () => { 
       off(); 
       offMessages();
+      offNewMessage();
       offPostCreated();
     };
   }, []);
@@ -252,7 +266,10 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadFeed();
+    await Promise.all([
+      loadFeed(),
+      loadMessageUnreadCount()
+    ]);
     setRefreshing(false);
   };
 

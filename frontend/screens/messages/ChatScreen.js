@@ -315,6 +315,9 @@ export default function ChatScreen({ route, navigation }) {
           lastMessageAt: messagePayload.createdAt || new Date().toISOString(),
           otherParticipant: otherParticipantPayload,
         });
+        
+        // Emit new-message event to trigger unread count refresh on other screens
+        EventBus.emit('new-message');
       };
 
       if (!convId) {

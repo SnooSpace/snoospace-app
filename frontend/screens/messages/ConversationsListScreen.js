@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -143,6 +144,14 @@ export default function ConversationsListScreen({ navigation }) {
   useEffect(() => {
     loadConversations();
   }, []);
+
+  // Reload conversations when screen comes into focus (e.g., returning from ChatScreen)
+  useFocusEffect(
+    useCallback(() => {
+      // Only reload if not in initial loading state
+      loadConversations(true);
+    }, [loadConversations])
+  );
 
   useEffect(() => {
     const unsubscribe = EventBus.on("conversation-updated", (payload) => {
