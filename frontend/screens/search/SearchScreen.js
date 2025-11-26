@@ -1,48 +1,53 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-  StyleSheet,
   View,
-  Text,
   TextInput,
   FlatList,
-  TouchableOpacity,
+  Text,
   Image,
+  TouchableOpacity,
+  StyleSheet,
   ActivityIndicator,
-  ScrollView,
-  Alert,
   Keyboard,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import UserCard from '../../components/UserCard';
-import { globalSearch } from '../../api/search';
-import { followMember, unfollowMember } from '../../api/members';
-import { followCommunity, unfollowCommunity } from '../../api/communities';
-import { getAuthToken, getAuthEmail} from '../../api/auth';
-import { apiPost } from '../../api/client';
-import EventBus from '../../utils/EventBus';
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { searchMembers } from "../../api/search";
+import { searchCommunities } from "../../api/communities";
+import { followMember, unfollowMember } from "../../api/members";
+import { followCommunity, unfollowCommunity } from "../../api/communities";
+import EventBus from "../../utils/EventBus";
+import { getAuthToken, getAuthEmail } from "../../api/auth";
+import { apiPost } from "../../api/client";
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const DEBOUNCE_MS = 300;
 
 export default function SearchScreen({ navigation }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [following, setFollowing] = useState({}); // id -> boolean
+  const [pending, setPending] = useState({}); // id -> boolean
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('All');
-  const [following, setFollowing] = useState({});
-  const [pending, setPending] = useState({});
+  const [error, setError] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const inFlightRef = useRef(null);
+  const inputRef = useRef(null);
+  const [focused, setFocused] = useState(false);
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
-  const [focused, setFocused] = useState(false);
+  const [userType, setUserType] = useState(null);
 
-  const tabs = ['All', 'Members', 'Communities', 'Sponsors', 'Venues'];
-  const DEBOUNCE_MS = 300;
+  const canSearch = query.trim().length >= 2;
 
   const getRecentsKey = () => {
-    return userId ?  `recent_searches_${userId}` : "recent_searches";
+    return userId ? `recent_searches_${userId}` : "recent_searches";
   };
 
   const loadRecents = useCallback(async () => {
@@ -69,7 +74,60 @@ export default function SearchScreen({ navigation }) {
     } catch {}
   }, [userId]);
 
+  const doSearch = useCallback(
+    async (reset = false) => {
+      if (!canSearch) {
+        setResults([]);
+        setOffset(0);
+        setHasMore(false);
+        setLoading(false);
+        setError("");
+        return;
+      }
+      const nextOffset = reset ? 0 : offset;
+      setLoading(true);
+      setError("");
+      
+      // Search both members and communities in parallel
+      const [membersData, communitiesData] = await Promise.all([
+        searchMembers(query.trim(), { limit: 20, offset: nextOffset }).catch(() => ({ results: [], hasMore: false })),
+        searchCommunities(query.trim(), { limit: 20, offset: nextOffset }).catch(() => ({ results: [], hasMore: false })),
+      ]);
+      
+      // Combine results
+      const combinedResults = [
+        ...(membersData.results || []).map(r => ({ ...r, type: 'member' })),
+        ...(communitiesData.results || []).map(r => ({ ...r, type: 'community', full_name: r.name })),
+      ];
+      
+      const newResults = reset ? combinedResults : [...results, ...combinedResults];
+      setResults(newResults);
+      
+      // initialize following map from payload
+      setFollowing((prev) => {
+        const copy = { ...prev };
+        [...(membersData.results || []), ...(communitiesData.results || [])].forEach((r) => {
+          if (typeof r.is_following === "boolean")
+            copy[r.id] = r.is_following;
+        });
+        return copy;
+      });
+      
+      const totalResults = combinedResults.length;
+      setOffset(nextOffset + totalResults);
+      setHasMore(!!membersData.hasMore || !!communitiesData.hasMore);
+      setLoading(false);
+    },
+    [query, offset, results, canSearch]
+  );
+
   useEffect(() => {
+    const h = setTimeout(() => doSearch(true), DEBOUNCE_MS);
+    return () => clearTimeout(h);
+  }, [query, doSearch]);
+
+  useEffect(() => {
+    // Load user ID on mount
     const loadUserId = async () => {
       try {
         const token = await getAuthToken();
@@ -78,6 +136,7 @@ export default function SearchScreen({ navigation }) {
           const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
           if (profileResponse?.profile?.id) {
             setUserId(profileResponse.profile.id);
+            setUserType(profileResponse.role || 'member');
           }
         }
       } catch (error) {
@@ -93,227 +152,162 @@ export default function SearchScreen({ navigation }) {
     }
   }, [userId, loadRecents]);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.trim().length >= 2) {
-        performSearch();
-      } else {
-        setSearchResults([]);
-      }
-    }, DEBOUNCE_MS);
+  const onEndReached = useCallback(() => {
+    if (loading || !hasMore) return;
+    doSearch(false);
+  }, [loading, hasMore, doSearch]);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, activeTab, performSearch]);
-
-  const performSearch = useCallback(async () => {
-    if (searchQuery.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      const globalData = await globalSearch(searchQuery.trim(), { limit: 50, offset: 0 });
-      const allResults = globalData.results || [];
-      
-      let filteredResults = allResults;
-      if (activeTab === 'Members') {
-        filteredResults = allResults.filter(r => r.type === 'member');
-      } else if (activeTab === 'Communities') {
-        filteredResults = allResults.filter(r => r.type === 'community');
-      } else if (activeTab === 'Sponsors') {
-        filteredResults = allResults.filter(r => r.type === 'sponsor');
-      } else if (activeTab === 'Venues') {
-        filteredResults = allResults.filter(r => r.type === 'venue');
-      }
-      
-      setSearchResults(filteredResults);
-      
-      setFollowing((prev) => {
-        const copy = { ...prev };
-        filteredResults.forEach((r) => {
-          if (r && r.id) {
-            const isFollowing = r.is_following === true || r.isFollowing === true;
-            copy[r.id] = isFollowing;
-          }
-        });
-        return copy;
-      });
-    } catch (error) {
-      console.error('Search error:', error);
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, activeTab]);
-
-  const handleFollow = async (entityId, entityType, newFollowingState = null) => {
+  const toggleFollow = async (entityId, entityType = 'member') => {
     if (pending[entityId]) return;
-    
-    const currentFollowing = !!following[entityId];
-    const targetState = newFollowingState !== null ? newFollowingState : !currentFollowing;
-    
-    setFollowing((prev) => ({ ...prev, [entityId]: targetState }));
+    const isFollowing = !!following[entityId];
+    setFollowing((prev) => ({ ...prev, [entityId]: !isFollowing }));
     setPending((prev) => ({ ...prev, [entityId]: true }));
-    
     try {
-      let currentUserId = null;
-      let currentUserType = 'community';
-      try {
-        const token = await getAuthToken();
-        const email = await getAuthEmail();
-        if (token && email) {
-          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
-          if (profileResponse?.profile?.id) {
-            currentUserId = profileResponse.profile.id;
-            currentUserType = profileResponse.role || 'community';
-          }
-        }
-      } catch (e) {
-        console.error('Error getting current user:', e);
-      }
-      
       if (entityType === 'member') {
-        if (targetState) {
-          await followMember(entityId);
-        } else {
+        if (isFollowing) {
           await unfollowMember(entityId);
+        } else {
+          await followMember(entityId);
         }
         EventBus.emit("follow-updated", { 
           memberId: entityId, 
-          isFollowing: targetState,
-          followerId: currentUserId,
-          followerType: currentUserType
+          isFollowing: !isFollowing,
+          followerId: userId || null,
+          followerType: userType || null,
         });
       } else if (entityType === 'community') {
-        if (targetState) {
-          await followCommunity(entityId);
-        } else {
+        if (isFollowing) {
           await unfollowCommunity(entityId);
+        } else {
+          await followCommunity(entityId);
         }
         EventBus.emit("follow-updated", { 
           communityId: entityId, 
-          isFollowing: targetState,
-          followerId: currentUserId,
-          followerType: currentUserType
+          isFollowing: !isFollowing,
+          followerId: userId || null,
+          followerType: userType || null,
         });
       }
     } catch (e) {
-      const errorMsg = e?.message || String(e || '');
-      if (errorMsg.includes('Already following') || errorMsg.includes('Not following')) {
-        if (errorMsg.includes('Already following') && !targetState) {
-          setFollowing((prev) => ({ ...prev, [entityId]: true }));
-        } else if (errorMsg.includes('Not following') && targetState) {
-          setFollowing((prev) => ({ ...prev, [entityId]: false }));
-        }
-      } else {
-        setFollowing((prev) => ({ ...prev, [entityId]: currentFollowing }));
-        console.error('Error following/unfollowing:', e);
-      }
+      // rollback on error
+      setFollowing((prev) => ({ ...prev, [entityId]: isFollowing }));
     } finally {
       setPending((prev) => ({ ...prev, [entityId]: false }));
     }
   };
 
-  const handleBackButton = () => {
-    Keyboard.dismiss();
-    setFocused(false);
-    setSearchQuery('');
-  };
-
-  const renderEntity = ({ item }) => {
-    if (!item) return null;
+  const onPressProfile = async (item, fromRecent = false) => {
     const entityType = item.type || 'member';
     
+    // Navigate to appropriate profile
+    if (entityType === 'community') {
+      navigation.navigate("CommunityPublicProfile", {
+        communityId: item.id,
+        viewerRole: 'member',
+      });
+    } else {
+      navigation.navigate("MemberPublicProfile", {
+        memberId: item.id,
+      });
+    }
+
+    // update recents (dedup by id, newest first, max 10)
+    const next = [
+      {
+        id: item.id,
+        type: entityType,
+        username: item.username,
+        full_name: item.full_name || item.name,
+        profile_photo_url: item.profile_photo_url || item.logo_url,
+      },
+      ...recents.filter((r) => r.id !== item.id || r.type !== entityType),
+    ].slice(0, 10);
+    setRecents(next);
+    saveRecents(next);
+  };
+
+  const normalizeDisplayName = (name, entityType) => {
+    const fallback = entityType === 'community' ? 'Community' : 'Member';
+    if (!name) return fallback;
+    return String(name).split(/\r?\n/)[0];
+  };
+
+  const renderItem = ({ item }) => {
+    const entityType = item.type || 'member';
+    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
+    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
+    
     return (
-      <UserCard
-        user={item}
-        userType={entityType}
-        showSubtitle={false}
-        onPress={(userId, userType) => {
-          const next = [
-            {
-              id: item.id,
-              type: entityType,
-              username: item.username,
-              full_name: item.full_name || item.name,
-              profile_photo_url: item.profile_photo_url || item.logo_url,
-            },
-            ...recents.filter((r) => r.id !== item.id || r.type !== entityType),
-          ].slice(0, 10);
-          setRecents(next);
-          saveRecents(next);
-          
-          if (userType === 'community') {
-            navigation.navigate("CommunityPublicProfile", {
-              communityId: userId,
-              viewerRole: 'member',
-            });
-          } else if (userType === 'member') {
-            navigation.navigate("MemberPublicProfile", {
-              memberId: userId,
-            });
-          } else if (userType === 'sponsor') {
-            Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
-          } else if (userType === 'venue') {
-            Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
-          }
-        }}
-        showFollowButton={entityType === 'member' || entityType === 'community'}
-        isFollowing={!!following[item.id]}
-        isLoading={!!pending[item.id]}
-        onFollowChange={(userId, userType, newFollowingState) => {
-          handleFollow(userId, userType, newFollowingState);
-        }}
-      />
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          onPress={() => onPressProfile(item, false)}
+        >
+          <Image
+            source={{ uri: photoUrl }}
+            style={styles.avatar}
+          />
+          <View style={styles.meta}>
+            <Text style={styles.name} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={styles.username} numberOfLines={1}>
+              @{item.username}
+              {entityType === 'community' && item.category && ` • ${item.category}`}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={!!pending[item.id]}
+          style={[
+            styles.followBtn,
+            following[item.id] ? styles.followingBtn : styles.followBtnPrimary,
+            pending[item.id] ? { opacity: 0.6 } : null,
+          ]}
+          onPress={() => toggleFollow(item.id, entityType)}
+        >
+          <Text
+            style={[
+              styles.followText,
+              following[item.id]
+                ? styles.followingText
+                : styles.followTextPrimary,
+            ]}
+          >
+            {following[item.id] ? "Following" : "Follow"}
+          </Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
-  const renderTab = (tab) => (
-    <TouchableOpacity
-      key={tab}
-      style={[
-        styles.tab,
-        activeTab === tab && styles.activeTab
-      ]}
-      onPress={() => setActiveTab(tab)}
-    >
-      <Text style={[
-        styles.tabText,
-        activeTab === tab && styles.activeTabText
-      ]}>
-        {tab}
-      </Text>
-    </TouchableOpacity>
-  );
-
   const renderRecentItem = ({ item }) => {
     const entityType = item.type || 'member';
-    const displayName = item.full_name || item.name || 'User';
-    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/50";
+    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
+    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
     
     return (
-      <TouchableOpacity
-        style={styles.recentItemContainer}
-        onPress={() => {
-          if (entityType === 'community') {
-            navigation.navigate("CommunityPublicProfile", {
-              communityId: item.id,
-              viewerRole: 'member',
-            });
-          } else if (entityType === 'member') {
-            navigation.navigate("MemberPublicProfile", {
-              memberId: item.id,
-            });
-          }
-        }}
-      >
-        <Image source={{ uri: photoUrl }} style={styles.recentAvatar} />
-        <View style={styles.recentInfo}>
-          <Text style={styles.recentName}>{displayName}</Text>
-          <Text style={styles.recentUsername}>@{item.username}</Text>
-        </View>
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          onPress={() => {
+            onPressProfile(item, true);
+          }}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={{ uri: photoUrl }}
+            style={styles.avatar}
+          />
+          <View style={styles.meta}>
+            <Text style={styles.name} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={styles.username} numberOfLines={1}>
+              @{item.username}
+            </Text>
+          </View>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             const next = recents.filter((r) => r.id !== item.id || r.type !== entityType);
@@ -321,255 +315,200 @@ export default function SearchScreen({ navigation }) {
             saveRecents(next);
           }}
           hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          style={[styles.followBtn, styles.followingBtn]}
         >
-          <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
+          <Ionicons name="close" size={16} color="#1D1D1F" />
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="search-outline" size={60} color={LIGHT_TEXT_COLOR} />
-      <Text style={styles.emptyTitle}>
-        {searchQuery ? 'No Results Found' : 'Search for Communities'}
-      </Text>
-      <Text style={styles.emptyText}>
-        {searchQuery 
-          ? `No ${activeTab.toLowerCase()} found for "${searchQuery}"`
-          : 'Find members, communities, sponsors, and venues to follow'
-        }
-      </Text>
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Search</Text>
-      </View>
-
-      <View style={styles.searchContainer}>
+    <View style={styles.container}>
+      {/* Back Button and Search Bar - Combined */}
+      <View style={styles.headerContainer}>
         {focused && (
-          <TouchableOpacity 
-            onPress={handleBackButton} 
+          <TouchableOpacity
+            onPress={() => {
+              Keyboard.dismiss();
+              setQuery("");
+              setFocused(false);
+              setResults([]);
+              setError("");
+              inputRef.current?.blur();
+            }}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
           </TouchableOpacity>
         )}
-        <View style={[styles.searchBar, focused && styles.searchBarFocused]}>
-          <Ionicons name="search" size={20} color={LIGHT_TEXT_COLOR} />
+
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color="#8E8E93" />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search members, communities, sponsors, venues..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Search members and communities..."
+            placeholderTextColor="#8E8E93"
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
             onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholderTextColor={LIGHT_TEXT_COLOR}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
-      <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {tabs.map(renderTab)}
-        </ScrollView>
-      </View>
+      {/* Overlay layer when search is active */}
+      {focused && (
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            setFocused(false);
+            inputRef.current?.blur();
+          }}
+        />
+      )}
 
-      {focused && !searchQuery && recents.length > 0 && (
-        <View style={styles.recentsSection}>
-          <View style={styles.recentHeader}>
-            <Text style={styles.recentHeaderText}>Recent</Text>
-            <TouchableOpacity onPress={() => {
-              setRecents([]);
-              saveRecents([]);
-            }}>
-              <Text style={styles.clearAllText}>Clear all</Text>
-            </TouchableOpacity>
+      {focused && query.trim().length === 0 ? (
+        <View style={styles.contentContainer}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingTop: 8,
+            }}
+          >
+            <Text style={{ fontWeight: "600", color: "#1D1D1F" }}>Recent</Text>
+            {recents.length > 0 && (
+              <TouchableOpacity
+                onPress={async () => {
+                  setRecents([]);
+                  await saveRecents([]);
+                }}
+              >
+                <Text style={{ color: "#6A0DAD", fontWeight: "600" }}>
+                  Clear all
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
           <FlatList
             data={recents}
+            keyExtractor={(item) => String(item.id)}
             renderItem={renderRecentItem}
-            keyExtractor={(item) => `${item.type}-${item.id}`}
+            ListEmptyComponent={
+              <View style={styles.helper}>
+                <Text style={styles.helperText}>No recent searches</Text>
+              </View>
+            }
           />
+        </View>
+      ) : null}
+
+      {!!error && (
+        <View style={[styles.helper, styles.contentContainer]}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
-      {searchQuery && (
-        <View style={styles.resultsContainer}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-              <Text style={styles.loadingText}>Searching...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={searchResults}
-              renderItem={renderEntity}
-              keyExtractor={(item) => `${item.type}-${item.id}`}
-              ListEmptyComponent={renderEmpty}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContainer}
-            />
-          )}
+      {canSearch && (
+        <View style={styles.contentContainer}>
+          <FlatList
+            data={results}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderItem}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.6}
+            ListEmptyComponent={
+              canSearch && !loading ? (
+                <View style={styles.helper}>
+                  <Text style={styles.helperText}>No members found</Text>
+                </View>
+              ) : null
+            }
+            contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
+          />
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: '#FFFFFF',
+    zIndex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+  contentContainer: {
+    flex: 1,
+    zIndex: 2,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: TEXT_COLOR,
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 52,
+    paddingBottom: 12,
     gap: 12,
+    zIndex: 3,
   },
   backButton: {
     padding: 4,
   },
-  searchBar: {
+  searchBox: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    borderRadius: 22,
+    height: 44,
+    gap: 8,
   },
-  searchBarFocused: {
-    backgroundColor: '#ECECEC',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    marginLeft: 10,
-  },
-  tabsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  tab: {
+  input: { flex: 1, fontSize: 16, color: "#1D1D1F" },
+  helper: { alignItems: "center", paddingVertical: 24 },
+  helperText: { color: "#8E8E93" },
+  errorText: { color: "#FF3B30" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 10,
-    borderRadius: 20,
-    backgroundColor: '#F8F9FA',
-  },
-  activeTab: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  tabText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-  },
-  resultsContainer: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 10,
-  },
-  listContainer: {
-    flexGrow: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: TEXT_COLOR,
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  recentsSection: {
-    flex: 1,
-  },
-  recentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
     paddingVertical: 12,
+    gap: 12,
   },
-  recentHeaderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F2F2F7",
   },
-  clearAllText: {
-    fontSize: 14,
-    color: PRIMARY_COLOR,
-    fontWeight: '600',
+  meta: { flex: 1 },
+  name: { fontSize: 16, color: "#1D1D1F", fontWeight: "600" },
+  username: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+  bio: { fontSize: 12, color: "#8E8E93", marginTop: 2 },
+  followBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
   },
-  recentItemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  recentAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-  },
-  recentInfo: {
-    flex: 1,
-  },
-  recentName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: TEXT_COLOR,
-    marginBottom: 2,
-  },
-  recentUsername: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-  },
+  followBtnPrimary: { backgroundColor: "#6A0DAD", borderColor: "#6A0DAD" },
+  followingBtn: { backgroundColor: "#FFFFFF", borderColor: "#E5E5EA" },
+  followText: { fontSize: 12, fontWeight: "600" },
+  followTextPrimary: { color: "#FFFFFF" },
+  followingText: { color: "#1D1D1F" },
 });

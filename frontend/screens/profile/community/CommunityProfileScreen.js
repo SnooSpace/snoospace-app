@@ -198,32 +198,11 @@ export default function CommunityProfileScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribeCreated = EventBus.on('post-created', () => {
+    const unsubscribe = EventBus.on('post-created', () => {
       loadProfile();
     });
-    const unsubscribeDeleted = EventBus.on('post-deleted', ({ postId }) => {
-      if (postId) {
-        setPosts(prev => prev.filter(p => p.id !== postId));
-        // Update profile post count
-        setProfile(prev => {
-          if (!prev) return prev;
-          // Calculate current count from whichever field is populated
-          const currentCount = prev.posts_count ?? prev.post_count ?? 0;
-          const newCount = Math.max(0, currentCount - 1);
-          
-          return {
-            ...prev,
-            post_count: newCount,
-            posts_count: newCount
-          };
-        });
-      } else {
-        loadProfile();
-      }
-    });
     return () => {
-      if (unsubscribeCreated) unsubscribeCreated();
-      if (unsubscribeDeleted) unsubscribeDeleted();
+      if (unsubscribe) unsubscribe();
     };
   }, [loadProfile]);
 
@@ -529,110 +508,27 @@ export default function CommunityProfileScreen({ navigation }) {
     <Modal
       visible={showSettingsModal}
       transparent={true}
-      animationType="fade"
+      animationType="slide"
       onRequestClose={() => setShowSettingsModal(false)}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Settings</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowSettingsModal(false)}
-            >
+            <TouchableOpacity onPress={() => setShowSettingsModal(false)} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
-          <View style={styles.modalBody}>
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => {
-                setShowSettingsModal(false);
-                // Navigate to notifications or show alert
-                Alert.alert('Notifications', 'Notification settings coming soon!');
-              }}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color={TEXT_COLOR}
-              />
-              <Text style={styles.settingsOptionText}>Notifications</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={LIGHT_TEXT_COLOR}
-              />
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => {
-                setShowSettingsModal(false);
-                Alert.alert('Privacy', 'Privacy settings coming soon!');
-              }}
-            >
-              <Ionicons name="shield-outline" size={24} color={TEXT_COLOR} />
-              <Text style={styles.settingsOptionText}>Privacy</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={LIGHT_TEXT_COLOR}
-              />
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
+            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => {
-                setShowSettingsModal(false);
-                Alert.alert('Help', 'Help & Support coming soon!');
-              }}
-            >
-              <Ionicons
-                name="help-circle-outline"
-                size={24}
-                color={TEXT_COLOR}
-              />
-              <Text style={styles.settingsOptionText}>Help & Support</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={LIGHT_TEXT_COLOR}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingsOption, styles.logoutOption]}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={24} color="#007AFF" />
-              <Text style={[styles.settingsOptionText, styles.logoutText]}>
-                Logout
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => {
-                setShowSettingsModal(false);
-                setShowDeleteModal(true);
-              }}
-            >
-              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-              <Text style={[styles.settingsOptionText, styles.deleteText]}>
-                Delete Account
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={LIGHT_TEXT_COLOR}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-          </View>
+          <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -818,34 +714,31 @@ export default function CommunityProfileScreen({ navigation }) {
         <View style={styles.postsSection}>
           <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
-            <FlatList
-              data={posts}
-              keyExtractor={(item) => item.id.toString()}
-              numColumns={3}
-              columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: 10 }}
-              renderItem={({ item, index }) => {
+            <View style={styles.postsGrid}>
+              {posts.map((item, index) => {
                 const gap = 10;
                 const itemSize = (screenWidth - 40 - gap * 2) / 3;
-                const isLastInRow = (index + 1) % 3 === 0;
                 return (
                   <TouchableOpacity
-                    activeOpacity={0.8}
                     key={item.id.toString()}
                     style={{
                       width: itemSize,
                       height: itemSize,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      marginRight: isLastInRow ? 0 : gap,
+                      marginRight: (index + 1) % 3 === 0 ? 0 : gap,
+                      marginBottom: gap,
                     }}
                     onPress={() => openPostModal(item)}
                   >
                     {(() => {
-                      const firstImageUrl = Array.isArray(item.image_urls)
-                        ? item.image_urls
-                            .flat()
-                            .find((u) => typeof u === 'string' && u.startsWith('http'))
-                        : undefined;
+                      let firstImageUrl = null;
+                      if (item?.image_urls) {
+                        if (Array.isArray(item.image_urls)) {
+                          const flatUrls = item.image_urls.flat();
+                          firstImageUrl = flatUrls.find(u => typeof u === 'string' && u.startsWith('http'));
+                        } else if (typeof item.image_urls === 'string' && item.image_urls.startsWith('http')) {
+                          firstImageUrl = item.image_urls;
+                        }
+                      }
                       return firstImageUrl ? (
                         <Image
                           source={{ uri: firstImageUrl }}
@@ -860,9 +753,8 @@ export default function CommunityProfileScreen({ navigation }) {
                     })()}
                   </TouchableOpacity>
                 );
-              }}
-              scrollEnabled={false}
-            />
+              })}
+            </View>
           ) : (
             <View style={styles.emptyPostsContainer}>
               <Text style={styles.emptyPostsText}>No posts yet</Text>
@@ -1007,73 +899,50 @@ const PostModal = ({
     }
   }, [visible]);
 
-    // Check if current user owns the post
-    const isOwnPost = () => {
-      if (!post || !profileProp) return false;
-      // Relaxed check: match ID (string comparison)
-      // We don't strictly check author_type as it might be inconsistent or missing
-      return String(post.author_id) === String(profileProp.id);
-    };
+  const isOwnPost = () => {
+    return (
+      post?.author_id === profileProp?.id && post?.author_type === 'community'
+    );
+  };
 
-    const handleDeletePost = async () => {
-      if (!post?.id) return;
-      if (!isOwnPost()) {
-        Alert.alert('Error', 'You can only delete your own posts');
-        setShowDeleteMenu(false);
-        return;
-      }
-      Alert.alert(
-        'Delete Post',
-        'Are you sure you want to delete this post? This action cannot be undone.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setShowDeleteMenu(false),
+  const handleDeletePost = async () => {
+    if (!post?.id) return;
+    if (!isOwnPost()) {
+      Alert.alert('Error', 'You can only delete your own posts');
+      setShowDeleteMenu(false);
+      return;
+    }
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => setShowDeleteMenu(false),
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const token = await getAuthToken();
+              await apiDelete(`/posts/${post.id}`, null, 15000, token);
+              if (onCloseComments) onCloseComments();
+              onClose();
+              Alert.alert('Success', 'Post deleted successfully');
+            } catch (error) {
+              console.error('Error deleting post:', error);
+              Alert.alert('Error', error?.message || 'Failed to delete post');
+            } finally {
+              setDeleting(false);
+            }
           },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              setDeleting(true);
-              try {
-                const token = await getAuthToken();
-                await apiDelete(`/posts/${post.id}`, null, 15000, token);
-                
-                // Update local state in parent component
-                if (onClose) {
-                   // We need to trigger a refresh or update the parent's list
-                   // But onClose just closes the modal.
-                   // The parent should handle the update.
-                   // In MemberProfileScreen, it calls setPosts to filter out the deleted post.
-                   // Here, we don't have direct access to setPosts of parent unless we pass a callback.
-                   // But wait, we are inside CommunityProfileScreen which defines PostModal?
-                   // No, PostModal is defined OUTSIDE CommunityProfileScreen component in the same file?
-                   // Yes, it is.
-                   
-                   // We need a way to notify parent.
-                   // MemberProfileScreen passes `onClose` but doesn't seem to pass a delete callback?
-                   // Wait, in MemberProfileScreen, PostModal is defined INSIDE the component?
-                   // Let me check MemberProfileScreen again.
-                }
-                
-                // Emit event for other screens
-                EventBus.emit('post-deleted', { postId: post.id });
-                
-                if (onCloseComments) onCloseComments();
-                onClose();
-                Alert.alert('Success', 'Post deleted successfully');
-              } catch (error) {
-                console.error('Error deleting post:', error);
-                Alert.alert('Error', error?.message || 'Failed to delete post');
-              } finally {
-                setDeleting(false);
-              }
-            },
-          },
-        ]
-      );
-    };
+        },
+      ]
+    );
+  };
 
   const handleLikeToggle = async () => {
     if (isLiking) return;
@@ -1659,34 +1528,20 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 5,
   },
-  modalBody: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  settingsOption: {
+  settingsItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 15,
-    gap: 15,
   },
-  settingsOptionText: {
-    flex: 1,
+  settingsText: {
     fontSize: 16,
-    color: TEXT_COLOR,
+    marginLeft: 15,
   },
-  logoutOption: {
-    marginTop: 10,
-  },
-  logoutText: {
-    color: '#007AFF',
-  },
-  deleteText: {
-    color: '#FF3B30',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginVertical: 10,
+  bannerPlaceholderText: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'center',
   },
   emptyPostsContainer: {
     paddingVertical: 40,

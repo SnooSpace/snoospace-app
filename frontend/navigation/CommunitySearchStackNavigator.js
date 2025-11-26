@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import SearchScreen from '../screens/search/SearchScreen';
+import CommunitySearchScreen from '../screens/search/CommunitySearchScreen';
 import CommunityPublicProfileScreen from '../screens/profile/community/CommunityPublicProfileScreen';
 import MemberPublicProfileScreen from '../screens/profile/member/MemberPublicProfileScreen';
 import SponsorProfileScreen from '../screens/profile/sponsor/SponsorProfileScreen';
@@ -14,7 +14,7 @@ export default function CommunitySearchStackNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen
         name="CommunitySearchHome"
-        component={SearchScreen}
+        component={CommunitySearchScreen}
       />
       <Stack.Screen
         name="CommunityPublicProfile"

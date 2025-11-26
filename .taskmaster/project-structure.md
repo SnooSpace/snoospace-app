@@ -49,6 +49,12 @@ frontend/
     EntityTagSelector.js    # Entity tagging selector ✅
     ChipSelector.js         # Multi-select chip component for interests ✅
     EmailChangeModal.js     # Email change OTP modal ✅
+    HomeFeedScreen.js      # Unified home feed screen (role-based) ✅
+    CreatePostScreen.js    # Unified create post screen (all roles) ✅
+    MentionInput.js        # Mention input with @ tagging ✅
+    MentionTextRenderer.js # Render text with clickable mentions ✅
+    CommentsModal.js       # Comments modal for posts ✅
+    NotificationBanner.js # Notification banner component ✅
     LocationPicker/         # Business location picker components ✅
       LocationPicker.js     # Main location picker with GPS, search, map
       LocationConfirmationModal.js # "Are you at business?" modal
@@ -56,18 +62,24 @@ frontend/
       SearchResultsList.js   # Dropdown search results
       MapView.js             # Map with draggable marker
       ConfirmationScreen.js  # Final location confirmation
+    modals/
+      HeadsEditorModal.js   # Community heads editor modal ✅
   data/
     mockData.js             # Centralized mock data for all user types ✅
   navigation/
     AppNavigator.js         # Main navigation setup ✅
     BottomTabNavigator.js   # Member bottom tabs ✅
-    MemberStackNavigator.js # Member stack (profile, edit, search, etc.) ✅
+    HomeStackNavigator.js   # Member home stack (feed, notifications, messages, profiles) ✅
+    SearchStackNavigator.js # Member search stack (search, public profiles) ✅
+    ProfileStackNavigator.js # Member profile stack (profile, edit, followers, following, create post) ✅
+    MemberStackNavigator.js # Member stack (public profiles, edit, followers, following, notifications) ✅
     CommunityBottomTabNavigator.js # Community tabs (React Navigation) ✅
+    CommunityHomeStackNavigator.js # Community home stack (feed, notifications, messages, profiles) ✅
+    CommunitySearchStackNavigator.js # Community search stack (search, public profiles) ✅
     CommunityStackNavigator.js      # Community stack (public profile, followers, following, edit) ✅
     CommunityProfileStackNavigator.js # Community profile stack (profile, edit, public, followers, following) ✅
     SponsorBottomTabNavigator.js   # Sponsor tabs ✅
     VenueBottomTabNavigator.js     # Venue tabs ✅
-    ProfileStackNavigator.js # Profile stack navigator ✅
   screens/
     auth/
       AuthGate.js           # Auth state routing ✅
@@ -81,29 +93,24 @@ frontend/
       sponsor/              # Complete multi-step signup ✅
       venue/                # Complete multi-step signup ✅
     home/
-      member/
-        HomeFeedScreen.js        # Feed + dashboard entry ✅
-        CreatePostScreen.js     # Create post ✅
+      member/               # Empty - unified components moved to components/ ✅
       community/
-        CommunityHomeFeedScreen.js # Post feed ✅
         CommunityDashboardScreen.js # Metrics dashboard ✅
         CommunityEventsScreen.js    # Events list ✅
         CommunityRequestsScreen.js  # Collaboration requests ✅
-        CommunitySearchScreen.js    # General search (members, communities, etc.) ✅
-      search/
-        SearchScreen.js             # Member search ✅
-        CommunitySearchScreen.js    # Community search (for members) ✅
-        CommunityCreatePostScreen.js # Create post ✅
+        CommunityCreatePostScreen.js # Legacy - replaced by unified CreatePostScreen.js ⚠️
+        CommunityHomeFeedScreen.js  # Legacy - replaced by unified HomeFeedScreen.js ⚠️
       sponsor/
-        SponsorHomeFeedScreen.js  # Feed + dashboard entry ✅
         SponsorBrowseScreen.js     # Browse communities ✅
         SponsorOffersScreen.js    # Manage offers ✅
-        SponsorCreatePostScreen.js # Create post ✅
       venue/
-        VenueHomeFeedScreen.js    # Feed + dashboard entry ✅
         VenueBrowseScreen.js      # Browse communities ✅
         VenueBookingsScreen.js    # Manage bookings ✅
-        VenueCreatePostScreen.js  # Create post ✅
+    events/
+      YourEventsScreen.js         # Your events screen ✅
+    messages/
+      ConversationsListScreen.js  # Conversations list ✅
+      ChatScreen.js               # Chat screen ✅
     profile/
       member/
         MemberProfileScreen.js    # Own profile with edit, posts grid, follow counts ✅
@@ -125,6 +132,7 @@ frontend/
       MatchingScreen.js          # Event-based matching (Bumble-style) ✅
     search/
       SearchScreen.js             # Member search with debounced input, pagination ✅
+      CommunitySearchScreen.js    # Community search (unified, supports all entity types) ✅
     notifications/
       NotificationsScreen.js      # Notifications list with unread badge, mark read/all ✅
   App.js
@@ -187,6 +195,10 @@ frontend/
 - Pronoun row + name layout cleanup to prevent overlap in `MemberPublicProfileScreen`
 - Comments modal avatar now respects community `logo_url` so community posts show correct image when commenting
 - Removed unused placeholder HomeScreen components per role to reduce navigation clutter (`MemberHomeScreen`, `CommunityHomeScreen`, `SponsorHomeScreen`, `VenueHomeScreen`)
+- **Unified Components Architecture**: Moved `HomeFeedScreen` and `CreatePostScreen` to `components/` directory with role-based props, eliminating duplicate code across member/community/sponsor/venue
+- **Stack Navigator Refactoring**: Created dedicated stack navigators (`HomeStackNavigator`, `CommunityHomeStackNavigator`, `SearchStackNavigator`, `CommunitySearchStackNavigator`) for better navigation organization
+- **Search Screen Unification**: Unified `CommunitySearchScreen` into `screens/search/` directory, removed duplicate from `home/community/`
+- **Navigation Structure**: Bottom tab navigators now use stack navigators for better navigation flow and back button handling
 
 #### 🚧 In Progress (P1 - Core Features)
 
@@ -247,7 +259,28 @@ frontend/
 ### Current Architecture
 
 - **Backend**: RESTful API with controllers for each feature area
-- **Frontend**: Component-based architecture with reusable components
-- **Navigation**: Stack + Bottom Tab navigators for seamless UX
-- **State Management**: Local state with AsyncStorage for persistence
+- **Frontend**: Component-based architecture with reusable, role-agnostic components
+- **Navigation**: Stack + Bottom Tab navigators with dedicated stack navigators for each feature area
+- **State Management**: Local state with AsyncStorage for persistence, EventBus for cross-component communication
 - **API Integration**: Structured API client with auth headers
+- **Component Reusability**: Unified components (`HomeFeedScreen`, `CreatePostScreen`) accept role props to serve all user types
+
+### Recent Structural Changes
+
+#### Component Unification (2024)
+- **HomeFeedScreen**: Moved from role-specific screens to `components/HomeFeedScreen.js` with `role` prop (`member`, `community`, `sponsor`, `venue`)
+- **CreatePostScreen**: Unified into `components/CreatePostScreen.js` to serve all roles
+- **Search Screens**: All search functionality consolidated in `screens/search/` directory
+
+#### Navigation Refactoring (2024)
+- **Stack Navigators**: Created dedicated stack navigators for better organization:
+  - `HomeStackNavigator`: Member home feed, notifications, messages, public profiles
+  - `CommunityHomeStackNavigator`: Community home feed, notifications, messages, public profiles
+  - `SearchStackNavigator`: Member search with public profile navigation
+  - `CommunitySearchStackNavigator`: Community search with public profile navigation
+- **Bottom Tab Integration**: Bottom tab navigators now reference stack navigators instead of individual screens
+
+#### Directory Cleanup
+- **Removed**: `frontend/screens/home/community/CommunitySearchScreen.js` (unified into `search/CommunitySearchScreen.js`)
+- **Empty Directories**: `frontend/screens/home/member/` (components moved to unified `components/` directory)
+- **Legacy Files**: `CommunityHomeFeedScreen.js` and `CommunityCreatePostScreen.js` still exist but are replaced by unified components
