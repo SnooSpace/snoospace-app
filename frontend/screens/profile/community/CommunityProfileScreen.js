@@ -204,6 +204,19 @@ export default function CommunityProfileScreen({ navigation }) {
     const unsubscribeDeleted = EventBus.on('post-deleted', ({ postId }) => {
       if (postId) {
         setPosts(prev => prev.filter(p => p.id !== postId));
+        // Update profile post count
+        setProfile(prev => {
+          if (!prev) return prev;
+          // Calculate current count from whichever field is populated
+          const currentCount = prev.posts_count ?? prev.post_count ?? 0;
+          const newCount = Math.max(0, currentCount - 1);
+          
+          return {
+            ...prev,
+            post_count: newCount,
+            posts_count: newCount
+          };
+        });
       } else {
         loadProfile();
       }
