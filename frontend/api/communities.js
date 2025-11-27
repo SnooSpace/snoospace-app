@@ -23,7 +23,15 @@ export async function startEmailChange(newEmail) {
 
 export async function verifyEmailChange(newEmail, otp) {
   const token = await getAuthToken();
-  return apiPost('/communities/email/change/verify', { email: newEmail, otp }, 15000, token);
+  const result = await apiPost('/communities/email/change/verify', { email: newEmail, otp }, 15000, token);
+  
+  // Update stored token with new token from verification
+  if (result?.accessToken) {
+    const { setAuthSession } = await import('./auth');
+    await setAuthSession(result.accessToken, newEmail);
+  }
+  
+  return result;
 }
 
 export async function updateLocation(location) {
