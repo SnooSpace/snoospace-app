@@ -186,15 +186,15 @@ const createComment = async (req, res) => {
           }
         }
 
-        // Create notification for each tagged user (skip if tagging self)
+        // Create notification for each tagged entity (skip if tagging self)
         for (const entity of taggedEntities) {
-          if (entity.type === 'member' && entity.id !== userId) {
+          if (entity.id !== userId || entity.type !== userType) {
             await pool.query(
               `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
                VALUES ($1, $2, $3, $4, $5, $6)`,
               [
                 entity.id,
-                'member',
+                entity.type,
                 userId,
                 userType,
                 'tag',
