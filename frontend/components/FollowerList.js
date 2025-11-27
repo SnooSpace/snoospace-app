@@ -10,8 +10,10 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import PropTypes from "prop-types";
+import EventBus from "../utils/EventBus";
 
 const PAGE_SIZE = 30;
 const DEFAULT_PRIMARY = "#6A0DAD";
@@ -104,7 +106,35 @@ export default function FollowerList({
 
   useEffect(() => {
     load({ reset: true });
-  }, [load]);
+  }, []);
+
+  // Listen for follow updates from EventBus
+  useEffect(() => {
+    const handleFollowUpdate = (data) => {
+      // Update the isFollowing state for the affected user in the list
+      if (data?.memberId) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === data.memberId
+              ? { ...item, isFollowing: data.isFollowing }
+              : item
+          )
+        );
+      }
+    };
+
+    EventBus.on('follow-updated', handleFollowUpdate);
+    return () => {
+      EventBus.off('follow-updated', handleFollowUpdate);
+    };
+  }, []);
+
+  // Refresh list when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      load({ reset: true, refresh: true });
+    }, [])
+  );
 
   const handleToggleFollow = useCallback(
     async (id, isFollowing) => {

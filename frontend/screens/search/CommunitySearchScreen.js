@@ -17,6 +17,7 @@ import {
   Keyboard,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -393,7 +394,7 @@ export default function CommunitySearchScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Back Button and Search Bar - Combined */}
       <View style={styles.headerContainer}>
         {focused && (
@@ -487,7 +488,7 @@ export default function CommunitySearchScreen({ navigation }) {
           <Text style={styles.emptyText}>No communities found</Text>
         </View>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 }
 
