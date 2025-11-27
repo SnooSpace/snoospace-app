@@ -318,6 +318,18 @@ export default function CommunityProfileScreen({ navigation }) {
         following_count: followingCount,
         post_count: userPosts.length,
       };
+      console.log(
+        "[CommunityProfile] phones",
+        {
+          rawPhone: fullProfile?.phone,
+          rawPrimary: fullProfile?.primary_phone ?? fullProfile?.primaryPhone,
+          rawSecondary:
+            fullProfile?.secondary_phone ??
+            fullProfile?.secondaryPhone ??
+            fullProfile?.secondary_phone_number,
+        },
+        { mappedPhone: mappedProfile.phone, mappedSecondary: mappedProfile.secondary_phone }
+      );
       mappedProfile.category = mappedProfile.categories[0] || '';
 
       setProfile(mappedProfile);
@@ -595,16 +607,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 ))}
               </View>
             )}
-            {!!profile.location && (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={16} color={LIGHT_TEXT_COLOR} />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {typeof profile.location === 'string'
-                    ? profile.location
-                    : profile.location?.address || ''}
-                </Text>
-              </View>
-            )}
+
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
 

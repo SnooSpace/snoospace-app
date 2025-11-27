@@ -50,6 +50,14 @@ const CATEGORIES = [
 
 export default function EditCommunityProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
+  useEffect(() => {
+    console.log("[EditCommunityProfile] route profile", {
+      phone: profile?.phone,
+      primary_phone: profile?.primary_phone,
+      secondary_phone: profile?.secondary_phone,
+      secondaryPhone: profile?.secondaryPhone,
+    });
+  }, [profile]);
 
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
@@ -188,6 +196,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     const nextSecondary = sanitizePhoneValue(
       getSecondaryFromProfile(latestProfile)
     );
+    console.log("[EditCommunityProfile] hydratePhonesFromProfile", {
+      latestProfilePhone: latestProfile?.phone,
+      latestSecondary: latestProfile?.secondary_phone ?? latestProfile?.secondaryPhone,
+      nextPrimary,
+      nextSecondary,
+    });
     profileRef.current = {
       ...(profileRef.current || {}),
       ...latestProfile,
@@ -373,6 +387,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       };
 
       await updateCommunityProfile(updates, token);
+      console.log("[EditCommunityProfile] saved phones", updates);
 
       profileRef.current = {
         ...(profileRef.current || {}),
