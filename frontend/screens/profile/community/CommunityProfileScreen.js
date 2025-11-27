@@ -292,6 +292,8 @@ export default function CommunityProfileScreen({ navigation }) {
         username: fullProfile?.username || '',
         bio: fullProfile?.bio || '',
         email: fullProfile?.email || '',
+        phone: fullProfile?.phone || '',
+        secondary_phone: fullProfile?.secondary_phone || '',
         categories: normalizedCategories,
         location: fullProfile?.location || '',
         logo_url: fullProfile?.logo_url || '',

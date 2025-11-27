@@ -53,7 +53,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
+  const [primaryPhone, setPrimaryPhone] = useState(profile?.phone || "");
+  const [secondaryPhone, setSecondaryPhone] = useState(
+    profile?.secondary_phone || ""
+  );
   const initialCategories = Array.isArray(profile?.categories) && profile.categories.length
     ? profile.categories
     : (profile?.category ? [profile.category] : []);
@@ -80,7 +83,16 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [bio, username, phone, categories, sponsorTypes, email, location]);
+  }, [
+    bio,
+    username,
+    primaryPhone,
+    secondaryPhone,
+    categories,
+    sponsorTypes,
+    email,
+    location,
+  ]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -110,7 +122,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const checkForChanges = () => {
     const originalBio = profile?.bio || "";
     const originalUsername = profile?.username || "";
-    const originalPhone = profile?.phone || "";
+    const originalPrimaryPhone = profile?.phone || "";
+    const originalSecondaryPhone = profile?.secondary_phone || "";
     const originalEmail = profile?.email || "";
     const originalCategories = Array.isArray(profile?.categories) && profile.categories.length
       ? profile.categories
@@ -126,7 +139,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     const changed =
       bio !== originalBio ||
       username !== originalUsername ||
-      phone !== originalPhone ||
+      primaryPhone !== originalPrimaryPhone ||
+      secondaryPhone !== originalSecondaryPhone ||
       email !== originalEmail ||
       JSON.stringify(currentCategories) !== JSON.stringify(originalCategoriesNormalized) ||
       JSON.stringify(currentSponsorTypes) !== JSON.stringify(originalSponsorTypes) ||
@@ -249,7 +263,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
       const updates = {
         bio: bio.trim(),
-        phone: phone.trim(),
+        phone: primaryPhone.trim(),
+        secondary_phone: secondaryPhone.trim() || null,
         category: normalizedCategories[0],
         categories: normalizedCategories,
         sponsor_types: sponsorTypes.length > 0 ? sponsorTypes : [],
@@ -426,15 +441,31 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
           {/* Phone Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Phone</Text>
+            <Text style={styles.sectionTitle}>Phone Numbers</Text>
+            <Text style={[styles.inputLabel, styles.inputLabelFirst]}>
+              Primary Phone
+            </Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Phone number"
+              placeholder="Primary phone number"
               placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={phone}
-              onChangeText={setPhone}
+              value={primaryPhone}
+              onChangeText={setPrimaryPhone}
               keyboardType="phone-pad"
-              maxLength={10}
+              maxLength={15}
+            />
+            <View style={styles.secondaryPhoneHeader}>
+              <Text style={styles.inputLabel}>Secondary Phone</Text>
+              <Text style={styles.optionalTag}>Optional</Text>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Secondary phone number"
+              placeholderTextColor={LIGHT_TEXT_COLOR}
+              value={secondaryPhone}
+              onChangeText={setSecondaryPhone}
+              keyboardType="phone-pad"
+              maxLength={15}
             />
           </View>
 
@@ -595,6 +626,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
     marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 6,
+  },
+  inputLabelFirst: {
+    marginTop: 4,
+  },
+  secondaryPhoneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  optionalTag: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
   },
   textInput: {
     borderWidth: 1,

@@ -1,159 +1,72 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback } from 'react';
 import { getMemberFollowing, followMember, unfollowMember } from '../../../api/members';
 import { getAuthToken } from '../../../api/auth';
 import { apiGet } from '../../../api/client';
+import FollowerList from '../../../components/FollowerList';
+
+const PRIMARY_COLOR = '#6A0DAD';
 
 export default function FollowingListScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
   const title = route?.params?.title || 'Following';
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [myId, setMyId] = useState(null);
 
-  const load = useCallback(async (reset = false) => {
-    if (loadingMore) return;
-    if (!hasMore && !reset) return;
-    try {
-      if (reset) {
-        setOffset(0);
-        setHasMore(true);
-        setItems([]);
-      }
-      const data = await getMemberFollowing(memberId, { limit: 30, offset: reset ? 0 : offset });
-      const raw = (data?.results || data?.following || data?.items || data || []);
-      // Normalize to { id, full_name, username, profile_photo_url, is_following }
-      const list = raw.map((r) => ({
-        id: r.following_id || r.id,
-        full_name: r.following_name || r.full_name || r.name,
-        username: r.following_username || r.username,
-        profile_photo_url: r.following_photo_url || r.profile_photo_url,
-        is_following: true,
+  const fetchFollowingPage = useCallback(
+    async ({ offset, limit }) => {
+      const data = await getMemberFollowing(memberId, { limit, offset });
+      const raw = data?.results || data?.following || data?.items || data || [];
+      const normalized = raw.map((entry) => ({
+        id: entry.following_id || entry.id,
+        name: entry.following_name || entry.full_name || entry.name,
+        username: entry.following_username || entry.username,
+        avatarUrl: entry.following_photo_url || entry.profile_photo_url,
+        isFollowing: true,
       }));
-      setItems(prev => (reset ? list : [...prev, ...list]));
-      const received = list.length;
-      setOffset((reset ? 0 : offset) + received);
-      setHasMore(received >= 30);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [memberId, offset, hasMore, loadingMore]);
+      return {
+        items: normalized,
+        hasMore: normalized.length >= (limit || 30),
+      };
+    },
+    [memberId]
+  );
 
-  useEffect(() => { load(true); }, [memberId]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await getAuthToken();
-        const me = await apiGet('/me', 8000, token);
-        const id = me?.member?.id;
-        if (id) setMyId(id);
-      } catch {}
-    })();
+  const resolveMyId = useCallback(async () => {
+    const token = await getAuthToken();
+    const me = await apiGet('/me', 8000, token);
+    return me?.member?.id || null;
   }, []);
 
-  const toggleFollow = async (id, isFollowing) => {
-    setItems(prev => prev.map(u => u.id === id ? { ...u, is_following: !isFollowing } : u));
-    try {
-      if (isFollowing) await unfollowMember(id); else await followMember(id);
-    } catch {
-      setItems(prev => prev.map(u => u.id === id ? { ...u, is_following: isFollowing } : u));
+  const handleToggleFollow = useCallback(async (id, isFollowing) => {
+    if (isFollowing) {
+      await unfollowMember(id);
+    } else {
+      await followMember(id);
     }
-  };
+  }, []);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.row}>
-      <TouchableOpacity
-        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-        onPress={() => {
-          if (item.id === myId) {
-            // Navigate to Profile tab via root navigator
-            const root = navigation.getParent()?.getParent();
-            if (root) {
-              root.navigate('MemberHome', { tab: 'Profile' });
-            }
-          } else {
-            // Navigate directly (same stack - ProfileStackNavigator)
-            navigation.navigate("MemberPublicProfile", {
-              memberId: item.id,
-            });
-          }
-        }}
-      >
-        <Image source={{ uri: item.profile_photo_url || 'https://via.placeholder.com/64' }} style={styles.avatar} />
-        <View style={styles.meta}>
-          <Text style={styles.name} numberOfLines={1}>{item.full_name || 'Member'}</Text>
-          <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
-        </View>
-      </TouchableOpacity>
-      {item.id !== myId && (
-        <TouchableOpacity style={[styles.followBtn, item.is_following ? styles.followingBtn : styles.followBtnPrimary]} onPress={() => toggleFollow(item.id, !!item.is_following)}>
-          <Text style={[styles.followText, item.is_following ? styles.followingText : styles.followTextPrimary]}>
-            {item.is_following ? 'Following' : 'Follow'}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
+  const handleItemPress = useCallback(
+    (item, myId) => {
+      if (item.id === myId) {
+        const root = navigation.getParent()?.getParent();
+        if (root) {
+          root.navigate('MemberHome', { tab: 'Profile' });
+        }
+        return;
+      }
+      navigation.navigate('MemberPublicProfile', { memberId: item.id });
+    },
+    [navigation]
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#6A0DAD" />
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
-          onEndReachedThreshold={0.6}
-          onEndReached={() => load(false)}
-          ListEmptyComponent={
-            !loading ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 }}>
-                <Text style={{ color: '#8E8E93', fontSize: 16, textAlign: 'center' }}>
-                  You're not following anyone yet
-                </Text>
-              </View>
-            ) : null
-          }
-        />
-      )}
-    </SafeAreaView>
+    <FollowerList
+      title={title}
+      navigation={navigation}
+      fetchPage={fetchFollowingPage}
+      resolveMyId={resolveMyId}
+      onToggleFollow={handleToggleFollow}
+      onItemPress={handleItemPress}
+      emptyMessage="You're not following anyone yet"
+      primaryColor={PRIMARY_COLOR}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 8 },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: '#1D1D1F' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F7' },
-  meta: { flex: 1 },
-  name: { fontSize: 16, color: '#1D1D1F', fontWeight: '600' },
-  username: { fontSize: 14, color: '#8E8E93', marginTop: 2 },
-  followBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E5E5EA' },
-  followBtnPrimary: { backgroundColor: '#6A0DAD', borderColor: '#6A0DAD' },
-  followingBtn: { backgroundColor: '#FFFFFF', borderColor: '#E5E5EA' },
-  followText: { fontSize: 12, fontWeight: '600' },
-  followTextPrimary: { color: '#FFFFFF' },
-  followingText: { color: '#1D1D1F' },
-});
-
-

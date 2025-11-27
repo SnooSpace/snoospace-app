@@ -165,9 +165,6 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       >
         <View style={styles.contentArea}>
           <Text style={styles.mainTitle}>What's your number?</Text>
-          <Text style={styles.subtitle}>
-            We'll text you a code to verify your phone.
-          </Text>
 
           <PhoneInput
             placeholder="(000) 000-0000"
