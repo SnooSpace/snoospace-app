@@ -290,6 +290,7 @@ export default function CommunityProfileScreen({ navigation }) {
         name: fullProfile?.name || 'Community',
         username: fullProfile?.username || '',
         bio: fullProfile?.bio || '',
+        email: fullProfile?.email || '',
         categories: normalizedCategories,
         location: fullProfile?.location || '',
         logo_url: fullProfile?.logo_url || '',
