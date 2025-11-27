@@ -8,6 +8,53 @@ import { followMember, unfollowMember } from '../../api/members';
 export default function NotificationsScreen({ navigation }) {
   const { items, unread, loading, loadMore, markAllRead } = useNotifications();
 
+  // Group notifications by user and type
+  const groupedNotifications = React.useMemo(() => {
+    const TIME_WINDOW = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    const grouped = [];
+    
+    let i = 0;
+    while (i < items.length) {
+      const current = items[i];
+      const group = {
+        items: [current],
+        type: current.type,
+        actorId: current.actor_id,
+        actorType: current.actor_type,
+        latestTimestamp: current.created_at,
+        payload: current.payload || {},
+      };
+      
+      // Only group 'like' notifications
+      if (current.type === 'like') {
+        let j = i + 1;
+        while (j < items.length) {
+          const next = items[j];
+          const timeDiff = new Date(current.created_at) - new Date(next.created_at);
+          
+          if (
+            next.type === 'like' &&
+            next.actor_id === current.actor_id &&
+            next.actor_type === current.actor_type &&
+            timeDiff <= TIME_WINDOW
+          ) {
+            group.items.push(next);
+            j++;
+          } else {
+            break;
+          }
+        }
+        i = j;
+      } else {
+        i++;
+      }
+      
+      grouped.push(group);
+    }
+    
+    return grouped;
+  }, [items]);
+
   useEffect(() => {
     const t = setTimeout(() => { markAllRead(); }, 500);
     return () => clearTimeout(t);
@@ -27,57 +74,60 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const renderItem = ({ item }) => {
-    const payload = item.payload || {};
+  const renderItem = ({ item: group }) => {
+    const firstItem = group.items[0];
+    const payload = firstItem.payload || {};
+    const count = group.items.length;
     
-    if (item.type === 'follow') {
+    if (group.type === 'follow') {
       return (
-        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(firstItem.actor_id, firstItem.actor_type)}>
           <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
           <View style={styles.rowBody}>
             <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> started following you</Text>
-            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+            <Text style={styles.time}>{new Date(firstItem.created_at).toLocaleString()}</Text>
           </View>
         </TouchableOpacity>
       );
     }
     
-    if (item.type === 'like') {
+    if (group.type === 'like') {
+      const likeText = count > 1 ? `liked ${count} of your posts` : 'liked your post';
       return (
-        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(firstItem.actor_id, firstItem.actor_type)}>
           <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
           <View style={styles.rowBody}>
-            <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> liked your post</Text>
-            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+            <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> {likeText}</Text>
+            <Text style={styles.time}>{new Date(firstItem.created_at).toLocaleString()}</Text>
           </View>
           <Ionicons name="heart" size={20} color="#FF3B30" style={styles.icon} />
         </TouchableOpacity>
       );
     }
     
-    if (item.type === 'comment') {
+    if (group.type === 'comment') {
       const commentPreview = payload.commentText || 'commented on your post';
       return (
-        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(firstItem.actor_id, firstItem.actor_type)}>
           <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
           <View style={styles.rowBody}>
             <Text style={styles.title}>
               <Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> commented: {commentPreview}
             </Text>
-            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+            <Text style={styles.time}>{new Date(firstItem.created_at).toLocaleString()}</Text>
           </View>
           <Ionicons name="chatbubble" size={18} color="#007AFF" style={styles.icon} />
         </TouchableOpacity>
       );
     }
     
-    if (item.type === 'tag') {
+    if (group.type === 'tag') {
       return (
-        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(item.actor_id, item.actor_type)}>
+        <TouchableOpacity style={styles.row} onPress={() => navigateToProfile(firstItem.actor_id, firstItem.actor_type)}>
           <Image source={ payload.actorAvatar ? { uri: payload.actorAvatar } : require('../../assets/icon.png') } style={styles.avatar} />
           <View style={styles.rowBody}>
             <Text style={styles.title}><Text style={styles.bold}>{payload.actorName || 'Someone'}</Text> tagged you in a {payload.commentId ? 'comment' : 'post'}</Text>
-            <Text style={styles.time}>{new Date(item.created_at).toLocaleString()}</Text>
+            <Text style={styles.time}>{new Date(firstItem.created_at).toLocaleString()}</Text>
           </View>
           <Ionicons name="at" size={18} color="#34C759" style={styles.icon} />
         </TouchableOpacity>
@@ -97,9 +147,9 @@ export default function NotificationsScreen({ navigation }) {
         <View style={{ width: 40 }} />
       </View>
       <FlatList
-        data={items}
+        data={groupedNotifications}
         renderItem={renderItem}
-        keyExtractor={(it) => String(it.id)}
+        keyExtractor={(group, index) => `group-${index}-${group.items[0]?.id}`}
         onEndReached={loadMore}
         onEndReachedThreshold={0.6}
         ListEmptyComponent={!loading ? <Text style={styles.empty}>No notifications</Text> : null}

@@ -464,6 +464,31 @@ const unlikePost = async (req, res) => {
       [postId]
     );
 
+    // Delete the like notification if it exists
+    try {
+      const postResult = await pool.query(
+        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        [postId]
+      );
+      const postAuthor = postResult.rows[0];
+      
+      if (postAuthor) {
+        await pool.query(
+          `DELETE FROM notifications 
+           WHERE recipient_id = $1 
+           AND recipient_type = $2 
+           AND actor_id = $3 
+           AND actor_type = $4 
+           AND type = 'like' 
+           AND payload->>'postId' = $5`,
+          [postAuthor.author_id, postAuthor.author_type, userId, userType, postId]
+        );
+      }
+    } catch (e) {
+      // Non-fatal: do not block unlike if notification deletion fails
+      console.error('Failed to delete like notification', e);
+    }
+
     res.json({ success: true, message: "Post unliked" });
 
   } catch (error) {
