@@ -159,7 +159,7 @@ async function getProfile(req, res) {
 
     // Get community profile
     const communityResult = await pool.query(
-      `SELECT id, name, email, phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, created_at
+      `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, created_at
        FROM communities WHERE id = $1`,
       [userId]
     );
@@ -279,6 +279,15 @@ async function patchProfile(req, res) {
       values.push(phoneTrimmed || null);
     }
 
+    if (req.body.hasOwnProperty('secondary_phone')) {
+      const secondaryPhoneTrimmed = typeof req.body.secondary_phone === 'string' ? req.body.secondary_phone.trim() : '';
+      if (secondaryPhoneTrimmed && !/^\d{10}$/.test(secondaryPhoneTrimmed)) {
+        return res.status(400).json({ error: "Secondary phone must be 10 digits" });
+      }
+      updates.push(`secondary_phone = $${paramIndex++}`);
+      values.push(secondaryPhoneTrimmed || null);
+    }
+
     if (category !== undefined || categories !== undefined) {
       const { categories: normalizedCategories, error: categoriesError } = normalizeCategoriesInput(category, categories, { required: true });
       if (categoriesError) {
@@ -332,7 +341,7 @@ async function patchProfile(req, res) {
     }
 
     values.push(userId);
-    const query = `UPDATE communities SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, category, categories, sponsor_types, location, banner_url`;
+    const query = `UPDATE communities SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url`;
     
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -345,6 +354,7 @@ async function patchProfile(req, res) {
       profile: {
         bio: community.bio,
         phone: community.phone,
+        secondary_phone: community.secondary_phone,
         category: community.category,
         categories: parseCategoriesValue(community.categories, community.category),
         sponsor_types: typeof community.sponsor_types === 'string' ? JSON.parse(community.sponsor_types) : community.sponsor_types,
