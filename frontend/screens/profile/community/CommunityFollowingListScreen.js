@@ -39,8 +39,8 @@ export default function CommunityFollowingListScreen({ route, navigation }) {
   );
 
   const resolveMyId = useCallback(async () => {
-    const token = await getAuthToken();
-    const me = await apiGet('/me', 8000, token);
+        const token = await getAuthToken();
+        const me = await apiGet('/me', 8000, token);
     return me?.member?.id || null;
   }, []);
 
@@ -54,7 +54,7 @@ export default function CommunityFollowingListScreen({ route, navigation }) {
 
   const handleItemPress = useCallback(
     (item) => {
-      navigation.navigate('MemberPublicProfile', { memberId: item.id });
+          navigation.navigate('MemberPublicProfile', { memberId: item.id });
     },
     [navigation]
   );

@@ -21,6 +21,7 @@ import {
   changeUsername,
   startEmailChange,
   verifyEmailChange,
+  getCommunityProfile,
 } from "../../../api/communities";
 import {
   launchImageLibraryAsync,
@@ -53,10 +54,34 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
-  const [primaryPhone, setPrimaryPhone] = useState(profile?.phone || "");
-  const [secondaryPhone, setSecondaryPhone] = useState(
-    profile?.secondary_phone || ""
+  const getPrimaryFromProfile = (p) =>
+    p?.phone ??
+    p?.primary_phone ??
+    p?.primaryPhone ??
+    p?.phone_primary ??
+    "";
+  const getSecondaryFromProfile = (p) =>
+    p?.secondary_phone ??
+    p?.secondaryPhone ??
+    p?.secondary_phone_number ??
+    p?.secondaryPhoneNumber ??
+    p?.phone_secondary ??
+    "";
+  const sanitizePhoneValue = (value) =>
+    String(value || "").replace(/\D/g, "").slice(0, 10);
+  const initialPrimaryPhone = sanitizePhoneValue(getPrimaryFromProfile(profile));
+  const initialSecondaryPhone = sanitizePhoneValue(
+    getSecondaryFromProfile(profile)
   );
+
+  const profileRef = useRef({
+    ...(profile || {}),
+    phone: initialPrimaryPhone,
+    secondary_phone: initialSecondaryPhone,
+  });
+
+  const [primaryPhone, setPrimaryPhone] = useState(initialPrimaryPhone);
+  const [secondaryPhone, setSecondaryPhone] = useState(initialSecondaryPhone);
   const initialCategories = Array.isArray(profile?.categories) && profile.categories.length
     ? profile.categories
     : (profile?.category ? [profile.category] : []);
@@ -120,16 +145,24 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   }, [navigation, hasChanges, saving]);
 
   const checkForChanges = () => {
-    const originalBio = profile?.bio || "";
-    const originalUsername = profile?.username || "";
-    const originalPrimaryPhone = profile?.phone || "";
-    const originalSecondaryPhone = profile?.secondary_phone || "";
-    const originalEmail = profile?.email || "";
-    const originalCategories = Array.isArray(profile?.categories) && profile.categories.length
-      ? profile.categories
-      : (profile?.category ? [profile.category] : []);
-    const originalSponsorTypes = (profile?.sponsor_types || []).sort();
-    const originalLocation = profile?.location || null;
+    const sourceProfile = profileRef.current || {};
+    const originalBio = sourceProfile?.bio || "";
+    const originalUsername = sourceProfile?.username || "";
+    const originalPrimaryPhone = sanitizePhoneValue(
+      getPrimaryFromProfile(sourceProfile)
+    );
+    const originalSecondaryPhone = sanitizePhoneValue(
+      getSecondaryFromProfile(sourceProfile)
+    );
+    const originalEmail = sourceProfile?.email || "";
+    const originalCategories =
+      Array.isArray(sourceProfile?.categories) && sourceProfile.categories.length
+        ? sourceProfile.categories
+        : sourceProfile?.category
+        ? [sourceProfile.category]
+        : [];
+    const originalSponsorTypes = (sourceProfile?.sponsor_types || []).sort();
+    const originalLocation = sourceProfile?.location || null;
 
     const normalizeArray = (arr) => (arr ? [...arr].sort() : []);
     const currentSponsorTypes = normalizeArray(sponsorTypes);
@@ -149,37 +182,77 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     setHasChanges(!!changed);
   };
 
-  const checkUsernameAvailability = useCallback(
-    async (value) => {
-      if (!value || value === profile?.username) {
-        setUsernameAvailable(null);
-        return;
-      }
+  const hydratePhonesFromProfile = useCallback((latestProfile) => {
+    if (!latestProfile) return;
+    const nextPrimary = sanitizePhoneValue(getPrimaryFromProfile(latestProfile));
+    const nextSecondary = sanitizePhoneValue(
+      getSecondaryFromProfile(latestProfile)
+    );
+    profileRef.current = {
+      ...(profileRef.current || {}),
+      ...latestProfile,
+      phone: nextPrimary,
+      secondary_phone: nextSecondary,
+    };
+    setPrimaryPhone(nextPrimary);
+    setSecondaryPhone(nextSecondary);
+  }, []);
 
-      if (!/^[a-z0-9._]{3,30}$/.test(value.toLowerCase())) {
-        setUsernameAvailable(false);
-        return;
-      }
-
-      setUsernameChecking(true);
+  useEffect(() => {
+    let isMounted = true;
+    const refreshProfile = async () => {
       try {
-        const token = await getAuthToken();
-        const { apiPost } = await import("../../../api/client");
-        const result = await apiPost(
-          "/username/check",
-          { username: value },
-          10000,
-          token
-        );
-        setUsernameAvailable(result?.available === true);
+        const response = await getCommunityProfile();
+        const profileData = response?.profile || response || null;
+        if (profileData && isMounted) {
+          hydratePhonesFromProfile(profileData);
+        }
       } catch (error) {
-        setUsernameAvailable(false);
-      } finally {
-        setUsernameChecking(false);
+        console.warn("Failed to refresh community profile", error?.message);
       }
-    },
-    [profile?.username]
-  );
+    };
+    refreshProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [hydratePhonesFromProfile]);
+
+  const handlePrimaryPhoneChange = (value) => {
+    setPrimaryPhone(sanitizePhoneValue(value));
+  };
+
+  const handleSecondaryPhoneChange = (value) => {
+    setSecondaryPhone(sanitizePhoneValue(value));
+  };
+
+  const checkUsernameAvailability = useCallback(async (value) => {
+    if (!value || value === profileRef.current?.username) {
+      setUsernameAvailable(null);
+      return;
+    }
+
+    if (!/^[a-z0-9._]{3,30}$/.test(value.toLowerCase())) {
+      setUsernameAvailable(false);
+      return;
+    }
+
+    setUsernameChecking(true);
+    try {
+      const token = await getAuthToken();
+      const { apiPost } = await import("../../../api/client");
+      const result = await apiPost(
+        "/username/check",
+        { username: value },
+        10000,
+        token
+      );
+      setUsernameAvailable(result?.available === true);
+    } catch (error) {
+      setUsernameAvailable(false);
+    } finally {
+      setUsernameChecking(false);
+    }
+  }, []);
 
   const handleUsernameChange = (value) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9._]/g, "");
@@ -261,10 +334,38 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         return;
       }
 
+      const normalizedPrimary = sanitizePhoneValue(primaryPhone);
+      const normalizedSecondary = sanitizePhoneValue(secondaryPhone) || null;
+
+      if (normalizedPrimary.length !== 10) {
+        Alert.alert(
+          "Invalid phone",
+          "Primary phone number must be exactly 10 digits."
+        );
+        setSaving(false);
+        return;
+      }
+
+      if (normalizedSecondary && normalizedSecondary.length !== 10) {
+        Alert.alert(
+          "Invalid phone",
+          "Secondary phone number must be exactly 10 digits when provided."
+        );
+        setSaving(false);
+        return;
+      }
+
       const updates = {
         bio: bio.trim(),
-        phone: primaryPhone.trim(),
-        secondary_phone: secondaryPhone.trim() || null,
+        phone: normalizedPrimary,
+        primary_phone: normalizedPrimary,
+        primaryPhone: normalizedPrimary,
+        phone_primary: normalizedPrimary,
+        secondary_phone: normalizedSecondary,
+        secondaryPhone: normalizedSecondary,
+        secondary_phone_number: normalizedSecondary,
+        secondaryPhoneNumber: normalizedSecondary,
+        phone_secondary: normalizedSecondary,
         category: normalizedCategories[0],
         categories: normalizedCategories,
         sponsor_types: sponsorTypes.length > 0 ? sponsorTypes : [],
@@ -273,7 +374,22 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
       await updateCommunityProfile(updates, token);
 
-      if (username !== profile?.username) {
+      profileRef.current = {
+        ...(profileRef.current || {}),
+        phone: normalizedPrimary,
+        primary_phone: normalizedPrimary,
+        primaryPhone: normalizedPrimary,
+        phone_primary: normalizedPrimary,
+        secondary_phone: normalizedSecondary,
+        secondaryPhone: normalizedSecondary,
+        secondary_phone_number: normalizedSecondary,
+        secondaryPhoneNumber: normalizedSecondary,
+        phone_secondary: normalizedSecondary,
+      };
+      setPrimaryPhone(normalizedPrimary);
+      setSecondaryPhone(normalizedSecondary || "");
+
+      if (username !== (profileRef.current?.username || profile?.username)) {
         await changeUsername(username, token);
       }
 
@@ -401,7 +517,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 />
               )}
               {usernameAvailable === false &&
-                username !== profile?.username && (
+                username !== (profileRef.current?.username || profile?.username) && (
                   <Ionicons
                     name="close-circle"
                     size={20}
@@ -410,7 +526,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                   />
                 )}
             </View>
-            {usernameAvailable === false && username !== profile?.username && (
+            {usernameAvailable === false &&
+              username !== (profileRef.current?.username || profile?.username) && (
               <Text style={styles.errorText}>
                 Username is already taken or invalid
               </Text>
@@ -450,9 +567,9 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               placeholder="Primary phone number"
               placeholderTextColor={LIGHT_TEXT_COLOR}
               value={primaryPhone}
-              onChangeText={setPrimaryPhone}
+              onChangeText={handlePrimaryPhoneChange}
               keyboardType="phone-pad"
-              maxLength={15}
+              maxLength={10}
             />
             <View style={styles.secondaryPhoneHeader}>
               <Text style={styles.inputLabel}>Secondary Phone</Text>
@@ -463,9 +580,9 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               placeholder="Secondary phone number"
               placeholderTextColor={LIGHT_TEXT_COLOR}
               value={secondaryPhone}
-              onChangeText={setSecondaryPhone}
+              onChangeText={handleSecondaryPhoneChange}
               keyboardType="phone-pad"
-              maxLength={15}
+              maxLength={10}
             />
           </View>
 

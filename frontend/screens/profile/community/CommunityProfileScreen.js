@@ -286,14 +286,28 @@ export default function CommunityProfileScreen({ navigation }) {
         return fullProfile?.category ? [fullProfile.category] : [];
       })();
 
+      const primaryPhone =
+        fullProfile?.phone ??
+        fullProfile?.primary_phone ??
+        fullProfile?.primaryPhone ??
+        fullProfile?.phone_primary ??
+        "";
+      const secondaryPhone =
+        fullProfile?.secondary_phone ??
+        fullProfile?.secondaryPhone ??
+        fullProfile?.secondary_phone_number ??
+        fullProfile?.secondaryPhoneNumber ??
+        fullProfile?.phone_secondary ??
+        "";
+
       const mappedProfile = {
         id: userId,
         name: fullProfile?.name || 'Community',
         username: fullProfile?.username || '',
         bio: fullProfile?.bio || '',
         email: fullProfile?.email || '',
-        phone: fullProfile?.phone || '',
-        secondary_phone: fullProfile?.secondary_phone || '',
+        phone: String(primaryPhone || ''),
+        secondary_phone: String(secondaryPhone || ''),
         categories: normalizedCategories,
         location: fullProfile?.location || '',
         logo_url: fullProfile?.logo_url || '',
