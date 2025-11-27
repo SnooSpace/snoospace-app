@@ -524,7 +524,13 @@ async function verifyEmailChange(req, res) {
       [emailTrimmed, userId]
     );
 
-    res.json({ success: true, email: emailTrimmed });
+    // Return the new access token so the frontend can update its stored token
+    const newAccessToken = data?.session?.access_token;
+    res.json({ 
+      success: true, 
+      email: emailTrimmed,
+      accessToken: newAccessToken 
+    });
   } catch (err) {
     console.error("/members/email/change/verify error:", err && err.stack ? err.stack : err);
     res.status(500).json({ error: "Failed to verify email" });

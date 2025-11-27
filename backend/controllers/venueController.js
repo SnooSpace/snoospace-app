@@ -74,6 +74,103 @@ async function updateLogo(req, res) {
 
 module.exports.updateLogo = updateLogo;
 
+async function startEmailChange(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'venue') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Check if email is in use across all user roles
+    const { isEmailInUse } = require("../middleware/validators");
+    const emailExists = await isEmailInUse(pool, emailTrimmed, 'venues', userId);
+    if (emailExists) {
+      return res.status(409).json({ error: "Email is already in use" });
+    }
+
+    const supabase = require("../supabase");
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: emailTrimmed,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: undefined
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ success: true, message: "OTP sent to email" });
+  } catch (err) {
+    console.error("/venues/email/change/start error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to send OTP" });
+  }
+}
+
+async function verifyEmailChange(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'venue') {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { email, otp } = req.body || {};
+    if (!email || !otp) {
+      return res.status(400).json({ error: "Email and OTP are required" });
+    }
+
+    const emailTrimmed = email.trim().toLowerCase();
+    const supabase = require("../supabase");
+    
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: emailTrimmed,
+      token: otp,
+      type: "email",
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message || "Invalid OTP" });
+    }
+
+    await pool.query(
+      `UPDATE venues SET contact_email = $1 WHERE id = $2`,
+      [emailTrimmed, userId]
+    );
+
+    // Return the new access token so the frontend can update its stored token
+    const newAccessToken = data?.session?.access_token;
+    res.json({ 
+      success: true, 
+      email: emailTrimmed,
+      accessToken: newAccessToken 
+    });
+  } catch (err) {
+    console.error("/venues/email/change/verify error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to verify email" });
+  }
+}
+
+module.exports.startEmailChange = startEmailChange;
+module.exports.verifyEmailChange = verifyEmailChange;
+
 async function searchVenues(req, res) {
   try {
     const pool = req.app.locals.pool;

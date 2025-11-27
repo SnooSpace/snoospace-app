@@ -575,11 +575,10 @@ async function startEmailChange(req, res) {
       return res.status(400).json({ error: "Invalid email format" });
     }
 
-    const existing = await pool.query(
-      `SELECT id FROM communities WHERE email = $1 AND id <> $2 LIMIT 1`,
-      [emailTrimmed, userId]
-    );
-    if (existing.rows.length > 0) {
+    // Check if email is in use across all user roles
+    const { isEmailInUse } = require("../middleware/validators");
+    const emailExists = await isEmailInUse(pool, emailTrimmed, 'communities', userId);
+    if (emailExists) {
       return res.status(409).json({ error: "Email is already in use" });
     }
 
