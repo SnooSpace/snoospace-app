@@ -19,7 +19,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommonActions, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  CommonActions,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
@@ -31,6 +35,7 @@ import {
 import { uploadImage } from "../../../api/cloudinary";
 import PostCard from "../../../components/PostCard"; // Assuming PostCard exists for a full post view
 import CommentsModal from "../../../components/CommentsModal";
+import SettingsModal from "../../../components/modals/SettingsModal";
 import EventBus from "../../../utils/EventBus";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -573,8 +578,11 @@ export default function MemberProfileScreen({ navigation }) {
       } catch (error) {
         console.error("Error liking post:", error);
         // Silently handle "Post already liked" and "Post not liked" errors
-        const errorMessage = error?.message || '';
-        if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
+        const errorMessage = error?.message || "";
+        if (
+          errorMessage.includes("already liked") ||
+          errorMessage.includes("not liked")
+        ) {
           // These are expected errors when double-clicking, just ignore
           justUpdatedRef.current = false;
           return;
@@ -1174,122 +1182,21 @@ export default function MemberProfileScreen({ navigation }) {
         navigation={navigation}
       />
 
-      {/* Settings Modal */}
-      <Modal
+      <SettingsModal
         visible={showSettingsModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSettingsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Settings</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowSettingsModal(false)}
-              >
-                <Ionicons name="close" size={24} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <TouchableOpacity
-                style={styles.settingsOption}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  handleEditProfile();
-                }}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={24}
-                  color={TEXT_COLOR}
-                />
-                <Text style={styles.settingsOptionText}>Notifications</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={LIGHT_TEXT_COLOR}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsOption}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  Alert.alert(
-                    "Privacy",
-                    "Privacy settings will be implemented soon!"
-                  );
-                }}
-              >
-                <Ionicons name="shield-outline" size={24} color={TEXT_COLOR} />
-                <Text style={styles.settingsOptionText}>Privacy</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={LIGHT_TEXT_COLOR}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsOption}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  Alert.alert(
-                    "Help",
-                    "Help & Support will be implemented soon!"
-                  );
-                }}
-              >
-                <Ionicons
-                  name="help-circle-outline"
-                  size={24}
-                  color={TEXT_COLOR}
-                />
-                <Text style={styles.settingsOptionText}>Help & Support</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={LIGHT_TEXT_COLOR}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.settingsOption, styles.logoutOption]}
-                onPress={handleLogout}
-              >
-                <Ionicons name="log-out-outline" size={24} color="#007AFF" />
-                <Text style={[styles.settingsOptionText, styles.logoutText]}>
-                  Logout
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity
-                style={styles.settingsOption}
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  setShowDeleteModal(true);
-                }}
-              >
-                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-                <Text style={[styles.settingsOptionText, styles.deleteText]}>
-                  Delete Account
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={LIGHT_TEXT_COLOR}
-                />
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowSettingsModal(false)}
+        onNotificationsPress={handleEditProfile}
+        onPrivacyPress={() =>
+          Alert.alert("Privacy", "Privacy settings will be implemented soon!")
+        }
+        onHelpPress={() =>
+          Alert.alert("Help", "Help & Support will be implemented soon!")
+        }
+        onLogoutPress={handleLogout}
+        onDeleteAccountPress={() => setShowDeleteModal(true)}
+        textColor={TEXT_COLOR}
+        lightTextColor={LIGHT_TEXT_COLOR}
+      />
 
       {/* Delete Account Modal */}
       <Modal

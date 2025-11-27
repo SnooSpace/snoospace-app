@@ -30,6 +30,7 @@ import PostCard from '../../../components/PostCard';
 import { mockData } from '../../../data/mockData';
 import HeadsEditorModal from '../../../components/modals/HeadsEditorModal';
 import CommentsModal from '../../../components/CommentsModal';
+import SettingsModal from '../../../components/modals/SettingsModal';
 import EventBus from '../../../utils/EventBus';
 import MentionTextRenderer from '../../../components/MentionTextRenderer';
 
@@ -505,36 +506,6 @@ export default function CommunityProfileScreen({ navigation }) {
     openCommentsModal(postId);
   };
 
-  const renderSettingsModal = () => (
-    <Modal
-      visible={showSettingsModal}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setShowSettingsModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Settings</Text>
-            <TouchableOpacity onPress={() => setShowSettingsModal(false)} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={TEXT_COLOR} />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
-            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
   if (!initialLoadCompleted && (loading || !profile)) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -764,7 +735,23 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {renderSettingsModal()}
+      <SettingsModal
+        visible={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onNotificationsPress={() =>
+          Alert.alert('Notifications', 'Notifications settings will be implemented soon!')
+        }
+        onPrivacyPress={() =>
+          Alert.alert('Privacy', 'Privacy settings will be implemented soon!')
+        }
+        onHelpPress={() =>
+          Alert.alert('Help', 'Help & Support will be implemented soon!')
+        }
+        onLogoutPress={handleLogout}
+        onDeleteAccountPress={() => setShowDeleteModal(true)}
+        textColor={TEXT_COLOR}
+        lightTextColor={LIGHT_TEXT_COLOR}
+      />
 
       <Modal
         visible={showDeleteModal}
@@ -1528,16 +1515,6 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 5,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  settingsText: {
-    fontSize: 16,
-    marginLeft: 15,
   },
   bannerPlaceholderText: {
     color: '#8E8E93',
