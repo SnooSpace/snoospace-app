@@ -19,6 +19,7 @@ export default function FollowingListScreen({ route, navigation }) {
         name: entry.following_name || entry.full_name || entry.name,
         username: entry.following_username || entry.username,
         avatarUrl: entry.following_photo_url || entry.profile_photo_url,
+        type: entry.following_type || 'member', // Add type field
         isFollowing: true,
       }));
       return {
@@ -45,14 +46,23 @@ export default function FollowingListScreen({ route, navigation }) {
 
   const handleItemPress = useCallback(
     (item, myId) => {
-      if (item.id === myId) {
+      const entityType = item.type || 'member';
+      
+      // Check if it's the current user's own profile (only for members)
+      if (entityType === 'member' && item.id === myId) {
         const root = navigation.getParent()?.getParent();
         if (root) {
           root.navigate('MemberHome', { tab: 'Profile' });
         }
         return;
       }
-      navigation.navigate('MemberPublicProfile', { memberId: item.id });
+      
+      // Navigate based on entity type
+      if (entityType === 'community') {
+        navigation.navigate('CommunityPublicProfile', { communityId: item.id });
+      } else {
+        navigation.navigate('MemberPublicProfile', { memberId: item.id });
+      }
     },
     [navigation]
   );
