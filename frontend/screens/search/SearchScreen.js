@@ -256,7 +256,7 @@ export default function SearchScreen({ navigation }) {
     return (
       <View style={styles.row}>
         <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          style={styles.profileRowInner} // Use new style for increased gap
           onPress={() => onPressProfile(item, false)}
         >
           <Image
@@ -314,7 +314,7 @@ export default function SearchScreen({ navigation }) {
     return (
       <View style={styles.row}>
         <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          style={styles.profileRowInner} // Use new style for increased gap
           onPress={() => {
             onPressProfile(item, true);
           }}
@@ -350,12 +350,10 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header with Search Title */}
-      {!focused && (
-        <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>Search</Text>
-        </View>
-      )}
+      {/* Header with Search Title - Always Visible */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Search</Text>
+      </View>
 
       {/* Search Input Box */}
       <View style={[styles.searchContainer, focused && styles.searchContainerFocused]}>
@@ -372,7 +370,7 @@ export default function SearchScreen({ navigation }) {
             <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
           </TouchableOpacity>
         )}
-        <View style={styles.searchBox}>
+        <View style={[styles.searchBox, focused && { flex: 1 }]}>
           <Ionicons name="search" size={20} color="#8E8E93" />
           <TextInput
             ref={inputRef}
@@ -402,6 +400,7 @@ export default function SearchScreen({ navigation }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterContent}
+        style={{ flexGrow: 0 }} // Added to prevent expansion
       >
         {['all', 'member', 'community', 'sponsor', 'venue'].map((filter) => (
           <TouchableOpacity
@@ -435,11 +434,14 @@ export default function SearchScreen({ navigation }) {
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
+              alignItems: "center", // Align text and button nicely
               paddingHorizontal: 16,
-              paddingTop: 8,
+              paddingTop: 0, 
+              marginTop: 12, 
+              marginBottom: 8,
             }}
           >
-            <Text style={{ fontWeight: "600", color: "#1D1D1F" }}>Recent</Text>
+            <Text style={{ fontWeight: "600", color: "#1D1D1F", fontSize: 18 }}>Recent</Text>
             {recents.length > 0 && (
               <TouchableOpacity
                 onPress={async () => {
@@ -518,13 +520,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingTop: 60,
   },
   backButton: {
     padding: 4,
   },
   searchBox: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -542,7 +542,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
+    gap: 12, // Default gap for items in the row
+  },
+  // NEW STYLE: Increased spacing between image and text block
+  profileRowInner: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    flex: 1,
+    gap: 16, // Increased gap from 12 (default) to 16
   },
   avatar: {
     width: 48,
@@ -569,8 +576,9 @@ const styles = StyleSheet.create({
   // Filter tabs
   filterContent: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
+    // Reduced padding significantly to close gap
+    paddingTop: 0,
+    paddingBottom: 0,
     gap: 8,
   },
   filterTab: {
