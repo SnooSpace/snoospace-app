@@ -15,10 +15,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Keyboard,
+  ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { searchMembers } from "../../api/search";
+import { searchMembers, globalSearch } from "../../api/search";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
@@ -43,6 +44,7 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'community', 'sponsor', 'venue'
 
   const canSearch = query.trim().length >= 2;
 
@@ -88,43 +90,49 @@ export default function SearchScreen({ navigation }) {
       setLoading(true);
       setError("");
       
-      // Search both members and communities in parallel
-      const [membersData, communitiesData] = await Promise.all([
-        searchMembers(query.trim(), { limit: 20, offset: nextOffset }).catch(() => ({ results: [], hasMore: false })),
-        searchCommunities(query.trim(), { limit: 20, offset: nextOffset }).catch(() => ({ results: [], hasMore: false })),
-      ]);
-      
-      // Combine results
-      const combinedResults = [
-        ...(membersData.results || []).map(r => ({ ...r, type: 'member' })),
-        ...(communitiesData.results || []).map(r => ({ ...r, type: 'community', full_name: r.name })),
-      ];
-      
-      const newResults = reset ? combinedResults : [...results, ...combinedResults];
-      setResults(newResults);
-      
-      // initialize following map from payload
-      setFollowing((prev) => {
-        const copy = { ...prev };
-        [...(membersData.results || []), ...(communitiesData.results || [])].forEach((r) => {
-          if (typeof r.is_following === "boolean")
-            copy[r.id] = r.is_following;
+      // Use global search for all entity types
+      try {
+        const globalData = await globalSearch(query.trim(), {
+          limit: 20,
+          offset: nextOffset,
         });
-        return copy;
-      });
-      
-      const totalResults = combinedResults.length;
-      setOffset(nextOffset + totalResults);
-      setHasMore(!!membersData.hasMore || !!communitiesData.hasMore);
-      setLoading(false);
+
+        // Filter results based on active filter
+        let filteredResults = globalData.results || [];
+        if (activeFilter !== 'all') {
+          filteredResults = filteredResults.filter(r => r.type === activeFilter);
+        }
+        
+        const newResults = reset ? filteredResults : [...results, ...filteredResults];
+        setResults(newResults);
+        
+        // initialize following map from payload
+        setFollowing((prev) => {
+          const copy = { ...prev };
+          filteredResults.forEach((r) => {
+            if (typeof r.is_following === "boolean")
+              copy[r.id] = r.is_following;
+          });
+          return copy;
+        });
+        
+        const totalResults = filteredResults.length;
+        setOffset(nextOffset + totalResults);
+        setHasMore(!!globalData.hasMore);
+        setLoading(false);
+      } catch (err) {
+        console.error("Search error:", err);
+        setError("Failed to search");
+        setLoading(false);
+       }
     },
-    [query, offset, results, canSearch]
+    [query, offset, results, canSearch, activeFilter]
   );
 
   useEffect(() => {
     const h = setTimeout(() => doSearch(true), DEBOUNCE_MS);
     return () => clearTimeout(h);
-  }, [query, doSearch]);
+  }, [query, activeFilter]); // Trigger search when filter changes
 
   useEffect(() => {
     // Load user ID on mount
@@ -205,6 +213,14 @@ export default function SearchScreen({ navigation }) {
         communityId: item.id,
         viewerRole: 'member',
       });
+    } else if (entityType === 'sponsor') {
+      navigation.navigate("SponsorProfile", {
+        sponsorId: item.id,
+      });
+    } else if (entityType === 'venue') {
+      navigation.navigate("VenueProfile", {
+        venueId: item.id,
+      });
     } else {
       navigation.navigate("MemberPublicProfile", {
         memberId: item.id,
@@ -248,9 +264,18 @@ export default function SearchScreen({ navigation }) {
             style={styles.avatar}
           />
           <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>
-              {displayName}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.name} numberOfLines={1}>
+                {displayName}
+              </Text>
+              {activeFilter === 'all' && (
+                <View style={[styles.typeBadge, entityType === 'community' ? styles.typeBadgeCommunity : entityType === 'sponsor' ? styles.typeBadgeSponsor : entityType === 'venue' ? styles.typeBadgeVenue : styles.typeBadgeMember]}>
+                  <Text style={styles.typeBadgeText}>
+                    {entityType === 'community' ? 'C' : entityType === 'sponsor' ? 'S' : entityType === 'venue' ? 'V' : 'M'}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.username} numberOfLines={1}>
               @{item.username}
               {entityType === 'community' && item.category && ` • ${item.category}`}
@@ -325,31 +350,34 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Back Button and Search Bar - Combined */}
-      <View style={styles.headerContainer}>
+      {/* Header with Search Title */}
+      {!focused && (
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Search</Text>
+        </View>
+      )}
+
+      {/* Search Input Box */}
+      <View style={[styles.searchContainer, focused && styles.searchContainerFocused]}>
         {focused && (
           <TouchableOpacity
             onPress={() => {
               Keyboard.dismiss();
               setQuery("");
               setFocused(false);
-              setResults([]);
-              setError("");
               inputRef.current?.blur();
             }}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
           </TouchableOpacity>
         )}
-
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#8E8E93" />
+          <Ionicons name="search" size={20} color="#8E8E93" />
           <TextInput
             ref={inputRef}
             style={styles.input}
-            placeholder="Search members and communities..."
+            placeholder="Search members, communities, sponsors, venues..."
             placeholderTextColor="#8E8E93"
             value={query}
             onChangeText={setQuery}
@@ -358,21 +386,48 @@ export default function SearchScreen({ navigation }) {
             returnKeyType="search"
             onFocus={() => setFocused(true)}
           />
+          {query.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setQuery("")}
+              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            >
+              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Overlay layer when search is active */}
-      {focused && (
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => {
-            Keyboard.dismiss();
-            setFocused(false);
-            inputRef.current?.blur();
-          }}
-        />
-      )}
+      {/* Filter Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterContent}
+      >
+        {['all', 'member', 'community', 'sponsor', 'venue'].map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={[
+              styles.filterTab,
+              activeFilter === filter && styles.filterTabActive,
+            ]}
+            onPress={() => {
+              setActiveFilter(filter);
+              setResults([]);
+              setOffset(0);
+            }}
+          >
+            <Text
+              style={[
+                styles.filterTabText,
+                activeFilter === filter && styles.filterTabTextActive,
+              ]}
+            >
+              {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : 'Venues'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
 
       {focused && query.trim().length === 0 ? (
         <View style={styles.contentContainer}>
@@ -442,27 +497,28 @@ export default function SearchScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#FFFFFF',
-    zIndex: 1,
-  },
   contentContainer: {
     flex: 1,
-    zIndex: 2,
   },
   headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1D1D1F',
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
     paddingBottom: 12,
+  },
+  searchContainerFocused: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
-    zIndex: 3,
+    paddingTop: 60,
   },
   backButton: {
     padding: 4,
@@ -471,12 +527,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 22,
-    height: 44,
-    gap: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    height: 50,
+    gap: 12,
   },
   input: { flex: 1, fontSize: 16, color: "#1D1D1F" },
   helper: { alignItems: "center", paddingVertical: 24 },
@@ -511,4 +566,53 @@ const styles = StyleSheet.create({
   followText: { fontSize: 12, fontWeight: "600" },
   followTextPrimary: { color: "#FFFFFF" },
   followingText: { color: "#1D1D1F" },
+  // Filter tabs
+  filterContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterTabActive: {
+    backgroundColor: '#6A0DAD',
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  filterTabTextActive: {
+    color: '#FFFFFF',
+  },
+  typeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeMember: {
+    backgroundColor: '#E3F2FD',
+  },
+  typeBadgeCommunity: {
+    backgroundColor: '#F3E5F5',
+  },
+  typeBadgeSponsor: {
+    backgroundColor: '#FFF3E0',
+  },
+  typeBadgeVenue: {
+    backgroundColor: '#E8F5E9',
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1D1D1F',
+  },
 });
