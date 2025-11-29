@@ -20,25 +20,46 @@ function buildError(res, data) {
 
 async function tryRefreshAndRetry(doRequest) {
   try {
+    console.log('[tryRefreshAndRetry] Attempting token refresh...');
+    const refreshToken = (await import('./auth')).getRefreshToken ? await (await import('./auth')).getRefreshToken() : null;
+    
+    if (!refreshToken) {
+      console.warn('[tryRefreshAndRetry] No refresh token available');
+      throw new Error('Unauthorized');
+    }
+    
+    console.log('[tryRefreshAndRetry] Refresh token length:', refreshToken?.length);
+    
     const res = await withTimeout(
       fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: (await import('./auth')).getRefreshToken ? await (await import('./auth')).getRefreshToken() : null })
+        body: JSON.stringify({ refresh_token: refreshToken })
       }),
       15000
     );
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error('Unauthorized');
+    
+    if (!res.ok) {
+      console.error('[tryRefreshAndRetry] Refresh failed:', data?.error || res.statusText);
+      throw new Error('Unauthorized');
+    }
+    
     const newAccess = data?.data?.session?.access_token;
     const newRefresh = data?.data?.session?.refresh_token;
+    
     if (newAccess) {
+      console.log('[tryRefreshAndRetry] Got new access token, length:', newAccess?.length);
       const mod = await import('./auth');
       if (mod.setAccessToken) await mod.setAccessToken(newAccess);
+    } else {
+      console.warn('[tryRefreshAndRetry] No access token in refresh response');
     }
+    
     // Note: we keep existing refresh token unless backend rotated; storing rotation is optional here
     return doRequest(newAccess);
-  } catch {
+  } catch (error) {
+    console.error('[tryRefreshAndRetry] Error during refresh:', error.message);
     throw new Error('Unauthorized');
   }
 }

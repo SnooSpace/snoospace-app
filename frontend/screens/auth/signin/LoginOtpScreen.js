@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
-import { setAuthSession, clearPendingOtp, getAllAccounts, addAccount } from "../../../api/auth";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import { getAllAccounts, addAccount } from "../../../utils/accountManager";
 
 const TEXT_COLOR = "#1e1e1e";
 
@@ -85,10 +86,25 @@ const LoginOtpScreen = ({ navigation, route }) => {
           refreshToken: refreshToken,
         });
 
-        Alert.alert('Account Added', 'You can now switch between your accounts from the profile screen.');
-        // Navigate back to profile
-        navigation.goBack();
-        navigation.goBack(); // Go back twice to return to profile
+        Alert.alert('Account Added', 'Switching to new account...');
+        
+        // Navigate to the appropriate home screen for the new account
+        switch (userRole) {
+          case "member":
+            navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
+            break;
+          case "community":
+            navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
+            break;
+          case "sponsor":
+            navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
+            break;
+          case "venue":
+            navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
+            break;
+          default:
+            Alert.alert("Error", "Unknown user role. Please contact support.");
+        }
       } else {
         // Normal login flow
         switch (userRole) {

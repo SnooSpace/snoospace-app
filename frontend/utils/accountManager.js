@@ -117,12 +117,32 @@ export async function addAccount(accountData) {
  */
 export async function switchAccount(accountId) {
   try {
+    console.log('[switchAccount] Starting switch to account:', accountId);
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
     const account = accounts.find((acc) => String(acc.id) === accountIdStr);
     
     if (!account) {
+      console.error('[switchAccount] Account not found');
       throw new Error('Account not found');
+    }
+    
+    console.log('[switchAccount] Found account:', { 
+      id: account.id, 
+      email: account.email, 
+      type: account.type,
+      tokenLength: account.authToken?.length,
+      refreshTokenLength: account.refreshToken?.length
+    });
+    
+    // Validate token before switching
+    if (!account.authToken) {
+      console.error('[switchAccount] Account has no auth token!');
+      throw new Error('Account token is missing');
+    }
+    
+    if (account.authToken.length < 100) {
+      console.warn('[switchAccount] ⚠️ Token seems unusually short:', account.authToken.length, 'chars - may be corrupted');
     }
     
     // Update last active time
@@ -130,10 +150,19 @@ export async function switchAccount(accountId) {
     
     // Set as active - MUST be string
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountIdStr);
+    console.log('[switchAccount] Set active account ID:', accountIdStr);
+    
+    // Double-check the active account after switch
+    const verifyActiveAccount = await getActiveAccount();
+    console.log('[switchAccount] Post-switch verification:', {
+      activeId: verifyActiveAccount?.id,
+      activeEmail: verifyActiveAccount?.email,
+      activeTokenLength: verifyActiveAccount?.authToken?.length
+    });
     
     return account;
   } catch (error) {
-    console.error('Error switching account:', error);
+    console.error('[switchAccount] Error switching account:', error);
     throw error;
   }
 }
@@ -178,7 +207,24 @@ export async function updateAccount(accountId, updates) {
     const accountIdStr = String(accountId);
     const accountIndex = accounts.findIndex((acc) => String(acc.id) === accountIdStr);
     
-    if (accountIndex === -1) return false;
+    if (accountIndex === -1) {
+      console.warn('[updateAccount] Account not found:', accountIdStr);
+      return false;
+    }
+    
+    // Log the update for debugging
+    if (updates.authToken || updates.refreshToken) {
+      const currentAccount = accounts[accountIndex];
+      const currentTokenDecrypted = currentAccount.authToken ? await decryptToken(currentAccount.authToken) : null;
+      
+      console.log('[updateAccount] Updating account tokens:', {
+        accountId: accountIdStr,
+        accountEmail: currentAccount.email,
+        currentTokenLength: currentTokenDecrypted?.length,
+        newTokenLength: updates.authToken?.length,
+        isUpdatingRefreshToken: !!updates.refreshToken
+      });
+    }
     
     // Encrypt tokens if they're being updated
     if (updates.authToken) {
@@ -196,7 +242,7 @@ export async function updateAccount(accountId, updates) {
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
     return true;
   } catch (error) {
-    console.error('Error updating account:', error);
+    console.error('[updateAccount] Error updating account:', error);
     return false;
   }
 }

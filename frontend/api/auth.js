@@ -24,13 +24,20 @@ export async function getAuthToken() {
     // Try new multi-account system first
     const activeAccount = await accountManager.getActiveAccount();
     if (activeAccount?.authToken) {
+      console.log('[getAuthToken] Using multi-account token for:', activeAccount.email, 'length:', activeAccount.authToken?.length);
       return activeAccount.authToken;
     }
     
     // Fallback to old storage (for migration)
     const v = await AsyncStorage.getItem(KEY_TOKEN);
+    if (v) {
+      console.log('[getAuthToken] Using old storage token, length:', v?.length);
+    } else {
+      console.log('[getAuthToken] No token found');
+    }
     return v || null;
-  } catch {
+  } catch (error) {
+    console.error('[getAuthToken] Error:', error);
     return null;
   }
 }
@@ -85,15 +92,31 @@ export async function clearAuthSession() {
 
 export async function setAccessToken(token) {
   try {
-    // Update active account
     const activeAccount = await accountManager.getActiveAccount();
+    
+    if (!token) {
+      console.warn('[setAccessToken] Attempted to set null/empty token - skipping');
+      return;
+    }
+    
+    // Log token update for debugging
+    console.log('[setAccessToken] Updating token for account:', {
+      id: activeAccount?.id,
+      email: activeAccount?.email,
+      oldTokenLength: activeAccount?.authToken?.length,
+      newTokenLength: token?.length
+    });
+    
+    // Update active account
     if (activeAccount) {
       await accountManager.updateAccount(activeAccount.id, { authToken: token });
     }
     
     // Also set old storage for backward compatibility
     await AsyncStorage.setItem(KEY_TOKEN, token || '');
-  } catch {}
+  } catch (error) {
+    console.error('[setAccessToken] Error updating token:', error);
+  }
 }
 
 export async function setPendingOtp(flow, email, ttlSeconds = 600) {
