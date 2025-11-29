@@ -134,58 +134,6 @@ export default function SettingsModal({
 
             <View style={styles.divider} />
 
-            {/* Debug: Clear Account Data */}
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(async () => {
-                Alert.alert(
-                  'Clear Account Data?',
-                  'This will clear all saved accounts and encryption keys. You will need to restart the app. Continue?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Clear & Restart',
-                      style: 'destructive',
-                      onPress: async () => {
-                        try {
-                          const { emergencyClearAll } = require('../../utils/emergencyClear');
-                          await emergencyClearAll();
-                          Alert.alert(
-                            'Data Cleared',
-                            'Please close and restart the app now.',
-                            [{
-                              text: 'OK',
-                              onPress: () => {
-                                // Force reload
-                                if (typeof window !== 'undefined' && window.location) {
-                                  window.location.reload();
-                                }
-                              }
-                            }]
-                          );
-                        } catch (error) {
-                          console.error('Clear error:', error);
-                          Alert.alert('Error', 'Failed to clear account data');
-                        }
-                      }
-                    }
-                  ]
-                );
-              })}
-            >
-              <Ionicons name="trash-bin-outline" size={24} color="#FF9500" />
-              <Text style={[styles.settingsOptionText, { color: '#FF9500' }]}>
-                Clear Account Data
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
             <TouchableOpacity
               style={styles.settingsOption}
               onPress={() => handleAction(onDeleteAccountPress)}
