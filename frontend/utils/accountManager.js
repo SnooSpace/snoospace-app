@@ -8,6 +8,7 @@ const MAX_ACCOUNTS = 5;
 /**
  * Account Manager
  * Handles storage and management of multiple user accounts
+ * All IDs stored as strings to comply with AsyncStorage requirements
  */
 
 /**
@@ -25,15 +26,13 @@ export async function getAllAccounts() {
       accounts.map(async (account) => ({
         ...account,
         authToken: await decryptToken(account.authToken),
-        refreshToken: account.refreshToken 
-          ? await decryptToken(account.refreshToken) 
-          : null,
+        refreshToken: account.refreshToken ? await decryptToken(account.refreshToken) : null,
       }))
     );
     
     return decryptedAccounts;
   } catch (error) {
-    console.error('Error getting all accounts:', error);
+    console.error('Error loading accounts:', error);
     return [];
   }
 }
@@ -47,7 +46,7 @@ export async function getActiveAccount() {
     if (!activeId) return null;
     
     const accounts = await getAllAccounts();
-    return accounts.find(acc => acc.id === activeId) || null;
+    return accounts.find((acc) => String(acc.id) === String(activeId)) || null;
   } catch (error) {
     console.error('Error getting active account:', error);
     return null;
@@ -61,9 +60,10 @@ export async function getActiveAccount() {
 export async function addAccount(accountData) {
   try {
     const accounts = await getAllAccounts();
+    const accountId = String(accountData.id); // Always convert to string
     
     // Check if account already exists
-    const existingIndex = accounts.findIndex(acc => acc.id === accountData.id);
+    const existingIndex = accounts.findIndex((acc) => String(acc.id) === accountId);
     
     // Check max limit (only if adding new account)
     if (existingIndex === -1 && accounts.length >= MAX_ACCOUNTS) {
@@ -73,10 +73,9 @@ export async function addAccount(accountData) {
     // Encrypt tokens
     const encryptedAccount = {
       ...accountData,
+      id: accountId, // Store as string
       authToken: await encryptToken(accountData.authToken),
-      refreshToken: accountData.refreshToken 
-        ? await encryptToken(accountData.refreshToken) 
-        : null,
+      refreshToken: accountData.refreshToken ? await encryptToken(accountData.refreshToken) : null,
       unreadCount: accountData.unreadCount || 0,
       lastActive: Date.now(),
     };
@@ -96,8 +95,8 @@ export async function addAccount(accountData) {
     
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
     
-    // Set as active account
-    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountData.id);
+    // Set as active account - MUST be string
+    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId);
     
     return true;
   } catch (error) {
@@ -112,17 +111,18 @@ export async function addAccount(accountData) {
 export async function switchAccount(accountId) {
   try {
     const accounts = await getAllAccounts();
-    const account = accounts.find(acc => acc.id === accountId);
+    const accountIdStr = String(accountId);
+    const account = accounts.find((acc) => String(acc.id) === accountIdStr);
     
     if (!account) {
       throw new Error('Account not found');
     }
     
     // Update last active time
-    await updateAccount(accountId, { lastActive: Date.now() });
+    await updateAccount(accountIdStr, { lastActive: Date.now() });
     
-    // Set as active
-    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId);
+    // Set as active - MUST be string
+    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountIdStr);
     
     return account;
   } catch (error) {
@@ -137,15 +137,16 @@ export async function switchAccount(accountId) {
 export async function removeAccount(accountId) {
   try {
     const accounts = await getAllAccounts();
-    const updatedAccounts = accounts.filter(acc => acc.id !== accountId);
+    const accountIdStr = String(accountId);
+    const updatedAccounts = accounts.filter((acc) => String(acc.id) !== accountIdStr);
     
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
     
     // If removing active account, switch to first available
     const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
-    if (activeId === accountId) {
+    if (String(activeId) === accountIdStr) {
       if (updatedAccounts.length > 0) {
-        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, updatedAccounts[0].id);
+        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, String(updatedAccounts[0].id));
       } else {
         await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
       }
@@ -167,7 +168,8 @@ export async function updateAccount(accountId, updates) {
     if (!accountsJson) return false;
     
     const accounts = JSON.parse(accountsJson);
-    const accountIndex = accounts.findIndex(acc => acc.id === accountId);
+    const accountIdStr = String(accountId);
+    const accountIndex = accounts.findIndex((acc) => String(acc.id) === accountIdStr);
     
     if (accountIndex === -1) return false;
     
@@ -238,7 +240,7 @@ export async function migrateExistingUser() {
     
     // Migrate to new system
     await addAccount({
-      id: userData.id,
+      id: String(userData.id), // Convert to string
       type: userData.type || 'member',
       username: userData.username,
       email: userData.email,
@@ -248,12 +250,8 @@ export async function migrateExistingUser() {
       refreshToken: null,
     });
     
-    // Clean up old storage
-    await AsyncStorage.removeItem('@auth_token');
-    await AsyncStorage.removeItem('@user_data');
-    
     console.log('Successfully migrated existing user to multi-account system');
-    return  true;
+    return true;
   } catch (error) {
     console.error('Error migrating existing user:', error);
     return false;
