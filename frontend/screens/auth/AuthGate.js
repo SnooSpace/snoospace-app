@@ -7,6 +7,10 @@ export default function AuthGate({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
+        // STEP 1: Migrate existing user to multi-account system (if needed)
+        const { migrateExistingUser } = require('../../utils/accountManager');
+        await migrateExistingUser();
+        
         // Pre-emptive: refresh access token if we have a refresh token
         try {
           const rt = await getRefreshToken();
@@ -47,6 +51,8 @@ export default function AuthGate({ navigation }) {
           navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
           return;
         }
+        
+        // STEP 2: Get profile and navigate (load UI immediately)
         const profile = await apiPost('/auth/get-user-profile', { email }, 8000, token);
         const role = profile?.role;
         const routeName = role === 'member' ? 'MemberHome'
@@ -55,6 +61,21 @@ export default function AuthGate({ navigation }) {
           : role === 'venue' ? 'VenueHome'
           : 'Landing';
         navigation.reset({ index: 0, routes: [{ name: routeName }] });
+        
+        // STEP 3: Validate token in background (non-blocking)
+        try {
+          const { validateToken } = require('../../api/auth');
+          const isValid = await validateToken(token);
+          if (!isValid) {
+            console.log('[AuthGate] Token expired - user will need to re-login on next action');
+            // Don't force logout immediately - let user continue using app
+            // They'll be prompted to login when they try to perform an action
+          }
+        } catch (error) {
+          // Silently handle validation errors during startup
+          // Network errors are common during app load and shouldn't block the user
+          console.log('[AuthGate] Background token validation failed (non-critical):', error.message);
+        }
       } catch {
         navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
       }

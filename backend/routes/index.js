@@ -48,6 +48,7 @@ router.get("/me", authMiddleware, AuthController.me);
 router.post("/auth/check-email", normalizeEmail, validateBody(['email']), AuthController.checkEmail);
 router.post("/auth/get-user-profile", authMiddleware, normalizeEmail, validateBody(['email']), AuthController.getUserProfile);
 router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthController.loginStart);
+router.get("/auth/validate-token", authMiddleware, AuthController.validateToken);
 
 // Members
 router.post("/members/signup", MemberController.signup);

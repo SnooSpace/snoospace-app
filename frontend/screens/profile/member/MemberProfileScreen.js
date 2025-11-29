@@ -36,6 +36,8 @@ import { uploadImage } from "../../../api/cloudinary";
 import PostCard from "../../../components/PostCard"; // Assuming PostCard exists for a full post view
 import CommentsModal from "../../../components/CommentsModal";
 import SettingsModal from "../../../components/modals/SettingsModal";
+import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
+import AddAccountModal from "../../../components/modals/AddAccountModal";
 import EventBus from "../../../utils/EventBus";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -62,6 +64,8 @@ export default function MemberProfileScreen({ navigation }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   // Combine comments modal state into one object to reduce state updates
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
@@ -937,7 +941,13 @@ export default function MemberProfileScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.username}>@{profile.username}</Text>
+        <TouchableOpacity 
+          style={styles.usernameContainer}
+          onPress={() => setShowAccountSwitcher(true)}
+        >
+          <Text style={styles.username}>@{profile.username}</Text>
+          <Ionicons name="chevron-down" size={16} color={TEXT_COLOR} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => setShowSettingsModal(true)}
@@ -1194,6 +1204,33 @@ export default function MemberProfileScreen({ navigation }) {
         navigation={navigation}
       />
 
+      <AccountSwitcherModal
+        visible={showAccountSwitcher}
+        onClose={() => setShowAccountSwitcher(false)}
+        currentAccountId={profile?.id}
+        currentProfile={profile}
+        onAccountSwitch={(account) => {
+          // Refresh profile after account switch
+          loadProfile(true);
+        }}
+        onAddAccount={() => {
+          setShowAddAccountModal(true);
+        }}
+      />
+
+      <AddAccountModal
+        visible={showAddAccountModal}
+        onClose={() => setShowAddAccountModal(false)}
+        onLoginExisting={() => {
+          // Navigate to login with isAddingAccount flag
+          navigation.navigate('Login', { isAddingAccount: true });
+        }}
+        onCreateNew={() => {
+          // Navigate to signup landing
+          navigation.navigate('Landing');
+        }}
+      />
+
       <SettingsModal
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
@@ -1204,6 +1241,7 @@ export default function MemberProfileScreen({ navigation }) {
         onHelpPress={() =>
           Alert.alert("Help", "Help & Support will be implemented soon!")
         }
+        onAddAccountPress={() => setShowAddAccountModal(true)}
         onLogoutPress={handleLogout}
         onDeleteAccountPress={() => setShowDeleteModal(true)}
         textColor={TEXT_COLOR}
@@ -1326,6 +1364,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
+  },
+  usernameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   username: {
     fontSize: 18,

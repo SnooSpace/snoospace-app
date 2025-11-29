@@ -31,6 +31,8 @@ import { mockData } from '../../../data/mockData';
 import HeadsEditorModal from '../../../components/modals/HeadsEditorModal';
 import CommentsModal from '../../../components/CommentsModal';
 import SettingsModal from '../../../components/modals/SettingsModal';
+import AccountSwitcherModal from '../../../components/modals/AccountSwitcherModal';
+import AddAccountModal from '../../../components/modals/AddAccountModal';
 import EventBus from '../../../utils/EventBus';
 import MentionTextRenderer from '../../../components/MentionTextRenderer';
 
@@ -56,7 +58,10 @@ export default function CommunityProfileScreen({ navigation }) {
   const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showHeadsModal, setShowHeadsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [headsModalVisible, setHeadsModalVisible] = useState(false);
@@ -574,7 +579,13 @@ export default function CommunityProfileScreen({ navigation }) {
 
         <View style={styles.summarySection}>
           <View style={styles.topBar}>
-            <Text style={styles.handle}>{profile.username ? `@${profile.username}` : profile.name}</Text>
+            <TouchableOpacity 
+              style={styles.handleContainer}
+              onPress={() => setShowAccountSwitcher(true)}
+            >
+              <Text style={styles.handle}>{profile.username ? `@${profile.username}` : profile.name}</Text>
+              <Ionicons name="chevron-down" size={16} color={TEXT_COLOR} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
             <View style={styles.iconButtons}>
               <TouchableOpacity
                 onPress={() => setShowSettingsModal(true)}
@@ -856,6 +867,22 @@ export default function CommunityProfileScreen({ navigation }) {
           );
         }}
         navigation={navigation}
+      />
+
+      <AccountSwitcherModal
+        visible={showAccountSwitcher}
+        onClose={() => setShowAccountSwitcher(false)}
+        currentAccountId={profile?.id}
+        currentProfile={profile}
+        onAccountSwitch={() => loadProfile(true)}
+        onAddAccount={() => setShowAddAccountModal(true)}
+      />
+
+      <AddAccountModal
+        visible={showAddAccountModal}
+        onClose={() => setShowAddAccountModal(false)}
+        onLoginExisting={() => navigation.navigate('Login', { isAddingAccount: true })}
+        onCreateNew={() => navigation.navigate('Landing')}
       />
     </SafeAreaView>
   );
@@ -1749,5 +1776,9 @@ const postModalStyles = StyleSheet.create({
     fontSize: 18,
     color: '#000',
     fontWeight: '600',
+  },
+  handleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });

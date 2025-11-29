@@ -19,6 +19,7 @@ export default function SettingsModal({
   onNotificationsPress,
   onPrivacyPress,
   onHelpPress,
+  onAddAccountPress,
   onLogoutPress,
   onDeleteAccountPress,
   textColor = "#1D1D1F",
@@ -96,6 +97,23 @@ export default function SettingsModal({
               />
               <Text style={[styles.settingsOptionText, { color: textColor }]}>
                 Help & Support
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={lightTextColor}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.settingsOption}
+              onPress={() => handleAction(onAddAccountPress)}
+            >
+              <Ionicons name="person-add-outline" size={24} color={textColor} />
+              <Text style={[styles.settingsOptionText, { color: textColor }]}>
+                Add account
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -203,6 +221,7 @@ SettingsModal.propTypes = {
   onNotificationsPress: PropTypes.func,
   onPrivacyPress: PropTypes.func,
   onHelpPress: PropTypes.func,
+  onAddAccountPress: PropTypes.func,
   onLogoutPress: PropTypes.func,
   onDeleteAccountPress: PropTypes.func,
   textColor: PropTypes.string,

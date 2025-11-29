@@ -11,14 +11,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
-import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import { setAuthSession, clearPendingOtp, getAllAccounts, addAccount } from "../../../api/auth";
 
 const TEXT_COLOR = "#1e1e1e";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
 const LoginOtpScreen = ({ navigation, route }) => {
-  const { email } = route.params || {};
+  const { email, isAddingAccount } = route.params || {};
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -62,21 +62,51 @@ const LoginOtpScreen = ({ navigation, route }) => {
         accessToken
       );
       const userRole = profileResult.role;
-      switch (userRole) {
-        case "member":
-          navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
-          break;
-        case "community":
-          navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
-          break;
-        case "sponsor":
-          navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
-          break;
-        case "venue":
-          navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
-          break;
-        default:
-          Alert.alert("Error", "Unknown user role. Please contact support.");
+      const userProfile = profileResult.profile;
+
+      // Handle adding account vs normal login
+      if (isAddingAccount) {
+        // Check account limit
+        const accounts = await getAllAccounts();
+        if (accounts.length >= 5) {
+          Alert.alert('Maximum Accounts Reached', 'You can only have up to 5 accounts. Remove an account to add a new one.');
+          return;
+        }
+
+        // Add account to account manager
+        await addAccount({
+          id: userProfile.id,
+          type: userRole,
+          username: userProfile.username,
+          email: email,
+          name: userProfile.name || userProfile.username,
+          profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
+          authToken: accessToken,
+          refreshToken: refreshToken,
+        });
+
+        Alert.alert('Account Added', 'You can now switch between your accounts from the profile screen.');
+        // Navigate back to profile
+        navigation.goBack();
+        navigation.goBack(); // Go back twice to return to profile
+      } else {
+        // Normal login flow
+        switch (userRole) {
+          case "member":
+            navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
+            break;
+          case "community":
+            navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
+            break;
+          case "sponsor":
+            navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
+            break;
+          case "venue":
+            navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
+            break;
+          default:
+            Alert.alert("Error", "Unknown user role. Please contact support.");
+        }
       }
     } catch (e) {
       console.error("OTP verification error:", e);

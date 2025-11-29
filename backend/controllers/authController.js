@@ -184,6 +184,54 @@ async function me(req, res) {
   }
 }
 
+// Validate token for multi-account switching
+async function validateToken(req, res) {
+  try {
+    // Token already validated by authMiddleware
+    // Just return user data to confirm it's valid
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const email = req.user?.email;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ valid: false, error: 'Invalid user data' });
+    }
+
+    // Fetch fresh user data
+    const tables = {
+      member: 'members',
+      community: 'communities',
+      sponsor: 'sponsors',
+      venue: 'venues'
+    };
+
+    const table = tables[userType];
+    if (!table) {
+      return res.status(400).json({ valid: false, error: 'Invalid user type' });
+    }
+
+    const result = await pool.query(`SELECT id, username FROM ${table} WHERE id = $1`, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ valid: false, error: 'User not found' });
+    }
+
+    res.json({ 
+      valid: true, 
+      user: {
+        id: userId,
+        type: userType,
+        email: email,
+        username: result.rows[0].username
+      }
+    });
+  } catch (err) {
+    console.error('/auth/validate-token error:', err);
+    res.status(500).json({ valid: false, error: 'Failed to validate token' });
+  }
+}
+
 async function checkEmail(req, res) {
   try {
     const { email } = req.body || {};
@@ -260,6 +308,6 @@ async function getUserProfile(req, res) {
   }
 }
 
-module.exports = { sendOtp, verifyOtp, callback, me, checkEmail, getUserProfile, loginStart, refresh };
+module.exports = { sendOtp, verifyOtp, callback, me, checkEmail, getUserProfile, loginStart, refresh, validateToken };
 
 

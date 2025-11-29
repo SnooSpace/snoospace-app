@@ -16,7 +16,7 @@ import { setPendingOtp } from "../../../api/auth";
 const TEXT_COLOR = "#1e1e1e";
 
 const LoginScreen = ({ navigation, route }) => {
-  const { email: preFilledEmail } = route.params || {};
+  const { email: preFilledEmail, isAddingAccount } = route.params || {};
   const [email, setEmail] = useState(preFilledEmail || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +35,7 @@ const LoginScreen = ({ navigation, route }) => {
       // Increased timeout to 15000ms to handle slower email delivery
       await apiPost("/auth/login/start", { email }, 15000);
       await setPendingOtp('login', email, 600);
-      navigation.navigate("LoginOtp", { email });
+      navigation.navigate("LoginOtp", { email, isAddingAccount });
     } catch (e) {
       console.error("Login error:", e);
       // Even if request times out but email was sent successfully, navigate to OTP
