@@ -140,18 +140,31 @@ export default function SettingsModal({
               onPress={() => handleAction(async () => {
                 Alert.alert(
                   'Clear Account Data?',
-                  'This will clear all saved accounts. You will need to re-add them. Continue?',
+                  'This will clear all saved accounts and encryption keys. You will need to restart the app. Continue?',
                   [
                     { text: 'Cancel', style: 'cancel' },
                     {
-                      text: 'Clear',
+                      text: 'Clear & Restart',
                       style: 'destructive',
                       onPress: async () => {
                         try {
-                          const { clearCorruptedAccounts } = require('../../utils/accountFix');
-                          await clearCorruptedAccounts();
-                          Alert.alert('Success', 'Account data cleared. Please restart the app.');
+                          const { emergencyClearAll } = require('../../utils/emergencyClear');
+                          await emergencyClearAll();
+                          Alert.alert(
+                            'Data Cleared',
+                            'Please close and restart the app now.',
+                            [{
+                              text: 'OK',
+                              onPress: () => {
+                                // Force reload
+                                if (typeof window !== 'undefined' && window.location) {
+                                  window.location.reload();
+                                }
+                              }
+                            }]
+                          );
                         } catch (error) {
+                          console.error('Clear error:', error);
                           Alert.alert('Error', 'Failed to clear account data');
                         }
                       }

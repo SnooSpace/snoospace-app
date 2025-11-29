@@ -76,9 +76,10 @@ export async function decryptToken(encryptedToken) {
     
     return decrypted.join('');
   } catch (error) {
-    console.error('Error decrypting token:', error);
+    //  Silently skip corrupted tokens - don't flood console
+    // console.error('Error decrypting token:', error);
     // Fallback: return as-is if decryption fails
-    return encryptedToken;
+   return encryptedToken;
   }
 }
 
