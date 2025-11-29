@@ -874,7 +874,19 @@ export default function CommunityProfileScreen({ navigation }) {
         onClose={() => setShowAccountSwitcher(false)}
         currentAccountId={profile?.id}
         currentProfile={profile}
-        onAccountSwitch={() => loadProfile(true)}
+        onAccountSwitch={(account) => {
+          // Navigate to correct home screen based on account type
+          const routeName = account.type === 'member' ? 'MemberHome'
+            : account.type === 'community' ? 'CommunityHome'
+            : account.type === 'sponsor' ? 'SponsorHome'
+            : account.type === 'venue' ? 'VenueHome'
+            : 'Landing';
+          
+          navigation.reset({
+            index: 0,
+            routes: [{ name: routeName }],
+          });
+        }}
         onAddAccount={() => setShowAddAccountModal(true)}
       />
 

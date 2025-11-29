@@ -21,14 +21,21 @@ export async function getAllAccounts() {
     
     const accounts = JSON.parse(accountsJson);
     
-    // Decrypt tokens for each account
-    const decryptedAccounts = await Promise.all(
-      accounts.map(async (account) => ({
-        ...account,
-        authToken: await decryptToken(account.authToken),
-        refreshToken: account.refreshToken ? await decryptToken(account.refreshToken) : null,
-      }))
-    );
+    // Decrypt tokens for each account - skip corrupted ones
+    const decryptedAccounts = [];
+    for (const account of accounts) {
+      try {
+        const decryptedAccount = {
+          ...account,
+          authToken: await decryptToken(account.authToken),
+          refreshToken: account.refreshToken ? await decryptToken(account.refreshToken) : null,
+        };
+        decryptedAccounts.push(decryptedAccount);
+      } catch (error) {
+        console.error(`Skipping corrupted account ${account.id}:`, error.message);
+        // Skip this account - it's corrupted
+      }
+    }
     
     return decryptedAccounts;
   } catch (error) {
