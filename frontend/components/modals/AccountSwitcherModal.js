@@ -105,11 +105,15 @@ export default function AccountSwitcherModal({
       // Switch account
       await switchAccount(account.id);
       
-      // Notify parent to refresh UI
+      // Navigate to correct screen FIRST (before closing modal)
       if (onAccountSwitch) {
         onAccountSwitch(account);
       }
       
+      // Small delay to ensure navigation completes
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      //Then close modal
       onClose();
     } catch (error) {
       console.error('Error switching account:', error);
