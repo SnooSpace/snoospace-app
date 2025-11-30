@@ -882,7 +882,25 @@ export default function CommunityProfileScreen({ navigation }) {
             : account.type === 'venue' ? 'VenueHome'
             : 'Landing';
           
-          navigation.reset({
+          // Get the ROOT navigator (go up the parent chain)
+          let rootNavigator = navigation;
+          try {
+            // ProfileStackNavigator → CommunityHomeTabNavigator → RootNavigator
+            if (navigation.getParent) {
+              const parent1 = navigation.getParent(); // CommunityHomeTabNavigator
+              if (parent1 && parent1.getParent) {
+                const parent2 = parent1.getParent(); // RootNavigator
+                if (parent2) {
+                  rootNavigator = parent2;
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('[AccountSwitch] Could not get root navigator:', error);
+          }
+          
+          console.log('[AccountSwitch] Resetting to:', routeName);
+          rootNavigator.reset({
             index: 0,
             routes: [{ name: routeName }],
           });
