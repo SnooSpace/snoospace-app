@@ -128,6 +128,7 @@ router.patch("/notifications/read-all", authMiddleware, NotificationController.m
 router.delete("/account", authMiddleware, AccountController.deleteAccount);
 
 // Events and matching
+router.post("/events", authMiddleware, EventController.createEvent);
 router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
 router.get("/events/:eventId/attendees", authMiddleware, EventController.getEventAttendees);
 router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwipe);

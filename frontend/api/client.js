@@ -56,7 +56,20 @@ async function tryRefreshAndRetry(doRequest) {
       console.warn('[tryRefreshAndRetry] No access token in refresh response');
     }
     
-    // Note: we keep existing refresh token unless backend rotated; storing rotation is optional here
+    // CRITICAL: Save new refresh token - Supabase rotates refresh tokens for security
+    // If we don't save it, the next refresh will fail with "Already Used" error
+    if (newRefresh) {
+      console.log('[tryRefreshAndRetry] Got new refresh token, length:', newRefresh?.length);
+      const mod = await import('./auth');
+      if (mod.setRefreshToken) {
+        await mod.setRefreshToken(newRefresh);
+      } else {
+        console.warn('[tryRefreshAndRetry] setRefreshToken function not available');
+      }
+    } else {
+      console.warn('[tryRefreshAndRetry] No refresh token in response - using existing one');
+    }
+    
     return doRequest(newAccess);
   } catch (error) {
     console.error('[tryRefreshAndRetry] Error during refresh:', error.message);

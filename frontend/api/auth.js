@@ -119,6 +119,39 @@ export async function setAccessToken(token) {
   }
 }
 
+/**
+ * Update refresh token for current active account
+ * Called when tokens are refreshed
+ */
+export async function setRefreshToken(refreshToken) {
+  try {
+    const activeAccount = await accountManager.getActiveAccount();
+    
+    if (!refreshToken) {
+      console.warn('[setRefreshToken] Attempted to set null/empty refresh token - skipping');
+      return;
+    }
+    
+    // Log refresh token update for debugging
+    console.log('[setRefreshToken] Updating refresh token for account:', {
+      id: activeAccount?.id,
+      email: activeAccount?.email,
+      oldRefreshTokenLength: activeAccount?.refreshToken?.length,
+      newRefreshTokenLength: refreshToken?.length
+    });
+    
+    // Update active account
+    if (activeAccount) {
+      await accountManager.updateAccount(activeAccount.id, { refreshToken });
+    }
+    
+    // Also set old storage for backward compatibility
+    await AsyncStorage.setItem(KEY_REFRESH, refreshToken || '');
+  } catch (error) {
+    console.error('[setRefreshToken] Error updating refresh token:', error);
+  }
+}
+
 export async function setPendingOtp(flow, email, ttlSeconds = 600) {
   try {
     const expiresAt = Date.now() + ttlSeconds * 1000;

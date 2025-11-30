@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mockData } from '../../../data/mockData';
+import CreateEventModal from '../../../components/modals/CreateEventModal';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -19,6 +20,7 @@ const LIGHT_TEXT_COLOR = '#8E8E93';
 
 export default function CommunityDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [metrics, setMetrics] = useState({
     totalMembers: 1250,
     eventsHosted: 15,
@@ -47,7 +49,13 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   const handleCreateEvent = () => {
-    console.log('Navigate to create event');
+    setShowCreateEventModal(true);
+  };
+
+  const handleEventCreated = (event) => {
+    console.log('Event created:', event);
+    // Refresh dashboard metrics and events list
+    loadDashboard();
   };
 
   const handleCreatePost = () => {
@@ -182,6 +190,12 @@ export default function CommunityDashboardScreen({ navigation }) {
           />
         </View>
       </ScrollView>
+
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onEventCreated={handleEventCreated}
+      />
     </SafeAreaView>
   );
 }

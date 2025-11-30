@@ -179,6 +179,33 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       
+      -- Add missing columns to events table
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS banner_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS layout_data JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'in-person';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS virtual_link TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES communities(id);
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Add constraint for event_type
+      DO $$ BEGIN
+        ALTER TABLE events DROP CONSTRAINT IF EXISTS event_type_check;
+        ALTER TABLE events ADD CONSTRAINT event_type_check CHECK (event_type IN ('in-person', 'virtual', 'hybrid'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+      
       -- Event registrations
       CREATE TABLE IF NOT EXISTS event_registrations (
         id BIGSERIAL PRIMARY KEY,

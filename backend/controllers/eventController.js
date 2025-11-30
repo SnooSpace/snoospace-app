@@ -2,6 +2,83 @@ const { createPool } = require("../config/db");
 
 const pool = createPool();
 
+// Create a new event
+const createEvent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    // Only communities can create events
+    if (!userId || userType !== 'community') {
+      return res.status(403).json({ error: "Only communities can create events" });
+    }
+
+    const {
+      title,
+      description,
+      event_date,
+      location,
+      max_attendees,
+      banner_url,
+      event_type,
+      virtual_link,
+      venue_id
+    } = req.body;
+
+    // Validation
+    if (!title || !event_date) {
+      return res.status(400).json({ error: "Title and event date are required" });
+    }
+
+    if (event_type === 'virtual' && !virtual_link) {
+      return res.status(400).json({ error: "Virtual link required for virtual events" });
+    }
+
+    if ((event_type === 'in-person' || event_type === 'hybrid') && !location) {
+      return res.status(400).json({ error: "Location required for in-person/hybrid events" });
+    }
+
+    // Insert event
+    const query = `
+      INSERT INTO events (
+        community_id, title, description, event_date, location,
+        max_attendees, banner_url, event_type, virtual_link, venue_id,
+        created_by, is_published, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      RETURNING *
+    `;
+
+    const values = [
+      userId, // community_id
+      title,
+      description || null,
+      event_date,
+      location || null,
+      max_attendees || null,
+      banner_url || null,
+      event_type || 'in-person',
+      virtual_link || null,
+      venue_id || null,
+      userId, // created_by
+      true // is_published
+    ];
+
+    const result = await pool.query(query, values);
+
+    res.status(201).json({
+      success: true,
+      event: result.rows[0],
+      message: "Event created successfully"
+    });
+
+  } catch (error) {
+    console.error("Error creating event:", error);
+    res.status(500).json({ error: "Failed to create event" });
+  }
+};
+
+
 // Get events user is registered for (both past and upcoming)
 const getMyEvents = async (req, res) => {
   try {
@@ -337,6 +414,7 @@ const requestNextEvent = async (req, res) => {
 };
 
 module.exports = {
+  createEvent,
   getMyEvents,
   getEventAttendees,
   recordSwipe,
