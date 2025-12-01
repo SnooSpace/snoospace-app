@@ -14,6 +14,7 @@ const FollowController = require("../controllers/followController");
 const NotificationController = require("../controllers/notificationController");
 const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
+const UploadController = require("../controllers/uploadController");
 const CatalogController = require("../controllers/catalogController");
 const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
@@ -135,6 +136,12 @@ router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwip
 router.get("/events/:eventId/matches", authMiddleware, EventController.getEventMatches);
 router.post("/events/:eventId/request-next", authMiddleware, EventController.requestNextEvent);
 router.get("/events/community", authMiddleware, EventController.getCommunityEvents);
+
+// Upload (Cloudinary)
+router.post("/upload/event-banner", authMiddleware, UploadController.uploadEventBanner);
+router.post("/upload/event-gallery", authMiddleware, UploadController.uploadEventGallery);
+router.post("/upload/performer-photo", authMiddleware, UploadController.uploadPerformerPhoto);
+router.delete("/upload/:publicId", authMiddleware, UploadController.deleteUploadedImage);
 
 // Catalog
 router.get("/catalog/interests", authMiddleware, CatalogController.getInterests);
