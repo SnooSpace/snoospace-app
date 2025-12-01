@@ -41,11 +41,11 @@ const createEvent = async (req, res) => {
     // Insert event
     const query = `
       INSERT INTO events (
-        community_id, title, description, event_date, location,
+        community_id, title, description, start_datetime, end_datetime, location,
         max_attendees, banner_url, event_type, virtual_link, venue_id,
-        created_by, is_published, created_at
+        creator_id, is_published, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
       RETURNING *
     `;
 
@@ -54,13 +54,14 @@ const createEvent = async (req, res) => {
       title,
       description || null,
       event_date,
+      event_date, // end_datetime (same as start for now)
       location || null,
       max_attendees || null,
       banner_url || null,
       event_type || 'in-person',
       virtual_link || null,
       venue_id || null,
-      userId, // created_by
+      userId, // creator_id
       true // is_published
     ];
 

@@ -147,5 +147,3 @@ router.put("/messages/:messageId/read", authMiddleware, MessageController.markMe
 router.get("/messages/unread-count", authMiddleware, MessageController.getUnreadCount);
 
 module.exports = router;
-
-

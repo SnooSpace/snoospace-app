@@ -11,6 +11,15 @@ export async function createEvent(eventData) {
 }
 
 /**
+ * Get events created by the community (for Dashboard)
+ * @returns {Promise<Object>} List of community events
+ */
+export async function getCommunityEvents() {
+  const token = await (await import('./auth')).getAuthToken();
+  return apiGet('/events/community', 15000, token);
+}
+
+/**
  * Get events user is registered for
  * @returns {Promise<Object>} List of events
  */
