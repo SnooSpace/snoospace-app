@@ -95,7 +95,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       onPress={() => handleViewEvent(item)}
     >
       <Image
-        source={{ uri: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200' }}
+        source={{ uri: item.banner_url || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200' }}
         style={styles.eventImage}
       />
       <View style={styles.eventInfo}>
@@ -108,7 +108,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.eventStats}>
           <Ionicons name="people" size={12} color={LIGHT_TEXT_COLOR} />
           <Text style={styles.eventAttendees}>
-            {item.current_attendees} attendees
+            {item.current_attendees || 0} attendees
           </Text>
         </View>
       </View>
