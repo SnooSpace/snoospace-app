@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { uploadPerformerPhoto } from '../../api/upload';
+import { searchAccounts as searchAccountsAPI } from '../../api/search';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
@@ -54,7 +56,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
     setManualPhoto(null);
   };
 
-  const searchAccounts = async (query) => {
+  const handleSearchAccounts = async (query) => {
     if (query.length < 2) {
       setSearchResults([]);
       return;
@@ -62,8 +64,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
 
     setSearching(true);
     try {
-      const { searchAccounts: searchAPI } = await import('../../api/search');
-      const response = await searchAPI(query);
+      const response = await searchAccountsAPI(query);
       
       if (response?.results) {
         setSearchResults(response.results);
@@ -122,7 +123,6 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
 
     if (manualPhoto) {
       try {
-        const { uploadPerformerPhoto } = await import('../../api/upload');
         const uploadResult = await uploadPerformerPhoto(manualPhoto);
         photoUrl = uploadResult?.url;
         cloudinaryId = uploadResult?.public_id;
@@ -301,7 +301,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                 value={searchQuery}
                 onChangeText={(text) => {
                   setSearchQuery(text);
-                  searchAccounts(text);
+                  handleSearchAccounts(text);
                 }}
                 placeholder="Search by name or username..."
                 placeholderTextColor={LIGHT_TEXT_COLOR}

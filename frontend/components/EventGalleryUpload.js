@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { uploadEventGallery } from '../../api/upload';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
@@ -26,7 +27,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
   const pickImages = async () => {
     const remainingSlots = maxImages - images.length;
     
-    if (remainingSlots <= 0) {
+    if (remainingSlots <=0) {
       Alert.alert('Limit Reached', `You can upload up to ${maxImages} gallery images.`);
       return;
     }
@@ -43,7 +44,6 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
         setUploading(true);
 
         // Upload all selected images to Cloudinary
-        const { uploadEventGallery } = await import('../../api/upload');
         const imageUris = result.assets.map(asset => asset.uri);
         const uploadResult = await uploadEventGallery(imageUris);
 

@@ -173,7 +173,7 @@ const getCommunityEvents = async (req, res) => {
           END as account_name,
           CASE 
             WHEN fa.linked_account_type = 'member' THEN m.profile_photo_url
-            WHEN fa.linked_account_type = 'community' THEN c.profile_photo_url
+            WHEN fa.linked_account_type = 'community' THEN c.logo_url
             WHEN fa.linked_account_type = 'sponsor' THEN s.logo_url
             WHEN fa.linked_account_type = 'venue' THEN v.logo_url
             ELSE fa.profile_photo_url

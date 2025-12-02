@@ -1,4 +1,5 @@
 import { apiPost, apiGet } from './client';
+import { getAuthToken } from './auth';
 
 /**
  * Upload event banner to Cloudinary
@@ -6,7 +7,7 @@ import { apiPost, apiGet } from './client';
  * @returns {Promise<object>} Upload result with URL and public_id
  */
 export async function uploadEventBanner(imageUri) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await getAuthToken();
   
   // Convert image to base64
   const base64 = await fetch(imageUri)
@@ -27,7 +28,7 @@ export async function uploadEventBanner(imageUri) {
  * @returns {Promise<object>} Upload result with array of URLs and public_ids
  */
 export async function uploadEventGallery(imageUris) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await getAuthToken();
   
   // Convert all images to base64
   const base64Images = await Promise.all(
@@ -52,7 +53,7 @@ export async function uploadEventGallery(imageUris) {
  * @returns {Promise<object>} Upload result with URL and public_id
  */
 export async function uploadPerformerPhoto(imageUri) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await getAuthToken();
   
   const base64 = await fetch(imageUri)
     .then(res => res.blob())
@@ -72,6 +73,6 @@ export async function uploadPerformerPhoto(imageUri) {
  * @returns {Promise<object>} Deletion result
  */
 export async function deleteCloudinaryImage(publicId) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await getAuthToken();
   return apiPost(`/upload/${publicId}`, {}, 15000, token);
 }
