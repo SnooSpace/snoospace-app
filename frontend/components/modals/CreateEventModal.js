@@ -241,8 +241,11 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 mode="datetime"
                 is24Hour={false}
                 onChange={(event, selectedDate) => {
-                  setShowDatePicker(Platform.OS === 'ios');
-                  if (selectedDate) {
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                  }
+                  
+                  if (event.type === 'set' && selectedDate) {
                     setEventDate(selectedDate);
                     setEndDate(selectedDate);
                   }
@@ -283,8 +286,13 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 mode="time"
                 is24Hour={false}
                 onChange={(event, selectedDate) => {
-                  setShowGatesTimePicker(Platform.OS === 'ios');
-                  if (selectedDate) setGatesOpenTime(selectedDate);
+                  if (Platform.OS === 'android') {
+                    setShowGatesTimePicker(false);
+                  }
+                  
+                  if (event.type === 'set' && selectedDate) {
+                    setGatesOpenTime(selectedDate);
+                  }
                 }}
               />
             )}
