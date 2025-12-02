@@ -79,7 +79,7 @@ const createEvent = async (req, res) => {
   }
 };
 
-// Get events created by a community
+// Get events created by a community (with all related data)
 const getCommunityEvents = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -87,29 +87,126 @@ const getCommunityEvents = async (req, res) => {
     if (!userId || userType !== 'community') {
       return res.status(401).json({ error: "Authentication required" });
     }
-    const query = `
+    
+    // Get main events
+    const eventsQuery = `
       SELECT 
         e.id,
         e.title,
         e.description,
         e.start_datetime as event_date,
+        e.end_datetime,
+        e.gates_open_time,
+        e.schedule_description,
         e.location,
         e.max_attendees,
+        e.categories,
         e.banner_url,
+        e.cloudinary_banner_id,
         e.event_type,
+        e.virtual_link,
+        e.has_featured_accounts,
+        e.is_editable,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
-        (e.start_datetime < NOW()) as is_past
+        (e.start_datetime < NOW()) as is_past,
+        e.created_at
       FROM events e
       LEFT JOIN event_registrations er ON e.id = er.event_id
       WHERE e.creator_id = $1
       GROUP BY e.id
       ORDER BY e.start_datetime DESC
     `;
-    const result = await pool.query(query, [userId]);
+    
+    const eventsResult = await pool.query(eventsQuery, [userId]);
+    const events = eventsResult.rows;
+
+    // For each event, fetch related data
+    const eventsWithDetails = await Promise.all(events.map(async (event) => {
+      const eventId = event.id;
+
+      // Fetch gallery images
+      const galleryResult = await pool.query(
+        `SELECT id, image_url, cloudinary_public_id, image_order 
+         FROM event_gallery 
+         WHERE event_id = $1 
+         ORDER BY image_order ASC`,
+        [eventId]
+      );
+
+      // Fetch highlights
+      const highlightsResult = await pool.query(
+        `SELECT id, icon_name, title, description, highlight_order 
+         FROM event_highlights 
+         WHERE event_id = $1 
+         ORDER BY highlight_order ASC`,
+        [eventId]
+      );
+
+      // Fetch things to know
+      const thingsToKnowResult = await pool.query(
+        `SELECT id, preset_id, icon_name, label, item_order 
+         FROM event_things_to_know 
+         WHERE event_id = $1 
+         ORDER BY item_order ASC`,
+        [eventId]
+      );
+
+      // Fetch featured accounts with enriched data
+      const featuredAccountsQuery = `
+        SELECT 
+          fa.id,
+          fa.linked_account_id,
+          fa.linked_account_type,
+          fa.display_name,
+          fa.role,
+          fa.description,
+          fa.profile_photo_url,
+          fa.cloudinary_public_id,
+          fa.display_order,
+          -- Fetch data from linked accounts if applicable
+          CASE 
+            WHEN fa.linked_account_type = 'member' THEN m.name
+            WHEN fa.linked_account_type = 'community' THEN c.name
+            WHEN fa.linked_account_type = 'sponsor' THEN s.name
+            WHEN fa.linked_account_type = 'venue' THEN v.name
+            ELSE fa.display_name
+          END as account_name,
+          CASE 
+            WHEN fa.linked_account_type = 'member' THEN m.profile_photo_url
+            WHEN fa.linked_account_type = 'community' THEN c.profile_photo_url
+            WHEN fa.linked_account_type = 'sponsor' THEN s.profile_photo_url
+            WHEN fa.linked_account_type = 'venue' THEN v.profile_photo_url
+            ELSE fa.profile_photo_url
+          END as account_photo,
+          CASE 
+            WHEN fa.linked_account_type = 'member' THEN m.username
+            WHEN fa.linked_account_type = 'community' THEN c.username
+            WHEN fa.linked_account_type = 'sponsor' THEN s.username
+            WHEN fa.linked_account_type = 'venue' THEN v.username
+            ELSE NULL
+          END as account_username
+        FROM event_featured_accounts fa
+        LEFT JOIN members m ON fa.linked_account_id = m.id AND fa.linked_account_type = 'member'
+        LEFT JOIN communities c ON fa.linked_account_id = c.id AND fa.linked_account_type = 'community'
+        LEFT JOIN sponsors s ON fa.linked_account_id = s.id AND fa.linked_account_type = 'sponsor'
+        LEFT JOIN venues v ON fa.linked_account_id = v.id AND fa.linked_account_type = 'venue'
+        WHERE fa.event_id = $1
+        ORDER BY fa.display_order ASC
+      `;
+      const featuredAccountsResult = await pool.query(featuredAccountsQuery, [eventId]);
+
+      return {
+        ...event,
+        gallery: galleryResult.rows,
+        highlights: highlightsResult.rows,
+        things_to_know: thingsToKnowResult.rows,
+        featured_accounts: featuredAccountsResult.rows
+      };
+    }));
     
     res.json({
       success: true,
-      events: result.rows
+      events: eventsWithDetails
     });
   } catch (error) {
     console.error("Error getting community events:", error);
