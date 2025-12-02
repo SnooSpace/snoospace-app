@@ -69,7 +69,6 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(new Date());
 
   const stepLabels = [
     'Basic Info',
@@ -225,21 +224,32 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               placeholderTextColor={LIGHT_TEXT_COLOR}
             />
 
-            <Text style={styles.label}>Event Date & Time *</Text>
+            <Text style={styles.label}>Event Date *</Text>
             <TouchableOpacity
               style={styles.dateButton}
               onPress={() => setShowDatePicker(true)}
             >
               <Ionicons name="calendar-outline" size={20} color={PRIMARY_COLOR} />
               <Text style={styles.dateButtonText}>
-                {eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {eventDate.toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.label}>Event Time *</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={20} color={PRIMARY_COLOR} />
+              <Text style={styles.dateButtonText}>
+                {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </TouchableOpacity>
 
             {/* Date Picker */}
             {showDatePicker && (
               <DateTimePicker
-                value={tempDate}
+                value={eventDate}
                 mode="date"
                 is24Hour={false}
                 display="default"
@@ -247,11 +257,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   setShowDatePicker(false);
                   
                   if (event.type === 'set' && selectedDate) {
-                    setTempDate(selectedDate);
-                    // After date is selected, show time picker
-                    setTimeout(() => {
-                      setShowTimePicker(true);
-                    }, 100);
+                    // Preserve the time from eventDate
+                    const combined = new Date(selectedDate);
+                    combined.setHours(eventDate.getHours());
+                    combined.setMinutes(eventDate.getMinutes());
+                    setEventDate(combined);
+                    setEndDate(combined);
                   }
                 }}
               />
@@ -260,7 +271,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             {/* Time Picker */}
             {showTimePicker && (
               <DateTimePicker
-                value={tempDate}
+                value={eventDate}
                 mode="time"
                 is24Hour={false}
                 display="default"
@@ -268,8 +279,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   setShowTimePicker(false);
                   
                   if (event.type === 'set' && selectedDate) {
-                    // Combine date from tempDate with time from selectedDate
-                    const combined = new Date(tempDate);
+                    // Combine date from eventDate with time from selectedDate
+                    const combined = new Date(eventDate);
                     combined.setHours(selectedDate.getHours());
                     combined.setMinutes(selectedDate.getMinutes());
                     setEventDate(combined);
