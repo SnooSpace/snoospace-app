@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadPerformerPhoto } from '../../api/upload';
-import { searchAccounts as searchAccountsAPI } from '../../api/search';
+import { uploadPerformerPhoto } from '../api/upload';
+import { searchAccounts as searchAccountsAPI } from '../api/search';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
