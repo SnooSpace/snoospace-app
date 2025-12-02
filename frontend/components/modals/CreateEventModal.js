@@ -69,6 +69,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
 
   const stepLabels = [
     'Basic Info',
@@ -235,19 +236,44 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               </Text>
             </TouchableOpacity>
 
+            {/* Date Picker */}
             {showDatePicker && (
               <DateTimePicker
-                value={eventDate}
-                mode="datetime"
+                value={tempDate}
+                mode="date"
                 is24Hour={false}
+                display="default"
                 onChange={(event, selectedDate) => {
-                  if (Platform.OS === 'android') {
-                    setShowDatePicker(false);
-                  }
+                  setShowDatePicker(false);
                   
                   if (event.type === 'set' && selectedDate) {
-                    setEventDate(selectedDate);
-                    setEndDate(selectedDate);
+                    setTempDate(selectedDate);
+                    // After date is selected, show time picker
+                    setTimeout(() => {
+                      setShowTimePicker(true);
+                    }, 100);
+                  }
+                }}
+              />
+            )}
+
+            {/* Time Picker */}
+            {showTimePicker && (
+              <DateTimePicker
+                value={tempDate}
+                mode="time"
+                is24Hour={false}
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowTimePicker(false);
+                  
+                  if (event.type === 'set' && selectedDate) {
+                    // Combine date from tempDate with time from selectedDate
+                    const combined = new Date(tempDate);
+                    combined.setHours(selectedDate.getHours());
+                    combined.setMinutes(selectedDate.getMinutes());
+                    setEventDate(combined);
+                    setEndDate(combined);
                   }
                 }}
               />
@@ -285,10 +311,9 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 value={gatesOpenTime || new Date()}
                 mode="time"
                 is24Hour={false}
+                display="default"
                 onChange={(event, selectedDate) => {
-                  if (Platform.OS === 'android') {
-                    setShowGatesTimePicker(false);
-                  }
+                  setShowGatesTimePicker(false);
                   
                   if (event.type === 'set' && selectedDate) {
                     setGatesOpenTime(selectedDate);
