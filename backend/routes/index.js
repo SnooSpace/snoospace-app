@@ -153,4 +153,7 @@ router.post("/messages", authMiddleware, MessageController.sendMessage);
 router.put("/messages/:messageId/read", authMiddleware, MessageController.markMessageRead);
 router.get("/messages/unread-count", authMiddleware, MessageController.getUnreadCount);
 
+// Search
+router.get("/search/accounts", authMiddleware, SearchController.searchAccounts);
+
 module.exports = router;

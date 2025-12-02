@@ -279,5 +279,64 @@ async function globalSearch(req, res) {
   }
 }
 
-module.exports = { globalSearch };
+/**
+ * Search accounts for linking to events
+ * Searches across members, communities, sponsors, venues
+ */
+const searchAccounts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'community') {
+      return res.status(403).json({ error: "Only communities can search accounts" });
+    }
+
+    const { q: query, types } = req.query;
+
+    if (!query || query.length < 2) {
+      return res.status(400).json({ error: "Search query must be at least 2 characters" });
+    }
+
+    const allowedTypes = types ? types.split(',') : ['member', 'community', 'sponsor', 'venue'];
+    const searchTerm = `%${query}%`;
+    const results = [];
+
+    // Search Members (DJs, performers)
+    if (allowedTypes.includes('member')) {
+      const memberResult = await MemberController.searchMembers(searchTerm, userId);
+      results.push(...memberResult.map(m => ({ ...m, type: 'member' })));
+    }
+
+    // Search Communities
+    if (allowedTypes.includes('community')) {
+      const communityResult = await CommunityController.searchCommunities(searchTerm, userId);
+      results.push(...communityResult.map(c => ({ ...c, type: 'community' })));
+    }
+
+    // Search Sponsors
+    if (allowedTypes.includes('sponsor')) {
+      const sponsorResult = await SponsorController.searchSponsors(searchTerm);
+      results.push(...sponsorResult.map(s => ({ ...s, type: 'sponsor' })));
+    }
+
+    // Search Venues
+    if (allowedTypes.includes('venue')) {
+      const venueResult = await VenueController.searchVenues(searchTerm);
+      results.push(...venueResult.map(v => ({ ...v, type: 'venue' })));
+    }
+
+    res.json({
+      success: true,
+      results: results.slice(0, 20), // Limit to 20 results
+      count: results.length
+    });
+
+  } catch (error) {
+    console.error("Error searching accounts:", error);
+    res.status(500).json({ error: "Failed to search accounts" });
+  }
+};
+
+module.exports = { globalSearch, searchAccounts };
 
