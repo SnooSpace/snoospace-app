@@ -85,6 +85,7 @@ export async function addAccount(accountData) {
       refreshToken: accountData.refreshToken ? await encryptToken(accountData.refreshToken) : null,
       unreadCount: accountData.unreadCount || 0,
       lastActive: Date.now(),
+      isLoggedIn: accountData.isLoggedIn !== undefined ? accountData.isLoggedIn : true, // Default to logged in
     };
     
     let updatedAccounts;
@@ -168,20 +169,67 @@ export async function switchAccount(accountId) {
 }
 
 /**
+ * Logout current account and switch to next available logged-in account
+ * Returns: { switchToAccount, navigateToLanding }
+ */
+export async function logoutCurrentAccount() {
+  try {
+    const activeAccount = await getActiveAccount();
+    if (!activeAccount) {
+      return { switchToAccount: null, navigateToLanding: true };
+    }
+
+    const accounts = await getAllAccounts();
+    const accountIdStr = String(activeAccount.id);
+
+    // Mark current account as logged out
+    await updateAccount(accountIdStr, { isLoggedIn: false });
+
+    // Find next available logged-in account
+    const nextAccount = accounts.find(
+      (acc) => String(acc.id) !== accountIdStr && acc.isLoggedIn !== false
+    );
+
+    if (nextAccount) {
+      // Switch to next account
+      await switchAccount(nextAccount.id);
+      return { switchToAccount: nextAccount, navigateToLanding: false };
+    }
+
+    // No other logged-in accounts available
+    return { switchToAccount: null, navigateToLanding: true };
+  } catch (error) {
+    console.error('[logoutCurrentAccount] Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Remove account
+ * Prevents removing currently logged-in account
  */
 export async function removeAccount(accountId) {
   try {
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
+    const activeAccount = await getActiveAccount();
+
+    // Prevent removing currently logged-in account
+    if (activeAccount && String(activeAccount.id) === accountIdStr && activeAccount.isLoggedIn !== false) {
+      throw new Error('Cannot remove currently logged-in account. Please logout first.');
+    }
+
     const updatedAccounts = accounts.filter((acc) => String(acc.id) !== accountIdStr);
     
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
     
-    // If removing active account, switch to first available
+    // If removing active account, switch to first available logged-in account
     const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
     if (String(activeId) === accountIdStr) {
-      if (updatedAccounts.length > 0) {
+      const nextLoggedIn = updatedAccounts.find(acc => acc.isLoggedIn !== false);
+      if (nextLoggedIn) {
+        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, String(nextLoggedIn.id));
+      } else if (updatedAccounts.length > 0) {
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, String(updatedAccounts[0].id));
       } else {
         await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
@@ -321,4 +369,5 @@ export default {
   updateUnreadCount,
   clearAllAccounts,
   migrateExistingUser,
+  logoutCurrentAccount,
 };

@@ -75,19 +75,30 @@ export async function getRefreshToken() {
 }
 
 /**
- * Clear auth session for current active account only
+ * Clear auth session for current active account
+ * If multiple accounts exist, marks current as logged out instead of removing
  * Use clearAllAccounts() to logout all accounts
  */
 export async function clearAuthSession() {
   try {
+    const allAccounts = await accountManager.getAllAccounts();
     const activeAccount = await accountManager.getActiveAccount();
+    
     if (activeAccount) {
-      await accountManager.removeAccount(activeAccount.id);
+      // If multiple accounts exist, just mark as logged out
+      if (allAccounts.length > 1) {
+        await accountManager.updateAccount(activeAccount.id, { isLoggedIn: false });
+      } else {
+        // Single account - remove it
+        await accountManager.removeAccount(activeAccount.id);
+      }
     }
     
     // Also clear old storage
     await AsyncStorage.multiRemove([KEY_TOKEN, KEY_EMAIL, KEY_REFRESH]);
-  } catch {}
+  } catch (error) {
+    console.error('[clearAuthSession] Error:', error);
+  }
 }
 
 export async function setAccessToken(token) {
@@ -209,6 +220,13 @@ export async function switchAccount(accountId) {
  */
 export async function addAccount(accountData) {
   return await accountManager.addAccount(accountData);
+}
+
+/**
+ * Logout current account and switch to next available
+ */
+export async function logoutCurrentAccount() {
+  return await accountManager.logoutCurrentAccount();
 }
 
 /**

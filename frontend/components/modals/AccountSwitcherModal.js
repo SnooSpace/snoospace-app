@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import PropTypes from 'prop-types';
 import { getAllAccounts, switchAccount, validateToken } from '../../api/auth';
+import * as accountManager from '../../utils/accountManager';
 
 /**
  * Account Switcher Modal - Instagram-style
@@ -23,6 +24,7 @@ export default function AccountSwitcherModal({
   onClose,
   onAccountSwitch,
   onAddAccount,
+  onLoginRequired, // Callback when logged-out account is clicked
   currentAccountId,
   currentProfile, // Add this prop to get current user data
 }) {
@@ -86,6 +88,15 @@ export default function AccountSwitcherModal({
       return;
     }
 
+    // Check if account is logged out
+    if (account.isLoggedIn === false) {
+      onClose();
+      if (onLoginRequired) {
+        onLoginRequired(account);
+      }
+      return;
+    }
+
     try {
       setSwitchingTo(account.id);
       
@@ -122,40 +133,79 @@ export default function AccountSwitcherModal({
     }
   }
 
+  async function handleRemoveAccount(account) {
+    Alert.alert(
+      'Remove Account',
+      `Remove @${account.username} from your accounts?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await accountManager.removeAccount(account.id);
+              loadAccounts(); // Refresh the list
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Failed to remove account');
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function renderAccountItem({ item }) {
     // Convert both to strings for comparison (IDs can be string or number)
     const isActive = String(item.id) === String(currentAccountId);
     const isSwitching = switchingTo === item.id;
+    const isLoggedOut = item.isLoggedIn === false;
+    const canRemove = !isActive || isLoggedOut;
 
     return (
-      <TouchableOpacity
-        style={styles.accountRow}
-        onPress={() => handleSwitchAccount(item)}
-        disabled={isSwitching}
-      >
-        <Image
-          source={{ uri: item.profilePicture || 'https://via.placeholder.com/50' }}
-          style={styles.avatar}
-        />
-        
-        <View style={styles.accountInfo}>
-          <Text style={styles.username}>{item.username}</Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.badgeContainer}>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.unreadCount}</Text>
+      <View style={styles.accountRowContainer}>
+        <TouchableOpacity
+          style={[styles.accountRow, isLoggedOut && styles.accountRowLoggedOut]}
+          onPress={() => handleSwitchAccount(item)}
+          disabled={isSwitching}
+        >
+          <Image
+            source={{ uri: item.profilePicture || 'https://via.placeholder.com/50' }}
+            style={[styles.avatar, isLoggedOut && styles.avatarLoggedOut]}
+          />
+          
+          <View style={styles.accountInfo}>
+            <Text style={[styles.username, isLoggedOut && styles.usernameLoggedOut]}>
+              {item.username}
+            </Text>
+            {isLoggedOut ? (
+              <Text style={styles.loginRequired}>Tap to log in</Text>
+            ) : item.unreadCount > 0 ? (
+              <View style={styles.badgeContainer}>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{item.unreadCount}</Text>
+                </View>
+                <Text style={styles.badgeLabel}>notifications</Text>
               </View>
-              <Text style={styles.badgeLabel}>notifications</Text>
-            </View>
-          )}
-        </View>
+            ) : null}
+          </View>
 
-        {isSwitching ? (
-          <ActivityIndicator size="small" color="#0095F6" />
-        ) : isActive ? (
-          <Ionicons name="checkmark-circle" size={24} color="#0095F6" />
-        ) : null}
-      </TouchableOpacity>
+          {isSwitching ? (
+            <ActivityIndicator size="small" color="#0095F6" />
+          ) : isActive && !isLoggedOut ? (
+            <Ionicons name="checkmark-circle" size={24} color="#0095F6" />
+          ) : null}
+        </TouchableOpacity>
+        
+        {canRemove && (
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={() => handleRemoveAccount(item)}
+          >
+            <Ionicons name="close-circle" size={22} color="#FF3B30" />
+          </TouchableOpacity>
+        )}
+      </View>
     );
   }
 
@@ -258,17 +308,30 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
   },
+  accountRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
   accountRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 4,
     gap: 12,
+  },
+  accountRowLoggedOut: {
+    opacity: 0.6,
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
     backgroundColor: '#E5E5EA',
+  },
+  avatarLoggedOut: {
+    opacity: 0.5,
   },
   accountInfo: {
     flex: 1,
@@ -277,6 +340,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1D1D1F',
+  },
+  usernameLoggedOut: {
+    color: '#8E8E93',
+  },
+  loginRequired: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginTop: 2,
   },
   badgeContainer: {
     flexDirection: 'row',
@@ -336,6 +407,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#8E8E93',
   },
+  removeButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
 });
 
 AccountSwitcherModal.propTypes = {
@@ -343,6 +418,7 @@ AccountSwitcherModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onAccountSwitch: PropTypes.func,
   onAddAccount: PropTypes.func.isRequired,
+  onLoginRequired: PropTypes.func, // Called when logged-out account is clicked
   currentAccountId: PropTypes.string,
   currentProfile: PropTypes.object, // Current user profile data
 };

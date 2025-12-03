@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken, getAuthEmail } from '../../../api/auth';
+import { clearAuthSession, getAuthToken, getAuthEmail, logoutCurrentAccount, clearAllAccounts, getAllAccounts } from '../../../api/auth';
 import { deleteAccount as apiDeleteAccount } from '../../../api/account';
 import { apiGet, apiPost, apiDelete } from '../../../api/client';
 import { getCommunityProfile, updateCommunityProfile, updateCommunityHeads } from '../../../api/communities';
@@ -33,6 +33,7 @@ import CommentsModal from '../../../components/CommentsModal';
 import SettingsModal from '../../../components/modals/SettingsModal';
 import AccountSwitcherModal from '../../../components/modals/AccountSwitcherModal';
 import AddAccountModal from '../../../components/modals/AddAccountModal';
+import LogoutModal from '../../../components/modals/LogoutModal';
 import EventBus from '../../../utils/EventBus';
 import MentionTextRenderer from '../../../components/MentionTextRenderer';
 
@@ -62,6 +63,8 @@ export default function CommunityProfileScreen({ navigation }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutModalData, setLogoutModalData] = useState({ hasMultiple: false, currentAccount: null });
   const [deleteInput, setDeleteInput] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [headsModalVisible, setHeadsModalVisible] = useState(false);
@@ -359,40 +362,102 @@ export default function CommunityProfileScreen({ navigation }) {
     }
   }, []);
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setShowSettingsModal(false);
-              await clearAuthSession();
-              await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-              let rootNavigator = navigation;
-              if (navigation.getParent) {
-                const parent = navigation.getParent();
-                if (parent) {
-                  rootNavigator = parent.getParent ? parent.getParent() : parent;
-                }
-              }
-              rootNavigator.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Landing' }],
-                })
-              );
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout properly');
-            }
-          },
-        },
-      ]
+  const handleLogout = async () => {
+    try {
+      const allAccounts = await getAllAccounts();
+      const loggedInAccounts = allAccounts.filter(acc => acc.isLoggedIn !== false);
+      const currentAccount = allAccounts.find(acc => String(acc.id) === String(profile?.id));
+      
+      setLogoutModalData({
+        hasMultiple: loggedInAccounts.length > 1,
+        currentAccount: currentAccount || profile,
+      });
+      setShowLogoutModal(true);
+    } catch (error) {
+      console.error('Error preparing logout:', error);
+      performLogout(true);
+    }
+  };
+
+  const navigateToAccountHome = (accountType) => {
+    let rootNavigator = navigation;
+    if (navigation.getParent) {
+      const parent = navigation.getParent();
+      if (parent) {
+        rootNavigator = parent.getParent ? parent.getParent() : parent;
+      }
+    }
+    
+    const routeMap = {
+      member: 'MemberHome',
+      community: 'CommunityHome',
+      sponsor: 'SponsorHome',
+      venue: 'VenueHome',
+    };
+    
+    const routeName = routeMap[accountType] || 'Landing';
+    console.log('[CommunityProfile] Navigating to:', routeName, 'for account type:', accountType);
+    
+    rootNavigator.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: routeName }],
+      })
     );
+  };
+
+  const performLogout = async (logoutAll = false) => {
+    try {
+      setShowSettingsModal(false);
+      setShowLogoutModal(false);
+
+      if (logoutAll) {
+        console.log('[CommunityProfile] Logging out all accounts');
+        await clearAllAccounts();
+        await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
+        
+        let rootNavigator = navigation;
+        if (navigation.getParent) {
+          const parent = navigation.getParent();
+          if (parent) {
+            rootNavigator = parent.getParent ? parent.getParent() : parent;
+          }
+        }
+        
+        rootNavigator.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Landing' }],
+          })
+        );
+      } else {
+        console.log('[CommunityProfile] Logging out current account');
+        const { switchToAccount, navigateToLanding } = await logoutCurrentAccount();
+        
+        if (navigateToLanding) {
+          console.log('[CommunityProfile] No other logged-in accounts, navigating to landing');
+          let rootNavigator = navigation;
+          if (navigation.getParent) {
+            const parent = navigation.getParent();
+            if (parent) {
+              rootNavigator = parent.getParent ? parent.getParent() : parent;
+            }
+          }
+          
+          rootNavigator.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Landing' }],
+            })
+          );
+        } else if (switchToAccount) {
+          console.log('[CommunityProfile] Switching to account:', switchToAccount.type, switchToAccount.username);
+          navigateToAccountHome(switchToAccount.type);
+        }
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to logout properly');
+    }
   };
 
   const handleBannerAction = () => {
@@ -781,6 +846,15 @@ export default function CommunityProfileScreen({ navigation }) {
         onDeleteAccountPress={() => setShowDeleteModal(true)}
         textColor={TEXT_COLOR}
         lightTextColor={LIGHT_TEXT_COLOR}
+      />
+
+      <LogoutModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onLogoutCurrent={() => performLogout(false)}
+        onLogoutAll={() => performLogout(true)}
+        currentAccount={logoutModalData.currentAccount}
+        hasMultipleAccounts={logoutModalData.hasMultiple}
       />
 
       <Modal

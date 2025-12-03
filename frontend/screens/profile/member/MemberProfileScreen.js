@@ -24,7 +24,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { clearAuthSession, getAuthToken } from "../../../api/auth";
+import { clearAuthSession, getAuthToken, logoutCurrentAccount, clearAllAccounts, getAllAccounts } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import {
@@ -38,6 +38,7 @@ import CommentsModal from "../../../components/CommentsModal";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
+import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -66,6 +67,8 @@ export default function MemberProfileScreen({ navigation }) {
   const [deleting, setDeleting] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutModalData, setLogoutModalData] = useState({ hasMultiple: false, currentAccount: null });
   // Combine comments modal state into one object to reduce state updates
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
@@ -260,56 +263,116 @@ export default function MemberProfileScreen({ navigation }) {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Close settings modal first
-            setShowSettingsModal(false);
+  const handleLogout = async () => {
+    try {
+      const allAccounts = await getAllAccounts();
+      const loggedInAccounts = allAccounts.filter(acc => acc.isLoggedIn !== false);
+      const currentAccount = allAccounts.find(acc => String(acc.id) === String(profile?.id));
+      
+      setLogoutModalData({
+        hasMultiple: loggedInAccounts.length > 1,
+        currentAccount: currentAccount || profile,
+      });
+      setShowLogoutModal(true);
+    } catch (error) {
+      console.error('Error preparing logout:', error);
+      // Fallback to simple logout
+      performLogout(true);
+    }
+  };
 
-            // Clear all authentication data
-            await clearAuthSession();
-            await AsyncStorage.multiRemove([
-              "accessToken",
-              "userData",
-              "auth_token",
-              "auth_email",
-              "pending_otp",
-            ]);
+  const navigateToAccountHome = (accountType) => {
+    let rootNavigator = navigation;
+    if (navigation.getParent) {
+      const parent = navigation.getParent();
+      if (parent) {
+        rootNavigator = parent.getParent ? parent.getParent() : parent;
+      }
+    }
+    
+    const routeMap = {
+      member: 'MemberHome',
+      community: 'CommunityHome',
+      sponsor: 'SponsorHome',
+      venue: 'VenueHome',
+    };
+    
+    const routeName = routeMap[accountType] || 'Landing';
+    console.log('[MemberProfile] Navigating to:', routeName, 'for account type:', accountType);
+    
+    rootNavigator.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: routeName }],
+      })
+    );
+  };
 
-            // Get the root navigator by going up the navigation hierarchy
-            let rootNavigator = navigation;
+  const performLogout = async (logoutAll = false) => {
+    try {
+      // Close modals first
+      setShowSettingsModal(false);
+      setShowLogoutModal(false);
 
-            // Try to get parent navigator (go up from MemberProfileScreen to MemberBottomTabNavigator)
-            if (navigation.getParent) {
-              const parent = navigation.getParent();
-              if (parent) {
-                // Go up one more level (from MemberBottomTabNavigator to AppNavigator)
-                rootNavigator = parent.getParent ? parent.getParent() : parent;
-              }
-            }
-
-            // Reset navigation stack to Landing using root navigator
-            rootNavigator.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: "Landing" }],
-              })
-            );
-          } catch (error) {
-            console.error("Error during logout:", error);
-            Alert.alert("Error", "Failed to logout properly");
+      if (logoutAll) {
+        // Logout all accounts
+        console.log('[MemberProfile] Logging out all accounts');
+        await clearAllAccounts();
+        await AsyncStorage.multiRemove([
+          "accessToken",
+          "userData",
+          "auth_token",
+          "auth_email",
+          "pending_otp",
+        ]);
+        
+        // Navigate to landing
+        let rootNavigator = navigation;
+        if (navigation.getParent) {
+          const parent = navigation.getParent();
+          if (parent) {
+            rootNavigator = parent.getParent ? parent.getParent() : parent;
           }
-        },
-      },
-    ]);
+        }
+        
+        rootNavigator.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "Landing" }],
+          })
+        );
+      } else {
+        // Logout current account only
+        console.log('[MemberProfile] Logging out current account');
+        const { switchToAccount, navigateToLanding } = await logoutCurrentAccount();
+        
+        if (navigateToLanding) {
+          console.log('[MemberProfile] No other logged-in accounts, navigating to landing');
+          // No other logged-in accounts
+          let rootNavigator = navigation;
+          if (navigation.getParent) {
+            const parent = navigation.getParent();
+            if (parent) {
+              rootNavigator = parent.getParent ? parent.getParent() : parent;
+            }
+          }
+          
+          rootNavigator.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "Landing" }],
+            })
+          );
+        } else if (switchToAccount) {
+          console.log('[MemberProfile] Switching to account:', switchToAccount.type, switchToAccount.username);
+          // Navigate to the appropriate screen for the account type
+          navigateToAccountHome(switchToAccount.type);
+        }
+      }
+    } catch (error) {
+      console.error("Error during logout:", error);
+      Alert.alert("Error", "Failed to logout properly");
+    }
   };
 
   const openPostModal = (post) => {
@@ -1243,6 +1306,14 @@ export default function MemberProfileScreen({ navigation }) {
         onAddAccount={() => {
           setShowAddAccountModal(true);
         }}
+        onLoginRequired={(account) => {
+          // Navigate to login with pre-filled email
+          setShowAccountSwitcher(false);
+          navigation.navigate('Login', { 
+            prefillEmail: account.email,
+            isAddingAccount: false,
+          });
+        }}
       />
 
       <AddAccountModal
@@ -1273,6 +1344,15 @@ export default function MemberProfileScreen({ navigation }) {
         onDeleteAccountPress={() => setShowDeleteModal(true)}
         textColor={TEXT_COLOR}
         lightTextColor={LIGHT_TEXT_COLOR}
+      />
+
+      <LogoutModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onLogoutCurrent={() => performLogout(false)}
+        onLogoutAll={() => performLogout(true)}
+        currentAccount={logoutModalData.currentAccount}
+        hasMultipleAccounts={logoutModalData.hasMultiple}
       />
 
       {/* Delete Account Modal */}
