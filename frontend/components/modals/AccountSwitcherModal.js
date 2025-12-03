@@ -92,10 +92,9 @@ export default function AccountSwitcherModal({
     if (account.isLoggedIn === false) {
       console.log('[AccountSwitcher] Account is logged out, navigating to login');
       onClose();
+      // Directly call onLoginRequired without showing an alert
       if (onLoginRequired) {
         onLoginRequired(account);
-      } else {
-        Alert.alert('Login Required', 'This account is logged out. Please log in again.');
       }
       return;
     }
@@ -136,8 +135,6 @@ export default function AccountSwitcherModal({
         onClose();
         if (onLoginRequired) {
           onLoginRequired(account);
-        } else {
-          Alert.alert('Login Required', error.message);
         }
       } else {
         Alert.alert('Error', 'Failed to switch account. Please try again.');

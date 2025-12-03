@@ -1307,12 +1307,34 @@ export default function MemberProfileScreen({ navigation }) {
           setShowAddAccountModal(true);
         }}
         onLoginRequired={(account) => {
-          // Navigate to login with pre-filled email
+          // Navigate to login with pre-filled email using root navigator
           setShowAccountSwitcher(false);
-          navigation.navigate('Login', { 
-            prefillEmail: account.email,
-            isAddingAccount: false,
-          });
+          
+          // Get root navigator to ensure we can navigate to Login
+          let rootNavigator = navigation;
+          if (navigation.getParent) {
+            const parent = navigation.getParent();
+            if (parent) {
+              rootNavigator = parent.getParent ? parent.getParent() : parent;
+            }
+          }
+          
+          console.log('[MemberProfile] Navigating to Login for logged-out account:', account.email);
+          
+          // Navigate to Login screen
+          try {
+            rootNavigator.navigate('Login', { 
+              prefillEmail: account.email,
+              isAddingAccount: false,
+            });
+          } catch (error) {
+            console.error('[MemberProfile] Failed to navigate to Login:', error);
+            // Fallback: reset to Landing which has Login
+            rootNavigator.reset({
+              index: 0,
+              routes: [{ name: 'Landing' }],
+            });
+          }
         }}
       />
 
