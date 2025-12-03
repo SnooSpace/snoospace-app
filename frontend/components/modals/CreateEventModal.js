@@ -24,6 +24,7 @@ import RichTextEditor from '../RichTextEditor';
 import HighlightsEditor from '../HighlightsEditor';
 import FeaturedAccountsEditor from '../FeaturedAccountsEditor';
 import ThingsToKnowEditor from '../ThingsToKnowEditor';
+import LocationPicker from '../LocationPicker/LocationPicker';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
@@ -44,7 +45,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [gatesOpenTime, setGatesOpenTime] = useState(null);
   const [hasGates, setHasGates] = useState(false);
   const [eventType, setEventType] = useState('in-person');
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState(null);
   const [virtualLink, setVirtualLink] = useState('');
   const [maxAttendees, setMaxAttendees] = useState('');
   const [categories, setCategories] = useState([]);
@@ -69,6 +70,9 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
+  
+  // Location picker state
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const stepLabels = [
     'Basic Info',
@@ -88,7 +92,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setGatesOpenTime(null);
     setHasGates(false);
     setEventType('in-person');
-    setLocation('');
+    setLocation(null);
     setVirtualLink('');
     setMaxAttendees('');
     setCategories([]);
@@ -111,7 +115,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           Alert.alert('Required', 'Virtual link is required for virtual events');
           return false;
         }
-        if ((eventType === 'in-person' || eventType === 'hybrid') && !location.trim()) {
+        if ((eventType === 'in-person' || eventType === 'hybrid') && !location) {
           Alert.alert('Required', 'Location is required for in-person/hybrid events');
           return false;
         }
@@ -170,7 +174,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         end_date: endDate.toISOString(),
         gates_open_time: hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
         event_type: eventType,
-        location: location.trim() || null,
+        location: location || null,
         virtual_link: virtualLink.trim() || null,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
         categories,
@@ -359,13 +363,22 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             {(eventType === 'in-person' || eventType === 'hybrid') && (
               <>
                 <Text style={styles.label}>Location *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={location}
-                  onChangeText={setLocation}
-                  placeholder="Event location..."
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                />
+                <TouchableOpacity
+                  style={styles.locationButton}
+                  onPress={() => setShowLocationPicker(true)}
+                >
+                  <Ionicons name="location-outline" size={20} color={PRIMARY_COLOR} />
+                  <Text style={styles.locationButtonText}>
+                    {location?.address || 'Select Event Location'}
+                  </Text>
+                </TouchableOpacity>
+                {location && (
+                  <Text style={styles.locationDetail}>
+                    {[location.city, location.state, location.country]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </Text>
+                )}
               </>
             )}
 
@@ -572,6 +585,25 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           )}
         </View>
       </View>
+
+      {/* Location Picker Modal */}
+      {showLocationPicker && (
+        <Modal
+          visible={showLocationPicker}
+          animationType="slide"
+          onRequestClose={() => setShowLocationPicker(false)}
+        >
+          <LocationPicker
+            businessName={title || 'Event'}
+            initialLocation={location}
+            onLocationSelected={(selectedLocation) => {
+              setLocation(selectedLocation);
+              setShowLocationPicker(false);
+            }}
+            onCancel={() => setShowLocationPicker(false)}
+          />
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -771,6 +803,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+  },
+  locationButtonText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: TEXT_COLOR,
+    flex: 1,
+  },
+  locationDetail: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 6,
+    marginLeft: 12,
   },
 });
 
