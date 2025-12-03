@@ -88,11 +88,14 @@ export default function AccountSwitcherModal({
       return;
     }
 
-    // Check if account is logged out
+    // Check if account is logged out - navigate to login instead of switching
     if (account.isLoggedIn === false) {
+      console.log('[AccountSwitcher] Account is logged out, navigating to login');
       onClose();
       if (onLoginRequired) {
         onLoginRequired(account);
+      } else {
+        Alert.alert('Login Required', 'This account is logged out. Please log in again.');
       }
       return;
     }
@@ -112,7 +115,7 @@ export default function AccountSwitcherModal({
         // Continue anyway - the actual API calls will fail if token is truly invalid
       }
 
-      // Switch account
+      // Switch account - this will throw if account is logged out
       await switchAccount(account.id);
       
       // Navigate to correct screen FIRST (before closing modal)
@@ -127,7 +130,18 @@ export default function AccountSwitcherModal({
       onClose();
     } catch (error) {
       console.error('Error switching account:', error);
-      Alert.alert('Error', 'Failed to switch account. Please try again.');
+      
+      // If it's a logged-out account error, navigate to login
+      if (error.message && error.message.includes('logged out')) {
+        onClose();
+        if (onLoginRequired) {
+          onLoginRequired(account);
+        } else {
+          Alert.alert('Login Required', error.message);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to switch account. Please try again.');
+      }
     } finally {
       setSwitchingTo(null);
     }

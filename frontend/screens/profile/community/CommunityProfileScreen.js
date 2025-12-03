@@ -830,6 +830,58 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
       </ScrollView>
 
+      <AccountSwitcherModal
+        visible={showAccountSwitcher}
+        onClose={() => setShowAccountSwitcher(false)}
+        currentAccountId={String(profile?.id)}
+        currentProfile={profile}
+        onAccountSwitch={(account) => {
+          const routeMap = {
+            member: 'MemberHome',
+            community: 'CommunityHome',
+            sponsor: 'SponsorHome',
+            venue: 'VenueHome',
+          };
+          const routeName = routeMap[account.type] || 'Landing';
+          let rootNavigator = navigation;
+          if (navigation.getParent) {
+            const parent = navigation.getParent();
+            if (parent) {
+              rootNavigator = parent.getParent ? parent.getParent() : parent;
+            }
+          }
+          console.log('[CommunityProfile AccountSwitch] Resetting to:', routeName);
+          rootNavigator.reset({
+            index: 0,
+            routes: [{ name: routeName }],
+          });
+        }}
+        onAddAccount={() => {
+          setShowAddAccountModal(true);
+        }}
+        onLoginRequired={(account) => {
+          // Navigate to login with pre-filled email
+          setShowAccountSwitcher(false);
+          navigation.navigate('Login', { 
+            prefillEmail: account.email,
+            isAddingAccount: false,
+          });
+        }}
+      />
+
+      <AddAccountModal
+        visible={showAddAccountModal}
+        onClose={() => setShowAddAccountModal(false)}
+        onLoginExisting={() => {
+          // Navigate to login with isAddingAccount flag
+          navigation.navigate('Login', { isAddingAccount: true });
+        }}
+        onCreateNew={() => {
+          // Navigate to signup landing
+          navigation.navigate('Landing');
+        }}
+      />
+
       <SettingsModal
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}

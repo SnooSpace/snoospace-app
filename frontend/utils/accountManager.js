@@ -115,6 +115,7 @@ export async function addAccount(accountData) {
 
 /**
  * Switch to different account
+ * Validates that target account is logged in before switching
  */
 export async function switchAccount(accountId) {
   try {
@@ -128,10 +129,17 @@ export async function switchAccount(accountId) {
       throw new Error('Account not found');
     }
     
+    // Check if account is logged out
+    if (account.isLoggedIn === false) {
+      console.error('[switchAccount] Cannot switch to logged-out account');
+      throw new Error('This account is logged out. Please log in again.');
+    }
+    
     console.log('[switchAccount] Found account:', { 
       id: account.id, 
       email: account.email, 
       type: account.type,
+      isLoggedIn: account.isLoggedIn,
       tokenLength: account.authToken?.length,
       refreshTokenLength: account.refreshToken?.length
     });
