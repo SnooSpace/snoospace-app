@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mockData } from '../../../data/mockData';
+import { openMapsNavigation } from '../../../utils/openMapsNavigation';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -131,10 +132,17 @@ export default function CommunityEventsScreen({ navigation }) {
           </Text>
         </View>
 
-        <View style={styles.eventDetailItem}>
-          <Ionicons name="location-outline" size={16} color={LIGHT_TEXT_COLOR} />
-          <Text style={styles.eventDetailText}>{item.location}</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.eventDetailItem}
+          onPress={() => openMapsNavigation(item.location)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="location" size={16} color={PRIMARY_COLOR} />
+          <Text style={[styles.eventDetailText, styles.locationText]}>
+            {typeof item.location === 'string' ? item.location : item.location.address || 'Location'}
+          </Text>
+          <Ionicons name="navigate-outline" size={14} color={PRIMARY_COLOR} />
+        </TouchableOpacity>
 
         <View style={styles.eventDetailItem}>
           <Ionicons name="people-outline" size={16} color={PRIMARY_COLOR} />
@@ -438,5 +446,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  locationText: {
+    color: PRIMARY_COLOR,
+    textDecorationLine: 'underline',
+    flex: 1,
   },
 });

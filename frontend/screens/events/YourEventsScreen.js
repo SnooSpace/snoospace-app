@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiGet } from '../../api/client';
 import { getAuthToken } from '../../api/auth';
+import { openMapsNavigation } from '../../utils/openMapsNavigation';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -100,10 +101,17 @@ export default function YourEventsScreen({ navigation }) {
           <Text style={styles.eventDetailText}>{formatDate(item.event_date)}</Text>
         </View>
         {item.location && (
-          <View style={styles.eventDetailRow}>
-            <Ionicons name="location-outline" size={16} color={LIGHT_TEXT_COLOR} />
-            <Text style={styles.eventDetailText}>{item.location}</Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.eventDetailRow}
+            onPress={() => openMapsNavigation(item.location)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="location" size={16} color={PRIMARY_COLOR} />
+            <Text style={[styles.eventDetailText, styles.locationText]}>
+              {typeof item.location === 'string' ? item.location : item.location.address || 'Location'}
+            </Text>
+            <Ionicons name="navigate-outline" size={14} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
         )}
         {(item.community_name || item.venue_name) && (
           <View style={styles.eventDetailRow}>
@@ -277,6 +285,11 @@ const styles = StyleSheet.create({
   eventDetailText: {
     fontSize: 14,
     color: TEXT_COLOR,
+  },
+  locationText: {
+    color: PRIMARY_COLOR,
+    textDecorationLine: 'underline',
+    flex: 1,
   },
 });
 
