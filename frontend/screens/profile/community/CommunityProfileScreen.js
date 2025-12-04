@@ -830,80 +830,6 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <AccountSwitcherModal
-        visible={showAccountSwitcher}
-        onClose={() => setShowAccountSwitcher(false)}
-        currentAccountId={String(profile?.id)}
-        currentProfile={profile}
-        onAccountSwitch={(account) => {
-          const routeMap = {
-            member: 'MemberHome',
-            community: 'CommunityHome',
-            sponsor: 'SponsorHome',
-            venue: 'VenueHome',
-          };
-          const routeName = routeMap[account.type] || 'Landing';
-          let rootNavigator = navigation;
-          if (navigation.getParent) {
-            const parent = navigation.getParent();
-            if (parent) {
-              rootNavigator = parent.getParent ? parent.getParent() : parent;
-            }
-          }
-          console.log('[CommunityProfile AccountSwitch] Resetting to:', routeName);
-          rootNavigator.reset({
-            index: 0,
-            routes: [{ name: routeName }],
-          });
-        }}
-        onAddAccount={() => {
-          setShowAddAccountModal(true);
-        }}
-        onLoginRequired={(account) => {
-          // Navigate to login with pre-filled email using root navigator
-          setShowAccountSwitcher(false);
-          
-          // Get root navigator to ensure we can navigate to Login
-          let rootNavigator = navigation;
-          if (navigation.getParent) {
-            const parent = navigation.getParent();
-            if (parent) {
-              rootNavigator = parent.getParent ? parent.getParent() : parent;
-            }
-          }
-          
-          console.log('[CommunityProfile] Navigating to Login for logged-out account:', account.email);
-          
-          // Navigate to Login screen
-          try {
-            rootNavigator.navigate('Login', { 
-              prefillEmail: account.email,
-              isAddingAccount: false,
-            });
-          } catch (error) {
-            console.error('[CommunityProfile] Failed to navigate to Login:', error);
-            // Fallback: reset to Landing which has Login
-            rootNavigator.reset({
-              index: 0,
-              routes: [{ name: 'Landing' }],
-            });
-          }
-        }}
-      />
-
-      <AddAccountModal
-        visible={showAddAccountModal}
-        onClose={() => setShowAddAccountModal(false)}
-        onLoginExisting={() => {
-          // Navigate to login with isAddingAccount flag
-          navigation.navigate('Login', { isAddingAccount: true });
-        }}
-        onCreateNew={() => {
-          // Navigate to signup landing
-          navigation.navigate('Landing');
-        }}
-      />
-
       <SettingsModal
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
@@ -1054,6 +980,65 @@ export default function CommunityProfileScreen({ navigation }) {
           });
         }}
         onAddAccount={() => setShowAddAccountModal(true)}
+        onLoginRequired={(account) => {
+          console.log('[CommunityProfile] ============================================');
+          console.log('[CommunityProfile] onLoginRequired called!');
+          console.log('[CommunityProfile] Account:', {
+            id: account?.id,
+            username: account?.username,
+            email: account?.email,
+            type: account?.type
+          });
+          
+          setShowAccountSwitcher(false);
+          console.log('[CommunityProfile] Closed account switcher modal');
+          
+          let rootNavigator = navigation;
+          console.log('[CommunityProfile] Initial navigation object:', !!navigation);
+          
+          try {
+            if (navigation.getParent) {
+              const parent1 = navigation.getParent();
+              console.log('[CommunityProfile] Parent navigator:', !!parent1);
+              if (parent1 && parent1.getParent) {
+                const parent2 = parent1.getParent();
+                console.log('[CommunityProfile] Grand parent navigator:', !!parent2);
+                rootNavigator = parent2 || parent1;
+              }
+            }
+          } catch (error) {
+            console.warn('[CommunityProfile] Error getting root navigator:', error);
+          }
+          
+          console.log('[CommunityProfile] Root navigator obtained:', !!rootNavigator);
+          console.log('[CommunityProfile] Attempting navigation to Login...');
+          
+          try {
+            console.log('[CommunityProfile] Calling rootNavigator.navigate("Login", ...)');
+            rootNavigator.navigate('Login', { 
+              email: account.email,
+              isAddingAccount: false,
+            });
+            console.log('[CommunityProfile] Navigation call completed successfully');
+          } catch (error) {
+            console.error('[CommunityProfile] Navigation to Login failed!', error);
+            console.error('[CommunityProfile] Error details:', {
+              message: error.message,
+              name: error.name
+            });
+            console.log('[CommunityProfile] Attempting fallback: reset to Landing');
+            try {
+              rootNavigator.reset({
+                index: 0,
+                routes: [{ name: 'Landing' }],
+              });
+              console.log('[CommunityProfile] Fallback navigation completed');
+            } catch (fallbackError) {
+              console.error('[CommunityProfile] Fallback navigation ALSO failed!', fallbackError);
+            }
+          }
+          console.log('[CommunityProfile] ============================================');
+        }}
       />
 
       <AddAccountModal

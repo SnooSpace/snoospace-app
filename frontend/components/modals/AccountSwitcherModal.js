@@ -82,8 +82,17 @@ export default function AccountSwitcherModal({
   }
 
   async function handleSwitchAccount(account) {
+    console.log('[AccountSwitcher] handleSwitchAccount called with account:', {
+      id: account.id,
+      username: account.username,
+      email: account.email,
+      isLoggedIn: account.isLoggedIn,
+      currentAccountId: currentAccountId
+    });
+
     // Convert both to strings for comparison
     if (String(account.id) === String(currentAccountId)) {
+      console.log('[AccountSwitcher] Clicked on current account, closing modal');
       onClose();
       return;
     }
@@ -91,14 +100,19 @@ export default function AccountSwitcherModal({
     // Check if account is logged out - navigate to login instead of switching
     if (account.isLoggedIn === false) {
       console.log('[AccountSwitcher] Account is logged out, navigating to login');
+      console.log('[AccountSwitcher] onLoginRequired available:', !!onLoginRequired);
       onClose();
       // Directly call onLoginRequired without showing an alert
       if (onLoginRequired) {
+        console.log('[AccountSwitcher] Calling onLoginRequired with account:', account.email);
         onLoginRequired(account);
+      } else {
+        console.error('[AccountSwitcher] ERROR: onLoginRequired callback is not defined!');
       }
       return;
     }
 
+    console.log('[AccountSwitcher] Account is logged in, proceeding with switch');
     try {
       setSwitchingTo(account.id);
       
@@ -115,10 +129,12 @@ export default function AccountSwitcherModal({
       }
 
       // Switch account - this will throw if account is logged out
+      console.log('[AccountSwitcher] Calling switchAccount...');
       await switchAccount(account.id);
       
       // Navigate to correct screen FIRST (before closing modal)
       if (onAccountSwitch) {
+        console.log('[AccountSwitcher] Calling onAccountSwitch...');
         onAccountSwitch(account);
       }
       
@@ -126,15 +142,20 @@ export default function AccountSwitcherModal({
       await new Promise(resolve => setTimeout(resolve, 100));
       
       //Then close modal
+      console.log('[AccountSwitcher] Closing modal after successful switch');
       onClose();
     } catch (error) {
-      console.error('Error switching account:', error);
+      console.error('[AccountSwitcher] Error switching account:', error);
       
       // If it's a logged-out account error, navigate to login
       if (error.message && error.message.includes('logged out')) {
+        console.log('[AccountSwitcher] Caught logged-out error, navigating to login');
         onClose();
         if (onLoginRequired) {
+          console.log('[AccountSwitcher] Calling onLoginRequired after error');
           onLoginRequired(account);
+        } else {
+          console.error('[AccountSwitcher] ERROR: onLoginRequired callback not defined in error handler');
         }
       } else {
         Alert.alert('Error', 'Failed to switch account. Please try again.');

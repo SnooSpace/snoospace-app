@@ -1324,7 +1324,7 @@ export default function MemberProfileScreen({ navigation }) {
           // Navigate to Login screen
           try {
             rootNavigator.navigate('Login', { 
-              prefillEmail: account.email,
+              email: account.email,
               isAddingAccount: false,
             });
           } catch (error) {
