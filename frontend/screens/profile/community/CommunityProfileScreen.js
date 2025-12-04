@@ -793,6 +793,8 @@ export default function CommunityProfileScreen({ navigation }) {
                       height: itemSize,
                       marginRight: (index + 1) % 3 === 0 ? 0 : gap,
                       marginBottom: gap,
+                      borderRadius: 8,
+                      overflow: 'hidden',
                     }}
                     onPress={() => openPostModal(item)}
                   >
@@ -1518,7 +1520,8 @@ const styles = StyleSheet.create({
   },
   handle: {
     fontSize: 18,
-    color: LIGHT_TEXT_COLOR,
+    fontWeight: 'bold',
+    color: TEXT_COLOR,
   },
   iconButtons: {
     flexDirection: 'row',
