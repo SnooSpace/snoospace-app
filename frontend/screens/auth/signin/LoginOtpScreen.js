@@ -106,7 +106,31 @@ const LoginOtpScreen = ({ navigation, route }) => {
             Alert.alert("Error", "Unknown user role. Please contact support.");
         }
       } else {
-        // Normal login flow
+        // Normal login flow - check if this is a re-login to an existing account
+        const accounts = await getAllAccounts();
+        const existingAccount = accounts.find(acc => acc.email === email);
+        
+        if (existingAccount) {
+          // Re-logging in to an existing logged-out account
+          console.log('[LoginOtp] Re-logging in to existing account:', email);
+          await addAccount({
+            id: userProfile.id,
+            type: userRole,
+            username: userProfile.username,
+            email: email,
+            name: userProfile.name || userProfile.username,
+            profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
+            authToken: accessToken,
+            refreshToken: refreshToken,
+            isLoggedIn: true, // Mark as logged in
+          });
+        } else {
+          // First time login - just set auth session
+          console.log('[LoginOtp] First time login:', email);
+          // setAuthSession was already called above (line 54)
+        }
+        
+        // Navigate to the appropriate home screen
         switch (userRole) {
           case "member":
             navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
