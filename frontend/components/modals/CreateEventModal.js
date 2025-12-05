@@ -464,7 +464,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       disabled={!googleMapsLink || parsingLink}
                     >
                       {parsingLink ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                          <Text style={styles.parseButtonText}>
+                            {googleMapsLink.includes('goo.gl') ? 'Resolving link...' : 'Parsing...'}
+                          </Text>
+                        </View>
                       ) : (
                         <>
                           <Ionicons name="location" size={18} color="#FFFFFF" />

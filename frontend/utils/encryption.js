@@ -49,12 +49,12 @@ export async function encryptToken(token) {
     // Convert to hex string instead of base64 to avoid encoding issues
     const encryptedHex = encrypted.map(byte => byte.toString(16).padStart(2, '0')).join('');
     
-    console.log('[encryptToken] Encrypted:', {
-      originalLength,
-      encryptedLength: encryptedHex.length,
-      original: token.substring(0, 50) + '...',
-      encrypted: encryptedHex.substring(0, 50) + '...'
-    });
+    // console.log('[encryptToken] Encrypted:', {
+    //   originalLength,
+    //   encryptedLength: encryptedHex.length,
+    //   original: token.substring(0, 50) + '...',
+    //   encrypted: encryptedHex.substring(0, 50) + '...'
+    // });
     
     return encryptedHex;
   } catch (error) {
@@ -79,11 +79,11 @@ export async function decryptToken(encryptedToken) {
                        !/^[0-9a-f]+$/i.test(encryptedToken);
     
     if (isPlaintext) {
-      console.warn('🔓 [decryptToken] Token is stored as PLAINTEXT (not encrypted)!');
-      console.log('[decryptToken] Returning plaintext token:', {
-        length: encryptedToken.length,
-        preview: encryptedToken.substring(0, 50) + '...'
-      });
+      // console.warn('🔓 [decryptToken] Token is stored as PLAINTEXT (not encrypted)!');
+      // console.log('[decryptToken] Returning plaintext token:', {
+      //   length: encryptedToken.length,
+      //   preview: encryptedToken.substring(0, 50) + '...'
+      // });
       // Return the plaintext token as-is
       return encryptedToken;
     }
@@ -106,12 +106,12 @@ export async function decryptToken(encryptedToken) {
     
     const decryptedToken = decrypted.join('');
     
-    console.log('[decryptToken] Decrypted:', {
-      encryptedLength,
-      decryptedLength: decryptedToken.length,
-      encrypted: encryptedToken.substring(0, 50) + '...',
-      decrypted: decryptedToken.substring(0, 50) + '...'
-    });
+    // console.log('[decryptToken] Decrypted:', {
+    //   encryptedLength,
+    //   decryptedLength: decryptedToken.length,
+    //   encrypted: encryptedToken.substring(0, 50) + '...',
+    //   decrypted: decryptedToken.substring(0, 50) + '...'
+    // });
     
     return decryptedToken;
   } catch (error) {
