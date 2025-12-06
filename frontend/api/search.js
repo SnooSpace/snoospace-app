@@ -54,18 +54,34 @@ export async function searchAccounts(query) {
     
     // Search all account types in parallel
     const [membersRes, communitiesRes, sponsorsRes, venuesRes] = await Promise.all([
-      apiGet(`/members/search?${params.toString()}`, 10000, token).catch(() => ({ members: [] })),
-      apiGet(`/communities/search?${params.toString()}`, 10000, token).catch(() => ({ communities: [] })),
-      apiGet(`/sponsors/search?${params.toString()}`, 10000, token).catch(() => ({ sponsors: [] })),
-      apiGet(`/venues/search?${params.toString()}`, 10000, token).catch(() => ({ venues: [] })),
+      apiGet(`/members/search?${params.toString()}`, 10000, token).catch(() => ({ results: [] })),
+      apiGet(`/communities/search?${params.toString()}`, 10000, token).catch(() => ({ results: [] })),
+      apiGet(`/sponsors/search?${params.toString()}`, 10000, token).catch(() => ({ results: [] })),
+      apiGet(`/venues/search?${params.toString()}`, 10000, token).catch(() => ({ results: [] })),
     ]);
 
     // Combine results with type information
+    // Backend returns { results: [...] } format
     const results = [
-      ...(membersRes.members || []).map(m => ({ ...m, type: 'member' })),
-      ...(communitiesRes.communities || []).map(c => ({ ...c, type: 'community' })),
-      ...(sponsorsRes.sponsors || []).map(s => ({ ...s, type: 'sponsor' })),
-      ...(venuesRes.venues || []).map(v => ({ ...v, type: 'venue' })),
+      ...(membersRes.results || []).map(m => ({...m,
+        type: 'member',
+        display_name: m.full_name || m.name,
+      })),
+      ...(communitiesRes.results || []).map(c => ({ 
+        ...c,
+        type: 'community',
+        display_name: c.name,
+      })),
+      ...(sponsorsRes.results || []).map(s => ({ 
+        ...s,
+        type: 'sponsor',
+        display_name: s.brand_name || s.name,
+      })),
+      ...(venuesRes.results || []).map(v => ({ 
+        ...v,
+        type: 'venue',
+        display_name: v.name,
+      })),
     ];
 
     return { results };
