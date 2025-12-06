@@ -1,92 +1,124 @@
-import { apiPost, apiGet } from './client';
-import { getAuthToken } from './auth';
+// Cloudinary config
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
 /**
- * Upload event banner to Cloudinary
+ * Upload event banner to Cloudinary (direct upload)
  * @param {string} imageUri - Local image URI
  * @returns {Promise<object>} Upload result with URL and public_id
  */
 export async function uploadEventBanner(imageUri) {
   try {
-    const token = await getAuthToken();
-    
-    // Create FormData for React Native
     const formData = new FormData();
-    
-    // Extract filename from URI
-    const filename = imageUri.split('/').pop();
-    const fileType = filename.split('.').pop();
-    
-    formData.append('image', {
+    formData.append('file', {
       uri: imageUri,
-      type: `image/${fileType}`,
-      name: filename,
+      type: 'image/jpeg',
+      name: 'event-banner.jpg',
     });
-    
-    // Use custom fetch for file upload
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'}/api/upload/event-banner`, {
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('cloud_name', CLOUD_NAME);
+    formData.append('folder', 'snoospace/events/banners');
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        // Don't set Content-Type - let fetch set it with boundary
-      },
       body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
+      throw new Error(`Upload failed: ${response.statusText}`);
     }
-    
-    return await response.json();
+
+    const result = await response.json();
+    return {
+      url: result.secure_url,
+      public_id: result.public_id,
+    };
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Event banner upload error:', error);
     throw error;
   }
 }
 
 /**
- * Upload event gallery images to Cloudinary
+ * Upload event gallery images to Cloudinary (direct upload)
  * @param {Array<string>} imageUris - Array of local image URIs
- * @returns {Promise<object>} Upload result with array of URLs and public_ids
+ * @returns {Promise<Array>} Array of upload results
  */
 export async function uploadEventGallery(imageUris) {
-  const token = await getAuthToken();
-  
-  // Convert all images to base64
-  const base64Images = await Promise.all(
-    imageUris.map(imageUri =>
-      fetch(imageUri)
-        .then(res => res.blob())
-        .then(blob => new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        }))
-    )
-  );
+  const uploadPromises = imageUris.map(async (uri) => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uri,
+      type: 'image/jpeg',
+      name: 'gallery-image.jpg',
+    });
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('cloud_name', CLOUD_NAME);
+    formData.append('folder', 'snoospace/events/gallery');
 
-  return apiPost('/upload/event-gallery', { images: base64Images }, 60000, token);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      url: result.secure_url,
+      public_id: result.public_id,
+    };
+  });
+
+  return Promise.all(uploadPromises);
 }
 
 /**
- * Upload performer photo to Cloudinary
+ * Upload performer photo to Cloudinary (direct upload)
  * @param {string} imageUri - Local image URI
  * @returns {Promise<object>} Upload result with URL and public_id
  */
 export async function uploadPerformerPhoto(imageUri) {
-  const token = await getAuthToken();
-  
-  const base64 = await fetch(imageUri)
-    .then(res => res.blob())
-    .then(blob => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    }));
+  try {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'performer-photo.jpg',
+    });
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('cloud_name', CLOUD_NAME);
+    formData.append('folder', 'snoospace/events/performers');
 
-  return apiPost('/upload/performer-photo', { image: base64 }, 30000, token);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      url: result.secure_url,
+      public_id: result.public_id,
+    };
+  } catch (error) {
+    console.error('Performer photo upload error:', error);
+    throw error;
+  }
 }
 
 /**
