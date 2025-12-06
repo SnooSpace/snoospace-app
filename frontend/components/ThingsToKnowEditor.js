@@ -84,9 +84,26 @@ const PRESETS = {
 const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
   const [showPresets, setShowPresets] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [customLabel, setCustomLabel] = useState('');
   const [customIcon, setCustomIcon] = useState('information-circle-outline');
+
+  // Popular icons for custom items
+  const popularIcons = [
+    { name: 'information-circle-outline', label: 'Info' },
+    { name: 'checkmark-circle-outline', label: 'Check' },
+    { name: 'warning-outline', label: 'Warning' },
+    { name: 'alert-circle-outline', label: 'Alert' },
+    { name: 'star-outline', label: 'Star' },
+    { name: 'heart-outline', label: 'Heart' },
+    { name: 'gift-outline', label: 'Gift' },
+    { name: 'ticket-outline', label: 'Ticket' },
+    { name: 'time-outline', label: 'Time' },
+    { name: 'location-outline', label: 'Location' },
+    { name: 'people-outline', label: 'People' },
+    { name: 'calendar-outline', label: 'Calendar' },
+  ];
 
   const addPresetItem = (preset, category) => {
     // Check if already added
@@ -121,6 +138,8 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
 
     onChange([...items, newItem]);
     setCustomLabel('');
+    setCustomIcon('information-circle-outline');
+    setShowIconPicker(false);
     setShowCustom(false);
   };
 
@@ -244,9 +263,34 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
             </View>
 
             <Text style={styles.label}>Icon</Text>
-            <View style={styles.iconPreview}>
+            <TouchableOpacity
+              style={styles.iconSelector}
+              onPress={() => setShowIconPicker(!showIconPicker)}
+            >
               <Ionicons name={customIcon} size={32} color={PRIMARY_COLOR} />
-            </View>
+              <Text style={styles.iconSelectorText}>Tap to change icon</Text>
+            </TouchableOpacity>
+
+            {showIconPicker && (
+              <View style={styles.iconGrid}>
+                {popularIcons.map((icon) => (
+                  <TouchableOpacity
+                    key={icon.name}
+                    style={[
+                      styles.iconOption,
+                      customIcon === icon.name && styles.iconOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setCustomIcon(icon.name);
+                      setShowIconPicker(false);
+                    }}
+                  >
+                    <Ionicons name={icon.name} size={24} color={PRIMARY_COLOR} />
+                    <Text style={styles.iconLabel}>{icon.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             <Text style={styles.label}>Label *</Text>
             <TextInput
@@ -417,6 +461,46 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#F5F5F5',
     borderRadius: 12,
+  },
+  iconSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  iconSelectorText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 10,
+    gap: 10,
+  },
+  iconOption: {
+    width: '22%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  iconOptionSelected: {
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: '#F8F5FF',
+  },
+  iconLabel: {
+    fontSize: 10,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 4,
+    textAlign: 'center',  
   },
   input: {
     borderWidth: 1,

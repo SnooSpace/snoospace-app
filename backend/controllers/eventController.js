@@ -20,7 +20,8 @@ const createEvent = async (req, res) => {
       event_date,
       location_url,  // Changed from 'location'
       max_attendees,
-      banner_url,
+      banner_carousel,  // Array of {url, cloudinary_public_id, order}
+      gallery,  // Array of {url, cloudinary_public_id, order}
       event_type,
       virtual_link,
       venue_id
@@ -44,7 +45,9 @@ const createEvent = async (req, res) => {
       return res.status(400).json({ error: "Invalid Google Maps URL. Please paste a valid link from Google Maps." });
     }
 
-    // Insert event
+    // Insert event (use first banner as banner_url for backward compatibility)
+    const banner_url = banner_carousel && banner_carousel.length > 0 ? banner_carousel[0].url : null;
+
     const query = `
       INSERT INTO events (
         community_id, title, description, start_datetime, end_datetime, location_url,
@@ -63,7 +66,7 @@ const createEvent = async (req, res) => {
       event_date, // end_datetime (same as start for now)
       location_url || null,  // Changed from location
       max_attendees || null,
-      banner_url || null,
+      banner_url,
       event_type || 'in-person',
       virtual_link || null,
       venue_id || null,
@@ -72,6 +75,29 @@ const createEvent = async (req, res) => {
     ];
 
     const result = await pool.query(query, values);
+    const eventId = result.rows[0].id;
+
+    // Save banner carousel images
+    if (banner_carousel && Array.isArray(banner_carousel) && banner_carousel.length > 0) {
+      const bannerInserts = banner_carousel.map((banner, index) => 
+        pool.query(
+          `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
+          [eventId, banner.url, banner.cloudinary_public_id || null, index]
+        )
+      );
+      await Promise.all(bannerInserts);
+    }
+
+    // Save gallery images
+    if (gallery && Array.isArray(gallery) && gallery.length > 0) {
+      const galleryInserts = gallery.map((image, index) => 
+        pool.query(
+          `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
+          [eventId, image.url, image.cloudinary_public_id || null, index]
+        )
+      );
+      await Promise.all(galleryInserts);
+    }
 
     res.status(201).json({
       success: true,

@@ -501,12 +501,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
       case 7:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Review & Publish</Text>
-            <View style={styles.reviewSection}>
-              <Text style={styles.reviewLabel}>Title</Text>
-              <Text style={styles.reviewValue}>{title}</Text>
-            </View>
+          <ScrollView style={styles.stepContent} contentContainerStyle={{ paddingBottom: 40 }}>
+            <Text style={styles.stepTitle}>{title}</Text>
             <View style={styles.reviewSection}>
               <Text style={styles.reviewLabel}>Date & Time</Text>
               <Text style={styles.reviewValue}>
