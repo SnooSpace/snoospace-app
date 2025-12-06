@@ -104,7 +104,7 @@ const getCommunityEvents = async (req, res) => {
         e.end_datetime,
         e.gates_open_time,
         e.schedule_description,
-        e.location,
+        e.location_url,
         e.max_attendees,
         e.categories,
         e.banner_url,
@@ -237,7 +237,7 @@ const getMyEvents = async (req, res) => {
         e.title,
         e.description,
         e.event_date,
-        e.location,
+        e.location_url,
         e.max_attendees,
         e.is_past,
         c.name as community_name,
@@ -249,7 +249,7 @@ const getMyEvents = async (req, res) => {
       LEFT JOIN venues v ON e.venue_id = v.id
       INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1
       LEFT JOIN event_registrations er2 ON e.id = er2.event_id AND er2.registration_status = 'attended'
-      GROUP BY e.id, e.title, e.description, e.event_date, e.location, e.max_attendees, e.is_past, c.name, v.name, er.registration_status
+      GROUP BY e.id, e.title, e.description, e.event_date, e.location_url, e.max_attendees, e.is_past, c.name, v.name, er.registration_status
       ORDER BY e.event_date DESC
     `;
 

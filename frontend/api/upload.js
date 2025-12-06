@@ -7,19 +7,41 @@ import { getAuthToken } from './auth';
  * @returns {Promise<object>} Upload result with URL and public_id
  */
 export async function uploadEventBanner(imageUri) {
-  const token = await getAuthToken();
-  
-  // Convert image to base64
-  const base64 = await fetch(imageUri)
-    .then(res => res.blob())
-    .then(blob => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    }));
-
-  return apiPost('/upload/event-banner', { image: base64 }, 30000, token);
+  try {
+    const token = await getAuthToken();
+    
+    // Create FormData for React Native
+    const formData = new FormData();
+    
+    // Extract filename from URI
+    const filename = imageUri.split('/').pop();
+    const fileType = filename.split('.').pop();
+    
+    formData.append('image', {
+      uri: imageUri,
+      type: `image/${fileType}`,
+      name: filename,
+    });
+    
+    // Use custom fetch for file upload
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'}/api/upload/event-banner`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // Don't set Content-Type - let fetch set it with boundary
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Upload error:', error);
+    throw error;
+  }
 }
 
 /**
