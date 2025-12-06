@@ -1,4 +1,5 @@
 const { createPool } = require("../config/db");
+const { isValidGoogleMapsUrl } = require("../utils/googleMapsValidation");
 
 const pool = createPool();
 
@@ -17,7 +18,7 @@ const createEvent = async (req, res) => {
       title,
       description,
       event_date,
-      location,
+      location_url,  // Changed from 'location'
       max_attendees,
       banner_url,
       event_type,
@@ -34,14 +35,19 @@ const createEvent = async (req, res) => {
       return res.status(400).json({ error: "Virtual link required for virtual events" });
     }
 
-    if ((event_type === 'in-person' || event_type === 'hybrid') && !location) {
-      return res.status(400).json({ error: "Location required for in-person/hybrid events" });
+    if ((event_type === 'in-person' || event_type === 'hybrid') && !location_url) {
+      return res.status(400).json({ error: "Google Maps link required for in-person/hybrid events" });
+    }
+
+    // Validate Google Maps URL format
+    if (location_url && !isValidGoogleMapsUrl(location_url)) {
+      return res.status(400).json({ error: "Invalid Google Maps URL. Please paste a valid link from Google Maps." });
     }
 
     // Insert event
     const query = `
       INSERT INTO events (
-        community_id, title, description, start_datetime, end_datetime, location,
+        community_id, title, description, start_datetime, end_datetime, location_url,
         max_attendees, banner_url, event_type, virtual_link, venue_id,
         creator_id, is_published, created_at
       )
@@ -55,7 +61,7 @@ const createEvent = async (req, res) => {
       description || null,
       event_date,
       event_date, // end_datetime (same as start for now)
-      location || null,
+      location_url || null,  // Changed from location
       max_attendees || null,
       banner_url || null,
       event_type || 'in-person',
