@@ -20,6 +20,7 @@ const LIGHT_TEXT_COLOR = '#8E8E93';
  * Each highlight has: icon, title, description
  */
 const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
+  const [showModal, setShowModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [currentHighlight, setCurrentHighlight] = useState({
@@ -58,11 +59,13 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
       description: '',
       order: highlights.length,
     });
+    setShowModal(true); // Open the modal
   };
 
   const editHighlight = (index) => {
     setEditingIndex(index);
     setCurrentHighlight({ ...highlights[index] });
+    setShowModal(true); // Open the modal
   };
 
   const saveHighlight = () => {
@@ -83,6 +86,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
     setCurrentHighlight({ icon_name: 'star-outline', title: '', description: '', order: 0 });
     setEditingIndex(null);
+    setShowModal(false); // Close the modal
   };
 
   const deleteHighlight = (index) => {
@@ -155,8 +159,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
       )}
 
       {/* Edit/Add Modal */}
-      {(editingIndex !== null || currentHighlight.title !== '' || showIconPicker) && (
-        <Modal visible transparent animationType="slide">
+      <Modal visible={showModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
@@ -167,6 +170,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                   setCurrentHighlight({ icon_name: 'star-outline', title: '', description: '', order: 0 });
                   setEditingIndex(null);
                   setShowIconPicker(false);
+                  setShowModal(false); // Close the modal
                 }}>
                   <Ionicons name="close" size={24} color={TEXT_COLOR} />
                 </TouchableOpacity>
@@ -236,7 +240,6 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
             </View>
           </View>
         </Modal>
-      )}
     </View>
   );
 };
