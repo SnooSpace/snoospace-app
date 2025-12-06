@@ -1,29 +1,35 @@
--- Migration: Replace location JSONB with location_url TEXT
--- This migration changes the events table to store Google Maps URLs instead of coordinate objects
+-- Migration: Replace location TEXT with location_url TEXT
+-- This migration renames the location column to location_url
 
--- Step 1: Add new column
-ALTER TABLE events 
-ADD COLUMN IF NOT EXISTS location_url TEXT;
-
--- Step 2: Migrate existing data
--- For events with location JSON containing a URL
-UPDATE events 
-SET location_url = location->>'url'
-WHERE location IS NOT NULL AND location->>'url' IS NOT NULL;
-
--- For events with only coordinates, create Google Maps search URL
-UPDATE events 
-SET location_url = CONCAT(
-  'https://www.google.com/maps/search/?api=1&query=',
-  location->>'lat', ',', location->>'lng'
-)
-WHERE location IS NOT NULL 
-  AND location->>'lat' IS NOT NULL 
-  AND location_url IS NULL;
-
--- Step 3: Drop old location column
-ALTER TABLE events 
-DROP COLUMN IF EXISTS location;
+-- Step 1: Check if location column exists and rename it
+DO $$
+BEGIN
+    -- Check if location column exists
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'events' 
+        AND column_name = 'location'
+    ) THEN
+        -- Check if location_url already exists
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_name = 'events' 
+            AND column_name = 'location_url'
+        ) THEN
+            -- Rename location to location_url
+            ALTER TABLE events RENAME COLUMN location TO location_url;
+            RAISE NOTICE 'Renamed location column to location_url';
+        ELSE
+            RAISE NOTICE 'location_url column already exists, skipping rename';
+        END IF;
+    ELSE
+        RAISE NOTICE 'location column does not exist, adding location_url';
+        -- Add location_url column if it doesn't exist
+        ALTER TABLE events ADD COLUMN location_url TEXT;
+    END IF;
+END $$;
 
 -- Verification query (run this to check migration)
--- SELECT id, title, location_url FROM events WHERE event_type IN ('in-person', 'hybrid') LIMIT 10;
+-- SELECT id, title, location_url, event_type FROM events LIMIT 10;

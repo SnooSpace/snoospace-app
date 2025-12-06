@@ -24,8 +24,6 @@ import RichTextEditor from '../RichTextEditor';
 import HighlightsEditor from '../HighlightsEditor';
 import FeaturedAccountsEditor from '../FeaturedAccountsEditor';
 import ThingsToKnowEditor from '../ThingsToKnowEditor';
-import LocationPicker from '../LocationPicker/LocationPicker';
-import { parseGoogleMapsLink } from '../../utils/googleMapsParser';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
@@ -46,15 +44,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [gatesOpenTime, setGatesOpenTime] = useState(null);
   const [hasGates, setHasGates] = useState(false);
   const [eventType, setEventType] = useState('in-person');
-  const [location, setLocation] = useState(null);
+  const [locationUrl, setLocationUrl] = useState('');  // Changed to simple URL string
   const [virtualLink, setVirtualLink] = useState('');
   const [maxAttendees, setMaxAttendees] = useState('');
   const [categories, setCategories] = useState([]);
-  
-  // Location input method
-  const [locationInputMethod, setLocationInputMethod] = useState('map'); // 'map' or 'link'
-  const [googleMapsLink, setGoogleMapsLink] = useState('');
-  const [parsingLink, setParsingLink] = useState(false);
 
   // Step 2: Media
   const [bannerCarousel, setBannerCarousel] = useState([]);
@@ -76,9 +69,6 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
-  
-  // Location picker state
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const stepLabels = [
     'Basic Info',
@@ -98,7 +88,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setGatesOpenTime(null);
     setHasGates(false);
     setEventType('in-person');
-    setLocation(null);
+    setLocationUrl('');
     setVirtualLink('');
     setMaxAttendees('');
     setCategories([]);
@@ -108,6 +98,19 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setHighlights([]);
     setFeaturedAccounts([]);
     setThingsToKnow([]);
+  };
+
+  // Helper function to validate Google Maps URLs
+  const isValidGoogleMapsUrl = (url) => {
+    if (!url) return false;
+    const validDomains = [
+      'maps.google.com',
+      'www.google.com/maps',
+      'maps.app.goo.gl',
+      'goo.gl/maps',
+      'g.co/maps',
+    ];
+    return validDomains.some(domain => url.includes(domain));
   };
 
   const validateStep = (step) => {
@@ -121,8 +124,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           Alert.alert('Required', 'Virtual link is required for virtual events');
           return false;
         }
-        if ((eventType === 'in-person' || eventType === 'hybrid') && !location) {
-          Alert.alert('Required', 'Location is required for in-person/hybrid events');
+        if ((eventType === 'in-person' || eventType === 'hybrid') && !locationUrl.trim()) {
+          Alert.alert('Required', 'Google Maps link is required for in-person/hybrid events');
+          return false;
+        }
+        if (locationUrl && !isValidGoogleMapsUrl(locationUrl)) {
+          Alert.alert('Invalid URL', 'Please paste a valid Google Maps link');
           return false;
         }
         return true;
@@ -180,7 +187,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         end_date: endDate.toISOString(),
         gates_open_time: hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
         event_type: eventType,
-        location: location || null,
+        location_url: locationUrl.trim() || null,  // Changed from location
         virtual_link: virtualLink.trim() || null,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
         categories,
@@ -369,131 +376,29 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             {(eventType === 'in-person' || eventType === 'hybrid') && (
               <>
                 <Text style={styles.label}>Location *</Text>
-                
-                {/* Location Input Method Tabs */}
-                <View style={styles.locationMethodTabs}>
-                  <TouchableOpacity
-                    style={[
-                      styles.locationMethodTab,
-                      locationInputMethod === 'map' && styles.locationMethodTabActive,
-                    ]}
-                    onPress={() => setLocationInputMethod('map')}
-                  >
-                    <Text
-                      style={[
-                        styles.locationMethodTabText,
-                        locationInputMethod === 'map' && styles.locationMethodTabTextActive,
-                      ]}
-                    >
-                      Use Map
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.locationMethodTab,
-                      locationInputMethod === 'link' && styles.locationMethodTabActive,
-                    ]}
-                    onPress={() => setLocationInputMethod('link')}
-                  >
-                    <Text
-                      style={[
-                        styles.locationMethodTabText,
-                        locationInputMethod === 'link' && styles.locationMethodTabTextActive,
-                      ]}
-                    >
-                      Paste Link
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Map Picker Method */}
-                {locationInputMethod === 'map' && (
-                  <TouchableOpacity
-                    style={styles.locationButton}
-                    onPress={() => setShowLocationPicker(true)}
-                  >
-                    <Ionicons name="location-outline" size={20} color={PRIMARY_COLOR} />
-                    <Text style={styles.locationButtonText}>
-                      {location?.address || 'Select Event Location'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Google Maps Link Method */}
-                {locationInputMethod === 'link' && (
-                  <View style={styles.linkInputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={googleMapsLink}
-                      onChangeText={setGoogleMapsLink}
-                      placeholder="Paste Google Maps link here..."
-                      placeholderTextColor={LIGHT_TEXT_COLOR}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.parseButton,
-                        (!googleMapsLink || parsingLink) && styles.parseButtonDisabled,
-                      ]}
-                      onPress={async () => {
-                        if (!googleMapsLink || parsingLink) return;
-                        
-                        setParsingLink(true);
-                        try {
-                          const result = await parseGoogleMapsLink(googleMapsLink);
-                          if (result) {
-                            setLocation(result);
-                            Alert.alert('Success', 'Location extracted successfully!');
-                          } else {
-                            Alert.alert(
-                              'Error',
-                              'Could not extract location from this link. Please try using the map picker instead.'
-                            );
-                          }
-                        } catch (error) {
-                          console.error('Error parsing link:', error);
-                          Alert.alert(
-                            'Error',
-                            'Failed to parse Google Maps link. Please try again.'
-                          );
-                        } finally {
-                          setParsingLink(false);
-                        }
-                      }}
-                      disabled={!googleMapsLink || parsingLink}
-                    >
-                      {parsingLink ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8}}>
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                          <Text style={styles.parseButtonText}>
-                            {googleMapsLink.includes('goo.gl') ? 'Resolving link...' : 'Parsing...'}
-                          </Text>
-                        </View>
-                      ) : (
-                        <>
-                          <Ionicons name="location" size={18} color="#FFFFFF" />
-                          <Text style={styles.parseButtonText}>Parse Link</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+                <Text style={styles.helperText}>
+                  Open Google Maps, search for the location, tap Share, and paste the link here
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={locationUrl}
+                  onChangeText={setLocationUrl}
+                  placeholder="Paste Google Maps link here..."
+                  placeholderTextColor={LIGHT_TEXT_COLOR}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                {locationUrl && isValidGoogleMapsUrl(locationUrl) && (
+                  <View style={styles.urlValidIndicator}>
+                    <Ionicons name="checkmark-circle" size={20} color="#34C759" />
+                    <Text style={styles.urlValidText}>Valid Google Maps link ✓</Text>
                   </View>
                 )}
-
-                {/* Display selected location */}
-                {location && (
-                  <View style={styles.selectedLocationContainer}>
-                    <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-                    <View style={styles.selectedLocationText}>
-                      <Text style={styles.locationAddress}>{location.address}</Text>
-                      {(location.city || location.state || location.country) && (
-                        <Text style={styles.locationDetail}>
-                          {[location.city, location.state, location.country]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </Text>
-                      )}
-                    </View>
+                {locationUrl && !isValidGoogleMapsUrl(locationUrl) && (
+                  <View style={styles.urlInvalidIndicator}>
+                    <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                    <Text style={styles.urlInvalidText}>Invalid URL - must be from Google Maps</Text>
                   </View>
                 )}
               </>
@@ -703,24 +608,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         </View>
       </View>
 
-      {/* Location Picker Modal */}
-      {showLocationPicker && (
-        <Modal
-          visible={showLocationPicker}
-          animationType="slide"
-          onRequestClose={() => setShowLocationPicker(false)}
-        >
-          <LocationPicker
-            businessName={title || 'Event'}
-            initialLocation={location}
-            onLocationSelected={(selectedLocation) => {
-              setLocation(selectedLocation);
-              setShowLocationPicker(false);
-            }}
-            onCancel={() => setShowLocationPicker(false)}
-          />
-        </Modal>
-      )}
+
     </Modal>
   );
 };
@@ -1010,6 +898,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT_COLOR,
     marginBottom: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 8,
+    marginTop: -4,
+  },
+  urlValidIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#F0FFF4',
+    borderRadius: 8,
+  },
+  urlValidText: {
+    fontSize: 13,
+    color: '#34C759',
+    fontWeight: '500',
+  },
+  urlInvalidIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#FFF5F5',
+    borderRadius: 8,
+  },
+  urlInvalidText: {
+    fontSize: 13,
+    color: '#FF3B30',
+    fontWeight: '500',
   },
 });
 

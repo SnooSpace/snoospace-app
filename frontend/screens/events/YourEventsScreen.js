@@ -18,6 +18,20 @@ const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
+// Helper function to extract place name from Google Maps URL
+const getLocationNameFromUrl = (url) => {
+  try {
+    // Google Maps URLs have format: /place/Location+Name/data=...
+    const match = url.match(/\/place\/([^\/]+)/);
+    if (match) {
+      return decodeURIComponent(match[1].replace(/\+/g, ' '));
+    }
+    return 'View Location';
+  } catch {
+    return 'View Location';
+  }
+};
+
 export default function YourEventsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('Going');
   const [events, setEvents] = useState([]);
@@ -100,15 +114,15 @@ export default function YourEventsScreen({ navigation }) {
           <Ionicons name="calendar-outline" size={16} color={LIGHT_TEXT_COLOR} />
           <Text style={styles.eventDetailText}>{formatDate(item.event_date)}</Text>
         </View>
-        {item.location && (
+        {item.location_url && (
           <TouchableOpacity 
             style={styles.eventDetailRow}
-            onPress={() => openMapsNavigation(item.location)}
+            onPress={() => openMapsNavigation(item.location_url)}
             activeOpacity={0.7}
           >
             <Ionicons name="location" size={16} color={PRIMARY_COLOR} />
-            <Text style={[styles.eventDetailText, styles.locationText]}>
-              {typeof item.location === 'string' ? item.location : item.location.address || 'Location'}
+            <Text style={[styles.eventDetailText, styles.locationText]} numberOfLines={1}>
+              {getLocationNameFromUrl(item.location_url)}
             </Text>
             <Ionicons name="navigate-outline" size={14} color={PRIMARY_COLOR} />
           </TouchableOpacity>
