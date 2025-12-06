@@ -27,7 +27,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
   const pickImages = async () => {
     const remainingSlots = maxImages - images.length;
     
-    if (remainingSlots <=0) {
+    if (remainingSlots <= 0) {
       Alert.alert('Limit Reached', `You can upload up to ${maxImages} gallery images.`);
       return;
     }
@@ -43,26 +43,32 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
       if (!result.canceled && result.assets.length > 0) {
         setUploading(true);
 
-        // Upload all selected images to Cloudinary
-        const imageUris = result.assets.map(asset => asset.uri);
-        const uploadResult = await uploadEventGallery(imageUris);
+        try {
+          // Upload all selected images to Cloudinary
+          const imageUris = result.assets.map(asset => asset.uri);
+          const uploadResults = await uploadEventGallery(imageUris);
 
-        if (uploadResult?.data && Array.isArray(uploadResult.data)) {
-          const newImages = uploadResult.data.map((img, index) => ({
-            url: img.url,
-            cloudinary_public_id: img.public_id,
-            order: images.length + index,
-          }));
+          // uploadEventGallery now returns array directly from Cloudinary
+          if (uploadResults && Array.isArray(uploadResults)) {
+            const newImages = uploadResults.map((img, index) => ({
+              url: img.url,
+              cloudinary_public_id: img.public_id,
+              order: images.length + index,
+            }));
 
-          onChange([...images, ...newImages]);
+            onChange([...images, ...newImages]);
+          }
+
+          setUploading(false);
+        } catch (uploadError) {
+          console.error('Error uploading gallery images:', uploadError);
+          Alert.alert('Error', 'Failed to upload images. Please try again.');
+          setUploading(false);
         }
-
-        setUploading(false);
       }
     } catch (error) {
-      console.error('Error uploading gallery images:', error);
-      Alert.alert('Error', 'Failed to upload images. Please try again.');
-      setUploading(false);
+      console.error('Error picking images:', error);
+      Alert.alert('Error', 'Failed to pick images. Please try again.');
     }
   };
 
