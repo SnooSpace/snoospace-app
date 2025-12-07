@@ -33,9 +33,13 @@ import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 
-const PRIMARY_COLOR = "#5f27cd";
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
+
+// Map to new theme
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 const SPONSOR_TYPES = [
   'Protein brands', 'Energy Drinks', 'Supplements', 'Apparel',
@@ -453,20 +457,14 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <TouchableOpacity
+          <GradientButton
+            title="Save"
             onPress={handleSave}
             disabled={!hasChanges || saving}
-            style={[
-              styles.saveButton,
-              (!hasChanges || saving) && styles.saveButtonDisabled,
-            ]}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
-            )}
-          </TouchableOpacity>
+            loading={saving}
+            style={{ minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 }}
+            // Adjustable padding for header context
+          />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -724,21 +722,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: TEXT_COLOR,
   },
-  saveButton: {
-    backgroundColor: PRIMARY_COLOR,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  saveButtonDisabled: {
-    backgroundColor: LIGHT_TEXT_COLOR,
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  // saveButton styles removed
   content: {
     flex: 1,
   },

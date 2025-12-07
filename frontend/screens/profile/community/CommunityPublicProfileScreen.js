@@ -26,6 +26,13 @@ import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { apiPost, apiDelete } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
+import ThemeChip from "../../../components/ThemeChip";
+
+// Normalize Theme Constants
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
 
 const formatPhoneNumber = (value) => {
   if (!value) return "";
@@ -454,10 +461,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             {Array.isArray(profile?.categories) &&
               profile.categories.length > 0 && (
                 <View style={styles.categoriesRow}>
-                  {profile.categories.map((cat) => (
-                    <View key={cat} style={styles.categoryChip}>
-                      <Text style={styles.categoryChipText}>{cat}</Text>
-                    </View>
+                  {profile.categories.map((cat, idx) => (
+                    <ThemeChip
+                      key={cat}
+                      label={cat}
+                      index={idx}
+                    />
                   ))}
                 </View>
               )}
@@ -557,9 +566,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 <Text style={styles.sectionTitle}>Sponsor Types</Text>
                 <View style={styles.chipRow}>
                   {profile.sponsor_types.map((type, idx) => (
-                    <View key={`st-${idx}`} style={styles.chip}>
-                      <Text style={styles.chipText}>{String(type)}</Text>
-                    </View>
+                    <ThemeChip
+                      key={`st-${idx}`}
+                      label={String(type)}
+                      index={idx + 3}
+                    />
                   ))}
                 </View>
               </View>
@@ -576,28 +587,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               paddingHorizontal: 20,
             }}
           >
-            <TouchableOpacity
-              style={[
-                styles.followCta,
-                { flex: 1 },
-                isFollowing ? styles.followingCta : styles.followPrimary,
-              ]}
-              onPress={async () => {
-                const next = !isFollowing;
-                setIsFollowing(next);
-                try {
-                  if (next) {
-                    await followCommunity(communityId);
-                    setProfile((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            followers_count: (prev.followers_count || 0) + 1,
-                          }
-                        : prev
-                    );
-                  } else {
+            {isFollowing ? (
+              <TouchableOpacity
+                style={[styles.followCta, styles.followingCta, { flex: 1 }]}
+                onPress={async () => {
+                  try {
                     await unfollowCommunity(communityId);
+                    setIsFollowing(false);
                     setProfile((prev) =>
                       prev
                         ? {
@@ -609,51 +605,45 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                           }
                         : prev
                     );
-                  }
-                  // Get current user info for EventBus
-                  let currentUserId = null;
-                  let currentUserType = "community";
-                  try {
-                    const token = await getAuthToken();
-                    const email = await getAuthEmail();
-                    if (token && email) {
-                      const profileResponse = await apiPost(
-                        "/auth/get-user-profile",
-                        { email },
-                        10000,
-                        token
-                      );
-                      if (profileResponse?.profile?.id) {
-                        currentUserId = profileResponse.profile.id;
-                        currentUserType = profileResponse.role || "community";
-                      }
-                    }
+                    EventBus.emit("follow-updated", {
+                      communityId,
+                      isFollowing: false,
+                    });
                   } catch (e) {
-                    console.error("Error getting current user:", e);
+                    console.error("Unfollow failed", e);
                   }
-
-                  EventBus.emit("follow-updated", {
-                    communityId,
-                    isFollowing: next,
-                    followerId: currentUserId,
-                    followerType: currentUserType,
-                  });
-                } catch (e) {
-                  setIsFollowing(!next);
-                }
-              }}
-            >
-              <Text
-                style={[
-                  styles.followCtaText,
-                  isFollowing
-                    ? styles.followingCtaText
-                    : styles.followPrimaryText,
-                ]}
+                }}
               >
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </TouchableOpacity>
+                <Text style={[styles.followCtaText, styles.followingCtaText]}>
+                  Following
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <GradientButton
+                title="Follow"
+                onPress={async () => {
+                  try {
+                    await followCommunity(communityId);
+                    setIsFollowing(true);
+                    setProfile((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            followers_count: (prev.followers_count || 0) + 1,
+                          }
+                        : prev
+                    );
+                    EventBus.emit("follow-updated", {
+                      communityId,
+                      isFollowing: true,
+                    });
+                  } catch (e) {
+                    console.error("Follow failed", e);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+            )}
             <TouchableOpacity
               style={[styles.followCta, { flex: 1 }, styles.messageCta]}
               onPress={() => {

@@ -42,11 +42,16 @@ import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
 import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
 import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
+import ThemeChip from "../../../components/ThemeChip";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const PRIMARY_COLOR = "#6A0DAD";
-const TEXT_COLOR = "#1D1D1F";
-const LIGHT_TEXT_COLOR = "#8E8E93";
+
+// Map legacy constants to new theme for backward compatibility during refactor
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
@@ -1159,12 +1164,12 @@ export default function MemberProfileScreen({ navigation }) {
                   ? profile.interests
                   : profile.interests.slice(0, 6)
                 ).map((i, idx) => (
-                  <View
+                  <ThemeChip
                     key={`interest-${idx}`}
-                    style={[styles.chip, styles.chipGridItem]}
-                  >
-                    <Text style={styles.chipText}>{String(i)}</Text>
-                  </View>
+                    label={String(i)}
+                    index={idx}
+                    style={styles.chipGridItem}
+                  />
                 ))}
                 {profile.interests.length > 6 && !showAllInterests ? (
                   <TouchableOpacity
@@ -1200,28 +1205,23 @@ export default function MemberProfileScreen({ navigation }) {
                 width: "100%",
               }}
             >
-              <TouchableOpacity
-                style={[styles.actionButton, { flex: 1 }]}
+              <GradientButton
+                title="Edit Profile"
                 onPress={handleEditProfile}
-              >
-                <Text style={styles.actionButtonText}>Edit Profile</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, { flex: 1 }]}
-                onPress={() => {
-                  navigation.navigate("CreatePost");
-                }}
-              >
-                <Text style={styles.actionButtonText}>Create Post</Text>
-              </TouchableOpacity>
+                style={{ flex: 1 }}
+              />
+              <GradientButton
+                title="Create Post"
+                onPress={() => navigation.navigate("CreatePost")}
+                style={{ flex: 1 }}
+              />
             </View>
           ) : (
-            <TouchableOpacity
-              style={[styles.actionButton, { marginTop: 10 }]}
+            <GradientButton
+              title="Follow"
               onPress={handleFollow}
-            >
-              <Text style={styles.actionButtonText}>Follow</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 10, width: '100%' }}
+            />
           )}
         </View>
 
@@ -1602,12 +1602,12 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   chip: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#FFFFFF",
+    borderRadius: BORDER_RADIUS.m,
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: "#F2F2F7", // Default gray for non-theme chips (like See All)
   },
   chipGridItem: {
     width: (screenWidth - 40 - 8 * 3) / 4,
@@ -1618,8 +1618,9 @@ const styles = StyleSheet.create({
     borderColor: PRIMARY_COLOR,
   },
   chipText: {
-    fontSize: 12,
-    color: TEXT_COLOR,
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.primary, // or generic text
   },
   chipBlue: {
     borderColor: "#007AFF",
@@ -1667,16 +1668,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   actionButton: {
-    backgroundColor: "#F2F2F7",
-    borderRadius: 12,
-    paddingHorizontal: 30,
-    paddingVertical: 12,
+    // handled by GradientButton
   },
   actionButtonText: {
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "600",
-    color: PRIMARY_COLOR,
+    // handled by GradientButton
   },
   postsSection: {
     paddingHorizontal: 20,

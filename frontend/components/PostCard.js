@@ -15,18 +15,10 @@ import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
 
-const { width } = Dimensions.get("window");
+import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
 
-const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#FFFFFF",
-  white: "#fff",
-  error: "#FF4444",
-  success: "#00C851",
-  border: "#E5E5E5",
-};
+const { width } = Dimensions.get("window");
+// Removing local COLORS definition
 
 const normalizeTaggedEntities = (entities) => {
   if (Array.isArray(entities)) return entities;
@@ -254,7 +246,7 @@ const PostCard = ({
           <Ionicons
             name={isLiked ? "heart" : "heart-outline"}
             size={24}
-            color={isLiked ? COLORS.error : COLORS.textDark}
+            color={isLiked ? COLORS.error : COLORS.textPrimary}
           />
           <Text style={styles.actionText}>{likeCount}</Text>
         </TouchableOpacity>
@@ -266,7 +258,7 @@ const PostCard = ({
           <Ionicons
             name="chatbubble-outline"
             size={24}
-            color={COLORS.textDark}
+            color={COLORS.textPrimary}
           />
           <Text style={styles.actionText}>{post.comment_count || 0}</Text>
         </TouchableOpacity>
@@ -301,11 +293,13 @@ const PostCard = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.background,
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    marginBottom: SPACING.m,
+    marginHorizontal: SPACING.m, // Detached card style
+    borderRadius: BORDER_RADIUS.xl,
+    ...SHADOWS.sm,
     paddingBottom: 15,
+    overflow: 'hidden', // For image radius at top if applicable, or general cleanup
   },
   header: {
     flexDirection: "row",
@@ -331,26 +325,27 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
   },
   authorUsername: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   authorNameInline: {
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
   },
   timestamp: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   imageContainer: {
     height: width,
   },
   postImage: {
-    width: width,
-    height: width,
+    width: '100%', // container has specific width? No, container matches margin.
+    height: width - (SPACING.m * 2), // Aspect ratio square minus margins?
+    // Actually simpler to just let it be square relative to screen or container
   },
   actions: {
     flexDirection: "row",
@@ -366,7 +361,7 @@ const styles = StyleSheet.create({
   actionText: {
     marginLeft: 6,
     fontSize: 14,
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     fontWeight: "500",
   },
   captionContainer: {
@@ -375,7 +370,7 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontSize: 14,
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     lineHeight: 20,
   },
   mentionText: {
@@ -390,7 +385,7 @@ const styles = StyleSheet.create({
   },
   taggedText: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   taggedEntity: {
     fontSize: 14,

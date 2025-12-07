@@ -38,6 +38,9 @@ import EventBus from '../../../utils/EventBus';
 import MentionTextRenderer from '../../../components/MentionTextRenderer';
 import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
 import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
+import ThemeChip from "../../../components/ThemeChip";
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -50,9 +53,10 @@ const formatPhoneNumber = (value) => {
   return digits || String(value);
 };
 
-const PRIMARY_COLOR = '#5f27cd';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+// Map to new theme
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function CommunityProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -681,10 +685,12 @@ export default function CommunityProfileScreen({ navigation }) {
             <Text style={styles.communityName}>{profile.name}</Text>
             {Array.isArray(profile.categories) && profile.categories.length > 0 && (
               <View style={styles.categoriesRow}>
-                {profile.categories.map((cat) => (
-                  <View key={cat} style={styles.categoryChip}>
-                    <Text style={styles.categoryChipText}>{cat}</Text>
-                  </View>
+                {profile.categories.map((cat, idx) => (
+                  <ThemeChip
+                    key={cat}
+                    label={cat}
+                    index={idx}
+                  />
                 ))}
               </View>
             )}
@@ -719,12 +725,11 @@ export default function CommunityProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.editProfileButton}
+          <GradientButton
+            title="Edit Profile"
             onPress={() => navigation.navigate('EditCommunityProfile', { profile })}
-          >
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+            style={styles.editProfileButton}
+          />
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -774,9 +779,11 @@ export default function CommunityProfileScreen({ navigation }) {
               <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
               <View style={styles.sponsorTypesList}>
                 {profile.sponsor_types.map((type, index) => (
-                  <View key={index} style={styles.sponsorTypeTag}>
-                    <Text style={styles.sponsorTypeText}>{type}</Text>
-                  </View>
+                  <ThemeChip
+                     key={index}
+                     label={type}
+                     index={index + 2} // Shift colors to differ from categories
+                  />
                 ))}
               </View>
             </View>
@@ -1642,24 +1649,23 @@ const styles = StyleSheet.create({
   },
   editProfileButton: {
     alignSelf: 'center',
-    backgroundColor: PRIMARY_COLOR,
-    paddingHorizontal: 32,
-    paddingVertical: 10,
-    borderRadius: 16,
     marginBottom: 20,
+    width: '60%', // Give it some width
   },
-  editProfileText: {
+  editProfileText: { // Used in GradientButton? No, handled by component props
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 15,
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.m,
+    marginBottom: SPACING.m,
+    ...SHADOWS.sm,
+    // Removed border for cleaner look, or keep very subtle
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    marginBottom: 16,
+    borderColor: '#F2F2F7', 
   },
   sectionHeader: {
     flexDirection: 'row',

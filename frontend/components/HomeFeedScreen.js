@@ -24,9 +24,12 @@ import LikeStateManager from '../utils/LikeStateManager';
 import { useMessagePolling } from '../hooks/useMessagePolling';
 import SkeletonCard from './SkeletonCard';
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS } from '../constants/theme';
+
+// Map legacy constants to new theme
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function HomeFeedScreen({ navigation, role = 'member' }) {
   // Determine header title based on role

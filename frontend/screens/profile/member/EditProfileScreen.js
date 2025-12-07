@@ -32,9 +32,13 @@ import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 
 
-const PRIMARY_COLOR = "#6A0DAD";
-const TEXT_COLOR = "#1D1D1F";
-const LIGHT_TEXT_COLOR = "#8E8E93";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
+
+// Map to new theme
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 const PRONOUN_PRESETS = [
   "He/Him",
@@ -307,20 +311,14 @@ export default function EditProfileScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <TouchableOpacity
+          <GradientButton
+            title="Save"
             onPress={handleSave}
             disabled={!hasChanges || saving}
-            style={[
-              styles.saveButton,
-              (!hasChanges || saving) && styles.saveButtonDisabled,
-            ]}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
-            )}
-          </TouchableOpacity>
+            loading={saving}
+            style={{ minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 }} 
+            // Adjustable padding for header context
+          />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -503,21 +501,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: TEXT_COLOR,
   },
-  saveButton: {
-    backgroundColor: PRIMARY_COLOR,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  saveButtonDisabled: {
-    backgroundColor: LIGHT_TEXT_COLOR,
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  // saveButton styles removed as GradientButton handles them
   content: {
     flex: 1,
   },

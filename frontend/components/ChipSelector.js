@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS, BORDER_RADIUS } from '../constants/theme';
+
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function ChipSelector({
   selected = [],
@@ -242,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY_COLOR,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: BORDER_RADIUS.pill,
     gap: 6,
   },
   chipText: {
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5EA',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 16,
+    borderRadius: BORDER_RADIUS.pill,
     backgroundColor: '#FFFFFF',
     gap: 6,
   },
