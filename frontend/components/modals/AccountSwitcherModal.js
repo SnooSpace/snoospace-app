@@ -100,39 +100,50 @@ export default function AccountSwitcherModal({
     // Check if account is logged out - navigate to login instead of switching
     if (account.isLoggedIn === false) {
       console.log('[AccountSwitcher] Account is logged out, navigating to login');
-      console.log('[AccountSwitcher] onLoginRequired available:', !!onLoginRequired);
       onClose();
-      // Directly call onLoginRequired without showing an alert
       if (onLoginRequired) {
-        console.log('[AccountSwitcher] Calling onLoginRequired with account:', account.email);
         onLoginRequired(account);
-      } else {
-        console.error('[AccountSwitcher] ERROR: onLoginRequired callback is not defined!');
       }
       return;
     }
 
-    console.log('[AccountSwitcher] Account is logged in, proceeding with switch');
+    console.log('[AccountSwitcher] Account is logged in, validating token');
+    
+    // Validate access token before switching
+    const accessToken = account.authToken;
+    if (!accessToken) {
+      console.warn('[AccountSwitcher] No access token for account');
+      promptReAuthentication(account);
+      return;
+    }
+
     try {
       setSwitchingTo(account.id);
       
-      // Skip token validation if it's failing - trust the stored token
-      // Token validation can fail due to network issues
-      try {
-        const isValid = await validateToken(account.authToken);
-        if (!isValid) {
-          console.log('[AccountSwitcher] Token validation failed, but proceeding anyway');
+      // Check if token is valid
+      const isValid = await validateToken(accessToken);
+      
+      if (!isValid) {
+        console.log('[AccountSwitcher] Token is invalid or expired');
+        
+        // Check refresh token
+        const refreshToken = account.refreshToken;
+        if (!refreshToken || refreshToken.length < 20) {
+          console.warn('[AccountSwitcher] Invalid/missing refresh token');
+          promptReAuthentication(account);
+          return;
         }
-      } catch (error) {
-        console.log('[AccountSwitcher] Token validation error (network issue), proceeding:', error.message);
-        // Continue anyway - the actual API calls will fail if token is truly invalid
+        
+        // Token is expired but we have refresh token - let it try naturally
+        // The API client will attempt refresh
+        console.log('[AccountSwitcher] Token expired but has refresh token, proceeding');
       }
 
-      // Switch account - this will throw if account is logged out
+      // Switch account
       console.log('[AccountSwitcher] Calling switchAccount...');
       await switchAccount(account.id);
       
-      // Navigate to correct screen FIRST (before closing modal)
+      // Navigate to correct screen
       if (onAccountSwitch) {
         console.log('[AccountSwitcher] Calling onAccountSwitch...');
         onAccountSwitch(account);
@@ -141,7 +152,7 @@ export default function AccountSwitcherModal({
       // Small delay to ensure navigation completes
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      //Then close modal
+      // Close modal
       console.log('[AccountSwitcher] Closing modal after successful switch');
       onClose();
     } catch (error) {
@@ -152,17 +163,46 @@ export default function AccountSwitcherModal({
         console.log('[AccountSwitcher] Caught logged-out error, navigating to login');
         onClose();
         if (onLoginRequired) {
-          console.log('[AccountSwitcher] Calling onLoginRequired after error');
           onLoginRequired(account);
-        } else {
-          console.error('[AccountSwitcher] ERROR: onLoginRequired callback not defined in error handler');
         }
+      } else if (error.message && (error.message.includes('Unauthorized') || error.message.includes('Invalid'))) {
+        // Token refresh failed
+        console.log('[AccountSwitcher] Token refresh failed, prompting re-auth');
+        promptReAuthentication(account);
       } else {
         Alert.alert('Error', 'Failed to switch account. Please try again.');
       }
     } finally {
       setSwitchingTo(null);
     }
+  }
+
+  // Helper function to prompt user to re-authenticate
+  function promptReAuthentication(account) {
+    onClose(); // Close switcher first
+    
+    Alert.alert(
+      'Session Expired',
+      `Your session for ${account.email} has expired. Would you like to log in again?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Log In',
+          onPress: () => {
+            // Mark account as logged out
+            accountManager.updateAccount(account.id, { isLoggedIn: false });
+            
+            // Navigate to login
+            if (onLoginRequired) {
+              onLoginRequired(account);
+            }
+          }
+        }
+      ]
+    );
   }
 
   async function handleRemoveAccount(account) {

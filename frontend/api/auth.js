@@ -239,9 +239,14 @@ export async function clearAllAccounts() {
 
 /**
  * Validate token with backend
- * Assumes token is valid if server is unreachable (network error)
+ * On network error, checks JWT expiration locally
  */
 export async function validateToken(token) {
+  if (!token) {
+    console.log('[validateToken] No token provided');
+    return false;
+  }
+
   try {
     const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'}/auth/validate-token`, {
       method: 'GET',
@@ -251,12 +256,48 @@ export async function validateToken(token) {
       },
     });
     
+    if (!response.ok) {
+      console.log('[validateToken] Token invalid:', response.status);
+      return false;
+    }
+    
     const data = await response.json();
     return data.valid === true;
   } catch (error) {
-    // If network error or server unreachable, assume token is valid
-    // This prevents "Session Expired" errors when switching accounts quickly
-    console.log('[validateToken] Network error - assuming token is valid:', error.message);
-    return true; // Changed from false to true
+    // On network error, try to decode JWT and check expiration locally
+    console.log('[validateToken] Network error, checking JWT expiry locally:', error.message);
+    
+    try {
+      // JWT format: header.payload.signature
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.warn('[validateToken] Invalid JWT format');
+        return false;
+      }
+
+      // Decode payload (base64)
+      const payload = JSON.parse(atob(parts[1]));
+      
+      if (!payload.exp) {
+        console.warn('[validateToken] No expiration in token');
+        return false;
+      }
+
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      const isExpired = exp < now;
+      
+      if (isExpired) {
+        console.log('[validateToken] Token expired locally');
+      } else {
+        const minutesUntilExpiry = Math.floor((exp - now) / (60 * 1000));
+        console.log(`[validateToken] Token valid for ${minutesUntilExpiry} more minutes`);
+      }
+      
+      return !isExpired;
+    } catch (decodeError) {
+      console.error('[validateToken] Cannot decode token:', decodeError);
+      return false;
+    }
   }
 }
