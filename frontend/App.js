@@ -9,6 +9,7 @@ import { apiPost } from "./api/client";
 import { NotificationsProvider, useNotifications } from "./context/NotificationsContext";
 import NotificationBanner from "./components/NotificationBanner";
 import { attachAppStateListener, startForegroundWatch, stopForegroundWatch } from "./services/LocationTracker";
+import { useTokenRefresh } from "./hooks/useTokenRefresh";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -48,6 +49,9 @@ function AppContent() {
 }
 
 export default function App() {
+  // Auto-refresh tokens when app comes to foreground
+  useTokenRefresh();
+  
   useEffect(() => {
     // Start foreground watcher on app mount and attach AppState listener
     startForegroundWatch();

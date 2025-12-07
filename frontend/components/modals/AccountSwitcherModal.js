@@ -181,28 +181,13 @@ export default function AccountSwitcherModal({
   function promptReAuthentication(account) {
     onClose(); // Close switcher first
     
-    Alert.alert(
-      'Session Expired',
-      `Your session for ${account.email} has expired. Would you like to log in again?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Log In',
-          onPress: () => {
-            // Mark account as logged out
-            accountManager.updateAccount(account.id, { isLoggedIn: false });
-            
-            // Navigate to login
-            if (onLoginRequired) {
-              onLoginRequired(account);
-            }
-          }
-        }
-      ]
-    );
+    // Mark account as logged out
+    accountManager.updateAccount(account.id, { isLoggedIn: false });
+    
+    // Silently navigate to login - more seamless than showing alert
+    if (onLoginRequired) {
+      onLoginRequired(account);
+    }
   }
 
   async function handleRemoveAccount(account) {
