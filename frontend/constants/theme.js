@@ -1,7 +1,7 @@
 export const COLORS = {
   // Brand
-  primaryGradient: ['#6200EA', '#D500F9'], // Deep Violet -> Vibrant Fuchsia
-  primary: '#6200EA', // Main solid fallback
+  primaryGradient: ['#90CAF9', '#1976D2'], // Sky Blue -> Darker Blue (Requested)
+  primary: '#1976D2', // Blue fallback
   secondary: '#00BFA5', // Teal (Accent/CTA)
   
   // Backgrounds
@@ -63,5 +63,12 @@ export const SHADOWS = {
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
+  },
+  primaryGlow: {
+    shadowColor: "#1976D2", // Blue Glow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
   },
 };

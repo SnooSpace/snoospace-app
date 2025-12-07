@@ -47,8 +47,8 @@ const GradientButton = ({
 const styles = StyleSheet.create({
   container: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.md,
-    overflow: 'visible', // For shadows to show, but LinearGradient needs to clip? No, wrapper has shadow.
+    ...SHADOWS.primaryGlow, // Use the new colored shadow (Glow)
+    overflow: 'visible',
   },
   gradient: {
     paddingVertical: 12,
