@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Animated, Easing, FlatList } from 'react-native';
+import { View, StyleSheet, Dimensions, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
-const GAP = 2; // Mimic tight grid or adjust as needed
+const GAP = 10; // Match real profile grid gap
 const COLUMNS = 3;
-const ITEM_SIZE = (width - ((COLUMNS - 1) * GAP)) / COLUMNS;
+const ITEM_SIZE = (width - 40 - GAP * 2) / 3; // Match real profile calculation
 
 const AnimatedLG = Animated.createAnimatedComponent(LinearGradient);
 
@@ -47,33 +47,31 @@ const Shimmer = ({ width: w, height: h, style, borderRadius = 0 }) => {
 };
 
 const SkeletonPostGrid = () => {
-  // Generate 12 placeholders
-  const data = new Array(12).fill(null);
+  // Show 9 cards (3 rows x 3 columns)
+  const data = new Array(9).fill(null);
 
   return (
     <View style={styles.container}>
-      {/* Grid Header / Tab Placeholder (optional, keeping simple for now) */}
-      <View style={styles.gridTabs}>
-         <Shimmer width={24} height={24} style={{ marginRight: 8 }} />
-      </View>
-
       <View style={styles.grid}>
-        {data.map((_, index) => (
-          <View 
-            key={index} 
-            style={[
-              styles.item,
-              { 
-                width: ITEM_SIZE, 
-                height: ITEM_SIZE,
-                marginRight: (index + 1) % COLUMNS === 0 ? 0 : GAP,
-                marginBottom: GAP
-              }
-            ]}
-          >
-            <Shimmer width={ITEM_SIZE} height={ITEM_SIZE} />
-          </View>
-        ))}
+        {data.map((_, index) => {
+          const isLastInRow = (index + 1) % COLUMNS === 0;
+          return (
+            <View 
+              key={index} 
+              style={[
+                styles.item,
+                { 
+                  width: ITEM_SIZE, 
+                  height: ITEM_SIZE,
+                  marginRight: isLastInRow ? 0 : GAP,
+                  marginBottom: GAP
+                }
+              ]}
+            >
+              <Shimmer width={ITEM_SIZE} height={ITEM_SIZE} borderRadius={8} />
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -83,6 +81,7 @@ const styles = StyleSheet.create({
   container: {
     paddingTop: 10,
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
   },
   shimmerContainer: {
     backgroundColor: '#E1E9EE',
@@ -91,20 +90,14 @@ const styles = StyleSheet.create({
   background: {
     backgroundColor: '#F0F2F5',
   },
-  gridTabs: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    marginBottom: 2,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   item: {
     backgroundColor: '#E1E9EE',
+    borderRadius: 8,
+    overflow: 'hidden',
   }
 });
 

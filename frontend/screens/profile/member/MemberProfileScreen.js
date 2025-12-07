@@ -435,21 +435,9 @@ export default function MemberProfileScreen({ navigation }) {
 
   const renderPostGrid = () => {
     const gap = 10;
-    const itemSize = (screenWidth - 40 - gap * 2) / 3; // (screenWidth - padding(40) - gaps(20)) / 3
-    // User requested to always have at least 3 items (skeleton/placeholder look) in the grid
-    let data = [];
-    if (posts.length > 0) {
-      data = [...posts];
-      // If we have fewer than 3 posts, fill the rest of the row with placeholders
-      if (data.length < 3) {
-        const paddingCount = 3 - data.length;
-        const padding = new Array(paddingCount).fill(null);
-        data = [...data, ...padding];
-      }
-    } else {
-      // If no posts, show 6 placeholders as before (or 3 if preferred, but existing code had 6)
-      data = new Array(6).fill(null); 
-    }
+    const itemSize = (screenWidth - 40 - gap * 2) / 3;
+    // Only show placeholders if there are NO posts (empty state)
+    const data = posts.length > 0 ? posts : new Array(6).fill(null);
     
     return (
       <FlatList

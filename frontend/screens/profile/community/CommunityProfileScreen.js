@@ -787,47 +787,24 @@ export default function CommunityProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
             <View style={styles.postsGrid}>
-              {(() => {
-                let displayPosts = [...posts];
-                // Pad to at least 3 items to look like a filled row default
-                if (displayPosts.length < 3) {
-                  const padding = new Array(3 - displayPosts.length).fill(null);
-                  displayPosts = [...displayPosts, ...padding];
-                }
-                
-                return displayPosts.map((item, index) => {
+              <FlatList
+                data={posts}
+                keyExtractor={(item) => item.id.toString()}
+                numColumns={3}
+                scrollEnabled={false}
+                columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: 10 }}
+                renderItem={({ item, index }) => {
                   const gap = 10;
                   const itemSize = (screenWidth - 40 - gap * 2) / 3;
-                  
-                  if (!item) {
-                    // Placeholder item
-                     return (
-                      <View
-                        key={`ph-${index}`}
-                        style={{
-                          width: itemSize,
-                          height: itemSize,
-                          marginRight: (index + 1) % 3 === 0 ? 0 : gap,
-                          marginBottom: gap,
-                          borderRadius: 8,
-                          backgroundColor: '#F2F2F7', // Light gray placeholder
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                        }}
-                      >
-                         <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
-                      </View>
-                    );
-                  }
+                  const isLastInRow = (index + 1) % 3 === 0;
 
                   return (
                     <TouchableOpacity
-                      key={item.id.toString()}
+                      activeOpacity={0.8}
                       style={{
                         width: itemSize,
                         height: itemSize,
-                        marginRight: (index + 1) % 3 === 0 ? 0 : gap,
-                        marginBottom: gap,
+                        marginRight: isLastInRow ? 0 : gap,
                         borderRadius: 8,
                         overflow: 'hidden',
                       }}
@@ -857,8 +834,8 @@ export default function CommunityProfileScreen({ navigation }) {
                       })()}
                     </TouchableOpacity>
                   );
-                });
-              })()}
+                }}
+              />
             </View>
           ) : (
             <View style={styles.emptyPostsContainer}>
