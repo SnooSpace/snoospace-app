@@ -461,16 +461,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   ))}
                 </View>
               )}
-            {!!profile?.location && (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={16} color="#8E8E93" />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {typeof profile.location === "string"
-                    ? profile.location
-                    : profile.location?.address || ""}
-                </Text>
-              </View>
-            )}
+
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
 
@@ -574,20 +565,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </View>
             )}
 
-          {profile?.location && (
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Location</Text>
-              <View style={styles.locationSection}>
-                <Ionicons name="location" size={16} color="#8E8E93" />
-                <Text style={styles.locationText}>
-                  {profile.location.address ||
-                    [profile.location.city, profile.location.state]
-                      .filter(Boolean)
-                      .join(", ")}
-                </Text>
-              </View>
-            </View>
-          )}
+
 
           <View
             style={{
@@ -966,16 +944,14 @@ const PostModal = ({
                 <Ionicons name="arrow-back" size={24} color="#000" />
               </TouchableOpacity>
               <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
-              <TouchableOpacity
-                style={postModalStyles.postModalMoreButton}
-                onPress={() => {
-                  if (isOwnPost()) {
-                    setShowDeleteMenu(true);
-                  }
-                }}
-              >
-                <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
-              </TouchableOpacity>
+              {isOwnPost() && (
+                <TouchableOpacity
+                  style={postModalStyles.postModalMoreButton}
+                  onPress={() => setShowDeleteMenu(true)}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={postModalStyles.postModalHeaderUserInfo}>
               <Image
