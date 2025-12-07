@@ -11,87 +11,61 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
-
-const COLORS = {
-  primary: "#5E17EB",
-  accent: "#EFEAFA",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#F9F9F9",
-  border: "#E0E0E0",
-  lightGray: "#F0F0F0",
-  white: "#FFFFFF",
-};
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
 const FONT_SIZES = {
-  header: 28,
+  header: 32,
   subtext: 16,
-  small: 13,
+  small: 14,
 };
 
 // --- Graphic Header ---
 const GraphicHeader = () => {
   const { width } = useWindowDimensions();
-  // Scale circles by screen width for responsiveness
-  const c1 = Math.round(width * 0.45);
-  const c2 = Math.round(width * 0.3);
-  const c3 = Math.round(width * 0.2);
-  const c4 = Math.round(width * 0.14);
+  const height = Math.round(width * 0.65); // Taller, more impressive header
+
   return (
-    <View
-      style={[
-        styles.graphicHeaderContainer,
-        { height: Math.max(160, Math.round(width * 0.45)) },
-      ]}
-    >
-      <View
-        style={[
-          styles.graphicCircle,
-          {
-            width: c1,
-            height: c1,
-            backgroundColor: "rgba(238, 169, 102, 0.6)",
-            top: 8,
-            left: 8,
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.graphicCircle,
-          {
-            width: c2,
-            height: c2,
-            backgroundColor: "rgba(94, 23, 235, 0.4)",
-            top: 0,
-            left: Math.min(width * 0.42, 160),
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.graphicCircle,
-          {
-            width: c3,
-            height: c3,
-            backgroundColor: "rgba(202, 194, 114, 0.5)",
-            top: Math.round(c1 * 0.55),
-            left: Math.min(width * 0.5, 180),
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.graphicCircle,
-          {
-            width: c4,
-            height: c4,
-            backgroundColor: "rgba(238, 169, 102, 0.8)",
-            top: Math.round(c1 * 0.2),
-            right: 16,
-          },
-        ]}
-      />
+    <View style={[styles.graphicHeaderContainer, { height }]}>
+      <LinearGradient
+        colors={COLORS.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.graphicGradient}
+      >
+        {/* Abstract Fluid Shapes */}
+        <View
+          style={[
+            styles.abstractCircle,
+            {
+              width: width * 0.8,
+              height: width * 0.8,
+              top: -width * 0.2,
+              left: -width * 0.2,
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+            },
+          ]}
+        />
+        <View
+          style={[
+            styles.abstractCircle,
+            {
+              width: width * 0.6,
+              height: width * 0.6,
+              bottom: -width * 0.1,
+              right: -width * 0.1,
+              backgroundColor: "rgba(255, 255, 255, 0.15)",
+            },
+          ]}
+        />
+        {/* Decorative "Star" or "Sparkle" to imply excitement */}
+        <Ionicons 
+          name="sparkles" 
+          size={40} 
+          color="rgba(255,255,255,0.3)" 
+          style={{ position: 'absolute', top: '30%', right: '20%' }} 
+        />
+      </LinearGradient>
     </View>
   );
 };
@@ -99,31 +73,38 @@ const GraphicHeader = () => {
 // --- Selection Item ---
 const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
   <TouchableOpacity
-    style={[styles.selectionItem, isSelected && styles.primarySelectionItem]}
+    style={[
+      styles.selectionItem,
+      isSelected && styles.primarySelectionItem, // Border highlight
+      // Add shadow to all items for depth
+      SHADOWS.sm,
+    ]}
     onPress={onPress}
+    activeOpacity={0.8}
   >
-    <View>
+    <View style={{ flex: 1, marginRight: 10 }}>
       <Text
-        style={
-          isSelected ? styles.primarySelectionTitle : styles.selectionTitle
-        }
+        style={[
+          styles.selectionTitle,
+          isSelected && styles.primarySelectionText,
+        ]}
       >
         {title}
       </Text>
       <Text
-        style={
-          isSelected
-            ? styles.primarySelectionSubtitle
-            : styles.selectionSubtitle
-        }
+        style={[
+          styles.selectionSubtitle,
+          isSelected && styles.primarySelectionText,
+        ]}
       >
         {subtitle}
       </Text>
     </View>
     <Ionicons
       name="chevron-forward"
-      size={20}
-      color={isSelected ? COLORS.white : COLORS.textDark}
+      size={22}
+      // Use Primary Blue for the icon as requested (closest to gradient)
+      color={isSelected ? COLORS.primary : COLORS.primary} 
     />
   </TouchableOpacity>
 );
@@ -157,189 +138,182 @@ const LandingScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeContainer} edges={["top"]}>
-      <View style={styles.screenContainer}>
+    <View style={styles.screenContainer}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
         <GraphicHeader />
-        <View style={styles.contentWrapper}>
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-          >
-            <View
-              style={[
-                styles.contentPadding,
-                isSmallWidth ? { paddingHorizontal: 16 } : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.mainTitle,
-                  isSmallWidth
-                    ? { fontSize: Math.max(22, FONT_SIZES.header - 4) }
-                    : null,
-                ]}
-              >
-                Welcome to SnooSpace
-              </Text>
-              <Text
-                style={[
-                  styles.subTitle,
-                  isSmallWidth ? { marginBottom: 24 } : null,
-                ]}
-              >
+        
+        <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+          <View style={styles.contentContainer}>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.mainTitle}>Welcome to SnooSpace</Text>
+              <Text style={styles.subTitle}>
                 Choose how you want to join our universe.
               </Text>
-
-              <View style={styles.selectionList}>
-                <SelectionItem
-                  title="I'm a Member"
-                  subtitle="Join events and connect"
-                  isSelected={selectedRole === "member"}
-                  onPress={() => handleSelection("member")}
-                />
-                <SelectionItem
-                  title="I'm a Community"
-                  subtitle="Host events and grow"
-                  isSelected={selectedRole === "community"}
-                  onPress={() => handleSelection("community")}
-                />
-                <SelectionItem
-                  title="I'm a Sponsor"
-                  subtitle="Support communities"
-                  isSelected={selectedRole === "sponsor"}
-                  onPress={() => handleSelection("sponsor")}
-                />
-                <SelectionItem
-                  title="I'm a Venue"
-                  subtitle="Host amazing events"
-                  isSelected={selectedRole === "venue"}
-                  onPress={() => handleSelection("venue")}
-                />
-              </View>
             </View>
-          </ScrollView>
-          <View style={styles.bottomBar}>
+
+            <View style={styles.selectionList}>
+              <SelectionItem
+                title="I'm a Member"
+                subtitle="Join events and connect"
+                isSelected={selectedRole === "member"}
+                onPress={() => handleSelection("member")}
+              />
+              <SelectionItem
+                title="I'm a Community"
+                subtitle="Host events and grow"
+                isSelected={selectedRole === "community"}
+                onPress={() => handleSelection("community")}
+              />
+              <SelectionItem
+                title="I'm a Sponsor"
+                subtitle="Support communities"
+                isSelected={selectedRole === "sponsor"}
+                onPress={() => handleSelection("sponsor")}
+              />
+              <SelectionItem
+                title="I'm a Venue"
+                subtitle="Host amazing events"
+                isSelected={selectedRole === "venue"}
+                onPress={() => handleSelection("venue")}
+              />
+            </View>
+
+            <View style={styles.spacer} />
+
             <TouchableOpacity
-              style={[
-                styles.button,
-                isSmallWidth ? { width: "90%", paddingVertical: 16 } : null,
-              ]}
+              activeOpacity={0.8}
               onPress={() => navigation.navigate("Login")}
+              style={styles.loginButtonContainer}
             >
-              <Text style={styles.buttonText}>LOGIN</Text>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.loginButton}
+              >
+                <Text style={styles.loginButtonText}>LOGIN</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
-    </SafeAreaView>
+        </SafeAreaView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   screenContainer: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  contentWrapper: {
-    flex: 0,
-  },
   scrollContent: {
-    flexGrow: 0,
+    flexGrow: 1,
+    paddingBottom: 30, // Bottom padding
   },
-  contentPadding: {
+  graphicHeaderContainer: {
+    width: "100%",
+    overflow: "hidden",
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    marginBottom: 20,
+    backgroundColor: COLORS.background,
+    // Add a shadow to the header curve itself for depth
+    ...SHADOWS.md,
+    shadowColor: COLORS.primary, // Tinted shadow
+    elevation: 10,
+  },
+  graphicGradient: {
+    width: "100%",
+    height: "100%",
+    position: "relative",
+  },
+  abstractCircle: {
+    position: "absolute",
+    borderRadius: 999,
+  },
+  contentContainer: {
     paddingHorizontal: 24,
-    paddingTop: 20,
+    flex: 1,
+  },
+  headerTextContainer: {
+    marginBottom: 30,
+    alignItems: 'center',
   },
   mainTitle: {
     fontSize: FONT_SIZES.header,
     fontWeight: "800",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 8,
+    textAlign: "center",
+    letterSpacing: -0.5,
   },
   subTitle: {
     fontSize: FONT_SIZES.subtext,
-    color: COLORS.textLight,
-    marginBottom: 40,
-  },
-  button: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: "85%",
-    alignItems: "center",
-    marginLeft: "auto",
-    marginRight: "auto",
-  },
-  bottomBar: {
-    paddingHorizontal: 16,
-    paddingTop: 22,
-    paddingBottom: Platform.OS === "ios" ? 30 : 30,
-    backgroundColor: COLORS.background,
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  graphicHeaderContainer: {
-    height: 200,
-    width: "100%",
-    backgroundColor: COLORS.lightGray,
-    overflow: "hidden",
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    marginBottom: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  graphicCircle: {
-    position: "absolute",
-    borderRadius: 999,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
   },
   selectionList: {
-    marginTop: 10,
+    gap: 12,
   },
   selectionItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: BORDER_RADIUS.pill, // Fully rounded pill shape
+    backgroundColor: COLORS.surface,
+    // Soft subtle shadow
+    ...SHADOWS.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "transparent", // Default border
   },
   primarySelectionItem: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.primary, // Highlight border color
+    backgroundColor: "#F0F8FF", // Very subtle blue tint background on active
   },
   selectionTitle: {
-    fontSize: FONT_SIZES.subtext,
-    fontWeight: "600",
-    color: COLORS.textDark,
-  },
-  primarySelectionTitle: {
-    fontSize: FONT_SIZES.subtext,
-    fontWeight: "600",
-    color: "#fff",
+    fontSize: 16, // Slightly larger
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
   },
   selectionSubtitle: {
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textLight,
-    marginTop: 2,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
   },
-  primarySelectionSubtitle: {
-    fontSize: FONT_SIZES.small,
-    color: "#fff",
-    opacity: 0.8,
-    marginTop: 2,
+  primarySelectionText: {
+    color: COLORS.primary, // Text turns blue when selected
+  },
+  spacer: {
+    flex: 1,
+    minHeight: 40,
+  },
+  loginButtonContainer: {
+    width: "100%",
+    // Apply Glow effect to the container
+    ...SHADOWS.primaryGlow,
+    shadowOpacity: 0.4, // Make it pop
+  },
+  loginButton: {
+    paddingVertical: 18,
+    borderRadius: BORDER_RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loginButtonText: {
+    color: COLORS.textInverted,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });
 
