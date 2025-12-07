@@ -22,6 +22,7 @@ import CommentsModal from './CommentsModal';
 import EventBus from '../utils/EventBus';
 import LikeStateManager from '../utils/LikeStateManager';
 import { useMessagePolling } from '../hooks/useMessagePolling';
+import SkeletonCard from './SkeletonCard';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -491,21 +492,17 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       </View>
 
       {/* Feed */}
-      <FlatList // Replaced ScrollView with FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id.toString()}
+      <FlatList
+        data={loading && posts.length === 0 ? [1, 2, 3] : posts}
+        renderItem={loading && posts.length === 0 ? () => <SkeletonCard /> : renderPost}
+        keyExtractor={(item) => (loading && posts.length === 0 ? `skeleton-${item}` : item.id.toString())}
         style={styles.feed}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={() => ( // Added ListEmptyComponent
-          loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading posts...</Text>
-            </View>
-          ) : (
+        ListEmptyComponent={() => (
+          !loading ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No posts yet</Text>
               <Text style={styles.emptySubtext}>Follow some users to see their posts here</Text>
@@ -515,7 +512,7 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
                 </TouchableOpacity>
               ) : null}
             </View>
-          )
+          ) : null
         )}
       />
       
