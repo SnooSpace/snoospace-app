@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -24,6 +24,16 @@ import RichTextEditor from '../RichTextEditor';
 import HighlightsEditor from '../HighlightsEditor';
 import FeaturedAccountsEditor from '../FeaturedAccountsEditor';
 import ThingsToKnowEditor from '../ThingsToKnowEditor';
+
+// Draft storage utilities
+import { 
+  saveDraft as saveDraftUtil, 
+  loadDraft as loadDraftUtil, 
+  deleteDraft as deleteDraftUtil, 
+  hasDraft, 
+  formatLastSaved 
+} from '../../utils/draftStorage';
+import { getActiveAccount } from '../../api/auth';
 
 const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
@@ -70,6 +80,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
 
+  // Draft management states
+  const [draftExists, setDraftExists] = useState(false);
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const [draftLastSaved, setDraftLastSaved] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+
   const stepLabels = [
     'Basic Info',
     'Media',
@@ -98,6 +114,189 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setHighlights([]);
     setFeaturedAccounts([]);
     setThingsToKnow([]);
+  };
+
+  // Draft Management Functions
+  const getCurrentFormData = () => ({
+    title,
+    eventDate: eventDate.toISOString(),
+    endDate: endDate.toISOString(),
+    gatesOpenTime: gatesOpenTime ? gatesOpenTime.toISOString() : null,
+    hasGates,
+    eventType,
+    locationUrl,
+    virtualLink,
+    maxAttendees,
+    categories,
+    bannerCarousel,
+    gallery,
+    description,
+    highlights,
+    featuredAccounts,
+    thingsToKnow,
+  });
+
+  const saveDraft = async (silent = false) => {
+    setSavingDraft(true);
+    try {
+      const account = await getActiveAccount();
+      const communityId = account?.id;
+      
+      if (!communityId) {
+        if (!silent) Alert.alert('Error', 'Could not save draft');
+        return;
+      }
+
+      const formData = getCurrentFormData();
+      await saveDraftUtil(communityId, currentStep, formData);
+      
+      setDraftLastSaved(new Date().toISOString());
+      if (!silent) {
+        Alert.alert('Draft Saved', 'Your event draft has been saved');
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      if (!silent) {
+        Alert.alert('Error', 'Failed to save draft');
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const loadDraftData = async () => {
+    try {
+      const account = await getActiveAccount();
+      const communityId = account?.id;
+      
+      if (!communityId) return;
+
+      const draft = await loadDraftUtil(communityId);
+      
+      if (draft) {
+        // Load all form data from draft
+        setTitle(draft.data.title || '');
+        setEventDate(draft.data.eventDate ? new Date(draft.data.eventDate) : new Date());
+        setEndDate(draft.data.endDate ? new Date(draft.data.endDate) : new Date());
+        setGatesOpenTime(draft.data.gatesOpenTime ? new Date(draft.data.gatesOpenTime) : null);
+        setHasGates(draft.data.hasGates || false);
+        setEventType(draft.data.eventType || 'in-person');
+        setLocationUrl(draft.data.locationUrl || '');
+        setVirtualLink(draft.data.virtualLink || '');
+        setMaxAttendees(draft.data.maxAttendees || '');
+        setCategories(draft.data.categories || []);
+        setBannerCarousel(draft.data.bannerCarousel || []);
+        setGallery(draft.data.gallery || []);
+        setDescription(draft.data.description || '');
+        setHighlights(draft.data.highlights || []);
+        setFeaturedAccounts(draft.data.featuredAccounts || []);
+        setThingsToKnow(draft.data.thingsToKnow || []);
+        setCurrentStep(draft.currentStep || 1);
+        setDraftLastSaved(draft.lastSaved);
+        
+        setShowDraftPrompt(false);
+      }
+    } catch (error) {
+      console.error('Error loading draft:', error);
+      Alert.alert('Error', 'Failed to load draft');
+    }
+  };
+
+  const deleteDraftData = async () => {
+    try {
+      const account = await getActiveAccount();
+      const communityId = account?.id;
+      
+      if (!communityId) return;
+
+      await deleteDraftUtil(communityId);
+      setDraftExists(false);
+      setDraftLastSaved(null);
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+    }
+  };
+
+  const checkForDraft = async () => {
+    try {
+      const account = await getActiveAccount();
+      const communityId = account?.id;
+      
+      if (!communityId) return;
+
+      const exists = await hasDraft(communityId);
+      setDraftExists(exists);
+      
+      if (exists) {
+        const draft = await loadDraftUtil(communityId);
+        if (draft) {
+          setDraftLastSaved(draft.lastSaved);
+          setShowDraftPrompt(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for draft:', error);
+    }
+  };
+
+  // Check for draft when modal opens
+  useEffect(() => {
+    if (visible) {
+      checkForDraft();
+    }
+  }, [visible]);
+
+  // Check if form has any content
+  const hasFormContent = () => {
+    return (
+      title.trim() !== '' ||
+      bannerCarousel.length > 0 ||
+      gallery.length > 0 ||
+      description.trim() !== '' ||
+      highlights.length > 0 ||
+      featuredAccounts.length > 0 ||
+      thingsToKnow.length > 0 ||
+      locationUrl.trim() !== '' ||
+      virtualLink.trim() !== '' ||
+      maxAttendees !== ''
+    );
+  };
+
+  // Modified close handler with save draft prompt
+  const handleClose = () => {
+    // If form is empty or we're showing draft prompt, just close
+    if (!hasFormContent() || showDraftPrompt) {
+      onClose();
+      return;
+    }
+
+    // Ask user if they want to save as draft
+    Alert.alert(
+      'Save Draft?',
+      'Would you like to save your progress as a draft?',
+      [
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteDraftData();
+            resetForm();
+            onClose();
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Save Draft',
+          onPress: async () => {
+            await saveDraft(true); // Silent save
+            onClose();
+          },
+        },
+      ]
+    );
   };
 
   // Helper function to validate Google Maps URLs
@@ -547,11 +746,11 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={handleClose}>
             <Ionicons name="close" size={28} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Event</Text>
@@ -604,6 +803,66 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         </View>
       </View>
 
+      {/* Draft Prompt Modal */}
+      <Modal visible={showDraftPrompt} transparent animationType="fade">
+        <View style={styles.draftPromptOverlay}>
+          <View style={styles.draftPromptContainer}>
+            <Ionicons name="save-outline" size={48} color={PRIMARY_COLOR} style={{ alignSelf: 'center', marginBottom: 15 }} />
+            
+            <Text style={styles.draftPromptTitle}>You have a draft event</Text>
+            {draftLastSaved && (
+              <Text style={styles.draftPromptSubtitle}>
+                Last saved {formatLastSaved(draftLastSaved)}
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.draftPromptButton}
+              onPress={loadDraftData}
+            >
+              <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.draftPromptButtonText}>Continue Editing</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.draftPromptButton, styles.draftPromptButtonSecondary]}
+              onPress={() => {
+                setShowDraftPrompt(false);
+                resetForm();
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
+              <Text style={[styles.draftPromptButtonText, styles.draftPromptButtonTextSecondary]}>
+                Start Fresh
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.draftPromptButton, styles.draftPromptButtonDanger]}
+              onPress={async () => {
+                await deleteDraftData();
+                setShowDraftPrompt(false);
+                resetForm();
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+              <Text style={[styles.draftPromptButtonText, styles.draftPromptButtonTextDanger]}>
+                Delete Draft
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.draftPromptCancelButton}
+              onPress={() => {
+                setShowDraftPrompt(false);
+                onClose();
+              }}
+            >
+              <Text style={styles.draftPromptCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </Modal>
   );
@@ -928,6 +1187,77 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#FF3B30',
     fontWeight: '500',
+  },
+  // Draft UI styles
+  saveDraftButton: {
+    padding: 4,
+  },
+  draftPromptOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  draftPromptContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  draftPromptTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT_COLOR,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  draftPromptSubtitle: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  draftPromptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PRIMARY_COLOR,
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 8,
+  },
+  draftPromptButtonSecondary: {
+    backgroundColor: '#F8F5FF',
+    borderWidth: 2,
+    borderColor: PRIMARY_COLOR,
+  },
+  draftPromptButtonDanger: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+  },
+  draftPromptButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  draftPromptButtonTextSecondary: {
+    color: PRIMARY_COLOR,
+  },
+  draftPromptButtonTextDanger: {
+    color: '#FF3B30',
+  },
+  draftPromptCancelButton: {
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  draftPromptCancelText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
   },
 });
 
