@@ -253,14 +253,21 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   const loadGreetingName = async () => {
     try {
       const token = await getAuthToken();
-      const email = await getAuthEmail();
-      if (!token || !email) return;
+      
+      // Import getActiveAccount to get correct email
+      const { getActiveAccount } = await import('../api/auth');
+      const activeAccount = await getActiveAccount();
+      
+      if (!token || !activeAccount?.email) return;
+      
+      const email = activeAccount.email;
       const res = await apiPost('/auth/get-user-profile', { email }, 12000, token);
       const prof = res?.profile || {};
       const name = prof.full_name || prof.name || prof.username || 'Member';
       setGreetingName(name);
       setCurrentUserId(prof.id); // Store current user ID for profile navigation
     } catch (e) {
+      console.error('[HomeFeed] Error loading greeting name:', e);
       setGreetingName('Member');
     }
   };

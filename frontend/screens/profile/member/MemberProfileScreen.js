@@ -24,7 +24,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { clearAuthSession, getAuthToken, logoutCurrentAccount, clearAllAccounts, getAllAccounts } from "../../../api/auth";
+import { clearAuthSession, getAuthToken, logoutCurrentAccount, clearAllAccounts, getAllAccounts, getActiveAccount } from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import {
@@ -90,8 +90,16 @@ export default function MemberProfileScreen({ navigation }) {
       const token = await getAuthToken();
       console.log(`[Profile] Token: ${token}`);
       if (!token) throw new Error("No auth token found");
-      const email = await AsyncStorage.getItem("auth_email");
-      if (!email) throw new Error("No user email in AsyncStorage");
+      
+      // Use getActiveAccount instead of AsyncStorage to get the correct email
+      const activeAccount = await getActiveAccount();
+      if (!activeAccount || !activeAccount.email) {
+        throw new Error("No active account found");
+      }
+      
+      const email = activeAccount.email;
+      console.log("[Profile] Active account email:", email);
+      
       const userProfileResponse = await apiPost(
         "/auth/get-user-profile",
         { email },
