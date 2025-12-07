@@ -40,6 +40,8 @@ import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModa
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
+import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
+import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const PRIMARY_COLOR = "#6A0DAD";
@@ -434,13 +436,26 @@ export default function MemberProfileScreen({ navigation }) {
   const renderPostGrid = () => {
     const gap = 10;
     const itemSize = (screenWidth - 40 - gap * 2) / 3; // (screenWidth - padding(40) - gaps(20)) / 3
-    const data = posts.length > 0 ? posts : new Array(6).fill(null);
-
+    // User requested to always have at least 3 items (skeleton/placeholder look) in the grid
+    let data = [];
+    if (posts.length > 0) {
+      data = [...posts];
+      // If we have fewer than 3 posts, fill the rest of the row with placeholders
+      if (data.length < 3) {
+        const paddingCount = 3 - data.length;
+        const padding = new Array(paddingCount).fill(null);
+        data = [...data, ...padding];
+      }
+    } else {
+      // If no posts, show 6 placeholders as before (or 3 if preferred, but existing code had 6)
+      data = new Array(6).fill(null); 
+    }
+    
     return (
       <FlatList
         data={data}
-        keyExtractor={(_, index) =>
-          data[index]?.id ? String(data[index].id) : `ph-${index}`
+        keyExtractor={(item, index) =>
+          item && item.id ? String(item.id) : `ph-${index}`
         }
         numColumns={3}
         columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap }}
@@ -985,13 +1000,13 @@ export default function MemberProfileScreen({ navigation }) {
   }
 
   if (loading && !profile) {
-    console.log("[Profile] rendering: loading spinner");
+    console.log("[Profile] rendering: skeleton loading");
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
+        <ScrollView scrollEnabled={false}>
+          <SkeletonProfileHeader type="member" />
+          <SkeletonPostGrid />
+        </ScrollView>
       </SafeAreaView>
     );
   }

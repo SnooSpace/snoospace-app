@@ -36,6 +36,8 @@ import AddAccountModal from '../../../components/modals/AddAccountModal';
 import LogoutModal from '../../../components/modals/LogoutModal';
 import EventBus from '../../../utils/EventBus';
 import MentionTextRenderer from '../../../components/MentionTextRenderer';
+import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
+import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -606,8 +608,11 @@ export default function CommunityProfileScreen({ navigation }) {
 
   if (!initialLoadCompleted && (loading || !profile)) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView scrollEnabled={false}>
+          <SkeletonProfileHeader type="community" />
+          <SkeletonPostGrid />
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -782,47 +787,78 @@ export default function CommunityProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
             <View style={styles.postsGrid}>
-              {posts.map((item, index) => {
-                const gap = 10;
-                const itemSize = (screenWidth - 40 - gap * 2) / 3;
-                return (
-                  <TouchableOpacity
-                    key={item.id.toString()}
-                    style={{
-                      width: itemSize,
-                      height: itemSize,
-                      marginRight: (index + 1) % 3 === 0 ? 0 : gap,
-                      marginBottom: gap,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                    }}
-                    onPress={() => openPostModal(item)}
-                  >
-                    {(() => {
-                      let firstImageUrl = null;
-                      if (item?.image_urls) {
-                        if (Array.isArray(item.image_urls)) {
-                          const flatUrls = item.image_urls.flat();
-                          firstImageUrl = flatUrls.find(u => typeof u === 'string' && u.startsWith('http'));
-                        } else if (typeof item.image_urls === 'string' && item.image_urls.startsWith('http')) {
-                          firstImageUrl = item.image_urls;
+              {(() => {
+                let displayPosts = [...posts];
+                // Pad to at least 3 items to look like a filled row default
+                if (displayPosts.length < 3) {
+                  const padding = new Array(3 - displayPosts.length).fill(null);
+                  displayPosts = [...displayPosts, ...padding];
+                }
+                
+                return displayPosts.map((item, index) => {
+                  const gap = 10;
+                  const itemSize = (screenWidth - 40 - gap * 2) / 3;
+                  
+                  if (!item) {
+                    // Placeholder item
+                     return (
+                      <View
+                        key={`ph-${index}`}
+                        style={{
+                          width: itemSize,
+                          height: itemSize,
+                          marginRight: (index + 1) % 3 === 0 ? 0 : gap,
+                          marginBottom: gap,
+                          borderRadius: 8,
+                          backgroundColor: '#F2F2F7', // Light gray placeholder
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}
+                      >
+                         <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id.toString()}
+                      style={{
+                        width: itemSize,
+                        height: itemSize,
+                        marginRight: (index + 1) % 3 === 0 ? 0 : gap,
+                        marginBottom: gap,
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                      }}
+                      onPress={() => openPostModal(item)}
+                    >
+                      {(() => {
+                        let firstImageUrl = null;
+                        if (item?.image_urls) {
+                          if (Array.isArray(item.image_urls)) {
+                            const flatUrls = item.image_urls.flat();
+                            firstImageUrl = flatUrls.find(u => typeof u === 'string' && u.startsWith('http'));
+                          } else if (typeof item.image_urls === 'string' && item.image_urls.startsWith('http')) {
+                            firstImageUrl = item.image_urls;
+                          }
                         }
-                      }
-                      return firstImageUrl ? (
-                        <Image
-                          source={{ uri: firstImageUrl }}
-                          style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA' }}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA', justifyContent: 'center', alignItems: 'center' }}>
-                          <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
-                        </View>
-                      );
-                    })()}
-                  </TouchableOpacity>
-                );
-              })}
+                        return firstImageUrl ? (
+                          <Image
+                            source={{ uri: firstImageUrl }}
+                            style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA' }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA', justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+                          </View>
+                        );
+                      })()}
+                    </TouchableOpacity>
+                  );
+                });
+              })()}
             </View>
           ) : (
             <View style={styles.emptyPostsContainer}>
