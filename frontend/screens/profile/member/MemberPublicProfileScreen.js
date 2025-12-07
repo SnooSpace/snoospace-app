@@ -37,6 +37,9 @@ const { width: screenWidth } = Dimensions.get("window");
 const GAP = 10;
 const ITEM_SIZE = (screenWidth - 40 - GAP * 2) / 3;
 
+import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
+
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
   const [profile, setProfile] = useState(null);
@@ -338,11 +341,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       </View>
 
       {loading ? (
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <ActivityIndicator size="large" color="#6A0DAD" />
-        </View>
+        <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
+          <SkeletonProfileHeader type="member" />
+          <SkeletonPostGrid />
+        </ScrollView>
       ) : error ? (
         <View style={{ padding: 16 }}>
           <Text style={{ color: "#FF3B30" }}>{error}</Text>

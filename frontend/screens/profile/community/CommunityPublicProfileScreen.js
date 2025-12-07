@@ -29,6 +29,8 @@ import LikeStateManager from "../../../utils/LikeStateManager";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
+import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 
 // Normalize Theme Constants
 const PRIMARY_COLOR = COLORS.primary;
@@ -393,7 +395,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#5f27cd" />
+        <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
+          <SkeletonProfileHeader type="community" />
+          <SkeletonPostGrid />
+        </ScrollView>
       </SafeAreaView>
     );
   }
