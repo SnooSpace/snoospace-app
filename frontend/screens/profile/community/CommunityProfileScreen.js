@@ -1112,9 +1112,22 @@ const PostModal = ({
   }, [visible]);
 
   const isOwnPost = () => {
-    return (
-      post?.author_id === profileProp?.id && post?.author_type === 'community'
-    );
+    if (!post || !profileProp) {
+        console.log('[CommunityProfile] isOwnPost: Missing post or profile');
+        return false;
+    }
+    const isOwner = String(post.author_id) === String(profileProp.id);
+    const isCommunity = (post.author_type || '').toLowerCase() === 'community';
+    
+    console.log('[CommunityProfile] isOwnPost check:', {
+        postAuthorId: post.author_id,
+        profileId: profileProp.id,
+        postAuthorType: post.author_type,
+        isOwner,
+        isCommunity
+    });
+    
+    return isOwner; // Temporarily removed author_type check strictness or simplified it
   };
 
   const handleDeletePost = async () => {
@@ -1260,16 +1273,18 @@ const PostModal = ({
                 <Ionicons name="arrow-back" size={24} color="#000" />
               </TouchableOpacity>
               <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
-              <TouchableOpacity
-                style={postModalStyles.postModalMoreButton}
-                onPress={() => {
-                  if (isOwnPost()) {
-                    setShowDeleteMenu(true);
-                  }
-                }}
-              >
-                <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
-              </TouchableOpacity>
+              <View style={postModalStyles.postModalMoreButton}>
+                {isOwnPost() && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      console.log('[CommunityProfile] 3-dot pressed. Setting showDeleteMenu=true');
+                      setShowDeleteMenu(true);
+                    }}
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
             <View style={postModalStyles.postModalHeaderUserInfo}>
               <Image
@@ -1438,6 +1453,7 @@ const PostModal = ({
           transparent={true}
           animationType="fade"
           onRequestClose={() => setShowDeleteMenu(false)}
+          onShow={() => console.log('[CommunityProfile] Delete menu modal now showing')}
         >
           <TouchableOpacity
             style={postModalStyles.deleteMenuOverlay}

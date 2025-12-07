@@ -788,8 +788,20 @@ const PostModal = ({
     }
   }, [visible]);
 
+  useEffect(() => {
+    console.log('[PostModal] showDeleteMenu state changed:', showDeleteMenu);
+  }, [showDeleteMenu]);
+
   const isOwnPost = () => {
-    if (!post) return false;
+    if (!post) {
+      console.log('[PostModal] isOwnPost: No post');
+      return false;
+    }
+    console.log('[PostModal] isOwnPost check:', {
+      postAuthorId: post.author_id,
+      currentUserId: currentUserId,
+      isOwner: currentUserId && String(post.author_id) === String(currentUserId)
+    });
     // Check if current logged-in user is the author of this post
     // Use currentUserId which is set from the actual logged-in user's profile
     if (currentUserId) {
@@ -952,7 +964,12 @@ const PostModal = ({
               <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
               <View style={postModalStyles.postModalMoreButton}>
                 {isOwnPost() && (
-                  <TouchableOpacity onPress={() => setShowDeleteMenu(true)}>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      console.log('[PostModal] 3-dot button pressed, setting showDeleteMenu to true');
+                      setShowDeleteMenu(true);
+                    }}
+                  >
                     <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
                   </TouchableOpacity>
                 )}
@@ -1103,6 +1120,7 @@ const PostModal = ({
           transparent={true}
           animationType="fade"
           onRequestClose={() => setShowDeleteMenu(false)}
+          onShow={() => console.log('[PostModal] Delete menu modal now showing')}
         >
           <TouchableOpacity
             style={postModalStyles.deleteMenuOverlay}
