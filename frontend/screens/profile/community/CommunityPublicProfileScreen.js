@@ -719,6 +719,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           onOpenComments={openCommentsModal}
           onCloseComments={closeCommentsModal}
           navigation={navigation}
+          currentUserId={currentUserId}
         />
       )}
 
@@ -752,6 +753,7 @@ const PostModal = ({
   onOpenComments,
   onCloseComments,
   navigation,
+  currentUserId,
 }) => {
   const initialIsLiked = post?.is_liked === true;
   const [likes, setLikes] = useState(post?.like_count || 0);
@@ -787,9 +789,13 @@ const PostModal = ({
   }, [visible]);
 
   const isOwnPost = () => {
-    if (!post || !profileProp) return false;
-    // Relaxed check: match ID (string comparison)
-    return String(post.author_id) === String(profileProp.id);
+    if (!post) return false;
+    // Check if current logged-in user is the author of this post
+    // Use currentUserId which is set from the actual logged-in user's profile
+    if (currentUserId) {
+      return String(post.author_id) === String(currentUserId);
+    }
+    return false;
   };
 
   const handleDeletePost = async () => {
@@ -944,14 +950,13 @@ const PostModal = ({
                 <Ionicons name="arrow-back" size={24} color="#000" />
               </TouchableOpacity>
               <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
-              {isOwnPost() && (
-                <TouchableOpacity
-                  style={postModalStyles.postModalMoreButton}
-                  onPress={() => setShowDeleteMenu(true)}
-                >
-                  <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
-                </TouchableOpacity>
-              )}
+              <View style={postModalStyles.postModalMoreButton}>
+                {isOwnPost() && (
+                  <TouchableOpacity onPress={() => setShowDeleteMenu(true)}>
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
             <View style={postModalStyles.postModalHeaderUserInfo}>
               <Image
