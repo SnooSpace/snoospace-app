@@ -15,14 +15,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getMessages, sendMessage, getConversations } from '../../api/messages';
 import { getPublicMemberProfile } from '../../api/members';
 import { getPublicCommunity } from '../../api/communities';
 import EventBus from '../../utils/EventBus';
+import { COLORS } from '../../constants/theme';
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function ChatScreen({ route, navigation }) {
   const { conversationId, recipientId, recipientType = 'member' } = route.params || {};
@@ -387,29 +389,31 @@ export default function ChatScreen({ route, navigation }) {
             <View style={{ width: 30, marginRight: 8 }} />
           )
         )}
-        <View
-          style={[
-            styles.messageBubble,
-            isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
-          ]}
-        >
-          <Text
-            style={[
-              styles.messageText,
-              isMyMessage ? styles.myMessageText : styles.otherMessageText,
-            ]}
+        
+        {isMyMessage ? (
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.messageBubble, styles.myMessageBubble]}
           >
-            {item.messageText}
-          </Text>
-          <Text
-            style={[
-              styles.messageTime,
-              isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
-            ]}
-          >
-            {formatTime(item.createdAt)}
-          </Text>
-        </View>
+            <Text style={[styles.messageText, styles.myMessageText]}>
+              {item.messageText}
+            </Text>
+            <Text style={[styles.messageTime, styles.myMessageTime]}>
+              {formatTime(item.createdAt)}
+            </Text>
+          </LinearGradient>
+        ) : (
+          <View style={[styles.messageBubble, styles.otherMessageBubble]}>
+            <Text style={[styles.messageText, styles.otherMessageText]}>
+              {item.messageText}
+            </Text>
+            <Text style={[styles.messageTime, styles.otherMessageTime]}>
+              {formatTime(item.createdAt)}
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -584,7 +588,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   myMessageBubble: {
-    backgroundColor: PRIMARY_COLOR,
+    // Background handled by LinearGradient
   },
   otherMessageBubble: {
     backgroundColor: '#F2F2F7',
@@ -595,7 +599,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   myMessageText: {
-    color: '#FFFFFF',
+    color: COLORS.textInverted,
   },
   otherMessageText: {
     color: TEXT_COLOR,
