@@ -21,7 +21,19 @@ function buildError(res, data) {
 async function tryRefreshAndRetry(doRequest) {
   try {
     console.log('[tryRefreshAndRetry] Attempting token refresh...');
-    const refreshToken = (await import('./auth')).getRefreshToken ? await (await import('./auth')).getRefreshToken() : null;
+    
+    // CRITICAL: Capture account context BEFORE refresh to prevent race conditions
+    // This ensures tokens are saved to the correct account even if user switches accounts
+    const authModule = await import('./auth');
+    const activeAccount = await authModule.getActiveAccount();
+    const accountId = activeAccount?.id;
+    
+    console.log('[tryRefreshAndRetry] Captured account context:', {
+      accountId,
+      email: activeAccount?.email
+    });
+    
+    const refreshToken = activeAccount?.refreshToken || await authModule.getRefreshToken();
     
     if (!refreshToken) {
       console.warn('[tryRefreshAndRetry] No refresh token available');
@@ -29,6 +41,22 @@ async function tryRefreshAndRetry(doRequest) {
     }
     
     console.log('[tryRefreshAndRetry] Refresh token length:', refreshToken?.length);
+    
+    // VALIDATION: Supabase refresh tokens are typically 40+ characters
+    // If token is too short, it's likely corrupted - skip refresh attempt
+    if (refreshToken.length < 20) {
+      console.error('[tryRefreshAndRetry] Refresh token is too short - likely corrupted:', refreshToken.length);
+      console.error('[tryRefreshAndRetry] Account needs re-authentication');
+      
+      // Mark account as logged out to prevent infinite retry loops
+      if (accountId) {
+        const accountManager = await import('../utils/accountManager');
+        await accountManager.updateAccount(accountId, { isLoggedIn: false });
+        console.log('[tryRefreshAndRetry] Marked account as logged out due to invalid refresh token');
+      }
+      
+      throw new Error('Unauthorized');
+    }
     
     const res = await withTimeout(
       fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
@@ -42,6 +70,16 @@ async function tryRefreshAndRetry(doRequest) {
     
     if (!res.ok) {
       console.error('[tryRefreshAndRetry] Refresh failed:', data?.error || res.statusText);
+      
+      // If refresh token was already used or is invalid, mark account as logged out
+      if (data?.error?.includes('Already Used') || data?.error?.includes('Invalid') || res.status === 401) {
+        console.error('[tryRefreshAndRetry] Refresh token invalid or already used - marking account for re-auth');
+        if (accountId) {
+          const accountManager = await import('../utils/accountManager');
+          await accountManager.updateAccount(accountId, { isLoggedIn: false });
+        }
+      }
+      
       throw new Error('Unauthorized');
     }
     
@@ -50,24 +88,20 @@ async function tryRefreshAndRetry(doRequest) {
     
     if (newAccess) {
       console.log('[tryRefreshAndRetry] Got new access token, length:', newAccess?.length);
-      const mod = await import('./auth');
-      if (mod.setAccessToken) await mod.setAccessToken(newAccess);
-    } else {
-      console.warn('[tryRefreshAndRetry] No access token in refresh response');
-    }
-    
-    // CRITICAL: Save new refresh token - Supabase rotates refresh tokens for security
-    // If we don't save it, the next refresh will fail with "Already Used" error
-    if (newRefresh) {
-      console.log('[tryRefreshAndRetry] Got new refresh token, length:', newRefresh?.length);
-      const mod = await import('./auth');
-      if (mod.setRefreshToken) {
-        await mod.setRefreshToken(newRefresh);
+      
+      // CRITICAL: Update tokens atomically for the SPECIFIC account that initiated refresh
+      // This prevents race conditions when user switches accounts during API calls
+      if (accountId) {
+        await authModule.updateAccountTokens(accountId, newAccess, newRefresh);
+        console.log('[tryRefreshAndRetry] Tokens updated atomically for account:', accountId);
       } else {
-        console.warn('[tryRefreshAndRetry] setRefreshToken function not available');
+        // Fallback to old behavior if no account context (legacy support)
+        console.warn('[tryRefreshAndRetry] No account context, using legacy token update');
+        if (authModule.setAccessToken) await authModule.setAccessToken(newAccess);
+        if (newRefresh && authModule.setRefreshToken) await authModule.setRefreshToken(newRefresh);
       }
     } else {
-      console.warn('[tryRefreshAndRetry] No refresh token in response - using existing one');
+      console.warn('[tryRefreshAndRetry] No access token in refresh response');
     }
     
     return doRequest(newAccess);

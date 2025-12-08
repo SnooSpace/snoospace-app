@@ -163,6 +163,47 @@ export async function setRefreshToken(refreshToken) {
   }
 }
 
+/**
+ * Update both access and refresh tokens atomically for a specific account
+ * This prevents race conditions when switching accounts during token refresh
+ * @param {string} accountId - The specific account ID to update tokens for
+ * @param {string} accessToken - New access token (optional)
+ * @param {string} refreshToken - New refresh token (optional)
+ */
+export async function updateAccountTokens(accountId, accessToken, refreshToken) {
+  try {
+    if (!accountId) {
+      console.warn('[updateAccountTokens] No account ID provided');
+      return;
+    }
+    
+    const updates = {};
+    if (accessToken) updates.authToken = accessToken;
+    if (refreshToken) updates.refreshToken = refreshToken;
+    
+    if (Object.keys(updates).length > 0) {
+      console.log('[updateAccountTokens] Updating tokens for account:', {
+        accountId,
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        accessTokenLength: accessToken?.length,
+        refreshTokenLength: refreshToken?.length
+      });
+      await accountManager.updateAccount(accountId, updates);
+    }
+    
+    // Also update legacy storage for backward compatibility
+    if (accessToken) {
+      await AsyncStorage.setItem(KEY_TOKEN, accessToken);
+    }
+    if (refreshToken) {
+      await AsyncStorage.setItem(KEY_REFRESH, refreshToken);
+    }
+  } catch (error) {
+    console.error('[updateAccountTokens] Error updating tokens:', error);
+  }
+}
+
 export async function setPendingOtp(flow, email, ttlSeconds = 600) {
   try {
     const expiresAt = Date.now() + ttlSeconds * 1000;

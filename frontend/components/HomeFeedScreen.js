@@ -22,7 +22,9 @@ import CommentsModal from './CommentsModal';
 import EventBus from '../utils/EventBus';
 import LikeStateManager from '../utils/LikeStateManager';
 import { useMessagePolling } from '../hooks/useMessagePolling';
+import { useFeedPolling } from '../hooks/useFeedPolling';
 import SkeletonCard from './SkeletonCard';
+import HapticsService from '../services/HapticsService';
 
 import { COLORS } from '../constants/theme';
 
@@ -71,6 +73,30 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   }, {
     baseInterval: 3000, // Poll every 3 seconds
     enabled: true,
+  });
+
+  // Auto-poll for new posts (30-second interval with backoff)
+  // Features: auto-loads new posts, exponential backoff when no changes, night-time adaptation
+  const { isPolling: isFeedPolling, initializeTimestamp } = useFeedPolling({
+    baseInterval: 30000, // 30 seconds
+    enabled: !loading, // Don't poll while initial load is happening
+    onNewPostsLoaded: (newPosts) => {
+      console.log('[HomeFeed] Auto-loading new posts from polling');
+      // Apply cached like states and update posts
+      const mergedPosts = LikeStateManager.mergeLikeStates(
+        newPosts.map(post => ({
+          ...post,
+          tagged_entities: (() => {
+            if (!post.tagged_entities) return null;
+            if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
+            try { return JSON.parse(post.tagged_entities); } catch { return null; }
+          })()
+        }))
+      );
+      setPosts(mergedPosts);
+      // Haptic feedback for new posts
+      HapticsService.triggerImpactLight();
+    },
   });
 
   useEffect(() => {
@@ -218,6 +244,11 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       const mergedPosts = LikeStateManager.mergeLikeStates(posts);
       console.log('[HomeFeedScreen] After merge, checking post 24:', mergedPosts.find(p => p.id === '24' || p.id === 24));
       setPosts(mergedPosts);
+      
+      // Initialize polling timestamp for new post detection
+      if (mergedPosts.length > 0 && mergedPosts[0]?.created_at) {
+        initializeTimestamp(mergedPosts[0].created_at);
+      }
     } catch (error) {
       console.error('Error loading feed:', error);
       setErrorMsg(error?.message || 'Failed to load posts');

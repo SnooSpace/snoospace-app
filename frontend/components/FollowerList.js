@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import PropTypes from "prop-types";
 import EventBus from "../utils/EventBus";
+import SkeletonUserCard from "./SkeletonUserCard";
 
 const PAGE_SIZE = 30;
 const DEFAULT_PRIMARY = "#6A0DAD";
@@ -237,7 +238,9 @@ export default function FollowerList({
 
       {loading && items.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={primaryColor} />
+          {Array.from({ length: 10 }).map((_, index) => (
+            <SkeletonUserCard key={index} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -371,8 +374,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    // alignItems: "center", // Removed to allow full width list
+    // justifyContent: "center", // Removed to allow list to start from top
   },
   emptyContainer: {
     flex: 1,

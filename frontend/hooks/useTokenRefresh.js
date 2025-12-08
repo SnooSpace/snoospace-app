@@ -11,6 +11,7 @@ export function useTokenRefresh() {
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    // Refresh when app comes to foreground
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       // App came to foreground from background
       if (
@@ -24,8 +25,21 @@ export function useTokenRefresh() {
       appState.current = nextAppState;
     });
 
+    // NEW: Periodic refresh every 45 minutes while app is active
+    // This prevents token expiration when app stays in foreground for extended periods
+    const refreshInterval = setInterval(async () => {
+      if (AppState.currentState === 'active') {
+        console.log('[TokenRefresh] Periodic check triggered (45min interval)');
+        await refreshExpiredTokens();
+      }
+    }, 45 * 60 * 1000); // 45 minutes
+
+    // Initial check when hook mounts
+    refreshExpiredTokens();
+
     return () => {
       subscription.remove();
+      clearInterval(refreshInterval);
     };
   }, []);
 }
@@ -94,31 +108,48 @@ function isTokenExpiringSoon(token, bufferMinutes = 10) {
  */
 async function attemptTokenRefresh(account) {
   try {
+    // Validate refresh token before attempting
+    if (!account.refreshToken || account.refreshToken.length < 20) {
+      console.error(`[TokenRefresh] Invalid refresh token for ${account.email} (length: ${account.refreshToken?.length})`);
+      await accountManager.updateAccount(account.id, { isLoggedIn: false });
+      return;
+    }
+    
     const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        refreshToken: account.refreshToken
+        refresh_token: account.refreshToken  // Fixed: was 'refreshToken', backend expects 'refresh_token'
       }),
     });
 
+    const data = await response.json().catch(() => ({}));
+    
     if (!response.ok) {
-      console.error(`[TokenRefresh] Refresh failed for ${account.email}:`, response.status);
+      console.error(`[TokenRefresh] Refresh failed for ${account.email}:`, response.status, data?.error);
       
-      // Mark as logged out if refresh fails
-      if (response.status === 401 || response.status === 403) {
+      // Mark as logged out if refresh fails with auth error or token already used
+      if (response.status === 401 || response.status === 403 || 
+          data?.error?.includes('Already Used') || data?.error?.includes('Invalid')) {
         console.log(`[TokenRefresh] Marking ${account.email} as logged out`);
         await accountManager.updateAccount(account.id, { isLoggedIn: false });
       }
       return;
     }
 
-    const data = await response.json();
+    // Backend returns tokens in data.data.session format
+    const newAccessToken = data?.data?.session?.access_token;
+    const newRefreshToken = data?.data?.session?.refresh_token;
+    
+    if (!newAccessToken) {
+      console.error(`[TokenRefresh] No access token in response for ${account.email}`);
+      return;
+    }
     
     // Update account with new tokens
     await accountManager.updateAccount(account.id, {
-      authToken: data.accessToken,
-      refreshToken: data.refreshToken
+      authToken: newAccessToken,
+      refreshToken: newRefreshToken || account.refreshToken  // Keep old if no new one
     });
     
     console.log(`[TokenRefresh] Successfully refreshed token for ${account.email}`);

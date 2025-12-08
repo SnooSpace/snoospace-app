@@ -46,6 +46,7 @@ import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/them
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
+import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -77,12 +78,22 @@ export default function MemberProfileScreen({ navigation }) {
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutModalData, setLogoutModalData] = useState({ hasMultiple: false, currentAccount: null });
-  // Combine comments modal state into one object to reduce state updates
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
   });
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Real-time counts polling (5-second interval)
+  // Pauses when modals are open to avoid distracting updates
+  const isAnyModalOpen = postModalVisible || showSettingsModal || showAccountSwitcher || showAddAccountModal || showLogoutModal || showDeleteModal || commentsModalState.visible;
+  const { counts: polledCounts, initializeCounts } = useProfileCountsPolling({
+    userId: profile?.id,
+    userType: 'member',
+    interval: 5000, // 5 seconds
+    enabled: !loading && !!profile?.id,
+    paused: isAnyModalOpen,
+  });
 
   // Load haptics preference asynchronously
   useEffect(() => {
@@ -191,6 +202,12 @@ export default function MemberProfileScreen({ navigation }) {
           isLiked: !!post.is_liked,
         }))
       );
+      // Initialize counts polling with initial values
+      initializeCounts({
+        follower_count: followerCount,
+        following_count: followingCount,
+        post_count: userPosts.length,
+      });
       console.log("[Profile] loadProfile: setProfile & setPosts");
     } catch (err) {
       console.log("[Profile] loadProfile: error caught:", err);
@@ -1154,7 +1171,7 @@ export default function MemberProfileScreen({ navigation }) {
                 });
               }}
             >
-              <Text style={styles.statNumber}>{profile.follower_count}</Text>
+              <Text style={styles.statNumber}>{polledCounts.followers || profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1167,7 +1184,7 @@ export default function MemberProfileScreen({ navigation }) {
                 });
               }}
             >
-              <Text style={styles.statNumber}>{profile.following_count}</Text>
+              <Text style={styles.statNumber}>{polledCounts.following || profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>
             </TouchableOpacity>
           </View>

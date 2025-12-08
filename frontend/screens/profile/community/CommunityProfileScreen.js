@@ -42,6 +42,7 @@ import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/them
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from '../../../services/HapticsService';
+import { useProfileCountsPolling } from '../../../hooks/useProfileCountsPolling';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
@@ -87,6 +88,17 @@ export default function CommunityProfileScreen({ navigation }) {
   const initialLoadCompletedRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Real-time counts polling (5-second interval)
+  // Pauses when modals are open to avoid distracting updates
+  const isAnyModalOpen = postModalVisible || showSettingsModal || showAccountSwitcher || showAddAccountModal || showLogoutModal || showDeleteModal || headsModalVisible || commentsModalState.visible;
+  const { counts: polledCounts, initializeCounts } = useProfileCountsPolling({
+    userId: profile?.id,
+    userType: 'community',
+    interval: 5000, // 5 seconds
+    enabled: !loading && !!profile?.id,
+    paused: isAnyModalOpen,
+  });
 
   // Load haptics preference asynchronously
   useEffect(() => {
@@ -366,6 +378,12 @@ export default function CommunityProfileScreen({ navigation }) {
 
       setProfile(mappedProfile);
       setPosts(userPosts);
+      // Initialize counts polling with initial values
+      initializeCounts({
+        follower_count: followerCount,
+        following_count: followingCount,
+        post_count: userPosts.length,
+      });
     } catch (error) {
       const communityProfile = mockData.communities[0];
       const categoriesFallback = Array.isArray(communityProfile.categories) && communityProfile.categories.length
@@ -565,9 +583,9 @@ export default function CommunityProfileScreen({ navigation }) {
     }
   };
 
-  const postsCount = (profile?.posts_count ?? profile?.post_count ?? 0);
-  const followersCount = (profile?.followers_count ?? profile?.follower_count ?? 0);
-  const followingCount = (profile?.following_count ?? profile?.following ?? 0);
+  const postsCount = polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
+  const followersCount = polledCounts.followers || (profile?.followers_count ?? profile?.follower_count ?? 0);
+  const followingCount = polledCounts.following || (profile?.following_count ?? profile?.following ?? 0);
 
   const openPostModal = (post) => {
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
