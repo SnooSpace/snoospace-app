@@ -340,12 +340,11 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   imageContainer: {
-    height: width,
+    height: width - (SPACING.m * 2),
   },
   postImage: {
-    width: '100%', // container has specific width? No, container matches margin.
-    height: width - (SPACING.m * 2), // Aspect ratio square minus margins?
-    // Actually simpler to just let it be square relative to screen or container
+    width: width - (SPACING.m * 2),
+    height: width - (SPACING.m * 2),
   },
   actions: {
     flexDirection: "row",
