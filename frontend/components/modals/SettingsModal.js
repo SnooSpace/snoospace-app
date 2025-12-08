@@ -5,6 +5,8 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Switch,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PropTypes from "prop-types";
@@ -22,6 +24,8 @@ export default function SettingsModal({
   onAddAccountPress,
   onLogoutPress,
   onDeleteAccountPress,
+  hapticsEnabled,
+  onToggleHaptics,
   textColor = "#1D1D1F",
   lightTextColor = "#8E8E93",
 }) {
@@ -104,6 +108,25 @@ export default function SettingsModal({
                 color={lightTextColor}
               />
             </TouchableOpacity>
+
+            {/* Haptics Toggle */}
+            <View style={styles.settingsOption}>
+              <Ionicons
+                name="phone-portrait-outline"
+                size={24}
+                color={textColor}
+              />
+              <Text style={[styles.settingsOptionText, { color: textColor }]}>
+                Enable App Haptics
+              </Text>
+              <Switch
+                trackColor={{ false: "#767577", true: "#34C759" }} // Use IOS green for true
+                thumbColor={Platform.OS === 'android' ? "#f4f3f4" : ""}
+                ios_backgroundColor="#3e3e3e"
+                onValueChange={onToggleHaptics}
+                value={hapticsEnabled}
+              />
+            </View>
 
             <View style={styles.divider} />
 
@@ -224,6 +247,8 @@ SettingsModal.propTypes = {
   onAddAccountPress: PropTypes.func,
   onLogoutPress: PropTypes.func,
   onDeleteAccountPress: PropTypes.func,
+  hapticsEnabled: PropTypes.bool,
+  onToggleHaptics: PropTypes.func,
   textColor: PropTypes.string,
   lightTextColor: PropTypes.string,
 };

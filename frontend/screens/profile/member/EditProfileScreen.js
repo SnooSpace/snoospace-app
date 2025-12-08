@@ -22,6 +22,7 @@ import {
   verifyEmailChange,
   fetchInterests,
 } from "../../../api/members";
+import HapticsService from "../../../services/HapticsService";
 import {
   launchImageLibraryAsync,
   requestMediaLibraryPermissionsAsync,
@@ -270,6 +271,7 @@ export default function EditProfileScreen({ route, navigation }) {
       }
 
       // Prevent the unsaved guard and go back after user acknowledges
+      HapticsService.triggerNotificationSuccess();
       Alert.alert("Success", "Profile updated successfully!", [
         {
           text: "OK",
@@ -453,7 +455,10 @@ export default function EditProfileScreen({ route, navigation }) {
             <Text style={styles.sectionTitle}>Interests</Text>
             <ChipSelector
               selected={interests}
-              onSelectionChange={setInterests}
+              onSelectionChange={(newVal) => {
+                HapticsService.triggerSelection();
+                setInterests(newVal);
+              }}
               presets={interestsCatalog}
               allowCustom={true}
               maxSelections={20}

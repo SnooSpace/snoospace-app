@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import ProgressBar from "../../../components/Progressbar";
+import HapticsService from "../../../services/HapticsService";
 
 // --- Design Constants ---
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected chips
@@ -70,6 +71,7 @@ const InterestsScreen = ({ navigation, route }) => {
   ];
 
   const toggleInterest = (interest) => {
+    HapticsService.triggerSelection();
     setSelectedInterests((prev) => {
       if (prev.includes(interest)) {
         // Deselect

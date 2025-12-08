@@ -45,6 +45,7 @@ import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
+import HapticsService from "../../../services/HapticsService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -81,6 +82,12 @@ export default function MemberProfileScreen({ navigation }) {
     visible: false,
     postId: null,
   });
+  const [hapticsEnabled, setHapticsEnabled] = useState(HapticsService.getEnabled());
+
+  const handleToggleHaptics = async (value) => {
+    setHapticsEnabled(value);
+    await HapticsService.setEnabled(value);
+  };
   // Buffer for avoiding parent re-renders during like/unlike inside PostModal
   const pendingPostUpdateRef = React.useRef(null);
   const loadProfileRef = React.useRef(null);
@@ -248,6 +255,7 @@ export default function MemberProfileScreen({ navigation }) {
   }, [navigation, route.params]);
 
   const handleEditProfile = () => {
+    HapticsService.triggerImpactLight();
     // Navigate to EditProfile (same stack - ProfileStackNavigator)
     navigation.navigate("EditProfile", { profile });
   };
@@ -1212,7 +1220,10 @@ export default function MemberProfileScreen({ navigation }) {
               />
               <GradientButton
                 title="Create Post"
-                onPress={() => navigation.navigate("CreatePost")}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate("CreatePost");
+                }}
                 style={{ flex: 1 }}
               />
             </View>

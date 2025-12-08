@@ -19,6 +19,7 @@ import MentionInput from "./MentionInput";
 import { getAuthToken } from "../api/auth";
 import { uploadMultipleImages } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
+import HapticsService from "../services/HapticsService";
 
 const COLORS = {
   primary: "#5E17EB",
@@ -115,6 +116,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
 
       // 5. Success: navigate to Home tab
+      HapticsService.triggerNotificationSuccess();
       Alert.alert("Success", "Post created successfully!", [
         { 
           text: "OK", 
@@ -241,7 +243,10 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Post</Text>
         <TouchableOpacity
-          onPress={handleSubmit}
+          onPress={() => {
+            HapticsService.triggerImpactLight();
+            handleSubmit();
+          }}
           disabled={!canSubmit || isSubmitting}
           style={[
             styles.shareButton,

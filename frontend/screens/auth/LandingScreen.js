@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import HapticsService from "../../services/HapticsService";
 
 const FONT_SIZES = {
   header: 32,
@@ -79,7 +80,11 @@ const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
       // Add shadow to all items for depth
       SHADOWS.sm,
     ]}
-    onPress={onPress}
+    onPress={() => {
+      // Trigger haptic selection feedback
+      HapticsService.triggerSelection();
+      onPress();
+    }}
     activeOpacity={0.8}
   >
     <View style={{ flex: 1, marginRight: 10 }}>
@@ -118,7 +123,8 @@ const LandingScreen = ({ navigation }) => {
   const handleSelection = (role) => {
     setSelectedRole(role);
     console.log(`Selected role: ${role}`);
-    // Navigate to role-specific signup form
+    // Navigate to role-specific signup form after short delay to feel selection? 
+    // Or instant. Implementing instant as per original design.
     switch (role) {
       case "member":
         navigation.navigate("MemberSignup", { selectedRole: role });
@@ -135,6 +141,11 @@ const LandingScreen = ({ navigation }) => {
       default:
         console.log("Unknown role:", role);
     }
+  };
+
+  const handleLoginPress = () => {
+    HapticsService.triggerImpactLight();
+    navigation.navigate("Login");
   };
 
   return (
@@ -186,7 +197,7 @@ const LandingScreen = ({ navigation }) => {
 
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("Login")}
+              onPress={handleLoginPress}
               style={styles.loginButtonContainer}
             >
               <LinearGradient
