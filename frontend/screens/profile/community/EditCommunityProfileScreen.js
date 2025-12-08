@@ -35,6 +35,7 @@ import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
+import HapticsService from "../../../services/HapticsService";
 
 // Map to new theme
 const PRIMARY_COLOR = COLORS.primary;
@@ -416,6 +417,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         {
           text: "OK",
           onPress: () => {
+            HapticsService.triggerNotificationSuccess();
             allowLeaveRef.current = true;
             setHasChanges(false);
             navigation.navigate("Profile", { refreshProfile: true });
@@ -608,6 +610,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <ChipSelector
               selected={categories}
               onSelectionChange={(selected) => {
+                HapticsService.triggerSelection();
                 const sanitized = Array.from(
                   new Set(
                     (selected || [])

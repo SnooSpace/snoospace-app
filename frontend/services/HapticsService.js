@@ -7,7 +7,7 @@ const HAPTICS_Enabled_KEY = 'app_haptics_enabled';
 class HapticsService {
   constructor() {
     this.isEnabled = true; // Default to true
-    this.init();
+    this.initPromise = this.init();
   }
 
   async init() {
@@ -30,7 +30,9 @@ class HapticsService {
     }
   }
 
-  getEnabled() {
+  async getEnabled() {
+    // Wait for init to complete before returning the value
+    await this.initPromise;
     return this.isEnabled;
   }
 

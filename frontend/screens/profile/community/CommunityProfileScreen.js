@@ -41,6 +41,7 @@ import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
+import HapticsService from '../../../services/HapticsService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -82,6 +83,20 @@ export default function CommunityProfileScreen({ navigation }) {
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Load haptics preference asynchronously
+  useEffect(() => {
+    (async () => {
+      const enabled = await HapticsService.getEnabled();
+      setHapticsEnabled(enabled);
+    })();
+  }, []);
+
+  const handleToggleHaptics = async (value) => {
+    setHapticsEnabled(value);
+    await HapticsService.setEnabled(value);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -727,7 +742,10 @@ export default function CommunityProfileScreen({ navigation }) {
 
           <GradientButton
             title="Edit Profile"
-            onPress={() => navigation.navigate('EditCommunityProfile', { profile })}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              navigation.navigate('EditCommunityProfile', { profile });
+            }}
             style={styles.editProfileButton}
           />
 
@@ -866,6 +884,8 @@ export default function CommunityProfileScreen({ navigation }) {
         }
         onLogoutPress={handleLogout}
         onDeleteAccountPress={() => setShowDeleteModal(true)}
+        hapticsEnabled={hapticsEnabled}
+        onToggleHaptics={handleToggleHaptics}
         textColor={TEXT_COLOR}
         lightTextColor={LIGHT_TEXT_COLOR}
       />

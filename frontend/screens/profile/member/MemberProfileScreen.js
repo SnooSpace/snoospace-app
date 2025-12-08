@@ -82,7 +82,15 @@ export default function MemberProfileScreen({ navigation }) {
     visible: false,
     postId: null,
   });
-  const [hapticsEnabled, setHapticsEnabled] = useState(HapticsService.getEnabled());
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Load haptics preference asynchronously
+  useEffect(() => {
+    (async () => {
+      const enabled = await HapticsService.getEnabled();
+      setHapticsEnabled(enabled);
+    })();
+  }, []);
 
   const handleToggleHaptics = async (value) => {
     setHapticsEnabled(value);
