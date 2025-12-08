@@ -1394,6 +1394,8 @@ export default function MemberProfileScreen({ navigation }) {
         onAddAccountPress={() => setShowAddAccountModal(true)}
         onLogoutPress={handleLogout}
         onDeleteAccountPress={() => setShowDeleteModal(true)}
+        hapticsEnabled={hapticsEnabled}
+        onToggleHaptics={handleToggleHaptics}
         textColor={TEXT_COLOR}
         lightTextColor={LIGHT_TEXT_COLOR}
       />
