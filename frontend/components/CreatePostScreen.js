@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  Easing,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +30,7 @@ const COLORS = {
   background: "#FFFFFF",
   white: "#fff",
   border: "#E5E5E5",
+  cardBg: "#FAFAFA",
 };
 
 const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
@@ -37,6 +40,33 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Animation for Share button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (caption.length > 0 || images.length > 0) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.05,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+        pulseAnim.setValue(1);
+        pulseAnim.stopAnimation();
+    }
+  }, [caption, images]);
 
   // Load current user profile for self-tagging
   useEffect(() => {
@@ -242,23 +272,25 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Post</Text>
-        <TouchableOpacity
-          onPress={() => {
-            HapticsService.triggerImpactLight();
-            handleSubmit();
-          }}
-          disabled={!canSubmit || isSubmitting}
-          style={[
-            styles.shareButton,
-            (!canSubmit || isSubmitting) && styles.shareButtonDisabled
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <Text style={styles.shareButtonText}>Share</Text>
-          )}
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                handleSubmit();
+              }}
+              disabled={!canSubmit || isSubmitting}
+              style={[
+                styles.shareButton,
+                (!canSubmit || isSubmitting) && styles.shareButtonDisabled
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.shareButtonText}>Share</Text>
+              )}
+            </TouchableOpacity>
+        </Animated.View>
       </View>
 
       {/* Content */}
@@ -273,29 +305,34 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled={true}
         >
-          {/* Caption Input with @ Mention Support */}
-          <View style={styles.captionContainer}>
-            <MentionInput
-              value={caption}
-              onChangeText={setCaption}
-              onTaggedEntitiesChange={setTaggedEntities}
-              placeholder="What's on your mind? Use @ to mention someone..."
-              placeholderTextColor={COLORS.textLight}
-              maxLength={2000}
-              style={styles.mentionInput}
-              currentUser={currentUser}
-            />
-            <Text style={styles.characterCount}>
-              {caption.length}/2000
-            </Text>
-          </View>
+          <View style={styles.composerCard}>
+              {/* Caption Input with @ Mention Support */}
+              <View style={styles.captionContainer}>
+                <MentionInput
+                  value={caption}
+                  onChangeText={setCaption}
+                  onTaggedEntitiesChange={setTaggedEntities}
+                  placeholder="What's on your mind? Use @ to mention someone..."
+                  placeholderTextColor={COLORS.textLight}
+                  maxLength={2000}
+                  style={styles.mentionInput}
+                  currentUser={currentUser}
+                />
+                <Text style={styles.characterCount}>
+                  {caption.length}/2000
+                </Text>
+              </View>
 
-          {/* Image Uploader */}
-          <ImageUploader
-            maxImages={10}
-            onImagesChange={handleImagesChange}
-            initialImages={images}
-          />
+              {/* Image Uploader */}
+              <View style={styles.uploaderContainer}>
+                  <ImageUploader
+                    maxImages={10}
+                    onImagesChange={handleImagesChange}
+                    initialImages={images}
+                  />
+                  <Text style={styles.addPhotosLabel}>Add Photos</Text>
+              </View>
+          </View>
 
           {/* Post Guidelines */}
           <View style={styles.guidelinesContainer}>
@@ -325,6 +362,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    zIndex: 10,
   },
   backButton: {
     padding: 4,
@@ -333,7 +371,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800", // Bolder title as requested
     color: COLORS.textDark,
     textAlign: "center",
   },
@@ -359,14 +397,29 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
+    paddingTop: 20,
     paddingBottom: 30,
   },
+  composerCard: {
+      backgroundColor: COLORS.cardBg,
+      borderRadius: 16,
+      padding: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      marginBottom: 20,
+  },
   captionContainer: {
-    marginTop: 16,
     marginBottom: 12,
+    minHeight: 100,
   },
   mentionInput: {
     flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    color: COLORS.textDark,
   },
   characterCount: {
     fontSize: 12,
@@ -374,11 +427,22 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 8,
   },
+  uploaderContainer: {
+      borderTopWidth: 1,
+      borderTopColor: '#E5E5E5',
+      paddingTop: 12,
+  },
+  addPhotosLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: COLORS.textLight,
+      marginTop: 4,
+      textAlign: 'center',
+  },
   guidelinesContainer: {
     backgroundColor: "#F8F9FA",
     padding: 15,
     borderRadius: 12,
-    marginTop: 20,
     marginBottom: 30,
   },
   guidelinesTitle: {

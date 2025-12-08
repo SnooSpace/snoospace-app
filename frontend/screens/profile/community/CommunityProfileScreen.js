@@ -43,6 +43,9 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from '../../../services/HapticsService';
 
+import { LinearGradient } from 'expo-linear-gradient';
+import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
+
 const { width: screenWidth } = Dimensions.get('window');
 
 const formatPhoneNumber = (value) => {
@@ -688,14 +691,20 @@ export default function CommunityProfileScreen({ navigation }) {
 
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
-              <Image
-                source={{
-                  uri: profile.logo_url && /^https?:\/\//.test(profile.logo_url)
-                    ? profile.logo_url
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Community')}&background=5f27cd&color=FFFFFF&size=120&bold=true`,
-                }}
-                style={styles.avatar}
-              />
+                {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
+                  <Image source={{ uri: profile.logo_url }} style={styles.avatar} />
+                ) : (
+                  <LinearGradient
+                    colors={getGradientForName(profile.name)}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+                  >
+                    <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#fff' }}>
+                      {getInitials(profile.name)}
+                    </Text>
+                  </LinearGradient>
+                )}
             </View>
             <Text style={styles.communityName}>{profile.name}</Text>
             {Array.isArray(profile.categories) && profile.categories.length > 0 && (

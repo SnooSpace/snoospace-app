@@ -9,12 +9,32 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS, BORDER_RADIUS } from '../constants/theme';
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+
+// Pastel gradients for interests
+const PASTEL_GRADIENTS = [
+  ['#FF9A9E', '#FECFEF'], // Soft Pink
+  ['#a18cd1', '#fbc2eb'], // Purple
+  ['#84fab0', '#8fd3f4'], // Mint
+  ['#e0c3fc', '#8ec5fc'], // Lavender
+  ['#4facfe', '#00f2fe'], // Blue
+  ['#43e97b', '#38f9d7'], // Green
+];
+
+const getGradientForString = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % PASTEL_GRADIENTS.length;
+  return PASTEL_GRADIENTS[index];
+};
 
 export default function ChipSelector({
   selected = [],
@@ -24,6 +44,7 @@ export default function ChipSelector({
   maxSelections = 20,
   placeholder = 'Select items or add custom',
   searchable = false,
+  variant = 'solid', // 'solid' | 'gradient-pastel' | 'glass'
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [customInput, setCustomInput] = useState('');
@@ -43,7 +64,7 @@ export default function ChipSelector({
   const handleToggle = (item) => {
     const value = typeof item === 'string' ? item : item.label || item.name || item;
     const isSelected = selected.includes(value);
-    
+
     if (isSelected) {
       onSelectionChange(selected.filter(s => s !== value));
     } else {
@@ -65,6 +86,109 @@ export default function ChipSelector({
 
   const handleRemove = (value) => {
     onSelectionChange(selected.filter(s => s !== value));
+  };
+
+  const renderChip = (value, isSelected, onPress, isRemove = false) => {
+    const isGradient = variant === 'gradient-pastel';
+    const isGlass = variant === 'glass';
+    
+    // Default Solid Style
+    let containerStyle = [styles.chip];
+    let textStyle = [styles.chipText];
+    let iconColor = isRemove ? TEXT_COLOR : '#FFFFFF';
+
+    if (isRemove) {
+        // Selected chips in the top list
+       if (isGradient) {
+           // Provide a subtle gradient bg
+           const colors = getGradientForString(value);
+           return (
+             <LinearGradient
+               colors={colors}
+               start={{ x: 0, y: 0 }}
+               end={{ x: 1, y: 1 }}
+               style={[styles.chip, { borderWidth: 0 }]}
+             >
+               <Text style={[styles.chipText, { color: '#000', fontWeight: '600', opacity: 0.8 }]}>{value}</Text>
+               <TouchableOpacity
+                 onPress={onPress}
+                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+               >
+                 <Ionicons name="close-circle" size={16} color="rgba(0,0,0,0.5)" />
+               </TouchableOpacity>
+             </LinearGradient>
+           );
+       } else if (isGlass) {
+           return (
+             <View style={[styles.chip, styles.glassChip]}>
+               <Text style={[styles.chipText, styles.glassText]}>{value}</Text>
+               <TouchableOpacity
+                 onPress={onPress}
+                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+               >
+                 <Ionicons name="close-circle" size={16} color={PRIMARY_COLOR} />
+               </TouchableOpacity>
+             </View>
+           );
+       }
+    } else {
+        // Preset chips
+        containerStyle = [
+            styles.presetChip,
+            isSelected && styles.presetChipSelected,
+            selected.length >= maxSelections && !isSelected && styles.presetChipDisabled,
+        ];
+        textStyle = [
+            styles.presetChipText,
+            isSelected && styles.presetChipTextSelected,
+        ];
+        
+        if (isSelected && isGradient) {
+             const colors = getGradientForString(value);
+             return (
+                 <TouchableOpacity onPress={onPress}>
+                   <LinearGradient
+                     colors={colors}
+                     start={{ x: 0, y: 0 }}
+                     end={{ x: 1, y: 1 }}
+                     style={[styles.presetChip, { borderWidth: 0 }]}
+                   >
+                     <Text style={[styles.presetChipText, { color: '#000', fontWeight: '600', opacity: 0.8 }]}>{value}</Text>
+                     <Ionicons name="checkmark" size={16} color="rgba(0,0,0,0.5)" style={styles.checkIcon} />
+                   </LinearGradient>
+                 </TouchableOpacity>
+             );
+        }
+        
+        if (isSelected && isGlass) {
+            return (
+                 <TouchableOpacity
+                   style={[styles.presetChip, styles.glassChipSelected]}
+                   onPress={onPress}
+                 >
+                   <Text style={[styles.presetChipText, styles.glassTextSelected]}>
+                     {value}
+                   </Text>
+                   <Ionicons name="checkmark" size={16} color={PRIMARY_COLOR} style={styles.checkIcon} />
+                 </TouchableOpacity>
+            );
+        }
+    }
+
+    return (
+      <TouchableOpacity
+        style={containerStyle}
+        onPress={onPress}
+        disabled={!isRemove && selected.length >= maxSelections && !isSelected}
+      >
+        <Text style={textStyle}>{value}</Text>
+        {isRemove ? (
+             <Ionicons name="close-circle" size={16} color={TEXT_COLOR} />
+        ) : (
+            isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" style={styles.checkIcon} />
+        )}
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -96,14 +220,8 @@ export default function ChipSelector({
             {selected.map((item, index) => {
               const value = typeof item === 'string' ? item : item.label || item.name || item;
               return (
-                <View key={index} style={styles.chip}>
-                  <Text style={styles.chipText}>{value}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleRemove(value)}
-                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                  >
-                    <Ionicons name="close-circle" size={16} color={TEXT_COLOR} />
-                  </TouchableOpacity>
+                <View key={index}>
+                    {renderChip(value, true, () => handleRemove(value), true)}
                 </View>
               );
             })}
@@ -120,28 +238,9 @@ export default function ChipSelector({
               const value = typeof item === 'string' ? item : item.label || item.name || item;
               const isSelected = selected.includes(value);
               return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.presetChip,
-                    isSelected && styles.presetChipSelected,
-                    selected.length >= maxSelections && !isSelected && styles.presetChipDisabled,
-                  ]}
-                  onPress={() => handleToggle(item)}
-                  disabled={selected.length >= maxSelections && !isSelected}
-                >
-                  <Text
-                    style={[
-                      styles.presetChipText,
-                      isSelected && styles.presetChipTextSelected,
-                    ]}
-                  >
-                    {value}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" style={styles.checkIcon} />
-                  )}
-                </TouchableOpacity>
+                  <View key={index}>
+                    {renderChip(value, isSelected, () => handleToggle(item), false)}
+                  </View>
               );
             })}
           </View>
@@ -247,10 +346,34 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.pill,
     gap: 6,
   },
+  glassChip: {
+      backgroundColor: 'rgba(255,255,255,0.8)',
+      borderWidth: 1,
+      borderColor: PRIMARY_COLOR,
+  },
+  glassChipSelected: {
+      backgroundColor: '#F0F8FF', // Very light blue
+      borderWidth: 1,
+      borderColor: PRIMARY_COLOR,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: BORDER_RADIUS.pill,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+  },
   chipText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
+  },
+  glassText: {
+      color: PRIMARY_COLOR,
+      fontWeight: '600',
+  },
+  glassTextSelected: {
+      color: PRIMARY_COLOR,
+      fontWeight: '600',
   },
   presetsContainer: {
     gap: 8,

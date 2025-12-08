@@ -447,6 +447,7 @@ export default function EditProfileScreen({ route, navigation }) {
               allowCustom={true}
               maxSelections={10}
               placeholder="Select pronouns or add custom"
+              variant="glass"
             />
           </View>
 
@@ -464,6 +465,7 @@ export default function EditProfileScreen({ route, navigation }) {
               maxSelections={20}
               placeholder="Select interests or add custom"
               searchable={true}
+              variant="gradient-pastel"
             />
           </View>
 
