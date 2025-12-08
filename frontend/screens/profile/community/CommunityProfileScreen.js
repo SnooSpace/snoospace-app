@@ -642,7 +642,7 @@ export default function CommunityProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -775,15 +775,23 @@ export default function CommunityProfileScreen({ navigation }) {
                     disabled={!canNavigate}
                     style={[styles.headRow, !canNavigate && { opacity: 0.85 }]}
                   >
-                    <Image
-                      source={{
-                        uri:
-                          head.profile_pic_url ||
-                          head.member_photo_url ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(head.name || 'Head')}&background=5f27cd&color=FFFFFF&size=64&bold=true`,
-                      }}
-                      style={styles.headAvatar}
-                    />
+                    {head.profile_pic_url || head.member_photo_url ? (
+                      <Image
+                        source={{ uri: head.profile_pic_url || head.member_photo_url }}
+                        style={styles.headAvatar}
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={getGradientForName(head.name || 'Head')}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.headAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+                      >
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                          {getInitials(head.name || 'H')}
+                        </Text>
+                      </LinearGradient>
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.headName}>{head.name}</Text>
                       {head.is_primary && <Text style={styles.primaryTag}>Primary</Text>}
@@ -818,7 +826,6 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
 
         <View style={styles.postsSection}>
-          <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
             <View style={styles.postsGrid}>
               <FlatList

@@ -1,15 +1,20 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { launchImageLibraryAsync, MediaTypeOptions } from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { uploadImage } from '../../api/cloudinary';
 import { apiGet } from '../../api/client';
 import { getAuthToken } from '../../api/auth';
+import { COLORS, SHADOWS, BORDER_RADIUS, SPACING } from '../../constants/theme';
+import HapticsService from '../../services/HapticsService';
 
-const PRIMARY = '#5f27cd';
-const TEXT = '#1e1e1e';
-const LIGHT = '#6c757d';
-const BG = '#ffffff';
+const PRIMARY = COLORS.primary;
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT = COLORS.textSecondary;
+const BG = COLORS.surface;
+
+const { width, height } = Dimensions.get('window');
 
 export default function HeadsEditorModal({ visible, initialHeads = [], onCancel, onSave, maxHeads = 3 }) {
   const [heads, setHeads] = useState(() => initialHeads.map(h => ({ ...h })));
@@ -22,6 +27,9 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
 
   useEffect(() => {
     if (visible) {
+      // Haptics on appear
+      HapticsService.triggerImpactLight();
+
       setHeads(initialHeads.map(h => ({ ...h })));
       setLinkingIndex(-1);
       setMemberQuery('');
@@ -35,6 +43,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
 
   const setPrimary = (idx) => {
     setHeads(prev => prev.map((h, i) => ({ ...h, is_primary: i === idx })));
+    HapticsService.triggerSelection();
   };
 
   const updateField = (idx, key, value) => {
@@ -51,6 +60,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
   const addHead = () => {
     if (!canAdd) return;
     setHeads(prev => [...prev, { name: '', is_primary: prev.length === 0, email: null, phone: null, profile_pic_url: null, member_id: null, member_username: null, member_photo_url: null }]);
+    HapticsService.triggerSelection();
   };
 
   const removeHead = (idx) => {
@@ -58,6 +68,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
     // ensure exactly one primary
     if (next.length > 0 && !next.some(h => h.is_primary)) next[0].is_primary = true;
     setHeads(next);
+    HapticsService.triggerImpactMedium();
   };
 
   const clearLink = (idx) => {
@@ -132,6 +143,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
     updateField(linkingIndex, 'member_username', member.username || member.full_name || member.name || 'member');
     updateField(linkingIndex, 'member_photo_url', member.profile_photo_url || null);
     closeLinkModal();
+    HapticsService.triggerSelection();
   };
 
   const pickAvatar = async (idx) => {
@@ -155,6 +167,30 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
     return null;
   };
 
+  // Sanitize function to normalize data for comparison
+  const sanitizeHead = (h) => {
+    const phoneDigits = h.phone ? h.phone.replace(/[^0-9]/g, '').slice(0, 10) : null;
+    const memberIdValue = h.member_id != null ? parseInt(h.member_id, 10) : null;
+    const memberId = Number.isFinite(memberIdValue) && memberIdValue > 0 ? memberIdValue : null;
+    return {
+      name: h.name ? h.name.trim() : '',
+      is_primary: h.is_primary || false,
+      email: h.email && h.email.trim() ? h.email.trim() : null,
+      phone: phoneDigits && phoneDigits.length === 10 ? phoneDigits : null,
+      profile_pic_url: h.profile_pic_url || null,
+      member_id: memberId,
+      member_username: h.member_username && h.member_username.trim() ? h.member_username.trim() : null,
+      member_photo_url: h.member_photo_url || null,
+    };
+  };
+
+  // Check if changes exist by comparing sanitized versions
+  const hasChanges = useMemo(() => {
+    const sanitizedCurrent = heads.map(sanitizeHead);
+    const sanitizedInitial = initialHeads.map(sanitizeHead);
+    return JSON.stringify(sanitizedCurrent) !== JSON.stringify(sanitizedInitial);
+  }, [heads, initialHeads]);
+
   const handleSave = async () => {
     const sanitizedHeads = heads.map(h => {
       const phoneDigits = h.phone ? h.phone.replace(/[^0-9]/g, '').slice(0, 10) : null;
@@ -171,11 +207,16 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
       };
     });
     const err = validate(sanitizedHeads);
-    if (err) { Alert.alert('Invalid', err); return; }
+    if (err) { 
+      HapticsService.triggerNotificationWarning();
+      Alert.alert('Invalid', err); 
+      return; 
+    }
     if (saving) return;
     try {
       setSaving(true);
       await onSave(sanitizedHeads);
+      HapticsService.triggerNotificationSuccess();
     } finally {
       setSaving(false);
     }
@@ -187,7 +228,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
         {item.profile_pic_url ? (
           <Image source={{ uri: item.profile_pic_url }} style={styles.avatarImg} />
         ) : (
-          <Ionicons name="person-circle-outline" size={48} color={LIGHT} />
+          <Ionicons name="person-circle-outline" size={48} color={LIGHT_TEXT} />
         )}
       </TouchableOpacity>
       <View style={{ flex: 1 }}>
@@ -195,14 +236,14 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
           value={item.name}
           onChangeText={(t) => updateField(index, 'name', t)}
           placeholder="Head name"
-          placeholderTextColor={LIGHT}
+          placeholderTextColor={LIGHT_TEXT}
           style={styles.input}
         />
         <TextInput
           value={item.email || ''}
           onChangeText={(t) => updateField(index, 'email', t)}
           placeholder="Email (optional)"
-          placeholderTextColor={LIGHT}
+          placeholderTextColor={LIGHT_TEXT}
           style={styles.input}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -211,7 +252,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
           value={item.phone || ''}
           onChangeText={(t) => updateField(index, 'phone', t)}
           placeholder="Phone (optional)"
-          placeholderTextColor={LIGHT}
+          placeholderTextColor={LIGHT_TEXT}
           style={styles.input}
           keyboardType="phone-pad"
           maxLength={10}
@@ -230,18 +271,21 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
           </TouchableOpacity>
           {item.member_id && (
             <TouchableOpacity onPress={() => clearLink(index)} style={styles.unlinkButton}>
-              <Ionicons name="close-circle-outline" size={16} color="#FF3B30" />
               <Text style={styles.unlinkText}>Remove</Text>
             </TouchableOpacity>
           )}
         </View>
         <View style={styles.inline}>
-          <TouchableOpacity onPress={() => setPrimary(index)} style={[styles.primaryBtn, item.is_primary ? styles.primaryActive : null]}>
-            <Text style={[styles.primaryText, item.is_primary ? { color: '#fff' } : null]}>{item.is_primary ? 'Primary' : 'Set as Primary'}</Text>
+          <TouchableOpacity 
+            onPress={() => setPrimary(index)} 
+            style={[styles.primaryBtn, item.is_primary ? styles.primaryActive : null]}
+          >
+            <Text style={[styles.primaryText, item.is_primary ? { color: '#fff' } : null]}>
+              {item.is_primary ? 'Primary' : 'Set as Primary'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => removeHead(index)} style={styles.removeBtn}>
-            <Ionicons name="trash-outline" size={18} color="#FF3B30" />
-            <Text style={styles.removeText}>Remove</Text>
+            <Text style={styles.removeText}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -250,13 +294,13 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
 
   return (
     <>
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.modalContainer}>
           <View style={styles.header}>
             <Text style={styles.title}>Edit Community Heads</Text>
             <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
-              <Ionicons name="close" size={24} color={TEXT} />
+              <Ionicons name="close" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
 
@@ -264,7 +308,8 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
             data={heads}
             keyExtractor={(_, i) => String(i)}
             renderItem={renderItem}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
+            contentContainerStyle={styles.listContent}
+            style={styles.list}
           />
 
           <View style={styles.footer}>
@@ -272,13 +317,38 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
               <Ionicons name="add" size={20} color={PRIMARY} />
               <Text style={styles.addText}>Add Head</Text>
             </TouchableOpacity>
-            <Text style={styles.limitText}>Up to 5 heads</Text>
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
-              <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.limitText}>Up to {maxHeads} heads</Text>
+          </View>
+
+          <View style={styles.actions}>
+            {/* Cancel Button - Ghost Style */}
+            <TouchableOpacity 
+              onPress={onCancel} 
+              style={styles.ghostButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.ghostButtonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveBtn}>
-              <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+
+            {/* Save Button - Primary Gradient Support */}
+            <TouchableOpacity 
+              onPress={handleSave} 
+              disabled={saving || !hasChanges} 
+              style={[styles.gradientButtonContainer, (!hasChanges) && styles.disabledButtonContainer]}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={hasChanges ? COLORS.primaryGradient : ['#E5E5EA', '#E5E5EA']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.gradientButtonText, !hasChanges && styles.disabledButtonText]}>Save Changes</Text>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -292,18 +362,18 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
       onRequestClose={closeLinkModal}
     >
       <View style={styles.linkOverlay}>
-        <View style={styles.linkSheet}>
+        <View style={[styles.linkSheet, SHADOWS.md]}>
           <View style={styles.linkHeader}>
             <Text style={styles.linkTitle}>Link Member Profile</Text>
             <TouchableOpacity onPress={closeLinkModal} style={{ padding: 4 }}>
-              <Ionicons name="close" size={22} color={TEXT} />
+              <Ionicons name="close" size={22} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
           <TextInput
             value={memberQuery}
             onChangeText={setMemberQuery}
             placeholder="Search members by name or username"
-            placeholderTextColor={LIGHT}
+            placeholderTextColor={LIGHT_TEXT}
             style={styles.linkSearchInput}
             autoCapitalize="none"
             autoCorrect={false}
@@ -329,7 +399,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
                     <Image source={{ uri: item.profile_photo_url }} style={styles.linkResultAvatar} />
                   ) : (
                     <View style={[styles.linkResultAvatar, styles.linkResultAvatarPlaceholder]}>
-                      <Ionicons name="person" size={18} color={LIGHT} />
+                      <Ionicons name="person" size={18} color={LIGHT_TEXT} />
                     </View>
                   )}
                   <View style={styles.linkResultMeta}>
@@ -340,7 +410,7 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
                       @{item.username || 'user'}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={LIGHT} />
+                  <Ionicons name="chevron-forward" size={18} color={LIGHT_TEXT} />
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.linkSeparator} />}
@@ -356,47 +426,298 @@ export default function HeadsEditorModal({ visible, initialHeads = [], onCancel,
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: BG, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '90%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E5EA' },
-  title: { fontSize: 16, fontWeight: '600', color: TEXT },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden', marginLeft: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F2F7' },
-  avatarImg: { width: 56, height: 56, borderRadius: 28 },
-  input: { borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: TEXT, marginBottom: 8 },
-  inline: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  linkedInfo: { fontSize: 12, color: LIGHT, marginBottom: 4 },
-  linkActions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  linkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: PRIMARY, borderRadius: 8 },
-  linkButtonText: { color: PRIMARY, fontWeight: '600' },
-  unlinkButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
-  unlinkText: { color: '#FF3B30', fontWeight: '600' },
-  primaryBtn: { borderWidth: 1, borderColor: PRIMARY, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  primaryActive: { backgroundColor: PRIMARY },
-  primaryText: { color: PRIMARY, fontWeight: '600' },
-  removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6 },
-  removeText: { color: '#FF3B30', fontWeight: '600' },
-  footer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#E5E5EA' },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 8 },
-  addText: { color: PRIMARY, fontWeight: '600' },
-  limitText: { color: LIGHT, fontSize: 12, marginLeft: 8 },
-  cancelBtn: { paddingHorizontal: 14, paddingVertical: 10 },
-  cancelText: { color: LIGHT },
-  saveBtn: { backgroundColor: PRIMARY, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
-  saveText: { color: '#fff', fontWeight: '700' },
-  linkOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 },
-  linkSheet: { backgroundColor: BG, borderRadius: 16, padding: 16, maxHeight: '80%' },
-  linkHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  linkTitle: { fontSize: 16, fontWeight: '600', color: TEXT },
-  linkSearchInput: { borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: TEXT },
-  linkHint: { fontSize: 13, color: LIGHT, textAlign: 'center', marginTop: 12 },
-  linkLoading: { paddingVertical: 20, alignItems: 'center' },
-  linkResults: { marginTop: 12, maxHeight: 280 },
-  linkResultItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-  linkResultAvatar: { width: 36, height: 36, borderRadius: 18 },
-  linkResultAvatarPlaceholder: { backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center' },
-  linkResultMeta: { flex: 1 },
-  linkResultName: { fontSize: 15, fontWeight: '600', color: TEXT },
-  linkResultUsername: { fontSize: 13, color: LIGHT },
-  linkSeparator: { height: 1, backgroundColor: '#E5E5EA' },
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: SPACING.l,
+  },
+  modalContainer: { 
+    backgroundColor: BG, 
+    borderRadius: 24, // Increased Radius
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
+    ...SHADOWS.md, // Elevation
+    overflow: 'hidden',
+  },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 20, 
+    paddingVertical: 16, 
+    borderBottomWidth: 1, 
+    borderBottomColor: COLORS.border 
+  },
+  title: { 
+    fontSize: 20, // Larger Title
+    fontWeight: 'bold', 
+    color: TEXT_COLOR 
+  },
+  list: {
+    maxHeight: height * 0.5,
+  },
+  listContent: {
+    paddingHorizontal: 16, 
+    paddingVertical: 8 
+  },
+  row: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start', // Align top for multiline
+    paddingVertical: 16, 
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5' // Sublime separator
+  },
+  avatar: { 
+    width: 60, 
+    height: 60, 
+    borderRadius: 30, 
+    overflow: 'hidden', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#F2F2F7',
+    marginTop: 4
+  },
+  avatarImg: { 
+    width: 60, 
+    height: 60, 
+    borderRadius: 30 
+  },
+  input: { 
+    borderWidth: 1, 
+    borderColor: COLORS.border, 
+    borderRadius: BORDER_RADIUS.m, 
+    paddingHorizontal: 12, 
+    paddingVertical: 12, 
+    color: TEXT_COLOR, 
+    marginBottom: 8,
+    fontSize: 15
+  },
+  inline: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12,
+    marginTop: 8
+  },
+  linkedInfo: { 
+    fontSize: 13, 
+    color: LIGHT_TEXT, 
+    marginBottom: 4 
+  },
+  linkActions: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    marginBottom: 8 
+  },
+  linkButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6, 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderWidth: 1, 
+    borderColor: PRIMARY, 
+    borderRadius: BORDER_RADIUS.s,
+    backgroundColor: 'rgba(25, 118, 210, 0.05)' // Subtle tint
+  },
+  linkButtonText: { 
+    color: PRIMARY, 
+    fontWeight: '600',
+    fontSize: 13
+  },
+  unlinkButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4, 
+    paddingHorizontal: 8, 
+    paddingVertical: 6 
+  },
+  unlinkText: { 
+    color: COLORS.error, 
+    fontWeight: '600',
+    fontSize: 13 
+  },
+  primaryBtn: { 
+    borderWidth: 1, 
+    borderColor: PRIMARY, 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: BORDER_RADIUS.pill
+  },
+  primaryActive: { 
+    backgroundColor: PRIMARY 
+  },
+  primaryText: { 
+    color: PRIMARY, 
+    fontWeight: '600',
+    fontSize: 12
+  },
+  removeBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6, 
+    paddingHorizontal: 8, 
+    paddingVertical: 6 
+  },
+  removeText: { 
+    color: COLORS.error, 
+    fontWeight: '600',
+    fontSize: 12 
+  },
+  footer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderTopWidth: 1, 
+    borderTopColor: COLORS.border 
+  },
+  addBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    paddingVertical: 8 
+  },
+  addText: { 
+    color: PRIMARY, 
+    fontWeight: '600',
+    fontSize: 15
+  },
+  limitText: { 
+    color: LIGHT_TEXT, 
+    fontSize: 13 
+  },
+  actions: {
+    padding: 20,
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'flex-end',
+    backgroundColor: BG // Ensure opaque over list
+  },
+  ghostButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: BORDER_RADIUS.pill,
+    borderWidth: 1,
+    borderColor: PRIMARY,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 100
+  },
+  ghostButtonText: {
+    color: PRIMARY,
+    fontWeight: '600',
+    fontSize: 16
+  },
+  gradientButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+    minWidth: 120
+  },
+  disabledButtonContainer: {
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  gradientButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: BORDER_RADIUS.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  gradientButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16
+  },
+  disabledButtonText: {
+    color: '#8E8E93',
+  },
+
+  // Link Modal Styles
+  linkOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'center', 
+    padding: 20 
+  },
+  linkSheet: { 
+    backgroundColor: BG, 
+    borderRadius: 20, 
+    padding: 20, 
+    maxHeight: '80%',
+    width: '100%'
+  },
+  linkHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 16 
+  },
+  linkTitle: { 
+    fontSize: 18, 
+    fontWeight: '600', 
+    color: TEXT_COLOR 
+  },
+  linkSearchInput: { 
+    borderWidth: 1, 
+    borderColor: COLORS.border, 
+    borderRadius: BORDER_RADIUS.m, 
+    paddingHorizontal: 12, 
+    paddingVertical: 12, 
+    color: TEXT_COLOR,
+    fontSize: 16 
+  },
+  linkHint: { 
+    fontSize: 14, 
+    color: LIGHT_TEXT, 
+    textAlign: 'center', 
+    marginTop: 16 
+  },
+  linkLoading: { 
+    paddingVertical: 20, 
+    alignItems: 'center' 
+  },
+  linkResults: { 
+    marginTop: 12, 
+    maxHeight: 300 
+  },
+  linkResultItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    paddingVertical: 12 
+  },
+  linkResultAvatar: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20 
+  },
+  linkResultAvatarPlaceholder: { 
+    backgroundColor: '#F2F2F7', 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  linkResultMeta: { 
+    flex: 1 
+  },
+  linkResultName: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: TEXT_COLOR 
+  },
+  linkResultUsername: { 
+    fontSize: 14, 
+    color: LIGHT_TEXT 
+  },
+  linkSeparator: { 
+    height: 1, 
+    backgroundColor: COLORS.border 
+  },
 });

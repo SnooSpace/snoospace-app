@@ -14,6 +14,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   getPublicCommunity,
   getCommunityPosts,
@@ -26,6 +27,7 @@ import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { apiPost, apiDelete } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
+import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
@@ -428,7 +430,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
         <View style={styles.bannerContainer}>
           {profile?.banner_url ? (
@@ -448,17 +450,20 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         <View style={styles.summarySection}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
-              <Image
-                source={{
-                  uri:
-                    profile?.logo_url && /^https?:\/\//.test(profile.logo_url)
-                      ? profile.logo_url
-                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          profile?.name || "Community"
-                        )}&background=5f27cd&color=FFFFFF&size=120&bold=true`,
-                }}
-                style={styles.avatar}
-              />
+              {profile?.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
+                <Image source={{ uri: profile.logo_url }} style={styles.avatar} />
+              ) : (
+                <LinearGradient
+                  colors={getGradientForName(profile?.name || 'Community')}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+                >
+                  <Text style={{ fontSize: 48, fontWeight: 'bold', color: '#fff' }}>
+                    {getInitials(profile?.name || 'Community')}
+                  </Text>
+                </LinearGradient>
+              )}
             </View>
             <Text style={styles.communityName}>
               {profile?.name || "Community"}
@@ -522,17 +527,23 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     onPress={() => handleHeadPress(head)}
                     disabled={!canNavigate}
                   >
-                    <Image
-                      source={{
-                        uri:
-                          head.profile_pic_url ||
-                          head.member_photo_url ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            head.name || "Head"
-                          )}&background=5f27cd&color=FFFFFF&size=64&bold=true`,
-                      }}
-                      style={styles.headAvatar}
-                    />
+                    {head.profile_pic_url || head.member_photo_url ? (
+                      <Image
+                        source={{ uri: head.profile_pic_url || head.member_photo_url }}
+                        style={styles.headAvatar}
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={getGradientForName(head.name || 'Head')}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.headAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+                      >
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                          {getInitials(head.name || 'H')}
+                        </Text>
+                      </LinearGradient>
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.headName}>{head.name}</Text>
                       {head.is_primary && (
@@ -686,7 +697,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         </View>
 
         <View style={styles.postsSection}>
-          <Text style={styles.sectionTitle}>Community Posts</Text>
           {posts.length > 0 ? (
             <FlatList
               data={posts}

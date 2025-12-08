@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from 'expo-linear-gradient';
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
@@ -26,6 +27,7 @@ import { followCommunity, unfollowCommunity } from "../../api/communities";
 import EventBus from "../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
+import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 
 const DEBOUNCE_MS = 300;
 
@@ -251,7 +253,8 @@ export default function SearchScreen({ navigation }) {
   const renderItem = ({ item }) => {
     const entityType = item.type || 'member';
     const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
-    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
+    const photoUrl = item.profile_photo_url || item.logo_url;
+    const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
     
     return (
       <View style={styles.row}>
@@ -259,10 +262,28 @@ export default function SearchScreen({ navigation }) {
           style={styles.profileRowInner} // Use new style for increased gap
           onPress={() => onPressProfile(item, false)}
         >
-          <Image
-            source={{ uri: photoUrl }}
-            style={styles.avatar}
-          />
+          {hasValidPhoto ? (
+            <Image
+              source={{ uri: photoUrl }}
+              style={styles.avatar}
+            />
+          ) : entityType === 'community' ? (
+            <LinearGradient
+              colors={getGradientForName(item.name || item.full_name || 'Community')}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+            >
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>
+                {getInitials(item.name || item.full_name || 'C')}
+              </Text>
+            </LinearGradient>
+          ) : (
+            <Image
+              source={{ uri: "https://via.placeholder.com/64" }}
+              style={styles.avatar}
+            />
+          )}
           <View style={styles.meta}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={styles.name} numberOfLines={1}>
@@ -309,7 +330,8 @@ export default function SearchScreen({ navigation }) {
   const renderRecentItem = ({ item }) => {
     const entityType = item.type || 'member';
     const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
-    const photoUrl = item.profile_photo_url || item.logo_url || "https://via.placeholder.com/64";
+    const photoUrl = item.profile_photo_url || item.logo_url;
+    const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
     
     return (
       <View style={styles.row}>
@@ -320,10 +342,28 @@ export default function SearchScreen({ navigation }) {
           }}
           activeOpacity={0.7}
         >
-          <Image
-            source={{ uri: photoUrl }}
-            style={styles.avatar}
-          />
+          {hasValidPhoto ? (
+            <Image
+              source={{ uri: photoUrl }}
+              style={styles.avatar}
+            />
+          ) : entityType === 'community' ? (
+            <LinearGradient
+              colors={getGradientForName(item.name || item.full_name || 'Community')}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+            >
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>
+                {getInitials(item.name || item.full_name || 'C')}
+              </Text>
+            </LinearGradient>
+          ) : (
+            <Image
+              source={{ uri: "https://via.placeholder.com/64" }}
+              style={styles.avatar}
+            />
+          )}
           <View style={styles.meta}>
             <Text style={styles.name} numberOfLines={1}>
               {displayName}
