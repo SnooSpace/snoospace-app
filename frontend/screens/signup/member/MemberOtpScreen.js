@@ -43,11 +43,12 @@ const VerificationScreen = ({ route, navigation }) => {
     try {
       const resp = await apiPost("/auth/verify-otp", { email, token: otp }, 20000);
       const accessToken = resp?.data?.session?.access_token;
+      const refreshToken = resp?.data?.session?.refresh_token;
       if (accessToken) {
-        await setAuthSession(accessToken, email);
+        await setAuthSession(accessToken, email, refreshToken);
       }
       await clearPendingOtp();
-      navigation.navigate("MemberPhone", { email, accessToken });
+      navigation.navigate("MemberPhone", { email, accessToken, refreshToken });
     } catch (e) {
       if (e.message && e.message.includes("timed out")) {
         setError("Request timed out. Please check your internet connection and try again.");

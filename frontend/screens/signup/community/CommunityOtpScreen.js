@@ -52,13 +52,15 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     try {
       const resp = await apiPost('/auth/verify-otp', { email, token: otp }, 15000);
       const accessToken = resp.data?.session?.access_token;
+      const refreshToken = resp.data?.session?.refresh_token;
       if (accessToken) {
-        await setAuthSession(accessToken, email);
+        await setAuthSession(accessToken, email, refreshToken);
       }
       await clearPendingOtp();
       navigation.navigate('CommunityName', {
         email,
         accessToken,
+        refreshToken,
       });
     } catch (e) {
       setError(e.message || 'Invalid verification code.');

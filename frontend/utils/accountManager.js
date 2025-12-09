@@ -66,6 +66,26 @@ export async function getActiveAccount() {
  */
 export async function addAccount(accountData) {
   try {
+    // VALIDATION: Warn if refresh token is missing or too short
+    if (!accountData.refreshToken) {
+      console.warn('[addAccount] ⚠️ NO REFRESH TOKEN provided for:', accountData.email);
+      console.warn('[addAccount] Account will not persist across token expiration!');
+    } else if (accountData.refreshToken.length < 20) {
+      console.warn('[addAccount] ⚠️ REFRESH TOKEN TOO SHORT for:', accountData.email, 'length:', accountData.refreshToken.length);
+      console.warn('[addAccount] Expected 40+ chars for Supabase refresh token');
+    } else {
+      console.log('[addAccount] ✓ Valid refresh token for:', accountData.email, 'length:', accountData.refreshToken.length);
+    }
+    
+    console.log('[addAccount] Adding/updating account:', {
+      id: accountData.id,
+      email: accountData.email,
+      type: accountData.type,
+      authTokenLength: accountData.authToken?.length,
+      refreshTokenLength: accountData.refreshToken?.length,
+      isLoggedIn: accountData.isLoggedIn
+    });
+    
     const accounts = await getAllAccounts();
     const accountId = String(accountData.id); // Always convert to string
     

@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { getAllAccounts, addAccount } from "../../../utils/accountManager";
+import { startForegroundWatch, attachAppStateListener } from "../../../services/LocationTracker";
 
 const TEXT_COLOR = "#1e1e1e";
 
@@ -88,6 +89,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
         Alert.alert('Account Added', 'Switching to new account...');
         
+        // Start location tracking for authenticated user
+        console.log('[LoginOtp] Starting location tracking for new account...');
+        await startForegroundWatch();
+        attachAppStateListener();
+        
         // Navigate to the appropriate home screen for the new account
         switch (userRole) {
           case "member":
@@ -125,10 +131,26 @@ const LoginOtpScreen = ({ navigation, route }) => {
             isLoggedIn: true, // Mark as logged in
           });
         } else {
-          // First time login - just set auth session
-          console.log('[LoginOtp] First time login:', email);
-          // setAuthSession was already called above (line 54)
+          // First time login - ALSO add to multi-account system for proper refresh token storage
+          console.log('[LoginOtp] First time login - adding to multi-account system:', email);
+          console.log('[LoginOtp] Refresh token length:', refreshToken?.length);
+          await addAccount({
+            id: userProfile.id,
+            type: userRole,
+            username: userProfile.username,
+            email: email,
+            name: userProfile.name || userProfile.username,
+            profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
+            authToken: accessToken,
+            refreshToken: refreshToken,
+            isLoggedIn: true,
+          });
         }
+        
+        // Start location tracking for authenticated user
+        console.log('[LoginOtp] Starting location tracking for logged-in user...');
+        await startForegroundWatch();
+        attachAppStateListener();
         
         // Navigate to the appropriate home screen
         switch (userRole) {

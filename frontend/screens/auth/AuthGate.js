@@ -1,7 +1,8 @@
 import React, { useEffect } from "react";
-import { View } from "react-native";
+import { View, AppState } from "react-native";
 import { getPendingOtp, getAuthToken, getAuthEmail, getRefreshToken } from "../../api/auth";
 import { apiPost } from "../../api/client";
+import { startForegroundWatch, stopForegroundWatch, attachAppStateListener } from "../../services/LocationTracker";
 
 export default function AuthGate({ navigation }) {
   useEffect(() => {
@@ -60,6 +61,17 @@ export default function AuthGate({ navigation }) {
           : role === 'sponsor' ? 'SponsorHome'
           : role === 'venue' ? 'VenueHome'
           : 'Landing';
+        
+        console.log('[AuthGate] Starting location tracking for authenticated user...');
+        // Start location tracking for authenticated users
+        // This will only request permission if not already granted (during signup)
+        // IMPORTANT: Must await to ensure permission dialog appears before navigation
+        await startForegroundWatch();
+        
+        // Set up AppState listener to manage location tracking lifecycle
+        // This ensures tracking resumes when app becomes active
+        const removeAppStateListener = attachAppStateListener();
+        
         navigation.reset({ index: 0, routes: [{ name: routeName }] });
         
         // STEP 3: Validate token in background (non-blocking)

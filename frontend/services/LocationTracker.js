@@ -41,8 +41,26 @@ async function maybeSync(coords) {
 
 export async function startForegroundWatch() {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return false;
+    console.log('[LocationTracker] startForegroundWatch called');
+    
+    // Check if we already have permission before requesting
+    let { status } = await Location.getForegroundPermissionsAsync();
+    console.log('[LocationTracker] Current permission status:', status);
+    
+    // Only request if we don't have permission yet
+    if (status !== 'granted') {
+      console.log('[LocationTracker] Requesting location permission...');
+      const result = await Location.requestForegroundPermissionsAsync();
+      status = result.status;
+      console.log('[LocationTracker] Permission request result:', status);
+    } else {
+      console.log('[LocationTracker] Permission already granted, skipping request');
+    }
+    
+    if (status !== 'granted') {
+      console.log('[LocationTracker] Permission not granted, aborting tracking');
+      return false;
+    }
 
     // Clear previous
     stopForegroundWatch();

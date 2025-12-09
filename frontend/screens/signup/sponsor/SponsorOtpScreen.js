@@ -48,13 +48,15 @@ const SponsorOtpScreen = ({ navigation, route }) => {
       );
 
       const accessToken = resp.data?.session?.access_token;
+      const refreshToken = resp.data?.session?.refresh_token;
       if (accessToken) {
-        await setAuthSession(accessToken, email);
+        await setAuthSession(accessToken, email, refreshToken);
       }
       await clearPendingOtp();
       navigation.navigate("SponsorPhone", {
         email,
         accessToken,
+        refreshToken,
       });
     } catch (e) {
       setError(e.message || "Invalid verification code.");
