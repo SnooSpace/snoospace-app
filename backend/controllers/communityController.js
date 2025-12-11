@@ -1,6 +1,8 @@
 async function signup(req, res) {
   try {
-    console.log('Community signup request received:', req.body);
+    console.log('==== COMMUNITY SIGNUP REQUEST ====');
+    console.log('Request body:', req.body);
+    
     const pool = req.app.locals.pool;
     const {
       name,
@@ -16,8 +18,40 @@ async function signup(req, res) {
       heads
     } = req.body || {};
     
-    // Get user_id from authenticated user (optional for now)
-    const user_id = req.user?.id || null;
+    // Try to get Supabase user from Authorization header (optional)
+    let supabaseUserId = null;
+    let user_id = null;
+    
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log('[Signup] Authorization header found, token length:', token.length);
+      
+      try {
+        const supabase = require("../supabase");
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (user && !error) {
+          supabaseUserId = user.id;
+          console.log('[Signup] Extracted Supabase user:', {
+            supabase_user_id: supabaseUserId,
+            email: user.email
+          });
+        } else {
+          console.warn('[Signup] Failed to get Supabase user from token:', error?.message);
+        }
+      } catch (tokenError) {
+        console.error('[Signup] Error decoding token:', tokenError.message);
+      }
+    } else {
+      console.log('[Signup] No Authorization header provided');
+    }
+    
+    console.log('JWT user:', {
+      id: user_id,
+      email: email,
+      supabase_user_id: supabaseUserId
+    });
 
     console.log('Validation check:', {
       name: !!name,
@@ -42,8 +76,9 @@ async function signup(req, res) {
     }
     // Validate location if provided (location is optional - can be null if user skipped)
     if (location !== null && location !== undefined) {
-      if (typeof location !== 'object' || !location.address) {
-        return res.status(400).json({ error: "location must be an object with at least address field if provided" });
+      // Accept either address OR googleMapsUrl as valid location data
+      if (typeof location !== 'object' || (!location.address && !location.googleMapsUrl)) {
+        return res.status(400).json({ error: "location must be an object with at least address or googleMapsUrl field if provided" });
       }
     }
     // Allow "Open to All" as a single item, otherwise require minimum 3 items (no maximum)
@@ -80,25 +115,38 @@ async function signup(req, res) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      
+      // Check for duplicate email BEFORE insert
+      const duplicateCheck = await client.query(
+        'SELECT id, name, email FROM communities WHERE LOWER(email) = LOWER($1)',
+        [email]
+      );
+      
+      if (duplicateCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        const existing = duplicateCheck.rows[0];
+        console.error('Duplicate email detected:', {
+          existing_id: existing.id,
+          existing_name: existing.name,
+          existing_email: existing.email,
+          attempted_email: email
+        });
+        return res.status(409).json({ 
+          error: `This email is already registered to "${existing.name}". Please use a different email or log in to your existing account.` 
+        });
+      }
+      
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
+      
+      // Simple INSERT without ON CONFLICT - include supabase_user_id
       const communityResult = await client.query(
-        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb)
-         ON CONFLICT (email) DO UPDATE SET
-           user_id=EXCLUDED.user_id,
-           name=EXCLUDED.name,
-           logo_url=EXCLUDED.logo_url,
-           bio=EXCLUDED.bio,
-           category=EXCLUDED.category,
-           categories=EXCLUDED.categories,
-           location=EXCLUDED.location,
-           phone=EXCLUDED.phone,
-           secondary_phone=EXCLUDED.secondary_phone,
-           sponsor_types=EXCLUDED.sponsor_types
+        `INSERT INTO communities (user_id, supabase_user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12::jsonb)
          RETURNING *`,
         [
           user_id,
+          supabaseUserId,  // Include Supabase user ID
           name,
           logo_url || null,
           bio || null,
@@ -149,11 +197,20 @@ async function signup(req, res) {
 
 async function getProfile(req, res) {
   try {
+    console.log('==== GET COMMUNITY PROFILE ====');
+    console.log('JWT user:', {
+      id: req.user?.id,
+      email: req.user?.email,
+      type: req.user?.type,
+      supabase_user_id: req.user?.sub
+    });
+    
     const pool = req.app.locals.pool;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
     if (!userId || userType !== 'community') {
+      console.error('Auth failed: userId=', userId, 'type=', userType);
       return res.status(401).json({ error: "Authentication required" });
     }
 

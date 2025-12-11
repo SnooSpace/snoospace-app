@@ -181,6 +181,13 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
 
     try {
       setIsSubmitting(true);
+      
+      console.log('[CommunitySponsorTypeSelect] Calling signup API:', {
+        hasAccessToken: !!accessToken,
+        accessTokenLength: accessToken?.length,
+        payloadEmail: payload.email
+      });
+      
       await apiPost('/communities/signup', payload, 15000, accessToken);
 
       navigation.navigate('CommunityUsername', {

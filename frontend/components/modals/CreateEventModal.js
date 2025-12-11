@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import PropTypes from 'prop-types';
 import { createEvent } from '../../api/events';
+import { isValidGoogleMapsUrl } from '../../utils/validateGoogleMapsUrl';
 
 // Import our new components
 import StepIndicator from '../StepIndicator';
@@ -297,19 +298,6 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         },
       ]
     );
-  };
-
-  // Helper function to validate Google Maps URLs
-  const isValidGoogleMapsUrl = (url) => {
-    if (!url) return false;
-    const validDomains = [
-      'maps.google.com',
-      'www.google.com/maps',
-      'maps.app.goo.gl',
-      'goo.gl/maps',
-      'g.co/maps',
-    ];
-    return validDomains.some(domain => url.includes(domain));
   };
 
   const validateStep = (step) => {

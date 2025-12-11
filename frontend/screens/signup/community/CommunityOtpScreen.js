@@ -57,6 +57,13 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         await setAuthSession(accessToken, email, refreshToken);
       }
       await clearPendingOtp();
+      
+      console.log('[CommunityOtp] OTP verified, navigating with:', {
+        email,
+        accessTokenLength: accessToken?.length,
+        refreshTokenLength: refreshToken?.length
+      });
+      
       navigation.navigate('CommunityName', {
         email,
         accessToken,

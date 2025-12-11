@@ -13,7 +13,9 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiPost } from "../../../api/client";
+import { apiPost, apiGet } from "../../../api/client";
+import { addAccount } from "../../../utils/accountManager";
+import { setAuthSession } from "../../../api/auth";
 
 const { width } = Dimensions.get("window");
 
@@ -76,6 +78,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { userData, accessToken } = route.params;
+  
+  console.log('[CommunityUsername] Route params:', {
+    userDataEmail: userData?.email,
+    accessTokenLength: accessToken?.length,
+    userDataKeys: Object.keys(userData || {})
+  });
 
   // Debounced username availability check
   useEffect(() => {
@@ -128,6 +136,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
+      // Step 1: Set the username
       await apiPost(
         "/username/set",
         {
@@ -138,11 +147,49 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         accessToken
       );
 
-      // Navigate to community home (Final step)
-      navigation.navigate("CommunityHome");
+      // Step 2: Get the community profile to get the ID
+      const profileResult = await apiGet("/communities/profile", 15000, accessToken);
+      const communityProfile = profileResult?.profile;
+      
+      if (!communityProfile) {
+        throw new Error("Failed to fetch community profile");
+      }
+
+      const newAccountId = String(communityProfile.id);
+      const newEmail = userData.email || communityProfile.email;
+      
+      console.log('[CommunitySignup] Creating new account:', {
+        id: newAccountId,
+        email: newEmail,
+        name: communityProfile.name,
+      });
+
+      // Step 3: Add the new community account to account manager
+      // This also sets it as the active account
+      await addAccount({
+        id: newAccountId,
+        type: 'community',
+        username: username,
+        email: newEmail,
+        name: communityProfile.name || userData.name,
+        profilePicture: communityProfile.logo_url || userData.logo_url || null,
+        authToken: accessToken,
+        refreshToken: null, // Will get refreshed on next token refresh
+        isLoggedIn: true,
+      });
+      
+      // Step 4: Also update the old auth storage for backward compatibility
+      // This ensures screens that use old-style auth get the new token
+      await setAuthSession(accessToken, newEmail, null);
+      
+      console.log('[CommunitySignup] Account added and auth session updated');
+
+      // Step 5: Navigate to community home with navigation reset
+      // The reset ensures all screens are fresh and use the new account
+      navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
     } catch (error) {
-      console.error("Error setting username:", error);
-      Alert.alert("Error", "Failed to set username. Please try again.");
+      console.error("Error completing signup:", error);
+      Alert.alert("Error", "Failed to complete signup. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

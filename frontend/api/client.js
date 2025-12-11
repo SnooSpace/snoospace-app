@@ -112,6 +112,12 @@ async function tryRefreshAndRetry(doRequest) {
 }
 
 export async function apiPost(path, body, timeoutMs, token) {
+  console.log(`[apiPost] ${path}`, {
+    hasToken: !!token,
+    tokenLength: token?.length,
+    bodyKeys: Object.keys(body || {})
+  });
+  
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   let res;

@@ -52,7 +52,7 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
   const { email, accessToken, name, logo_url, bio, category, categories } = route.params || {};
 
   const handleYes = () => {
-    navigation.navigate("CommunityLocationScreen", {
+    navigation.navigate("CommunityLocation", {
       email, accessToken, name, logo_url, bio, category, categories,
     });
   };

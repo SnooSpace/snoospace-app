@@ -124,7 +124,18 @@ export async function addAccount(accountData) {
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
     
     // Set as active account - MUST be string
+    console.log('[addAccount] Setting active account to:', accountId);
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId);
+    
+    // Verify it was set correctly
+    const verifyActiveId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
+    console.log('[addAccount] Verified active account ID:', verifyActiveId);
+    
+    if (verifyActiveId !== accountId) {
+      console.error('[addAccount] ⚠️ ACTIVE ACCOUNT MISMATCH! Expected:', accountId, 'Got:', verifyActiveId);
+    } else {
+      console.log('[addAccount] ✓ Active account successfully set to:', accountId);
+    }
     
     return true;
   } catch (error) {
