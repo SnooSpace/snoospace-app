@@ -21,6 +21,7 @@ async function signup(req, res) {
     // Try to get Supabase user from Authorization header (optional)
     let supabaseUserId = null;
     let user_id = null;
+    let tokenEmail = null;
     
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -33,10 +34,20 @@ async function signup(req, res) {
         
         if (user && !error) {
           supabaseUserId = user.id;
-          console.log('[Signup] Extracted Supabase user:', {
-            supabase_user_id: supabaseUserId,
-            email: user.email
+          tokenEmail = user.email;
+          
+          console.log('[Signup] ⚠️ TOKEN EMAIL vs REQUEST EMAIL:', {
+            tokenEmail: tokenEmail,
+            requestEmail: email,
+            emailsMatch: tokenEmail === email,
+            supabase_user_id: supabaseUserId
           });
+          
+          // CRITICAL: If token email doesn't match request email, this is a problem!
+          if (tokenEmail !== email) {
+            console.error('[Signup] ❌ EMAIL MISMATCH! Token is for different user!');
+            console.error('[Signup] This means the frontend is sending the OLD token with NEW signup');
+          }
         } else {
           console.warn('[Signup] Failed to get Supabase user from token:', error?.message);
         }
@@ -50,7 +61,8 @@ async function signup(req, res) {
     console.log('JWT user:', {
       id: user_id,
       email: email,
-      supabase_user_id: supabaseUserId
+      supabase_user_id: supabaseUserId,
+      tokenEmail: tokenEmail
     });
 
     console.log('Validation check:', {

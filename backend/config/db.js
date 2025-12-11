@@ -27,6 +27,7 @@ async function ensureTables(pool) {
         profile_photo_url TEXT,
         pronouns TEXT,
         location JSONB,
+        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -72,6 +73,7 @@ async function ensureTables(pool) {
         interests JSONB,
         cities JSONB,
         username TEXT UNIQUE,
+        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -95,6 +97,7 @@ async function ensureTables(pool) {
         conditions TEXT,
         logo_url TEXT,
         username TEXT UNIQUE,
+        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -343,6 +346,26 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE members DROP COLUMN IF EXISTS city;
       EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      
+      -- Add supabase_user_id columns for multi-account support
+      DO $$ BEGIN
+        ALTER TABLE members ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE venues ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Create indexes for supabase_user_id lookups
+      CREATE INDEX IF NOT EXISTS idx_members_supabase_user_id ON members(supabase_user_id);
+      CREATE INDEX IF NOT EXISTS idx_communities_supabase_user_id ON communities(supabase_user_id);
+      CREATE INDEX IF NOT EXISTS idx_sponsors_supabase_user_id ON sponsors(supabase_user_id);
+      CREATE INDEX IF NOT EXISTS idx_venues_supabase_user_id ON venues(supabase_user_id);
 
       -- Add constraints
       DO $$ BEGIN

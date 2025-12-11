@@ -77,11 +77,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { userData, accessToken } = route.params;
+  const { userData, accessToken, refreshToken } = route.params;
   
   console.log('[CommunityUsername] Route params:', {
     userDataEmail: userData?.email,
     accessTokenLength: accessToken?.length,
+    refreshTokenLength: refreshToken?.length,
     userDataKeys: Object.keys(userData || {})
   });
 
@@ -136,26 +137,36 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      // Step 1: Set the username
+      // Step 1: Get the community profile to get the ID
+      const profileResult = await apiGet("/communities/profile", 15000, accessToken);
+      const communityProfile = profileResult?.profile;
+      
+      if (!communityProfile || !communityProfile.id) {
+        throw new Error("Failed to fetch community profile");
+      }
+
+      const communityId = String(communityProfile.id);
+      
+      console.log('[CommunityUsername] Setting username for community:', {
+        communityId,
+        username,
+        email: communityProfile.email
+      });
+
+      // Step 2: Set the username with the community ID
       await apiPost(
         "/username/set",
         {
           username,
           userType: "community",
+          communityId: communityId, // Pass the community ID explicitly
         },
         15000,
         accessToken
       );
 
-      // Step 2: Get the community profile to get the ID
-      const profileResult = await apiGet("/communities/profile", 15000, accessToken);
-      const communityProfile = profileResult?.profile;
-      
-      if (!communityProfile) {
-        throw new Error("Failed to fetch community profile");
-      }
-
-      const newAccountId = String(communityProfile.id);
+      // Step 3: Add the new community account to account manager
+      const newAccountId = communityId;
       const newEmail = userData.email || communityProfile.email;
       
       console.log('[CommunitySignup] Creating new account:', {
@@ -164,7 +175,6 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         name: communityProfile.name,
       });
 
-      // Step 3: Add the new community account to account manager
       // This also sets it as the active account
       await addAccount({
         id: newAccountId,
@@ -174,7 +184,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         name: communityProfile.name || userData.name,
         profilePicture: communityProfile.logo_url || userData.logo_url || null,
         authToken: accessToken,
-        refreshToken: null, // Will get refreshed on next token refresh
+        refreshToken: refreshToken || null,
         isLoggedIn: true,
       });
       

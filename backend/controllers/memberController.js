@@ -20,7 +20,8 @@ function parsePgTextArray(value) {
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-  const { name, email, phone, dob, gender, location, interests, profile_photo_url } = req.body || {};
+    const { name, email, phone, dob, gender, location, interests, profile_photo_url } = req.body || {};
+    
     if (!name || !email || !phone || !dob || !gender || !location || !Array.isArray(interests)) {
       return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, location (JSONB), interests[]" });
     }
@@ -38,9 +39,27 @@ async function signup(req, res) {
     if (typeof location !== 'object' || location === null || !location.city) {
       return res.status(400).json({ error: "location must be an object with at least a city field" });
     }
+    
+    // Try to get Supabase user from Authorization header (optional, for multi-account support)
+    let supabaseUserId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const supabase = require("../supabase");
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (user && !error) {
+          supabaseUserId = user.id;
+          console.log('[MemberSignup] Linked to Supabase user:', supabaseUserId);
+        }
+      } catch (e) {
+        console.warn('[MemberSignup] Could not extract Supabase user, continuing without link');
+      }
+    }
+    
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, supabase_user_id)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
        ON CONFLICT (email) DO UPDATE SET
          name=EXCLUDED.name,
          phone=EXCLUDED.phone,
@@ -48,9 +67,10 @@ async function signup(req, res) {
          gender=EXCLUDED.gender,
          location=EXCLUDED.location,
          interests=EXCLUDED.interests,
-         profile_photo_url=COALESCE(EXCLUDED.profile_photo_url, members.profile_photo_url)
+         profile_photo_url=COALESCE(EXCLUDED.profile_photo_url, members.profile_photo_url),
+         supabase_user_id=COALESCE(EXCLUDED.supabase_user_id, members.supabase_user_id)
        RETURNING *`,
-      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null]
+      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null, supabaseUserId]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {

@@ -49,17 +49,17 @@ const progressBarStyles = StyleSheet.create({
 
 
 const CommunityLocationQuestionScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, categories } = route.params || {};
+  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories } = route.params || {};
 
   const handleYes = () => {
     navigation.navigate("CommunityLocation", {
-      email, accessToken, name, logo_url, bio, category, categories,
+      email, accessToken, refreshToken, name, logo_url, bio, category, categories,
     });
   };
 
   const handleNo = () => {
     navigation.navigate("CommunityPhone", {
-      email, accessToken, name, logo_url, bio, category, categories, location: null,
+      email, accessToken, refreshToken, name, logo_url, bio, category, categories, location: null,
     });
   };
 

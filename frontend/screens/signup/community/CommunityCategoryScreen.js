@@ -71,7 +71,7 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
  * Main Screen Component
  */
 const CommunityCategoryScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio } = route.params || {};
+  const { email, accessToken, refreshToken, name, logo_url, bio } = route.params || {};
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [availableCategories, setAvailableCategories] = useState(defaultCategories);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -171,6 +171,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     navigation.navigate("CommunityLocationQuestion", { 
       email, 
       accessToken, 
+      refreshToken,
       name, 
       logo_url, 
       bio, 

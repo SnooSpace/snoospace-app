@@ -120,7 +120,22 @@ async function verifyOtp(req, res) {
       return res.status(400).json({ error: error.message });
     }
     
-    console.log("OTP verified successfully");
+    // Log the Supabase user ID for debugging multi-account issues
+    const supabaseUserId = data?.user?.id;
+    const supabaseUserEmail = data?.user?.email;
+    console.log('[OTP Verify] ✅ OTP verified successfully');
+    console.log('[OTP Verify] Supabase user returned:', {
+      userId: supabaseUserId,
+      email: supabaseUserEmail,
+      requestedEmail: email,
+      emailMatch: supabaseUserEmail === email
+    });
+    
+    if (supabaseUserEmail !== email) {
+      console.error('[OTP Verify] ⚠️ EMAIL MISMATCH: Supabase returned different email!');
+      console.error('[OTP Verify] This could indicate linked accounts or session reuse');
+    }
+    
     res.json({ message: "OTP verified successfully", data });
   } catch (err) {
     console.error("/auth/verify-otp error:", err && err.stack ? err.stack : err);

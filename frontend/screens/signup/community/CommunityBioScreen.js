@@ -25,13 +25,14 @@ const INPUT_BORDER_COLOR = "#ced4da"; // Light border for input
  * Main Screen Component
  */
 const CommunityBioScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url } = route.params || {};
+  const { email, accessToken, refreshToken, name, logo_url } = route.params || {};
   const [bioText, setBioText] = useState('');
 
   const handleSkip = () => {
     navigation.navigate("CommunityCategory", { 
       email, 
       accessToken, 
+      refreshToken,
       name, 
       logo_url, 
       bio: null 
@@ -42,6 +43,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
     navigation.navigate("CommunityCategory", { 
       email, 
       accessToken, 
+      refreshToken,
       name, 
       logo_url, 
       bio: bioText 

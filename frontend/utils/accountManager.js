@@ -53,7 +53,11 @@ export async function getActiveAccount() {
     if (!activeId) return null;
     
     const accounts = await getAllAccounts();
-    return accounts.find((acc) => String(acc.id) === String(activeId)) || null;
+    // Support both old format (just id) and new format (type_id)
+    return accounts.find((acc) => {
+      const compositeId = `${acc.type}_${acc.id}`;
+      return compositeId === activeId || String(acc.id) === String(activeId);
+    }) || null;
   } catch (error) {
     console.error('Error getting active account:', error);
     return null;
@@ -88,9 +92,14 @@ export async function addAccount(accountData) {
     
     const accounts = await getAllAccounts();
     const accountId = String(accountData.id); // Always convert to string
+    const accountType = accountData.type || 'unknown';
+    const compositeId = `${accountType}_${accountId}`;
     
-    // Check if account already exists
-    const existingIndex = accounts.findIndex((acc) => String(acc.id) === accountId);
+    // Check if account already exists by BOTH type and id (handles same id across types)
+    const existingIndex = accounts.findIndex((acc) => {
+      const accCompositeId = `${acc.type}_${acc.id}`;
+      return accCompositeId === compositeId;
+    });
     
     // Check max limit (only if adding new account)
     if (existingIndex === -1 && accounts.length >= MAX_ACCOUNTS) {
@@ -123,9 +132,10 @@ export async function addAccount(accountData) {
     
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
     
-    // Set as active account - MUST be string
-    console.log('[addAccount] Setting active account to:', accountId);
-    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId);
+    // Set as active account - use composite key for uniqueness
+    const compositeActiveId = `${accountType}_${accountId}`;
+    console.log('[addAccount] Setting active account to:', compositeActiveId);
+    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeActiveId);
     
     // Verify it was set correctly
     const verifyActiveId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
@@ -153,7 +163,12 @@ export async function switchAccount(accountId) {
     console.log('[switchAccount] Starting switch to account:', accountId);
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
-    const account = accounts.find((acc) => String(acc.id) === accountIdStr);
+    
+    // Support both composite key (type_id) and legacy (just id) formats
+    const account = accounts.find((acc) => {
+      const compositeId = `${acc.type}_${acc.id}`;
+      return compositeId === accountIdStr || String(acc.id) === accountIdStr;
+    });
     
     if (!account) {
       console.error('[switchAccount] Account not found');
@@ -186,11 +201,12 @@ export async function switchAccount(accountId) {
     }
     
     // Update last active time
-    await updateAccount(accountIdStr, { lastActive: Date.now() });
+    const compositeId = `${account.type}_${account.id}`;
+    await updateAccount(compositeId, { lastActive: Date.now() });
     
-    // Set as active - MUST be string
-    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, accountIdStr);
-    console.log('[switchAccount] Set active account ID:', accountIdStr);
+    // Set as active using composite key
+    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
+    console.log('[switchAccount] Set active account ID:', compositeId);
     
     // Double-check the active account after switch
     const verifyActiveAccount = await getActiveAccount();
@@ -292,7 +308,12 @@ export async function updateAccount(accountId, updates) {
     
     const accounts = JSON.parse(accountsJson);
     const accountIdStr = String(accountId);
-    const accountIndex = accounts.findIndex((acc) => String(acc.id) === accountIdStr);
+    
+    // Support both composite key (type_id) and legacy (just id) formats
+    const accountIndex = accounts.findIndex((acc) => {
+      const compositeId = `${acc.type}_${acc.id}`;
+      return compositeId === accountIdStr || String(acc.id) === accountIdStr;
+    });
     
     if (accountIndex === -1) {
       console.warn('[updateAccount] Account not found:', accountIdStr);

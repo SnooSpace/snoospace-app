@@ -31,7 +31,7 @@ import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const CommunityLogoScreen = ({ navigation, route }) => {
-  const { email, accessToken, name } = route.params || {};
+  const { email, accessToken, refreshToken, name } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(false); // 👈 New state for loading
 
@@ -83,6 +83,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       navigation.navigate("CommunityBio", { 
         email, 
         accessToken, 
+        refreshToken,
         name, 
         logo_url: secureUrl
       });

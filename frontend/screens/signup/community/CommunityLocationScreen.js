@@ -29,7 +29,7 @@ const SUCCESS_COLOR = "#34C759";
 const ERROR_COLOR = "#FF3B30";
 
 const CommunityLocationScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, categories } = route.params || {};
+  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories } = route.params || {};
   
   // Location state
   const [location, setLocation] = useState(null);
@@ -165,6 +165,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     navigation.navigate("CommunityPhone", {
       email,
       accessToken,
+      refreshToken,
       name,
       logo_url,
       bio,

@@ -76,7 +76,7 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
 
 // --- Main Screen Component ---
 const CommunityPhoneNoScreen = ({ navigation, route }) => {
-  const { email, accessToken, name, logo_url, bio, category, categories, location } =
+  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories, location } =
     route.params || {};
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
@@ -85,6 +85,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     navigation.navigate("CommunityHeadName", {
       email,
       accessToken,
+      refreshToken,
       name,
       logo_url,
       bio,
@@ -123,6 +124,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     navigation.navigate("CommunityHeadName", {
       email,
       accessToken,
+      refreshToken,
       name,
       logo_url,
       bio,

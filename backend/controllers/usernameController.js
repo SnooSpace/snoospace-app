@@ -46,8 +46,16 @@ const checkUsername = async (req, res) => {
 // Set username for authenticated user
 const setUsername = async (req, res) => {
   try {
-    const { username, userType } = req.body;
-    const userId = req.user?.id;
+    const { username, userType, communityId } = req.body;
+    const userId = communityId || req.user?.id; // Use communityId if provided, otherwise fall back to req.user.id
+
+    console.log('[setUsername] Request:', {
+      username,
+      userType,
+      communityId,
+      fallbackUserId: req.user?.id,
+      finalUserId: userId
+    });
 
     if (!userId) {
       return res.status(401).json({ error: "Authentication required" });
@@ -109,7 +117,11 @@ const setUsername = async (req, res) => {
         break;
     }
 
+    console.log('[setUsername] Updating:', { tableName, username, userId });
+    
     const result = await pool.query(updateQuery, [username, userId]);
+
+    console.log('[setUsername] Update result:', { rowCount: result.rowCount });
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "User not found" });

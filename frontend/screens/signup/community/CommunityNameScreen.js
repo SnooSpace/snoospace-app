@@ -20,11 +20,11 @@ const LIGHT_TEXT_COLOR = "#6c757d";
 const BACKGROUND_COLOR = "#ffffff";
 
 const CommunityNameScreen = ({ navigation, route }) => {
-  const { email, accessToken } = route.params || {};
+  const { email, accessToken, refreshToken } = route.params || {};
   const [name, setName] = useState("");
 
   const handleNext = () => {
-    navigation.navigate("CommunityLogo", { email, accessToken, name });
+    navigation.navigate("CommunityLogo", { email, accessToken, refreshToken, name });
   };
 
   const isButtonDisabled = name.trim().length === 0;

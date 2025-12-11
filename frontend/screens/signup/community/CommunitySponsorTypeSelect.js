@@ -94,6 +94,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   const {
     email,
     accessToken,
+    refreshToken,
     name,
     logo_url,
     bio,
@@ -193,6 +194,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       navigation.navigate('CommunityUsername', {
         userData: payload,
         accessToken,
+        refreshToken,
       });
     } catch (error) {
       console.error('Community signup error:', error);
