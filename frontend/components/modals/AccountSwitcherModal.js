@@ -236,8 +236,11 @@ export default function AccountSwitcherModal({
   }
 
   function renderAccountItem({ item }) {
-    // Convert both to strings for comparison (IDs can be string or number)
-    const isActive = String(item.id) === String(currentAccountId);
+    // Create composite ID for comparison
+    const itemCompositeId = `${item.type}_${item.id}`;
+    // isActive: check both composite format and plain id for backward compatibility
+    const isActive = currentAccountId === itemCompositeId || 
+                     (currentAccountId && String(item.id) === String(currentAccountId));
     const isSwitching = switchingTo === item.id;
     const isLoggedOut = item.isLoggedIn === false;
     const canRemove = !isActive || isLoggedOut;

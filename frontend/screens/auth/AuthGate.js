@@ -12,11 +12,12 @@ export default function AuthGate({ navigation }) {
         const { migrateExistingUser } = require('../../utils/accountManager');
         await migrateExistingUser();
         
-        // Pre-emptive: refresh access token if we have a refresh token
+        // Pre-emptive: refresh access token if we have a refresh token (use V2)
         try {
           const rt = await getRefreshToken();
-          if (rt) {
-            await apiPost('/auth/refresh', { refresh_token: rt }, 10000);
+          if (rt && rt.length >= 20) {
+            const sessionManager = require('../../utils/sessionManager');
+            await sessionManager.refreshTokens(rt);
           }
         } catch {}
 

@@ -1,4 +1,11 @@
+/**
+ * Auth Middleware - Hybrid V1/V2
+ * 
+ * Tries V2 token validation first (custom JWTs from our backend),
+ * then falls back to V1 (Supabase tokens) for backward compatibility.
+ */
 const supabase = require("../supabase");
+const { verifyAccessToken } = require('../controllers/authControllerV2');
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -8,9 +15,36 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
+    
+    // ============================================================
+    // Try V2 token validation first (custom JWT)
+    // ============================================================
+    const decoded = verifyAccessToken(token);
+    
+    if (decoded) {
+      // V2 token is valid - extract user info from JWT
+      const { userId, userType, email } = decoded;
+      
+      console.log('[Auth] V2 Token validated:', { userId, userType, email });
+      
+      req.user = {
+        id: userId,
+        type: userType,
+        email: email,
+      };
+      
+      return next();
+    }
+    
+    // ============================================================
+    // Fallback to V1 (Supabase) token validation
+    // ============================================================
+    console.log('[Auth] V2 validation failed, trying V1 Supabase...');
+    
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.log('[Auth] V1 validation also failed:', error?.message);
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
@@ -31,8 +65,7 @@ const authMiddleware = async (req, res, next) => {
       try {
         let result;
         
-        // PRIORITY 1: Lookup by EMAIL first (most reliable - each account has unique email)
-        // This ensures correct account is found even when multiple accounts share supabase_user_id
+        // PRIORITY 1: Lookup by EMAIL first (most reliable)
         if (user.email) {
           result = await pool.query(`SELECT id, supabase_user_id FROM ${table} WHERE ${column} = $1`, [user.email]);
           if (result.rows.length > 0) {
@@ -44,7 +77,7 @@ const authMiddleware = async (req, res, next) => {
               console.log(`[Auth] Backfilled supabase_user_id for ${role} id=${dbRow.id}`);
             }
             
-            console.log(`[Auth] Found ${role} by email:`, { id: dbRow.id, email: user.email });
+            console.log(`[Auth] V1 Found ${role} by email:`, { id: dbRow.id, email: user.email });
             
             req.user = {
               ...user,
@@ -55,12 +88,11 @@ const authMiddleware = async (req, res, next) => {
           }
         }
         
-        // PRIORITY 2: Fallback to supabase_user_id lookup (for accounts without matching email)
-        // This can return wrong account if multiple accounts share supabase_user_id!
+        // PRIORITY 2: Fallback to supabase_user_id lookup
         if (hasSupabaseId && user.id) {
           result = await pool.query(`SELECT id FROM ${table} WHERE supabase_user_id = $1`, [user.id]);
           if (result.rows.length > 0) {
-            console.log(`[Auth] ⚠️ Found ${role} by supabase_user_id (email didn't match):`, { 
+            console.log(`[Auth] V1 Found ${role} by supabase_user_id:`, { 
               id: result.rows[0].id, 
               supabaseUserId: user.id,
               tokenEmail: user.email 
@@ -88,5 +120,3 @@ const authMiddleware = async (req, res, next) => {
 };
 
 module.exports = { authMiddleware };
-
-

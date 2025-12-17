@@ -10,14 +10,14 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiPost } from "../../../api/client";
-import { setAuthSession, clearPendingOtp } from "../../../api/auth";
-import { getAllAccounts, addAccount } from "../../../utils/accountManager";
+import * as sessionManager from "../../../utils/sessionManager";
+import { addAccount } from "../../../utils/accountManager";
+import { setAuthSession } from "../../../api/auth";
 import { startForegroundWatch, attachAppStateListener } from "../../../services/LocationTracker";
+import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 
 const TEXT_COLOR = "#1e1e1e";
-
-const RESEND_COOLDOWN = 60; // 60 seconds
+const RESEND_COOLDOWN = 60;
 
 const LoginOtpScreen = ({ navigation, route }) => {
   const { email, isAddingAccount } = route.params || {};
@@ -26,6 +26,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
+  
+  // Account picker state
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -34,6 +39,83 @@ const LoginOtpScreen = ({ navigation, route }) => {
     }
   }, [resendTimer]);
 
+  /**
+   * Navigate to appropriate home screen based on user type
+   */
+  const navigateToHome = (userType) => {
+    switch (userType) {
+      case "member":
+        navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
+        break;
+      case "community":
+        navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
+        break;
+      case "sponsor":
+        navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
+        break;
+      case "venue":
+        navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
+        break;
+      default:
+        Alert.alert("Error", "Unknown user role. Please contact support.");
+    }
+  };
+
+  /**
+   * Complete login - save session and navigate
+   */
+  const completeLogin = async (user, session) => {
+    // Save to legacy account manager for backward compatibility
+    await addAccount({
+      id: user.id,
+      type: user.type,
+      username: user.username,
+      email: user.email || email,
+      name: user.name || user.username,
+      profilePicture: user.avatar || null,
+      authToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      isLoggedIn: true,
+    });
+
+    // Set legacy auth session for API client compatibility
+    await setAuthSession(session.accessToken, email, session.refreshToken);
+
+    // Start location tracking
+    console.log('[LoginOtpV2] Starting location tracking...');
+    await startForegroundWatch();
+    attachAppStateListener();
+
+    if (isAddingAccount) {
+      Alert.alert('Account Added', 'Switching to new account...');
+    }
+
+    navigateToHome(user.type);
+  };
+
+  /**
+   * Handle account selection from picker
+   */
+  const handleAccountSelected = async (account) => {
+    setPickerLoading(true);
+    try {
+      console.log('[LoginOtpV2] Creating session for selected account:', account.type, account.id);
+      
+      const result = await sessionManager.createSession(account.id, account.type, account.email || email);
+      
+      await completeLogin(result.user, result.session);
+      setShowAccountPicker(false);
+    } catch (e) {
+      console.error('[LoginOtpV2] Account selection error:', e);
+      Alert.alert('Error', e.message || 'Failed to login to selected account');
+    } finally {
+      setPickerLoading(false);
+    }
+  };
+
+  /**
+   * Handle OTP verification using V2 endpoints
+   */
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
       Alert.alert("Error", "Please enter the 6-digit code.");
@@ -44,142 +126,54 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setError("");
 
     try {
-      const result = await apiPost(
-        "/auth/verify-otp",
-        { email, token: otp },
-        20000
-      );
-      const accessToken = result?.data?.session?.access_token;
-      const refreshToken = result?.data?.session?.refresh_token;
-      if (accessToken) {
-        await setAuthSession(accessToken, email, refreshToken);
-      }
-      await clearPendingOtp();
+      console.log('[LoginOtpV2] Verifying OTP for:', email);
       
-      // Get user profile with increased timeout
-      const profileResult = await apiPost(
-        "/auth/get-user-profile",
-        { email },
-        15000,
-        accessToken
-      );
-      const userRole = profileResult.role;
-      const userProfile = profileResult.profile;
+      // Verify OTP with V2 endpoint
+      const result = await sessionManager.verifyOtp(email, otp);
 
-      // Handle adding account vs normal login
-      if (isAddingAccount) {
-        // Check account limit
-        const accounts = await getAllAccounts();
-        if (accounts.length >= 5) {
-          Alert.alert('Maximum Accounts Reached', 'You can only have up to 5 accounts. Remove an account to add a new one.');
-          return;
-        }
-
-        // Add account to account manager
-        await addAccount({
-          id: userProfile.id,
-          type: userRole,
-          username: userProfile.username,
-          email: email,
-          name: userProfile.name || userProfile.username,
-          profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
-          authToken: accessToken,
-          refreshToken: refreshToken,
-        });
-
-        Alert.alert('Account Added', 'Switching to new account...');
-        
-        // Start location tracking for authenticated user
-        console.log('[LoginOtp] Starting location tracking for new account...');
-        await startForegroundWatch();
-        attachAppStateListener();
-        
-        // Navigate to the appropriate home screen for the new account
-        switch (userRole) {
-          case "member":
-            navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
-            break;
-          case "community":
-            navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
-            break;
-          case "sponsor":
-            navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
-            break;
-          case "venue":
-            navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
-            break;
-          default:
-            Alert.alert("Error", "Unknown user role. Please contact support.");
-        }
-      } else {
-        // Normal login flow - check if this is a re-login to an existing account
-        const accounts = await getAllAccounts();
-        const existingAccount = accounts.find(acc => acc.email === email);
-        
-        if (existingAccount) {
-          // Re-logging in to an existing logged-out account
-          console.log('[LoginOtp] Re-logging in to existing account:', email);
-          await addAccount({
-            id: userProfile.id,
-            type: userRole,
-            username: userProfile.username,
-            email: email,
-            name: userProfile.name || userProfile.username,
-            profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
-            authToken: accessToken,
-            refreshToken: refreshToken,
-            isLoggedIn: true, // Mark as logged in
-          });
-        } else {
-          // First time login - ALSO add to multi-account system for proper refresh token storage
-          console.log('[LoginOtp] First time login - adding to multi-account system:', email);
-          console.log('[LoginOtp] Refresh token length:', refreshToken?.length);
-          await addAccount({
-            id: userProfile.id,
-            type: userRole,
-            username: userProfile.username,
-            email: email,
-            name: userProfile.name || userProfile.username,
-            profilePicture: userProfile.profile_photo_url || userProfile.logo_url || null,
-            authToken: accessToken,
-            refreshToken: refreshToken,
-            isLoggedIn: true,
-          });
-        }
-        
-        // Start location tracking for authenticated user
-        console.log('[LoginOtp] Starting location tracking for logged-in user...');
-        await startForegroundWatch();
-        attachAppStateListener();
-        
-        // Navigate to the appropriate home screen
-        switch (userRole) {
-          case "member":
-            navigation.reset({ index: 0, routes: [{ name: "MemberHome" }] });
-            break;
-          case "community":
-            navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
-            break;
-          case "sponsor":
-            navigation.reset({ index: 0, routes: [{ name: "SponsorHome" }] });
-            break;
-          case "venue":
-            navigation.reset({ index: 0, routes: [{ name: "VenueHome" }] });
-            break;
-          default:
-            Alert.alert("Error", "Unknown user role. Please contact support.");
-        }
+      // Handle different response scenarios
+      if (result.requiresAccountCreation) {
+        // No accounts found - redirect to account type selection
+        console.log('[LoginOtpV2] No accounts found, redirecting to signup');
+        Alert.alert(
+          'No Account Found',
+          'No account exists with this email. Would you like to create one?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Create Account', 
+              onPress: () => navigation.navigate('Landing')
+            },
+          ]
+        );
+        return;
       }
+
+      if (result.requiresAccountSelection) {
+        // Multiple accounts - show picker
+        console.log('[LoginOtpV2] Multiple accounts found, showing picker');
+        setAccounts(result.accounts);
+        setShowAccountPicker(true);
+        return;
+      }
+
+      if (result.autoLogin && result.session) {
+        // Single account - auto-logged in
+        console.log('[LoginOtpV2] Single account, auto-login successful');
+        await completeLogin(result.user, result.session);
+        return;
+      }
+
+      // Unexpected response
+      console.warn('[LoginOtpV2] Unexpected response:', result);
+      throw new Error('Unexpected server response');
+
     } catch (e) {
-      console.error("OTP verification error:", e);
+      console.error("[LoginOtpV2] OTP verification error:", e);
       if (e.message && e.message.includes("timed out")) {
-        setError(
-          "Request timed out. Please check your internet connection and try again."
-        );
+        setError("Request timed out. Please check your internet connection and try again.");
       } else {
-        setError(
-          e.message || "Invalid verification code or failed to get user profile."
-        );
+        setError(e.message || "Invalid verification code.");
       }
     } finally {
       setLoading(false);
@@ -192,7 +186,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setResendLoading(true);
     setError("");
     try {
-      await apiPost("/auth/login/start", { email }, 15000);
+      await sessionManager.sendOtp(email);
       Alert.alert("Success", `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
@@ -258,6 +252,16 @@ const LoginOtpScreen = ({ navigation, route }) => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Account Picker Modal */}
+      <AccountPickerModal
+        visible={showAccountPicker}
+        onClose={() => setShowAccountPicker(false)}
+        accounts={accounts}
+        onSelectAccount={handleAccountSelected}
+        loading={pickerLoading}
+        email={email}
+      />
     </SafeAreaView>
   );
 };

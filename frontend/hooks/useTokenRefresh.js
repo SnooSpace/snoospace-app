@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { getAllAccounts } from '../api/auth';
 import * as accountManager from '../utils/accountManager';
+import * as sessionManager from '../utils/sessionManager';
 
 /**
  * Hook to refresh tokens for all accounts when app comes to foreground
@@ -115,44 +116,33 @@ async function attemptTokenRefresh(account) {
       return;
     }
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        refresh_token: account.refreshToken  // Fixed: was 'refreshToken', backend expects 'refresh_token'
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    
-    if (!response.ok) {
-      console.error(`[TokenRefresh] Refresh failed for ${account.email}:`, response.status, data?.error);
+    // Use V2 sessionManager for token refresh (correct API URL and endpoint)
+    try {
+      const result = await sessionManager.refreshTokens(account.refreshToken);
       
-      // Mark as logged out if refresh fails with auth error or token already used
-      if (response.status === 401 || response.status === 403 || 
-          data?.error?.includes('Already Used') || data?.error?.includes('Invalid')) {
+      // Update account with new tokens
+      await accountManager.updateAccount(account.id, {
+        authToken: result.accessToken,
+        refreshToken: result.refreshToken || account.refreshToken
+      });
+      
+      // Also update sessionManager storage
+      const compositeId = `${account.type}_${account.id}`;
+      await sessionManager.updateLocalSession(compositeId, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken
+      });
+      
+      console.log(`[TokenRefresh] Successfully refreshed token for ${account.email}`);
+    } catch (v2Error) {
+      console.error(`[TokenRefresh] V2 refresh failed for ${account.email}:`, v2Error.message);
+      
+      // Mark as logged out if refresh fails
+      if (v2Error.message?.includes('Invalid') || v2Error.message?.includes('expired')) {
         console.log(`[TokenRefresh] Marking ${account.email} as logged out`);
         await accountManager.updateAccount(account.id, { isLoggedIn: false });
       }
-      return;
     }
-
-    // Backend returns tokens in data.data.session format
-    const newAccessToken = data?.data?.session?.access_token;
-    const newRefreshToken = data?.data?.session?.refresh_token;
-    
-    if (!newAccessToken) {
-      console.error(`[TokenRefresh] No access token in response for ${account.email}`);
-      return;
-    }
-    
-    // Update account with new tokens
-    await accountManager.updateAccount(account.id, {
-      authToken: newAccessToken,
-      refreshToken: newRefreshToken || account.refreshToken  // Keep old if no new one
-    });
-    
-    console.log(`[TokenRefresh] Successfully refreshed token for ${account.email}`);
   } catch (error) {
     console.error(`[TokenRefresh] Error refreshing token for ${account.email}:`, error);
   }

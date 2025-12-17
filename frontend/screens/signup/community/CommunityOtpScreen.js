@@ -8,12 +8,12 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-  Platform, // Import Platform
-  StatusBar, // Import StatusBar
-  ScrollView, // Import ScrollView
+  Platform,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { apiPost } from '../../../api/client';
+import * as sessionManager from '../../../utils/sessionManager';
 import { setAuthSession, clearPendingOtp } from '../../../api/auth';
 
 const RESEND_COOLDOWN = 60; // 60 seconds
@@ -50,11 +50,19 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setError('');
 
     try {
-      const resp = await apiPost('/auth/verify-otp', { email, token: otp }, 15000);
-      const accessToken = resp.data?.session?.access_token;
-      const refreshToken = resp.data?.session?.refresh_token;
-      if (accessToken) {
-        await setAuthSession(accessToken, email, refreshToken);
+      // Use V2 endpoint for OTP verification
+      const result = await sessionManager.verifyOtp(email, otp);
+      
+      // For signup, proceed with tokens if available
+      let accessToken = null;
+      let refreshToken = null;
+      
+      if (result.session) {
+        accessToken = result.session.accessToken;
+        refreshToken = result.session.refreshToken;
+        if (accessToken) {
+          await setAuthSession(accessToken, email, refreshToken);
+        }
       }
       await clearPendingOtp();
       
@@ -82,7 +90,8 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setResendLoading(true);
     setError('');
     try {
-      await apiPost('/auth/send-otp', { email }, 15000);
+      // Use V2 endpoint for sending OTP
+      await sessionManager.sendOtp(email);
       Alert.alert('Success', `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {

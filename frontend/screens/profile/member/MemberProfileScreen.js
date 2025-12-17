@@ -1317,8 +1317,8 @@ export default function MemberProfileScreen({ navigation }) {
       <AccountSwitcherModal
         visible={showAccountSwitcher}
         onClose={() => setShowAccountSwitcher(false)}
-        currentAccountId={profile?.id}
-        currentProfile={profile}
+        currentAccountId={profile?.id ? `member_${profile.id}` : undefined}
+        currentProfile={profile ? { ...profile, type: 'member' } : null}
         onAccountSwitch={(account) => {
           // Navigate to correct home screen based on account type
           const routeName = account.type === 'member' ? 'MemberHome'

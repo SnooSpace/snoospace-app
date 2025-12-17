@@ -25,11 +25,14 @@ async function tryRefreshAndRetry(doRequest) {
     // CRITICAL: Capture account context BEFORE refresh to prevent race conditions
     // This ensures tokens are saved to the correct account even if user switches accounts
     const authModule = await import('./auth');
+    const sessionManager = await import('../utils/sessionManager');
     const activeAccount = await authModule.getActiveAccount();
     const accountId = activeAccount?.id;
+    const accountType = activeAccount?.type;
     
     console.log('[tryRefreshAndRetry] Captured account context:', {
       accountId,
+      accountType,
       email: activeAccount?.email
     });
     
@@ -42,7 +45,7 @@ async function tryRefreshAndRetry(doRequest) {
     
     console.log('[tryRefreshAndRetry] Refresh token length:', refreshToken?.length);
     
-    // VALIDATION: Supabase refresh tokens are typically 40+ characters
+    // VALIDATION: Refresh tokens should be at least 20 characters
     // If token is too short, it's likely corrupted - skip refresh attempt
     if (refreshToken.length < 20) {
       console.error('[tryRefreshAndRetry] Refresh token is too short - likely corrupted:', refreshToken.length);
@@ -58,33 +61,47 @@ async function tryRefreshAndRetry(doRequest) {
       throw new Error('Unauthorized');
     }
     
-    const res = await withTimeout(
-      fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken })
-      }),
-      15000
-    );
-    const data = await res.json().catch(() => ({}));
+    // Try V2 refresh first (new device-based sessions)
+    let newAccess, newRefresh;
     
-    if (!res.ok) {
-      console.error('[tryRefreshAndRetry] Refresh failed:', data?.error || res.statusText);
+    try {
+      console.log('[tryRefreshAndRetry] Trying V2 refresh endpoint...');
+      const v2Result = await sessionManager.refreshTokens(refreshToken);
+      newAccess = v2Result.accessToken;
+      newRefresh = v2Result.refreshToken;
+      console.log('[tryRefreshAndRetry] V2 refresh successful');
+    } catch (v2Error) {
+      console.log('[tryRefreshAndRetry] V2 refresh failed, trying V1 fallback:', v2Error.message);
       
-      // If refresh token was already used or is invalid, mark account as logged out
-      if (data?.error?.includes('Already Used') || data?.error?.includes('Invalid') || res.status === 401) {
-        console.error('[tryRefreshAndRetry] Refresh token invalid or already used - marking account for re-auth');
-        if (accountId) {
-          const accountManager = await import('../utils/accountManager');
-          await accountManager.updateAccount(accountId, { isLoggedIn: false });
+      // Fallback to V1 endpoint for legacy sessions
+      const res = await withTimeout(
+        fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        }),
+        15000
+      );
+      const data = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        console.error('[tryRefreshAndRetry] V1 Refresh failed:', data?.error || res.statusText);
+        
+        // If refresh token was already used or is invalid, mark account as logged out
+        if (data?.error?.includes('Already Used') || data?.error?.includes('Invalid') || res.status === 401) {
+          console.error('[tryRefreshAndRetry] Refresh token invalid or already used - marking account for re-auth');
+          if (accountId) {
+            const accountManager = await import('../utils/accountManager');
+            await accountManager.updateAccount(accountId, { isLoggedIn: false });
+          }
         }
+        
+        throw new Error('Unauthorized');
       }
       
-      throw new Error('Unauthorized');
+      newAccess = data?.data?.session?.access_token;
+      newRefresh = data?.data?.session?.refresh_token;
     }
-    
-    const newAccess = data?.data?.session?.access_token;
-    const newRefresh = data?.data?.session?.refresh_token;
     
     if (newAccess) {
       console.log('[tryRefreshAndRetry] Got new access token, length:', newAccess?.length);
@@ -92,8 +109,16 @@ async function tryRefreshAndRetry(doRequest) {
       // CRITICAL: Update tokens atomically for the SPECIFIC account that initiated refresh
       // This prevents race conditions when user switches accounts during API calls
       if (accountId) {
+        // Update in sessionManager (V2)
+        const compositeId = `${accountType}_${accountId}`;
+        await sessionManager.updateLocalSession(compositeId, { 
+          accessToken: newAccess, 
+          refreshToken: newRefresh 
+        });
+        
+        // Also update in accountManager for backward compatibility
         await authModule.updateAccountTokens(accountId, newAccess, newRefresh);
-        console.log('[tryRefreshAndRetry] Tokens updated atomically for account:', accountId);
+        console.log('[tryRefreshAndRetry] Tokens updated for account:', accountId);
       } else {
         // Fallback to old behavior if no account context (legacy support)
         console.warn('[tryRefreshAndRetry] No account context, using legacy token update');
