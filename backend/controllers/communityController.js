@@ -18,52 +18,11 @@ async function signup(req, res) {
       heads
     } = req.body || {};
     
-    // Try to get Supabase user from Authorization header (optional)
-    let supabaseUserId = null;
+    // No longer using supabase_user_id - we use email as the login credential
+    // and backend-generated id as the account identity
     let user_id = null;
-    let tokenEmail = null;
     
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      console.log('[Signup] Authorization header found, token length:', token.length);
-      
-      try {
-        const supabase = require("../supabase");
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        
-        if (user && !error) {
-          supabaseUserId = user.id;
-          tokenEmail = user.email;
-          
-          console.log('[Signup] ⚠️ TOKEN EMAIL vs REQUEST EMAIL:', {
-            tokenEmail: tokenEmail,
-            requestEmail: email,
-            emailsMatch: tokenEmail === email,
-            supabase_user_id: supabaseUserId
-          });
-          
-          // CRITICAL: If token email doesn't match request email, this is a problem!
-          if (tokenEmail !== email) {
-            console.error('[Signup] ❌ EMAIL MISMATCH! Token is for different user!');
-            console.error('[Signup] This means the frontend is sending the OLD token with NEW signup');
-          }
-        } else {
-          console.warn('[Signup] Failed to get Supabase user from token:', error?.message);
-        }
-      } catch (tokenError) {
-        console.error('[Signup] Error decoding token:', tokenError.message);
-      }
-    } else {
-      console.log('[Signup] No Authorization header provided');
-    }
-    
-    console.log('JWT user:', {
-      id: user_id,
-      email: email,
-      supabase_user_id: supabaseUserId,
-      tokenEmail: tokenEmail
-    });
+    console.log('[Signup] Request for email:', email);
 
     console.log('Validation check:', {
       name: !!name,
@@ -128,37 +87,19 @@ async function signup(req, res) {
     try {
       await client.query('BEGIN');
       
-      // Check for duplicate email BEFORE insert
-      const duplicateCheck = await client.query(
-        'SELECT id, name, email FROM communities WHERE LOWER(email) = LOWER($1)',
-        [email]
-      );
-      
-      if (duplicateCheck.rows.length > 0) {
-        await client.query('ROLLBACK');
-        const existing = duplicateCheck.rows[0];
-        console.error('Duplicate email detected:', {
-          existing_id: existing.id,
-          existing_name: existing.name,
-          existing_email: existing.email,
-          attempted_email: email
-        });
-        return res.status(409).json({ 
-          error: `This email is already registered to "${existing.name}". Please use a different email or log in to your existing account.` 
-        });
-      }
+      // Note: We no longer check for duplicate emails since we allow
+      // multiple accounts with the same email (Instagram-style multi-account)
       
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
       
-      // Simple INSERT without ON CONFLICT - include supabase_user_id
+      // Simple INSERT - no supabase_user_id, backend-generated id is the identity
       const communityResult = await client.query(
-        `INSERT INTO communities (user_id, supabase_user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12::jsonb)
+        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb)
          RETURNING *`,
         [
           user_id,
-          supabaseUserId,  // Include Supabase user ID
           name,
           logo_url || null,
           bio || null,

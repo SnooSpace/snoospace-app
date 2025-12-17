@@ -27,7 +27,6 @@ async function ensureTables(pool) {
         profile_photo_url TEXT,
         pronouns TEXT,
         location JSONB,
-        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -73,7 +72,6 @@ async function ensureTables(pool) {
         interests JSONB,
         cities JSONB,
         username TEXT UNIQUE,
-        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -97,7 +95,6 @@ async function ensureTables(pool) {
         conditions TEXT,
         logo_url TEXT,
         username TEXT UNIQUE,
-        supabase_user_id UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
@@ -347,25 +344,64 @@ async function ensureTables(pool) {
         ALTER TABLE members DROP COLUMN IF EXISTS city;
       EXCEPTION WHEN OTHERS THEN NULL; END $$;
       
-      -- Add supabase_user_id columns for multi-account support
-      DO $$ BEGIN
-        ALTER TABLE members ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
-      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-      DO $$ BEGIN
-        ALTER TABLE communities ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
-      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-      DO $$ BEGIN
-        ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
-      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-      DO $$ BEGIN
-        ALTER TABLE venues ADD COLUMN IF NOT EXISTS supabase_user_id UUID;
-      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- ============================================================
+      -- Sessions table for OTP-only multi-account auth
+      -- ============================================================
+      CREATE TABLE IF NOT EXISTS sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id BIGINT NOT NULL,
+        user_type TEXT NOT NULL CHECK (user_type IN ('member', 'community', 'sponsor', 'venue')),
+        device_id TEXT NOT NULL,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        last_used_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, user_type, device_id)
+      );
       
-      -- Create indexes for supabase_user_id lookups
-      CREATE INDEX IF NOT EXISTS idx_members_supabase_user_id ON members(supabase_user_id);
-      CREATE INDEX IF NOT EXISTS idx_communities_supabase_user_id ON communities(supabase_user_id);
-      CREATE INDEX IF NOT EXISTS idx_sponsors_supabase_user_id ON sponsors(supabase_user_id);
-      CREATE INDEX IF NOT EXISTS idx_venues_supabase_user_id ON venues(supabase_user_id);
+      -- Indexes for sessions
+      CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_access_token ON sessions(access_token);
+      CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
+      CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, user_type);
+      
+      -- ============================================================
+      -- Remove supabase_user_id columns (no longer used)
+      -- ============================================================
+      ALTER TABLE members DROP COLUMN IF EXISTS supabase_user_id;
+      ALTER TABLE communities DROP COLUMN IF EXISTS supabase_user_id;
+      ALTER TABLE sponsors DROP COLUMN IF EXISTS supabase_user_id;
+      ALTER TABLE venues DROP COLUMN IF EXISTS supabase_user_id;
+      
+      -- Drop old supabase_user_id indexes
+      DROP INDEX IF EXISTS idx_members_supabase_user_id;
+      DROP INDEX IF EXISTS idx_communities_supabase_user_id;
+      DROP INDEX IF EXISTS idx_sponsors_supabase_user_id;
+      DROP INDEX IF EXISTS idx_venues_supabase_user_id;
+      
+      -- ============================================================
+      -- Remove email UNIQUE constraints (allow multi-account per email)
+      -- ============================================================
+      DO $$ BEGIN
+        ALTER TABLE members DROP CONSTRAINT IF EXISTS members_email_key;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE communities DROP CONSTRAINT IF EXISTS communities_email_key;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sponsors DROP CONSTRAINT IF EXISTS sponsors_email_key;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE venues DROP CONSTRAINT IF EXISTS venues_contact_email_key;
+      EXCEPTION WHEN undefined_object THEN NULL; END $$;
+      
+      -- Add indexes on email for fast lookups (non-unique)
+      CREATE INDEX IF NOT EXISTS idx_members_email ON members(LOWER(email));
+      CREATE INDEX IF NOT EXISTS idx_communities_email ON communities(LOWER(email));
+      CREATE INDEX IF NOT EXISTS idx_sponsors_email ON sponsors(LOWER(email));
+      CREATE INDEX IF NOT EXISTS idx_venues_contact_email ON venues(LOWER(contact_email));
 
       -- Add constraints
       DO $$ BEGIN

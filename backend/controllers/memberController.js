@@ -40,37 +40,16 @@ async function signup(req, res) {
       return res.status(400).json({ error: "location must be an object with at least a city field" });
     }
     
-    // Try to get Supabase user from Authorization header (optional, for multi-account support)
-    let supabaseUserId = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const supabase = require("../supabase");
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          supabaseUserId = user.id;
-          console.log('[MemberSignup] Linked to Supabase user:', supabaseUserId);
-        }
-      } catch (e) {
-        console.warn('[MemberSignup] Could not extract Supabase user, continuing without link');
-      }
-    }
+    // No longer using supabase_user_id - we use email as login credential
+    // and backend-generated id as account identity
+    console.log('[MemberSignup] Creating member for email:', email);
     
+    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, supabase_user_id)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
-       ON CONFLICT (email) DO UPDATE SET
-         name=EXCLUDED.name,
-         phone=EXCLUDED.phone,
-         dob=EXCLUDED.dob,
-         gender=EXCLUDED.gender,
-         location=EXCLUDED.location,
-         interests=EXCLUDED.interests,
-         profile_photo_url=COALESCE(EXCLUDED.profile_photo_url, members.profile_photo_url),
-         supabase_user_id=COALESCE(EXCLUDED.supabase_user_id, members.supabase_user_id)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)
        RETURNING *`,
-      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null, supabaseUserId]
+      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {

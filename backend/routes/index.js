@@ -40,7 +40,7 @@ router.get("/db/health", async (req, res) => {
   }
 });
 
-// Auth
+// Auth (Legacy - will be deprecated)
 router.post("/auth/send-otp", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthController.sendOtp);
 router.post("/auth/verify-otp", normalizeEmail, validateBody(['email','token']), rateLimitOtp, AuthController.verifyOtp);
 router.post("/auth/refresh", AuthController.refresh);
@@ -50,6 +50,16 @@ router.post("/auth/check-email", normalizeEmail, validateBody(['email']), AuthCo
 router.post("/auth/get-user-profile", authMiddleware, normalizeEmail, validateBody(['email']), AuthController.getUserProfile);
 router.post("/auth/login/start", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthController.loginStart);
 router.get("/auth/validate-token", authMiddleware, AuthController.validateToken);
+
+// Auth V2 - OTP-Only Multi-Account (New)
+const AuthV2Controller = require("../controllers/authControllerV2");
+router.post("/auth/v2/send-otp", normalizeEmail, validateBody(['email']), rateLimitOtp, AuthV2Controller.sendOtp);
+router.post("/auth/v2/verify-otp", normalizeEmail, validateBody(['email','token']), rateLimitOtp, AuthV2Controller.verifyOtp);
+router.post("/auth/v2/create-session", AuthV2Controller.createSessionEndpoint);
+router.post("/auth/v2/refresh", AuthV2Controller.refreshToken);
+router.post("/auth/v2/logout", AuthV2Controller.logout);
+router.get("/auth/v2/sessions", AuthV2Controller.getDeviceSessions);
+router.get("/auth/v2/validate", AuthV2Controller.validateToken);
 
 // Members
 router.post("/members/signup", MemberController.signup);

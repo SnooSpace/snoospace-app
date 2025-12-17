@@ -23,42 +23,16 @@ async function signup(req, res) {
       return res.status(400).json({ error: "capacity_min must be less than capacity_max" });
     }
     
-    // Try to get Supabase user from Authorization header (for multi-account support)
-    let supabaseUserId = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const supabase = require("../supabase");
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          supabaseUserId = user.id;
-          console.log('[VenueSignup] Linked to Supabase user:', supabaseUserId);
-        }
-      } catch (e) {
-        console.warn('[VenueSignup] Could not extract Supabase user, continuing without link');
-      }
-    }
+    // No longer using supabase_user_id - we use email as login credential
+    // and backend-generated id as account identity
+    console.log('[VenueSignup] Creating venue for email:', contact_email);
     
+    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
     const result = await pool.query(
-      `INSERT INTO venues (name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url, supabase_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       ON CONFLICT (contact_email) DO UPDATE SET
-         name = EXCLUDED.name,
-         address = EXCLUDED.address,
-         city = EXCLUDED.city,
-         contact_name = EXCLUDED.contact_name,
-         contact_phone = EXCLUDED.contact_phone,
-         capacity_min = EXCLUDED.capacity_min,
-         capacity_max = EXCLUDED.capacity_max,
-         price_per_head = EXCLUDED.price_per_head,
-         hourly_price = EXCLUDED.hourly_price,
-         daily_price = EXCLUDED.daily_price,
-         conditions = EXCLUDED.conditions,
-         logo_url = COALESCE(EXCLUDED.logo_url, venues.logo_url),
-         supabase_user_id = COALESCE(EXCLUDED.supabase_user_id, venues.supabase_user_id)
+      `INSERT INTO venues (name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [name, address, city, contact_name, contact_email, contact_phone, finalCapacityMin, capacity_max, price_per_head || 0, hourly_price || 0, daily_price || 0, conditions || null, logo_url || null, supabaseUserId]
+      [name, address, city, contact_name, contact_email, contact_phone, finalCapacityMin, capacity_max, price_per_head || 0, hourly_price || 0, daily_price || 0, conditions || null, logo_url || null]
     );
     res.json({ venue: result.rows[0] });
   } catch (err) {

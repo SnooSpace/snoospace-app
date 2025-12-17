@@ -28,39 +28,16 @@ async function signup(req, res) {
     // Get user_id from authenticated user (optional for now)
     const user_id = req.user?.id || null;
     
-    // Try to get Supabase user from Authorization header (for multi-account support)
-    let supabaseUserId = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const supabase = require("../supabase");
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (user && !error) {
-          supabaseUserId = user.id;
-          console.log('[SponsorSignup] Linked to Supabase user:', supabaseUserId);
-        }
-      } catch (e) {
-        console.warn('[SponsorSignup] Could not extract Supabase user, continuing without link');
-      }
-    }
+    // No longer using supabase_user_id - we use email as login credential
+    // and backend-generated id as account identity
+    console.log('[SponsorSignup] Creating sponsor for email:', email);
     
-    console.log('Creating sponsor with user_id:', user_id, 'supabase_user_id:', supabaseUserId);
-    
+    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
     const result = await pool.query(
-      `INSERT INTO sponsors (user_id, brand_name, logo_url, bio, category, email, phone, interests, supabase_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
-       ON CONFLICT (email) DO UPDATE SET
-         user_id = EXCLUDED.user_id,
-         brand_name = EXCLUDED.brand_name,
-         logo_url = EXCLUDED.logo_url,
-         bio = EXCLUDED.bio,
-         category = EXCLUDED.category,
-         phone = EXCLUDED.phone,
-         interests = EXCLUDED.interests,
-         supabase_user_id = COALESCE(EXCLUDED.supabase_user_id, sponsors.supabase_user_id)
+      `INSERT INTO sponsors (user_id, brand_name, logo_url, bio, category, email, phone, interests)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
        RETURNING *`,
-      [user_id, name, logo_url || null, bio || null, category || null, email, phone, JSON.stringify(interests), supabaseUserId]
+      [user_id, name, logo_url || null, bio || null, category || null, email, phone, JSON.stringify(interests)]
     );
     
     console.log('Sponsor created successfully:', result.rows[0]);
