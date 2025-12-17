@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as sessionManager from '../../../utils/sessionManager';
 import { setAuthSession, clearPendingOtp } from '../../../api/auth';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
@@ -22,6 +24,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -91,7 +94,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1D2A32" />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verify Email</Text>
       </View>
@@ -104,8 +107,9 @@ const VenueOtpScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isFocused && styles.inputFocused]}
             placeholder="000000"
+            placeholderTextColor={COLORS.textSecondary}
             value={otp}
             onChangeText={setOtp}
             keyboardType="number-pad"
@@ -113,21 +117,30 @@ const VenueOtpScreen = ({ navigation, route }) => {
             textAlign="center"
             fontSize={24}
             letterSpacing={4}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
           onPress={handleVerify}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Verify</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Verify</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -136,7 +149,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color="#5f27cd" size="small" />
+            <ActivityIndicator color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
@@ -151,7 +164,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -166,7 +179,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
@@ -176,12 +189,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -189,26 +202,35 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground,
     letterSpacing: 4,
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  buttonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+    marginTop: 20,
   },
   button: {
-    backgroundColor: '#5f27cd',
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
-    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -217,12 +239,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   resendText: {
-    color: '#5f27cd',
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: '500',
   },
   errorText: {
-    color: '#dc3545',
+    color: COLORS.error,
     fontSize: 14,
     marginTop: 10,
     textAlign: 'center',

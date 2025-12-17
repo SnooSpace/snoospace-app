@@ -20,12 +20,10 @@ import {
 } from "expo-image-picker";
 import ProgressBar from "../../../components/Progressbar";
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected elements
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
-const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+
+const CIRCLE_SIZE = 180;
 
 import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
@@ -111,7 +109,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -139,7 +137,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
                   <Ionicons
                     name="camera-outline"
                     size={35}
-                    color={PRIMARY_COLOR}
+                    color={COLORS.primary}
                   />
                   <Text style={styles.uploadText}>Add Photo</Text>
                 </View>
@@ -160,17 +158,24 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
         >
-          {/* 👈 Display ActivityIndicator when loading, otherwise display text */}
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.buttonText}>Next</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            {/* 👈 Display ActivityIndicator when loading, otherwise display text */}
+            {isLoading ? (
+              <ActivityIndicator color={COLORS.textInverted} size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Next</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -182,7 +187,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -200,7 +205,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 10,
-    marginLeft: -10, // Adjust negative margin to align icon
+    marginLeft: -10, 
   },
   
   // Consistent Progress Container Styles
@@ -210,7 +215,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
 
@@ -223,8 +228,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
-    marginBottom: 50, // Increased spacing for better look
+    color: COLORS.textPrimary,
+    marginBottom: 50, 
   },
   
   // --- Photo Upload Area Styles ---
@@ -240,9 +245,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR + "80", 
+    borderColor: COLORS.primary + "80", 
     borderStyle: "dashed",
-    backgroundColor: PRIMARY_COLOR + "10", 
+    backgroundColor: COLORS.primary + "10", 
     alignItems: "center",
     justifyContent: "center",
   },
@@ -253,7 +258,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 16,
     fontWeight: "600",
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   profileImage: {
     width: "100%",
@@ -263,27 +268,31 @@ const styles = StyleSheet.create({
 
   // --- Footer/Button Styles (Consistent) ---
   footer: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 50,
     borderTopWidth: 0,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
     height: 60,
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "700", // Changed from 600 to 700 for better contrast
+    fontWeight: "700",
   },
 });
 

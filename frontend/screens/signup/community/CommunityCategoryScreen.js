@@ -17,14 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
 import { Ionicons } from '@expo/vector-icons'; // Import Ionicons for the back arrow
 
-// --- Consistent Design Constants ---
-const PRIMARY_COLOR = "#5f27cd";       // Deep purple
-const TEXT_COLOR = "#1e1e1e";         // Dark text
-const LIGHT_TEXT_COLOR = "#6c757d";   // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff";   // White background
-const INPUT_BG_COLOR = "#f8f9fa"; 
-const INPUT_BORDER_COLOR = "#ced4da"; // Light border color    // Light background for input/modal buttons
-const BUTTON_INACTIVE_BORDER = "#ced4da"; // Light border color
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -46,8 +40,8 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? PRIMARY_COLOR : BACKGROUND_COLOR,
-        borderColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BORDER,
+        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
+        borderColor: isSelected ? COLORS.primary : COLORS.border,
       }
     ]}
     onPress={() => onPress(category)}
@@ -59,7 +53,7 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     <Text
       style={[
         styles.chipText,
-        { color: isSelected ? 'white' : TEXT_COLOR },
+        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
       ]}
     >
       {category}
@@ -194,7 +188,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
         {/* Header Row (Back Button) */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -232,7 +226,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
             activeOpacity={0.7}
             accessibilityRole="button"
           >
-            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} style={styles.createNewIcon} />
+            <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} style={styles.createNewIcon} />
             <Text style={styles.createNewText}>Create New Category</Text>
           </TouchableOpacity>
         </View>
@@ -241,13 +235,20 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           activeOpacity={0.8}
           disabled={isButtonDisabled}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -298,7 +299,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
 
@@ -341,12 +342,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10, // Increased spacing
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
@@ -362,7 +363,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 25,
     borderWidth: 1,
-    // Removed unnecessary shadows for a flat, clean look
   },
   chipText: {
     fontSize: 15,
@@ -376,11 +376,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 30,
     paddingVertical: 12,
-    borderRadius: 12, // More rounded rectangle vs 25 radius circle
+    borderRadius: 12, 
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     borderStyle: 'dashed',
-    backgroundColor: BACKGROUND_COLOR, 
+    backgroundColor: COLORS.background, 
   },
   createNewIcon: {
     marginRight: 8,
@@ -388,30 +388,34 @@ const styles = StyleSheet.create({
   createNewText: {
     fontSize: 16,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
 
   // --- Footer/Button Styles (Consistent) ---
   footer: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 25, 
     borderTopWidth: 0,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
     height: 60,
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -425,7 +429,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   modalContent: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderRadius: 15,
     padding: 25,
     width: '100%',
@@ -439,20 +443,20 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: INPUT_BORDER_COLOR,
+    borderColor: COLORS.border,
     borderRadius: 10,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 25,
-    backgroundColor: INPUT_BG_COLOR,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
   },
   modalButtons: {
     flexDirection: 'row',
@@ -466,20 +470,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: INPUT_BG_COLOR, // Light background
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
   },
   createButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   createButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: COLORS.textInverted,
   },
 });
 

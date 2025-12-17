@@ -12,13 +12,11 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
 
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const LIGHT_PURPLE = '#EDE9FF';    // Light purple background for the bio input
 
 /**
  * Main Screen Component
@@ -55,70 +53,78 @@ const SponsorBioScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
-        
-        {/* Main Card */}
-        <View style={styles.card}>
+  const [isFocused, setIsFocused] = useState(false);
 
-          {/* Custom Header with Back and Skip */}
-          <View style={styles.header}>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Custom Header with Back and Skip */}
+        <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              {/* Placeholder for Back Icon */}
-              <Text style={styles.backIcon}>&larr;</Text> 
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            
-            <Text style={styles.headerTitle}>About You</Text>
-            
-            <TouchableOpacity onPress={handleSkip} accessibilityLabel="Skip this step" style={styles.headerButton}>
-              <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
+            <TouchableOpacity onPress={handleSkip} accessibilityLabel="Skip this step" style={styles.skipButton}>
+            <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressBarContainer}>
             <Text style={styles.stepText}>Step 6 of 8</Text>
             <ProgressBar progress={75} />
-          </View>
-          
-          <ScrollView
+        </View>
+
+        <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-          >
-            {/* Bio Input Card */}
-            <View style={styles.bioCard}>
-              <Text style={styles.bioPrompt}>
-                Tell us about yourself...
-              </Text>
+        >
+            <View style={styles.contentArea}>
+                <Text style={styles.title}>About You</Text>
+                <Text style={styles.subtitle}>
+                  Tell us a bit about your brand or sponsorship goals.
+                </Text>
 
-              <TextInput
-                style={styles.bioInput}
-                placeholder="Start typing here..."
-                placeholderTextColor={PRIMARY_COLOR + '60'} // Semi-transparent purple
-                value={bioText}
-                onChangeText={setBioText}
-                multiline={true}
-                textAlignVertical="top" // Ensure text starts at the top
-                maxLength={500} // Example limit
-                autoFocus={true}
-              />
+                <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
+                    <TextInput
+                        style={styles.bioInput}
+                        placeholder="Start typing here..."
+                        placeholderTextColor={COLORS.textSecondary}
+                        value={bioText}
+                        onChangeText={setBioText}
+                        multiline={true}
+                        textAlignVertical="top"
+                        maxLength={500}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                    />
+                </View>
             </View>
-          </ScrollView>
+        </ScrollView>
 
-          {/* Fixed Button Container */}
-          <View style={styles.buttonContainer}>
+        {/* Fixed Button Container */}
+        <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Next step"
+            style={styles.nextButtonContainer}
+            onPress={handleNext}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Next step"
             >
-              <Text style={styles.buttonText}>Next</Text>
+                <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                >
+                    <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
             </TouchableOpacity>
-          </View>
         </View>
       </View>
+    </SafeAreaView>
+  );
     </SafeAreaView>
   );
 };
@@ -127,27 +133,13 @@ const SponsorBioScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  background: {
+  container: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
-    paddingTop: 10,
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
-    flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
+    paddingHorizontal: width * 0.05,
+    backgroundColor: COLORS.background,
   },
   
   // --- Header Styles ---
@@ -155,91 +147,104 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 25,
-    paddingHorizontal: 5, // Small padding to align content with edges
+    paddingTop: 15,
+    paddingBottom: 5,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 10,
+    marginLeft: -10,
   },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: DARK_TEXT,
+  skipButton: {
+    padding: 10,
+    marginRight: -10,
   },
   skipText: {
     fontSize: 16,
     fontWeight: '500',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
+  },
+
+  // --- Title Styles ---
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+    lineHeight: 38,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginBottom: 20,
   },
 
   // --- Progress Bar Styles ---
   progressBarContainer: {
-    marginBottom: 40,
+    marginBottom: 30,
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
-    marginBottom: 8,
-    textAlign: 'center', // Center the step text
-    opacity: 0.8,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
   },
 
-  // --- Bio Input Styles ---
+  // --- Content Styles ---
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100, // Space for the fixed button
+    paddingBottom: 110,
   },
-  bioCard: {
-    backgroundColor: LIGHT_PURPLE,
-    borderRadius: 20,
-    padding: 20,
+  contentArea: {
     flex: 1,
-    minHeight: 300, // Ensure a minimum visible height
-  },
-  bioPrompt: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: DARK_TEXT,
-    opacity: 0.7,
-    marginBottom: 10,
-  },
-  bioInput: {
-    fontSize: 16,
-    color: DARK_TEXT,
-    minHeight: 250, // Height for the input area itself
-    // Removes default background from TextInput to let bioCard background show
-    backgroundColor: 'transparent', 
-    padding: 0, 
-    lineHeight: 24,
+    paddingTop: 0,
   },
 
-  // --- Button Styles (Reused) ---
+  // --- Input Styles ---
+  inputContainer: {
+    width: '100%',
+    minHeight: 200,
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    borderRadius: 15,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  bioInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    textAlignVertical: 'top',
+    height: '100%',
+  },
+
+  // --- Button Styles ---
   buttonContainer: {
-    paddingVertical: 15,
     position: 'absolute',
     bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: COLORS.background,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  nextButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   nextButton: {
     width: '100%',
-    height: 60,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    height: 70,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

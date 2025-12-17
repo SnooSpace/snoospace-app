@@ -12,6 +12,8 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import ProgressBar from "../../../components/Progressbar";
 import HapticsService from "../../../services/HapticsService";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected chips
@@ -160,13 +162,21 @@ const InterestsScreen = ({ navigation, route }) => {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
-            styles.finishButton,
+            styles.finishButtonContainer,
             isButtonDisabled && styles.disabledButton,
           ]}
           onPress={handleFinish}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.finishButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -209,7 +219,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   percentageText: {
@@ -217,7 +227,7 @@ const styles = StyleSheet.create({
     top: 0,
     right: 5,
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     fontWeight: "600",
   },
   progressBarContainer: {
@@ -227,11 +237,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
   },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
+  // ProgressBar handles active state
   contentContainer: {
     flex: 1,
     marginTop: 30,
@@ -240,12 +246,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
@@ -253,7 +259,7 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10, // Use gap for modern RN, or margin/padding if gap is not supported
+    gap: 10,
   },
   chip: {
     paddingHorizontal: 16,
@@ -262,50 +268,54 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   chipSelected: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipUnselected: {
-    backgroundColor: BACKGROUND_COLOR,
-    borderColor: LIGHT_TEXT_COLOR + "80", // Lighter border for unselected
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.textSecondary + "80", 
   },
   chipText: {
     fontSize: 16,
     fontWeight: "600",
   },
   chipTextSelected: {
-    color: BACKGROUND_COLOR, // White text on purple background
+    color: COLORS.textInverted,
   },
   chipTextUnselected: {
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   chipDisabled: {
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground,
     borderColor: "#e9ecef",
     opacity: 0.5,
   },
   chipTextDisabled: {
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
 
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  finishButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   finishButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

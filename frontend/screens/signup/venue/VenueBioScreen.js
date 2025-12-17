@@ -12,13 +12,11 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
 
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const LIGHT_PURPLE = '#EDE9FF';    // Light purple background for the bio input
 
 /**
  * Main Screen Component
@@ -63,8 +61,7 @@ const VenueBioScreen = ({ navigation, route }) => {
           {/* Custom Header with Back and Skip */}
           <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              {/* Placeholder for Back Icon */}
-              <Text style={styles.backIcon}>&larr;</Text> 
+              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
             
             <Text style={styles.headerTitle}>About You</Text>
@@ -94,7 +91,7 @@ const VenueBioScreen = ({ navigation, route }) => {
               <TextInput
                 style={styles.bioInput}
                 placeholder="Start typing here..."
-                placeholderTextColor={PRIMARY_COLOR + '60'} // Semi-transparent purple
+                placeholderTextColor={COLORS.textSecondary}
                 value={bioText}
                 onChangeText={setBioText}
                 multiline={true}
@@ -108,13 +105,20 @@ const VenueBioScreen = ({ navigation, route }) => {
           {/* Fixed Button Container */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.nextButton}
+              style={styles.finishButtonContainer}
               onPress={handleNext}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Next step"
             >
-              <Text style={styles.buttonText}>Next</Text>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.nextButton}
+              >
+                <Text style={styles.buttonText}>Next</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -127,27 +131,17 @@ const VenueBioScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   background: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: width * 0.05,
     paddingTop: 10,
-    alignItems: 'center',
   },
   card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
     flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
   },
   
   // --- Header Styles ---
@@ -156,7 +150,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 25,
-    paddingHorizontal: 5, // Small padding to align content with edges
+    paddingHorizontal: 0,
+    marginTop: 10,
   },
   headerButton: {
     width: 40,
@@ -164,20 +159,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
   },
   skipText: {
     fontSize: 16,
     fontWeight: '500',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
 
   // --- Progress Bar Styles ---
@@ -186,7 +176,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 8,
     textAlign: 'center', // Center the step text
     opacity: 0.8,
@@ -195,51 +185,59 @@ const styles = StyleSheet.create({
   // --- Bio Input Styles ---
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100, // Space for the fixed button
+    paddingBottom: 120, // Space for the fixed button
   },
   bioCard: {
-    backgroundColor: LIGHT_PURPLE,
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 20,
     padding: 20,
     flex: 1,
-    minHeight: 300, // Ensure a minimum visible height
+    minHeight: 300, 
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   bioPrompt: {
     fontSize: 18,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     opacity: 0.7,
     marginBottom: 10,
   },
   bioInput: {
     fontSize: 16,
-    color: DARK_TEXT,
-    minHeight: 250, // Height for the input area itself
-    // Removes default background from TextInput to let bioCard background show
+    color: COLORS.textPrimary,
+    minHeight: 250, 
     backgroundColor: 'transparent', 
     padding: 0, 
     lineHeight: 24,
   },
 
-  // --- Button Styles (Reused) ---
+  // --- Button Styles ---
   buttonContainer: {
-    paddingVertical: 15,
     position: 'absolute',
     bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: COLORS.background,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+    left: -width * 0.05,
+  },
+  finishButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   nextButton: {
     width: '100%',
     height: 60,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

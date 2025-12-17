@@ -12,17 +12,9 @@ import {
   StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-// import ProgressBar from "../../../components/Progressbar"; // Removed problematic import
-
-// --- Constants & Styling ---
-const { width } = Dimensions.get("window");
-const PRIMARY_COLOR = "#5f27cd";
-const LIGHT_GRAY = "#e9ecef";
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
-const INPUT_BACKGROUND = "#f8f9fa";
-const PLACEHOLDER_TEXT = "#6c757d";
-const TRACK_COLOR = "#e0e0e0"; 
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from "../../../components/Progressbar"; 
 
 // --- Custom Progress Bar Reimplementation ---
 const SimpleProgressBar = ({ progress }) => {
@@ -50,8 +42,10 @@ const progressBarStyles = StyleSheet.create({
 
 
 // --- Components ---
-const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
-  <View style={styles.phoneInputContainer}>
+const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
+  const [isFocused, setIsFocused] = useState(false);
+  return (
+  <View style={[styles.phoneInputContainer, isFocused && styles.phoneInputContainerFocused]}>
     <TouchableOpacity
       style={styles.countryCodePicker}
       onPress={() => console.log("Action: Open country code selection modal")}
@@ -63,16 +57,19 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => (
     <TextInput
       style={styles.phoneNumberInput}
       placeholder={placeholder}
-      placeholderTextColor={PLACEHOLDER_TEXT}
+      placeholderTextColor={COLORS.textSecondary}
       value={value}
       onChangeText={onChangeText}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       keyboardType="phone-pad"
       dataDetectorTypes="phoneNumber"
       maxLength={10}
       autoFocus={isRequired}
     />
   </View>
-);
+  );
+};
 
 // --- Main Screen Component ---
 const CommunityPhoneNoScreen = ({ navigation, route }) => {
@@ -148,14 +145,14 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
           accessibilityLabel="Go back"
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
 
       {/* 2. Progress Bar and Step Text */}
       <View style={styles.progressContainer}>
         <Text style={styles.stepText}>Step 6 of 9</Text>
-        <SimpleProgressBar progress={67} />
+        <ProgressBar progress={67} />
       </View>
 
       {/* 3. Scrollable Content */}
@@ -192,7 +189,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[
-            styles.continueButton,
+            styles.continueButtonContainer,
             isButtonDisabled && styles.disabledButton,
           ]}
           onPress={handleContinue}
@@ -201,7 +198,14 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
           accessibilityRole="button"
           accessibilityLabel="Continue to verification code input"
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.continueButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -212,7 +216,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
 
@@ -240,7 +244,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
 
@@ -264,12 +268,12 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 32,
     fontWeight: "800",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
 
@@ -279,32 +283,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     height: 60,
-    backgroundColor: INPUT_BACKGROUND,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: LIGHT_GRAY,
+    borderColor: COLORS.border,
     marginBottom: 20,
+  },
+  phoneInputContainerFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   countryCodePicker: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 15,
     borderRightWidth: 1,
-    borderRightColor: LIGHT_GRAY,
+    borderRightColor: COLORS.border,
     height: "100%",
     justifyContent: "center",
   },
   countryCodeText: {
     fontSize: 16,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   phoneNumberInput: {
     flex: 1,
     height: "100%",
     paddingHorizontal: 15,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
 
   // --- Optional Input Section Styles ---
@@ -319,11 +327,11 @@ const styles = StyleSheet.create({
   optionalInputLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   optionalLabel: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     opacity: 0.8,
   },
 
@@ -334,25 +342,30 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: width * 0.9,
     alignSelf: "center",
-    backgroundColor: "white",
+    backgroundColor: COLORS.background,
     // FIX: Increased bottom padding to push the button higher
     paddingBottom: Platform.OS === 'ios' ? 40 : 25, 
+  },
+  continueButtonContainer: {
+    width: "100%",
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   continueButton: {
     width: "100%",
     height: 70,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
   },
   buttonText: {
-    color: "white",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "700",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
 });
 

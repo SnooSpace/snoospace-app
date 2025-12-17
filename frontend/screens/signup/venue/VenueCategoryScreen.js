@@ -14,13 +14,12 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
 
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import { Ionicons } from '@expo/vector-icons';
+
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const BUTTON_INACTIVE_BG = '#FFFFFF'; // White background for unselected chips
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -41,8 +40,8 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-        borderColor: isSelected ? PRIMARY_COLOR : PLACEHOLDER_TEXT + '40', // Lighter border when unselected
+        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
+        borderColor: isSelected ? COLORS.primary : COLORS.border,
       }
     ]}
     onPress={() => onPress(category)}
@@ -54,7 +53,7 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     <Text
       style={[
         styles.chipText,
-        { color: isSelected ? 'white' : DARK_TEXT },
+        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
       ]}
     >
       {category}
@@ -176,14 +175,12 @@ const VenueCategoryScreen = ({ navigation, route }) => {
         <View style={styles.card}>
 
           {/* Custom Header with Back button */}
+          {/* Custom Header with Back button */}
           <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Text style={styles.backIcon}>&larr;</Text> 
+              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            
             <Text style={styles.headerTitle}>Choose Venue Category</Text>
-            
-            {/* Empty space to align the title center-wise, matching the Skip text on the previous screen */}
             <View style={styles.headerButton} /> 
           </View>
 
@@ -231,13 +228,20 @@ const VenueCategoryScreen = ({ navigation, route }) => {
           {/* Fixed Finish Button Container */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.finishButton}
+              style={styles.finishButtonContainer}
               onPress={handleNext}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Next step"
             >
-              <Text style={styles.buttonText}>Next</Text>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.finishButton}
+              >
+                <Text style={styles.buttonText}>Next</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -290,27 +294,17 @@ const VenueCategoryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   background: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: width * 0.05,
     paddingTop: 10,
-    alignItems: 'center',
   },
   card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
     flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
   },
   
   // --- Header Styles ---
@@ -319,7 +313,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 25,
-    paddingHorizontal: 5,
+    paddingHorizontal: 0,
+    marginTop: 10,
   },
   headerButton: {
     width: 40,
@@ -327,15 +322,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
   },
 
   // --- Progress Bar Styles ---
@@ -344,7 +334,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 8,
     textAlign: 'right', // Aligned right for a clean look
     opacity: 0.8,
@@ -353,7 +343,7 @@ const styles = StyleSheet.create({
   // --- Content Styles ---
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100, // Space for the fixed button
+    paddingBottom: 120, // Space for the fixed button
   },
   contentArea: {
     alignItems: 'flex-start', // Align text to the left
@@ -361,13 +351,13 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 10,
     lineHeight: 30,
   },
   subtitle: {
     fontSize: 16,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
@@ -380,9 +370,9 @@ const styles = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 25,
-    borderWidth: 1,
+    borderWidth: 2,
     // Shadow for unselected state to match the overall design
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -391,7 +381,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   chipText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
 
@@ -404,41 +394,48 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     borderStyle: 'dashed',
-    backgroundColor: LIGHT_GRAY + '80', // Slightly lighter background
+    backgroundColor: COLORS.background, // Slightly lighter background
   },
   createNewIcon: {
     fontSize: 22,
     fontWeight: '700',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     marginRight: 8,
   },
   createNewText: {
     fontSize: 16,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
 
   // --- Finish Button Styles ---
   buttonContainer: {
-    paddingVertical: 15,
     position: 'absolute',
     bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: COLORS.background,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+    left: -width * 0.05, // Offset padding
+  },
+  finishButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   finishButton: {
     width: '100%',
     height: 60,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -466,20 +463,20 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: LIGHT_GRAY,
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 25,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -493,20 +490,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.border,
   },
   createButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
   },
   createButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: COLORS.textInverted,
   },
 });
 

@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import { apiPost } from '../../../api/client';
 
 const VenueEmailScreen = ({ navigation, route }) => {
@@ -17,6 +19,7 @@ const VenueEmailScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = async () => {
     if (!email) {
@@ -87,7 +90,7 @@ const VenueEmailScreen = ({ navigation, route }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1D2A32" />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Venue Signup</Text>
       </View>
@@ -100,13 +103,10 @@ const VenueEmailScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
+            placeholderTextColor={COLORS.textSecondary}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            style={[styles.input, isFocused && { borderColor: COLORS.primary, backgroundColor: '#fff' }]}
           />
         </View>
 
@@ -129,15 +129,22 @@ const VenueEmailScreen = ({ navigation, route }) => {
         ) : null}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
           onPress={handleContinue}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Continue</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -147,7 +154,7 @@ const VenueEmailScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -162,7 +169,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
@@ -172,12 +179,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -185,25 +192,30 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground,
+    color: COLORS.textPrimary,
+  },
+  buttonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+    marginTop: 20,
   },
   button: {
-    backgroundColor: '#5f27cd',
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
-    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -212,19 +224,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: '#dc3545',
+    color: COLORS.error,
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 10,
   },
   retryButton: {
-    backgroundColor: '#dc3545',
+    backgroundColor: COLORS.error,
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 14,
     fontWeight: '600',
   },

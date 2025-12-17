@@ -12,11 +12,9 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import ProgressBar from "../../../components/Progressbar";
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected chips
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for subtitle and unselected chips
-const BACKGROUND_COLOR = "#ffffff"; // White background
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+
 const MIN_SELECTIONS = 3; // Requirement from the design text
 const MAX_SELECTIONS = 7; // Maximum selections allowed
 
@@ -112,7 +110,7 @@ const VenueInterestScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -156,16 +154,24 @@ const VenueInterestScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Fixed Footer/Button Section */}
+      {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
-            styles.finishButton,
+            styles.finishButtonContainer,
             isButtonDisabled && styles.disabledButton,
           ]}
           onPress={handleFinish}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.finishButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -177,7 +183,7 @@ const VenueInterestScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -198,38 +204,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1,
     textAlign: "center",
-    marginLeft: -40, // Visual centering adjustment
+    marginLeft: -40,
   },
   progressSection: {
     paddingHorizontal: 5,
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
-  percentageText: {
-    position: "absolute",
-    top: 0,
-    right: 5,
-    fontSize: 14,
-    color: TEXT_COLOR,
-    fontWeight: "600",
-  },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
+    marginBottom: 20,
   },
   contentContainer: {
     flex: 1,
@@ -239,12 +228,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
@@ -252,7 +241,7 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10, // Use gap for modern RN, or margin/padding if gap is not supported
+    gap: 10,
   },
   chip: {
     paddingHorizontal: 16,
@@ -261,56 +250,61 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   chipSelected: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipUnselected: {
-    backgroundColor: BACKGROUND_COLOR,
-    borderColor: LIGHT_TEXT_COLOR + "80", // Lighter border for unselected
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.border,
   },
   chipText: {
     fontSize: 16,
     fontWeight: "600",
   },
   chipTextSelected: {
-    color: BACKGROUND_COLOR, // White text on purple background
+    color: COLORS.textInverted,
   },
   chipTextUnselected: {
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   chipDisabled: {
-    backgroundColor: "#f8f9fa",
-    borderColor: "#e9ecef",
+    backgroundColor: COLORS.inputBackground,
+    borderColor: COLORS.border,
     opacity: 0.5,
   },
   chipTextDisabled: {
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
 
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  finishButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   finishButton: {
-    backgroundColor: PRIMARY_COLOR,
+    width: "100%",
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },
   backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+    padding: 15,
+    marginLeft: -15,
   },
 });
 

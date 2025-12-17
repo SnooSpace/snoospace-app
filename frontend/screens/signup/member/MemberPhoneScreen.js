@@ -10,8 +10,10 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
+import { Ionicons } from '@expo/vector-icons';
 import ProgressBar from '../../../components/Progressbar';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
 const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
@@ -22,6 +24,7 @@ const BACKGROUND_COLOR = '#ffffff'; // White background
 const PhoneNumberInputScreen = ({ navigation, route }) => {
   const { email, accessToken } = route.params || {};
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = () => {
     navigation.navigate('MemberName', { email, accessToken, phone: phoneNumber });
@@ -62,7 +65,10 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
           </Text>
 
           {/* Phone Number Input */}
-          <View style={styles.phoneInputContainer}>
+          <View style={[
+                  styles.phoneInputContainer,
+                  isFocused && styles.phoneInputContainerFocused
+                ]}>
             {/* Country Code and Flag for India */}
             <View style={styles.countryCodePill}>
               {/* Using a flag emoji for simplicity */}
@@ -75,8 +81,10 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
               style={styles.inputField}
               onChangeText={formatPhoneNumber}
               value={phoneNumber}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder="(000) 000-0000"
-              placeholderTextColor="#adb5bd"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="phone-pad"
               textContentType="telephoneNumber" // iOS specific
               autoComplete="tel" // Android specific
@@ -89,12 +97,20 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, phoneNumber.length !== 10 && styles.disabledButton]}
+          style={[styles.continueButtonContainer, phoneNumber.length !== 10 && styles.disabledButton]}
           onPress={handleContinue}
           // Button is enabled only when 10 digits are entered
           disabled={phoneNumber.length !== 10}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.continueButton}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -122,22 +138,26 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   phoneInputContainer: {
     flexDirection: 'row',
     height: 50,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ced4da',
+    borderColor: COLORS.border,
     overflow: 'hidden', // Ensures everything fits neatly
+  },
+  phoneInputContainerFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#fff',
   },
   countryCodePill: {
     flexDirection: 'row',
@@ -155,34 +175,38 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginRight: 2,
   },
   inputField: {
     flex: 1, // Takes up the remaining space
     paddingHorizontal: 15,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     backgroundColor: 'transparent', // Make sure it's transparent
   },
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderTopWidth: 0,
     marginBottom: 50,
   },
+  continueButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   continueButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: BORDER_RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6, // Dim the button when disabled
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },

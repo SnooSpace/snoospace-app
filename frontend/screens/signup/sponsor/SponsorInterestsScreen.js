@@ -10,13 +10,12 @@ import {
 } from 'react-native';
 import ProgressBar from '../../../components/Progressbar';
 
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import { Ionicons } from '@expo/vector-icons';
+
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const BUTTON_INACTIVE_BG = '#FFFFFF'; // White background for unselected chips
 
 // --- Initial Data ---
 const initialSponsorTypes = [
@@ -34,8 +33,8 @@ const SponsorChip = ({ type, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-        borderColor: isSelected ? PRIMARY_COLOR : PLACEHOLDER_TEXT + '40',
+        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
+        borderColor: isSelected ? COLORS.primary : COLORS.border,
       }
     ]}
     onPress={() => onPress(type)}
@@ -47,7 +46,7 @@ const SponsorChip = ({ type, isSelected, onPress }) => (
     <Text
       style={[
         styles.chipText,
-        { color: isSelected ? 'white' : DARK_TEXT },
+        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
       ]}
     >
       {type}
@@ -141,17 +140,12 @@ const SponsorTypeSelect = ({ navigation, route }) => {
         {/* Main Card */}
         <View style={styles.card}>
 
-          {/* Custom Header with Back button */}
-          <View style={styles.header}>
+        {/* Custom Header with Back button */}
+        <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Text style={styles.backIcon}>&larr;</Text> 
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            
-            <Text style={styles.headerTitle}>Choose Your Interests</Text>
-            
-            {/* Empty space to align the title center-wise */}
-            <View style={styles.headerButton} /> 
-          </View>
+        </View>
 
           {/* Progress Bar (100% complete) */}
           <View style={styles.progressBarContainer}>
@@ -189,8 +183,8 @@ const SponsorTypeSelect = ({ navigation, route }) => {
                 style={[
                   styles.openToAllButton,
                   {
-                    backgroundColor: openToAllIsSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-                    borderColor: openToAllIsSelected ? PRIMARY_COLOR : PLACEHOLDER_TEXT + '40',
+                    backgroundColor: openToAllIsSelected ? COLORS.primary : COLORS.background,
+                    borderColor: openToAllIsSelected ? COLORS.primary : COLORS.border,
                   }
                 ]}
                 onPress={handleOpenToAll}
@@ -201,7 +195,7 @@ const SponsorTypeSelect = ({ navigation, route }) => {
                 <Text 
                   style={[
                     styles.openToAllText,
-                    { color: openToAllIsSelected ? 'white' : DARK_TEXT }
+                    { color: openToAllIsSelected ? COLORS.textInverted : COLORS.textPrimary }
                   ]}
                 >
                   Open to All
@@ -213,13 +207,20 @@ const SponsorTypeSelect = ({ navigation, route }) => {
           {/* Fixed Finish Button Container */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.finishButton}
+              style={styles.finishButtonContainer}
               onPress={handleFinish}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Finish setup"
             >
-              <Text style={styles.buttonText}>Finish</Text>
+                <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.finishButton}
+                >
+                    <Text style={styles.buttonText}>Finish</Text>
+                </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -232,99 +233,74 @@ const SponsorTypeSelect = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   background: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
-    paddingTop: 10,
-    alignItems: 'center',
+    paddingHorizontal: width * 0.05,
+    backgroundColor: COLORS.background,
   },
   card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
     flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
   },
   
-  // --- Header Styles (Reused) ---
+  // --- Header Styles ---
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    marginBottom: 25,
-    paddingHorizontal: 5,
+    paddingTop: 15,
+    paddingBottom: 5,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: DARK_TEXT,
+    padding: 10,
+    marginLeft: -10,
   },
 
-  // --- Progress Bar Styles (Reused) ---
+  // --- Progress Bar Styles ---
   progressBarContainer: {
     marginBottom: 40,
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
-    marginBottom: 8,
-    textAlign: 'right',
-    opacity: 0.8,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
   },
 
-  // --- Content Styles (Reused) ---
+  // --- Content Styles ---
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100,
+    paddingBottom: 110,
   },
   contentArea: {
     alignItems: 'flex-start',
   },
   mainTitle: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '800',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 10,
-    lineHeight: 30,
+    lineHeight: 38,
   },
   subtitle: {
     fontSize: 16,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
-  // --- Chips/Tags Styles (Reused) ---
+  // --- Chips/Tags Styles ---
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 40,
+    marginBottom: 30,
   },
   chip: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 25,
-    borderWidth: 1,
+    borderWidth: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -332,47 +308,52 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   chipText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
 
   // --- Open to All Button Styles ---
   openToAllButton: {
-    alignSelf: 'stretch', // Take full width
+    alignSelf: 'stretch',
     paddingHorizontal: 30,
     paddingVertical: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: PLACEHOLDER_TEXT,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
-    // Remove shadow for the Open to All button for contrast with chips
   },
   openToAllText: {
     fontSize: 16,
     fontWeight: '700',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
   },
 
-  // --- Finish Button Styles (Reused) ---
+  // --- Finish Button Styles ---
   buttonContainer: {
-    paddingVertical: 15,
     position: 'absolute',
     bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: COLORS.background,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  finishButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   finishButton: {
     width: '100%',
-    height: 60,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    height: 70,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

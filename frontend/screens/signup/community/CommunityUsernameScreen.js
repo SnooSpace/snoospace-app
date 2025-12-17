@@ -19,57 +19,9 @@ import { setAuthSession } from "../../../api/auth";
 
 const { width } = Dimensions.get("window");
 
-// --- Consistent Design Constants ---
-const PRIMARY_COLOR = "#5f27cd";
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
-const BACKGROUND_COLOR = "#ffffff";
-const INPUT_BACKGROUND = "#f8f9fa";
-const TRACK_COLOR = "#e0e0e0";
-
-const COLORS = {
-  primary: PRIMARY_COLOR,
-  textDark: TEXT_COLOR,
-  textLight: LIGHT_TEXT_COLOR,
-  background: BACKGROUND_COLOR,
-  white: "#fff",
-  error: "#FF4444",
-  success: "#00C851",
-};
-
-const FONT_SIZES = {
-  largeHeader: 32,
-  body: 16,
-  small: 14,
-};
-
-// --- Custom Progress Bar Reimplementation ---
-
-/**
- * Custom Simple Progress Bar Component (Guaranteed to work)
- */
-const SimpleProgressBar = ({ progress }) => {
-  return (
-    <View style={progressBarStyles.track}>
-      <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
-    </View>
-  );
-};
-
-const progressBarStyles = StyleSheet.create({
-  track: {
-    height: 8,
-    width: "100%",
-    backgroundColor: TRACK_COLOR,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  fill: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 4,
-  },
-});
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from "../../../components/Progressbar";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -206,17 +158,17 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textLight };
+    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
     if (username.length < 3)
       return {
         text: "Username must be at least 3 characters",
-        color: COLORS.textLight,
+        color: COLORS.textSecondary,
       };
     if (isAvailable === true)
-      return { text: "✓ Username is available", color: COLORS.success };
+      return { text: "✓ Username is available", color: COLORS.success || "#00C851" };
     if (isAvailable === false)
       return { text: "✗ Username is already taken", color: COLORS.error };
-    return { text: "", color: COLORS.textLight };
+    return { text: "", color: COLORS.textSecondary };
   };
 
   const status = getUsernameStatus();
@@ -237,14 +189,14 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
             style={styles.backButton}
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* 2. Progress Bar and Step Text */}
         <View style={styles.progressContainer}>
           <Text style={styles.stepText}>Step 9 of 9</Text>
-          <SimpleProgressBar progress={100} />
+          <ProgressBar progress={100} />
         </View>
 
         {/* 3. Content Area */}
@@ -258,13 +210,13 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { borderColor: isAvailable === false ? COLORS.error : (isAvailable === true ? (COLORS.success || "#00C851") : COLORS.border) }]}>
               <TextInput
                 style={styles.textInput}
                 value={username}
                 onChangeText={validateUsername}
                 placeholder="Enter your username"
-                placeholderTextColor={COLORS.textLight}
+                placeholderTextColor={COLORS.textSecondary}
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={30}
@@ -293,15 +245,22 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       <View style={styles.buttonFixedContainer}>
         <TouchableOpacity
           style={[
-            styles.nextButton,
+            styles.nextButtonContainer,
             isButtonDisabled && styles.nextButtonDisabled,
           ]}
           onPress={handleFinish}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.nextButtonText}>
-            {isSubmitting ? "Setting Username..." : "Complete Signup"}
-          </Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.nextButtonText}>
+                {isSubmitting ? "Setting Username..." : "Complete Signup"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -342,7 +301,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
 
@@ -357,65 +316,65 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   title: {
-    fontSize: FONT_SIZES.largeHeader,
+    fontSize: 32,
     fontWeight: "800",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 10,
     lineHeight: 38,
   },
   subtitle: {
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textLight,
+    fontSize: 16,
+    color: COLORS.textSecondary,
     lineHeight: 24,
   },
   inputContainer: {
     marginBottom: 30,
   },
   inputLabel: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: TRACK_COLOR,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: 15,
     paddingHorizontal: 20,
     height: 60,
-    backgroundColor: INPUT_BACKGROUND,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
   },
   textInput: {
     flex: 1,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textDark,
+    fontSize: 16,
+    color: COLORS.textPrimary,
     height: "100%",
   },
   statusText: {
-    fontSize: FONT_SIZES.small,
+    fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
   },
 
   // --- Rules Container Styles ---
   rulesContainer: {
-    backgroundColor: INPUT_BACKGROUND,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     padding: 20,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: TRACK_COLOR,
+    borderColor: COLORS.border,
   },
   rulesTitle: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "700",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   rule: {
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textDark,
+    fontSize: 14,
+    color: COLORS.textPrimary,
     marginBottom: 6,
     lineHeight: 20,
   },
@@ -431,20 +390,24 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === "ios" ? 40 : 25,
     zIndex: 10,
   },
+  nextButtonContainer: {
+    width: "100%",
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: COLORS.primary,
     height: 70,
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
   },
   nextButtonDisabled: {
-    backgroundColor: COLORS.textLight,
     opacity: 0.8,
+    shadowOpacity: 0,
   },
   nextButtonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.body,
+    color: COLORS.textInverted,
+    fontSize: 16,
     fontWeight: "700",
   },
 });

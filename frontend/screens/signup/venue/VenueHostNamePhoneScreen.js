@@ -14,25 +14,12 @@ import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
 import { apiPost } from '../../../api/client';
 
 // --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
-const TEXT_COLOR = '#1e1e1e'; // Dark text color
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for smaller text
-const BACKGROUND_COLOR = '#ffffff'; // White background
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from '../../../components/Progressbar';
 
-// --- Dummy ProgressBar Component (Assuming it exists in '../../../components/Progressbar')
-// Re-created here for completeness in this single file context
-const ProgressBar = ({ progress }) => {
-  const width = `${progress}%`;
-  return (
-    <View style={styles.progressBarContainer}>
-      <View style={[styles.progressBarActive, { width }]} />
-    </View>
-  );
-};
-
-// --- Reusable Phone Input Component ---
-// This extracts the core UI from the original PhoneNumberInputScreen
 const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = false }) => {
+  const [isFocused, setIsFocused] = useState(false);
   // Function to format the phone number as the user types (e.g., (XXX) XXX-XXXX)
   const formatPhoneNumber = (text) => {
     // Remove all non-digit characters
@@ -43,13 +30,13 @@ const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = 
   return (
     <View style={inputStyles?.container || { marginBottom: 30 }}>
       {!hideTitle && <Text style={styles.inputLabel}>Phone Number</Text>}
-      <View style={styles.phoneInputContainer}>
+      <View style={[styles.phoneInputContainer, isFocused && styles.phoneInputFocused]}>
         {/* Country Code and Flag for India */}
         <View style={styles.countryCodePill}>
           {/* Using a flag emoji for simplicity */}
           <Text style={styles.flagEmoji}>🇮🇳</Text>
           <Text style={styles.countryCodeText}>+91</Text>
-          <Ionicons name="caret-down" size={12} color={TEXT_COLOR} style={{ marginLeft: 5 }} />
+          <Ionicons name="caret-down" size={12} color={COLORS.textPrimary} style={{ marginLeft: 5 }} />
         </View>
 
         {/* Actual Phone Number Input Field */}
@@ -58,11 +45,13 @@ const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = 
           onChangeText={formatPhoneNumber}
           value={phoneNumber}
           placeholder="(000) 000-0000"
-          placeholderTextColor="#adb5bd"
+          placeholderTextColor={COLORS.textSecondary}
           keyboardType="phone-pad"
           textContentType="telephoneNumber" // iOS specific
           autoComplete="tel" // Android specific
           maxLength={10} // Indian numbers are typically 10 digits
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
       </View>
       <Text style={styles.helperText}>
@@ -114,12 +103,19 @@ export const PhoneNumberInputScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, phoneNumber.length !== 10 && styles.disabledButton]}
+          style={[styles.continueButtonContainer, phoneNumber.length !== 10 && styles.disabledButton]}
           onPress={handleContinue}
           // Button is enabled only when 10 digits are entered
           disabled={phoneNumber.length !== 10}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.continueButton}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -134,6 +130,7 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
   const { email, accessToken, name: venueName, address, city, phone, capacity_max, price_per_head, hourly_price, daily_price } = route.params || {};
   const [hostName, setHostName] = useState('');
   const [hostPhone, setHostPhone] = useState('');
+  const [isNameFocused, setIsNameFocused] = useState(false);
 
   const handleNext = async () => {
     if (!hostName.trim() || hostPhone.length !== 10) {
@@ -194,7 +191,7 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
         
@@ -211,17 +208,19 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
           {/* Name Input Field */}
           <View style={styles.inputGroup}>
              <Text style={styles.inputLabel}>Full Name</Text>
-             <TextInput
-                style={styles.input}
-                onChangeText={setHostName}
-                value={hostName}
-                placeholder="Enter host full name"
-                placeholderTextColor="#adb5bd"
-                keyboardType="default"
-                autoCapitalize="words"
-                textContentType="name" 
-                autoComplete="name" 
-              />
+              <TextInput
+                 style={[styles.input, isNameFocused && styles.inputFocused]}
+                 onChangeText={setHostName}
+                 value={hostName}
+                 placeholder="Enter host full name"
+                 placeholderTextColor={COLORS.textSecondary}
+                 keyboardType="default"
+                 autoCapitalize="words"
+                 textContentType="name" 
+                 autoComplete="name"
+                 onFocus={() => setIsNameFocused(true)}
+                 onBlur={() => setIsNameFocused(false)} 
+               />
           </View>
           
           {/* VVVVVVVV PHONE NUMBER COMPONENT INCLUDED HERE VVVVVVVV */}
@@ -239,11 +238,18 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, (!hostName.trim() || hostPhone.length !== 10) && styles.disabledButton]}
+          style={[styles.nextButtonContainer, (!hostName.trim() || hostPhone.length !== 10) && styles.disabledButton]}
           onPress={handleNext}
           disabled={!hostName.trim() || hostPhone.length !== 10}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -257,8 +263,7 @@ export default VenueHostNamePhoneScreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
-    // Add padding top for Android
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -279,7 +284,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 40,
   },
   // --- Input Grouping for Name and Phone ---
@@ -289,37 +294,45 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   input: {
     height: 50,
-    backgroundColor: '#f8f9fa', // Light background for the input field
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ced4da', // Light border
-    color: TEXT_COLOR,
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   // --- Phone Specific Styles ---
   phoneInputContainer: {
     flexDirection: 'row',
     height: 50,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ced4da',
-    overflow: 'hidden', // Ensures everything fits neatly
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  phoneInputFocused: {
+     borderColor: COLORS.primary,
+     backgroundColor: "#fff",
   },
   countryCodePill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
-    backgroundColor: '#e9ecef', // Slightly darker background for the code section
+    backgroundColor: 'transparent', // Slightly darker background for the code section
     borderRightWidth: 1,
-    borderRightColor: '#ced4da',
+    borderRightColor: COLORS.border,
   },
   flagEmoji: {
     fontSize: 18,
@@ -328,72 +341,70 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginRight: 2,
   },
   inputField: {
-    flex: 1, // Takes up the remaining space
+    flex: 1,
     paddingHorizontal: 15,
     fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: 'transparent', // Make sure it's transparent
+    color: COLORS.textPrimary,
+    backgroundColor: 'transparent',
   },
   helperText: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginTop: 8,
     paddingLeft: 5,
   },
   // --- General/Footer/Header Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderTopWidth: 0,
     marginBottom: 50,
   },
+  continueButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   continueButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   disabledButton: {
-    opacity: 0.6, // Dim the button when disabled
+    opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e9ecef',
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  progressBarActive: {
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
+    marginBottom: 20,
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
     marginTop: 5,
     marginLeft: 0,
   },
   backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+    padding: 15,
+    marginLeft: -15,
   },
 });

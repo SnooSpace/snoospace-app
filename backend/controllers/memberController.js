@@ -20,7 +20,7 @@ function parsePgTextArray(value) {
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-    const { name, email, phone, dob, gender, location, interests, profile_photo_url } = req.body || {};
+    const { name, email, phone, dob, gender, location, interests, profile_photo_url, username } = req.body || {};
     
     if (!name || !email || !phone || !dob || !gender || !location || !Array.isArray(interests)) {
       return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, location (JSONB), interests[]" });
@@ -40,16 +40,33 @@ async function signup(req, res) {
       return res.status(400).json({ error: "location must be an object with at least a city field" });
     }
     
+    // Validate username if provided
+    let sanitizedUsername = null;
+    if (username && typeof username === 'string') {
+      sanitizedUsername = username.toLowerCase().trim();
+      if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
+        return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only" });
+      }
+      // Check if username is already taken
+      const existingUsername = await pool.query(
+        `SELECT id FROM members WHERE username = $1 LIMIT 1`,
+        [sanitizedUsername]
+      );
+      if (existingUsername.rows.length > 0) {
+        return res.status(409).json({ error: "Username is already taken" });
+      }
+    }
+    
     // No longer using supabase_user_id - we use email as login credential
     // and backend-generated id as account identity
-    console.log('[MemberSignup] Creating member for email:', email);
+    console.log('[MemberSignup] Creating member for email:', email, 'username:', sanitizedUsername);
     
-    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
+    // INSERT with optional username
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
        RETURNING *`,
-      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null]
+      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null, sanitizedUsername]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {

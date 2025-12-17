@@ -13,14 +13,13 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
+import { Ionicons } from '@expo/vector-icons';
+
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6C63FF';    // Vibrant purple for accents
-const LIGHT_GRAY = '#F0F0F0';      // Screen background color
-const DARK_TEXT = '#1F1F39';       // Main text color
-const PLACEHOLDER_TEXT = '#8888AA';// Placeholder text color
-const BUTTON_INACTIVE_BG = '#FFFFFF'; // White background for unselected chips
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -41,8 +40,8 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-        borderColor: isSelected ? PRIMARY_COLOR : PLACEHOLDER_TEXT + '40', // Lighter border when unselected
+        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
+        borderColor: isSelected ? COLORS.primary : COLORS.border,
       }
     ]}
     onPress={() => onPress(category)}
@@ -50,11 +49,11 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     accessibilityRole="button"
     accessibilityState={{ selected: isSelected }}
     accessibilityLabel={`Category: ${category}. ${isSelected ? 'Selected' : 'Tap to select'}.`}
-  >
+    >
     <Text
       style={[
         styles.chipText,
-        { color: isSelected ? 'white' : DARK_TEXT },
+        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
       ]}
     >
       {category}
@@ -170,80 +169,76 @@ const SponsorCategoryScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.background}>
-        
-        {/* Main Card */}
-        <View style={styles.card}>
-
-          {/* Custom Header with Back button */}
-          <View style={styles.header}>
+      <View style={styles.container}>
+        {/* Custom Header with Back button */}
+        <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Text style={styles.backIcon}>&larr;</Text> 
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            
-            <Text style={styles.headerTitle}>Choose Sponsor Category</Text>
-            
-            {/* Empty space to align the title center-wise, matching the Skip text on the previous screen */}
-            <View style={styles.headerButton} /> 
-          </View>
+        </View>
 
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
+        {/* Progress Bar */}
+        <View style={styles.progressBarContainer}>
             <Text style={styles.stepText}>Step 7 of 8</Text>
             <ProgressBar progress={87} />
-          </View>
-          
-          <ScrollView
+        </View>
+        
+        <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
-          >
+        >
             <View style={styles.contentArea}>
-              <Text style={styles.mainTitle}>
+                <Text style={styles.mainTitle}>
                 Choose Sponsor Category
-              </Text>
-              <Text style={styles.subtitle}>
+                </Text>
+                <Text style={styles.subtitle}>
                 Select categories that best fit your brand.
-              </Text>
+                </Text>
 
-              {/* Category Chips Container */}
-              <View style={styles.chipsContainer}>
+                {/* Category Chips Container */}
+                <View style={styles.chipsContainer}>
                 {availableCategories.map(category => (
-                  <CategoryChip
+                    <CategoryChip
                     key={category}
                     category={category}
                     isSelected={selectedCategories.includes(category)}
                     onPress={toggleCategory}
-                  />
+                    />
                 ))}
-              </View>
+                </View>
 
-              {/* Create New Category Button */}
-              <TouchableOpacity
+                {/* Create New Category Button */}
+                <TouchableOpacity
                 style={styles.createNewButton}
                 onPress={handleCreateNewCategory}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Create New Category"
-              >
-                {/* Plus Icon placeholder */}
+                >
                 <Text style={styles.createNewIcon}>+</Text>
                 <Text style={styles.createNewText}>Create New Category</Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
             </View>
-          </ScrollView>
+        </ScrollView>
 
-          {/* Fixed Finish Button Container */}
-          <View style={styles.buttonContainer}>
+        {/* Fixed Finish Button Container */}
+        <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.finishButton}
-              onPress={handleNext}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Next step"
+            style={styles.finishButtonContainer}
+            onPress={handleNext}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Next step"
             >
-              <Text style={styles.buttonText}>Next</Text>
+                <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.finishButton}
+                >
+                    <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
             </TouchableOpacity>
-          </View>
         </View>
       </View>
 
@@ -294,52 +289,26 @@ const SponsorCategoryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  background: {
+  container: {
     flex: 1,
-    backgroundColor: LIGHT_GRAY,
-    paddingTop: 10,
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: 'white',
-    width: width * 0.9, 
-    flex: 1,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-    marginBottom: 20,
+    paddingHorizontal: width * 0.05,
+    backgroundColor: COLORS.background,
   },
   
   // --- Header Styles ---
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    marginBottom: 25,
-    paddingHorizontal: 5,
+    paddingTop: 15,
+    paddingBottom: 5,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: DARK_TEXT,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: DARK_TEXT,
+    padding: 10,
+    marginLeft: -10,
   },
 
   // --- Progress Bar Styles ---
@@ -348,30 +317,28 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: PLACEHOLDER_TEXT,
-    marginBottom: 8,
-    textAlign: 'right', // Aligned right for a clean look
-    opacity: 0.8,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
   },
 
   // --- Content Styles ---
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100, // Space for the fixed button
+    paddingBottom: 110,
   },
   contentArea: {
-    alignItems: 'flex-start', // Align text to the left
+    alignItems: 'flex-start',
   },
   mainTitle: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '800',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 10,
-    lineHeight: 30,
+    lineHeight: 38,
   },
   subtitle: {
     fontSize: 16,
-    color: PLACEHOLDER_TEXT,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
 
@@ -379,15 +346,14 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12, // Space between chips
+    gap: 12,
     marginBottom: 40,
   },
   chip: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12, // Slightly increased padding
     borderRadius: 25,
-    borderWidth: 1,
-    // Shadow for unselected state to match the overall design
+    borderWidth: 2, // Consistent with design system
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -395,54 +361,61 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   chipText: {
-    fontSize: 15,
+    fontSize: 16, // Consistent font size
     fontWeight: '600',
   },
 
   // --- Create New Button Styles ---
   createNewButton: {
     flexDirection: 'row',
-    alignSelf: 'center', // Center the button horizontally
+    alignSelf: 'stretch', // Full width
     alignItems: 'center',
+    justifyContent: 'center', // Center content
     paddingHorizontal: 30,
     paddingVertical: 15,
-    borderRadius: 25,
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     borderStyle: 'dashed',
-    backgroundColor: LIGHT_GRAY + '80', // Slightly lighter background
+    backgroundColor: COLORS.background,
   },
   createNewIcon: {
     fontSize: 22,
     fontWeight: '700',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     marginRight: 8,
   },
   createNewText: {
     fontSize: 16,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
 
   // --- Finish Button Styles ---
   buttonContainer: {
-    paddingVertical: 15,
     position: 'absolute',
     bottom: 0,
-    left: 20, 
-    right: 20, 
-    backgroundColor: 'white',
+    width: width,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: 15,
+    backgroundColor: COLORS.background,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    zIndex: 10,
+  },
+  finishButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   finishButton: {
     width: '100%',
-    height: 60,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    height: 70, // Consistent height
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

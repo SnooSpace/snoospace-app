@@ -9,7 +9,9 @@ import {
   TextInput,
 } from "react-native";
 import ProgressBar from "../../../components/Progressbar";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button, progress bar, and selected state
@@ -22,6 +24,7 @@ export default function Example({ navigation, route }) {
   const { email, accessToken, phone, name, gender } = route?.params || {};
   const [form, setForm] = useState({});
   const [input, setInput] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleInputChange = (value) => {
     setInput(value);
@@ -96,8 +99,13 @@ export default function Example({ navigation, route }) {
               keyboardType="number-pad"
               maxLength={8}
               onChangeText={handleInputChange}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               returnKeyType="done"
-              style={styles.inputControl}
+              style={[
+                styles.inputControl,
+                isFocused && styles.inputControlFocused
+              ]}
               value={input}
             />
 
@@ -128,45 +136,53 @@ export default function Example({ navigation, route }) {
         </View>
 
         {/* Button */}
-        <TouchableOpacity
-          onPress={() => {
-            if (form.dateOfBirth) {
-              // Calculate age properly considering month and day
-              const birthDate = new Date(form.dateOfBirth);
-              const today = new Date();
-              
-              let age = today.getFullYear() - birthDate.getFullYear();
-              const monthDiff = today.getMonth() - birthDate.getMonth();
-              
-              // If birthday hasn't occurred this year yet, subtract 1
-              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-              }
-              
-              Alert.alert("Confirm your age", `You are ${age} years old.`, [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Confirm",
-                  onPress: () => {
-                    navigation?.navigate?.("MemberInterests", {
-                      email,
-                      accessToken,
-                      phone,
-                      name,
-                      gender,
-                      dob: form.dateOfBirth,
-                    });
+          <TouchableOpacity
+            onPress={() => {
+              if (form.dateOfBirth) {
+                // Calculate age properly considering month and day
+                const birthDate = new Date(form.dateOfBirth);
+                const today = new Date();
+                
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                
+                // If birthday hasn't occurred this year yet, subtract 1
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                  age--;
+                }
+                
+                Alert.alert("Confirm your age", `You are ${age} years old.`, [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Confirm",
+                    onPress: () => {
+                      navigation?.navigate?.("MemberInterests", {
+                        email,
+                        accessToken,
+                        phone,
+                        name,
+                        gender,
+                        dob: form.dateOfBirth,
+                      });
+                    },
                   },
-                },
-              ]);
-            } else {
-              Alert.alert("Please enter a valid date");
-            }
-          }}
-          style={styles.btn}
-        >
-          <Text style={styles.btnText}>Next</Text>
-        </TouchableOpacity>
+                ]);
+              } else {
+                Alert.alert("Please enter a valid date");
+              }
+            }}
+            style={styles.btnContainer}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+               colors={COLORS.primaryGradient}
+               start={{ x: 0, y: 0 }}
+               end={{ x: 1, y: 0 }}
+               style={styles.btn}
+            >
+              <Text style={styles.btnText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -183,13 +199,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 31,
     fontWeight: "700",
-    color: "#1D2A32",
+    color: COLORS.textPrimary,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#929292",
+    color: COLORS.textSecondary,
   },
   form: {
     flexGrow: 1,
@@ -198,9 +214,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   backButton: {
-    padding: 15, // Increase this value to make the touch area larger
+    padding: 15,
     marginLeft: -20,
-    marginTop: 50, // Optional: Offset to visually align the icon with the screen edge
+    marginTop: 50,
   },
   input: {
     marginBottom: 16,
@@ -212,11 +228,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     fontSize: 1,
-    color: "transparent", // hides text
+    color: "transparent",
     borderWidth: 1,
-    borderColor: "#C9D3DB",
+    borderColor: COLORS.border,
     borderStyle: "solid",
     zIndex: 2,
+  },
+  inputControlFocused: {
+    borderColor: COLORS.primary,
   },
   inputOverflow: {
     backgroundColor: "#fff",
@@ -245,19 +264,22 @@ const styles = StyleSheet.create({
     color: "#BBB9BC",
     fontWeight: "400",
   },
+  btnContainer: {
+    marginBottom: 50,
+    borderRadius: 12,
+    ...SHADOWS.primaryGlow,
+  },
   btn: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 15,
     borderRadius: 12,
-    backgroundColor: PRIMARY_COLOR,
-    marginBottom: 50,
   },
   btnText: {
     fontSize: 18,
     lineHeight: 26,
     fontWeight: "600",
-    color: "#fff",
+    color: COLORS.textInverted,
   },
   progressBarContainer: {
     height: 4,

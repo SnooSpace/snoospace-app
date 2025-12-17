@@ -15,9 +15,8 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
 import ProgressBar from "../../../components/Progressbar";
 import * as Location from "expo-location";
-// Members flow simplified to current location only; no map/manual required
-
-// --- Design Constants ---
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
 const TEXT_COLOR = "#1e1e1e"; // Dark text color
 const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
@@ -174,9 +173,9 @@ const LocationInputScreen = ({ navigation, route }) => {
             disabled={loadingLocation}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <ActivityIndicator size="small" color={COLORS.primary} />
             ) : (
-              <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
+              <Ionicons name="location" size={20} color={COLORS.primary} />
             )}
             <Text style={styles.locationButtonText}>
               {loadingLocation ? "Getting location..." : "Use Current Location"}
@@ -193,11 +192,19 @@ const LocationInputScreen = ({ navigation, route }) => {
       {/* No footer button needed; we auto-advance after locating. Keep hidden fallback button for safety. */}
       <View style={[styles.footer, { display: 'none' }]}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -211,7 +218,7 @@ const LocationInputScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -220,7 +227,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingBottom: 5,
-    backgroundColor: BACKGROUND_COLOR, // Ensure header is white
+    backgroundColor: COLORS.background,
   },
   headerRow: {
     flexDirection: "row",
@@ -233,7 +240,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1, // Pushes back button to the left
     textAlign: "center",
     marginLeft: -40, // Adjust to center the text visually
@@ -243,7 +250,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
@@ -253,15 +260,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
   },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
-  },
+  // ProgressBar handles active fill
   contentContainer: {
     flex: 1,
     marginTop: 30,
@@ -270,7 +269,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 40,
   },
   inputWrapper: {
@@ -299,11 +298,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     marginBottom: 12,
   },
   locationButtonText: {
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
@@ -313,12 +312,12 @@ const styles = StyleSheet.create({
   },
   textInput: {
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: COLORS.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     backgroundColor: "#FFFFFF",
   },
   locationInput: {
@@ -328,21 +327,25 @@ const styles = StyleSheet.create({
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

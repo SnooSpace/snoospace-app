@@ -20,10 +20,9 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 
 // --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected elements
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
 import { apiPost } from "../../../api/client";
@@ -107,7 +106,7 @@ const VenueLogoScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -140,7 +139,7 @@ const VenueLogoScreen = ({ navigation, route }) => {
                   <Ionicons
                     name="camera-outline"
                     size={35}
-                    color={PRIMARY_COLOR}
+                    color={COLORS.primary}
                   />
                   <Text style={styles.uploadText}>Add Photo</Text>
                 </View>
@@ -161,11 +160,18 @@ const VenueLogoScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -177,7 +183,7 @@ const VenueLogoScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -198,41 +204,37 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1,
     textAlign: "center",
-    marginLeft: -40, // Visual centering adjustment
+    marginLeft: -40,
   },
   progressSection: {
     paddingHorizontal: 5,
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
+    marginBottom: 20,
   },
   contentContainer: {
     flex: 1,
     marginTop: 30,
     paddingHorizontal: 25,
-    alignItems: "center", // Center content horizontally
+    alignItems: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 50,
   },
   // --- Photo Upload Area Styles ---
@@ -248,9 +250,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR + "80", // Slightly transparent purple
+    borderColor: COLORS.primary,
     borderStyle: "dashed",
-    backgroundColor: PRIMARY_COLOR + "10", // Very light purple background
+    backgroundColor: COLORS.inputBackground,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -261,10 +263,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 16,
     fontWeight: "600",
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   imagePlaceholderText: {
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   profileImage: {
     width: "100%",
@@ -275,21 +277,25 @@ const styles = StyleSheet.create({
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

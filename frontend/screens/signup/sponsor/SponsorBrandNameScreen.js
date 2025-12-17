@@ -13,15 +13,13 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const SponsorNameScreen = ({ navigation, route }) => {
   const { email, accessToken, phone } = route.params || {};
   const [name, setName] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
     console.log('SponsorNameScreen - phone:', phone);
@@ -43,7 +41,7 @@ const SponsorNameScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -64,15 +62,17 @@ const SponsorNameScreen = ({ navigation, route }) => {
 
           {/* Name Input */}
           <TextInput
-            style={styles.input}
+            style={[styles.input, isFocused && { borderColor: COLORS.primary, backgroundColor: '#fff' }]}
             onChangeText={setName}
             value={name}
             placeholder="Enter your name"
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={COLORS.textSecondary}
             keyboardType="default"
             autoCapitalize="words"
             textContentType="name" // iOS specific
             autoComplete="name" // Android specific
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         </View>
       </ScrollView>
@@ -80,11 +80,18 @@ const SponsorNameScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -92,11 +99,10 @@ const SponsorNameScreen = ({ navigation, route }) => {
 };
 
 // --- Styles ---
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     // Add padding top for Android
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
@@ -109,26 +115,11 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef", // Very light grey for the background of the bar
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    // 25% for Step 1 of 4
-    width: "25%",
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
+    marginBottom: 20,
   },
   contentContainer: {
     flex: 1,
@@ -138,37 +129,41 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 40,
   },
   input: {
     height: 50,
-    backgroundColor: "#f8f9fa", // Light background for the input field
+    backgroundColor: COLORS.inputBackground || "#f8f9fa", // Light background for the input field
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#ced4da", // Light border
-    color: TEXT_COLOR,
+    borderColor: COLORS.border, // Light border
+    color: COLORS.textPrimary,
   },
   footer: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     padding: 20,
     marginBottom: 50,
     borderTopWidth: 0,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6, // Dim the button when disabled
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

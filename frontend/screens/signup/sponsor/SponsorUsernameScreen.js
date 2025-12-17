@@ -11,26 +11,10 @@ import {
 } from "react-native";
 import { apiPost } from "../../../api/client";
 
-const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#FFFFFF",
-  white: "#fff",
-  error: "#FF4444",
-  success: "#00C851",
-};
-
-const FONT_SIZES = {
-  largeHeader: 28,
-  body: 16,
-  small: 13,
-};
-
-const SPACING = {
-  horizontal: 24,
-  vertical: 20,
-};
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import { Ionicons } from '@expo/vector-icons';
+import ProgressBar from "../../../components/Progressbar";
 
 const SponsorUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -104,18 +88,25 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textLight };
-    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textLight };
+    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
+    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textSecondary };
     if (isAvailable === true) return { text: "✓ Username is available", color: COLORS.success };
     if (isAvailable === false) return { text: "✗ Username is already taken", color: COLORS.error };
-    return { text: "", color: COLORS.textLight };
+    return { text: "", color: COLORS.textSecondary };
   };
 
   const status = getUsernameStatus();
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        <View style={styles.headerContainer}>
+             <TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="Go back" style={styles.backButton}>
+                 <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+             </TouchableOpacity>
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.title}>Choose Your Sponsor Username</Text>
           <Text style={styles.subtitle}>
@@ -126,16 +117,18 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
         <View style={styles.content}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, isFocused && styles.inputFocused, !isFocused && isAvailable === false && styles.inputError]}>
               <TextInput
                 style={styles.textInput}
                 value={username}
                 onChangeText={validateUsername}
                 placeholder="Enter your username"
-                placeholderTextColor={COLORS.textLight}
+                placeholderTextColor={COLORS.textSecondary}
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={30}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
               />
               {isChecking && (
                 <ActivityIndicator size="small" color={COLORS.primary} />
@@ -156,15 +149,22 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={[
-            styles.nextButton,
-            (!username || username.length < 3 || !isAvailable || isSubmitting) && styles.nextButtonDisabled
+            styles.nextButtonContainer,
+            (!username || username.length < 3 || !isAvailable || isSubmitting) && styles.disabledButton
           ]}
           onPress={handleFinish}
           disabled={!username || username.length < 3 || !isAvailable || isSubmitting}
         >
-          <Text style={styles.nextButtonText}>
-            {isSubmitting ? "Setting Username..." : "Complete Signup"}
-          </Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.nextButtonText}>
+                {isSubmitting ? "Setting Username..." : "Complete Signup"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -178,21 +178,28 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: SPACING.horizontal,
-    paddingVertical: SPACING.vertical,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  headerContainer: {
+    paddingBottom: 20,
+  },
+  backButton: {
+    padding: 5,
+    marginLeft: -5,
   },
   header: {
     marginBottom: 40,
   },
   title: {
-    fontSize: FONT_SIZES.largeHeader,
+    fontSize: 28,
     fontWeight: "800",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textLight,
+    fontSize: 16,
+    color: COLORS.textSecondary,
     lineHeight: 24,
   },
   content: {
@@ -202,62 +209,73 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   inputLabel: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: COLORS.textLight,
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.inputBackground,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  inputError: {
+    borderColor: COLORS.error,
   },
   textInput: {
     flex: 1,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textDark,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
   statusText: {
-    fontSize: FONT_SIZES.small,
+    fontSize: 13,
     marginTop: 8,
     marginLeft: 4,
   },
   rulesContainer: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: COLORS.inputBackground,
     padding: 20,
     borderRadius: 12,
   },
   rulesTitle: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   rule: {
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textDark,
+    fontSize: 13,
+    color: COLORS.textSecondary,
     marginBottom: 6,
     lineHeight: 18,
   },
-  nextButton: {
-    backgroundColor: COLORS.primary,
-    height: 56,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
     marginTop: 20,
   },
-  nextButtonDisabled: {
-    backgroundColor: COLORS.textLight,
+  nextButton: {
+    height: 56,
+    borderRadius: BORDER_RADIUS.pill,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  disabledButton: {
+    opacity: 0.6,
+    shadowOpacity: 0,
   },
   nextButtonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.body,
+    color: COLORS.textInverted,
+    fontSize: 16,
     fontWeight: "700",
   },
 });

@@ -12,13 +12,9 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; 
-
-// --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; 
-const TEXT_COLOR = '#1e1e1e'; 
-const LIGHT_TEXT_COLOR = '#6c757d'; 
-const BACKGROUND_COLOR = '#ffffff'; 
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme"; 
 
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
@@ -30,6 +26,7 @@ const EmailInputScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -117,11 +114,16 @@ const EmailInputScreen = ({ navigation }) => {
           </Text>
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              isFocused && styles.inputFocused,
+            ]}
             onChangeText={validateEmail}
             value={email}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             placeholder="Enter your email"
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={COLORS.textSecondary}
             keyboardType="email-address"
             autoCapitalize="none"
             textContentType="emailAddress"
@@ -142,15 +144,23 @@ const EmailInputScreen = ({ navigation }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, (!isValidEmail || loading) && styles.disabledButton]}
+          style={[styles.continueButtonContainer, (!isValidEmail || loading) && styles.disabledButton]}
           onPress={handleContinue}
           disabled={!isValidEmail || loading}
+          activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Get Code</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.continueButton}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Get Code</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -161,7 +171,7 @@ const EmailInputScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -176,23 +186,6 @@ const styles = StyleSheet.create({
   backButton: {
     paddingRight: 15,
   },
-  progressBarContainer: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e9ecef',
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  progressBarActive: {
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: '100%',
-  },
   contentContainer: {
     flex: 0,
     marginTop: 50,
@@ -201,53 +194,61 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   input: {
     height: 50,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ced4da',
-    color: TEXT_COLOR,
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#fff',
   },
   errorText: {
     fontSize: 12,
-    color: 'red',
+    color: COLORS.error,
     marginTop: 5,
     marginLeft: 5,
   },
   infoText: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginTop: 8,
     marginLeft: 5,
   },
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
+  },
+  continueButtonContainer: {
+    marginVertical: 200, // Kept from original, though looks large
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   continueButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 200,
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600'
   },

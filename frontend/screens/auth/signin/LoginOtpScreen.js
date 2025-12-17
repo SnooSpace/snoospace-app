@@ -15,8 +15,10 @@ import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
 import { startForegroundWatch, attachAppStateListener } from "../../../services/LocationTracker";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-const TEXT_COLOR = "#1e1e1e";
+const TEXT_COLOR = COLORS.textPrimary;
 const RESEND_COOLDOWN = 60;
 
 const LoginOtpScreen = ({ navigation, route }) => {
@@ -26,6 +28,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   
   // Account picker state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -214,10 +217,16 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              isFocused && styles.inputFocused,
+            ]}
             placeholder="000000"
+            placeholderTextColor={COLORS.textSecondary}
             value={otp}
             onChangeText={setOtp}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             keyboardType="number-pad"
             maxLength={6}
             textAlign="center"
@@ -227,15 +236,23 @@ const LoginOtpScreen = ({ navigation, route }) => {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
           onPress={handleVerify}
           disabled={loading}
+          activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Login</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Login</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -269,7 +286,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
@@ -285,7 +302,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1D2A32",
+    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
@@ -295,12 +312,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1D2A32",
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: "#6c757d",
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -308,26 +325,34 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.m,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 24,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     letterSpacing: 4,
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  buttonContainer: {
+    marginTop: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   button: {
-    backgroundColor: "#5f27cd",
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
-    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },
@@ -336,12 +361,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   resendText: {
-    color: "#5f27cd",
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: "500",
   },
   errorText: {
-    color: "#dc3545",
+    color: COLORS.error,
     fontSize: 14,
     marginTop: 10,
     textAlign: "center",

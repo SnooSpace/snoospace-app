@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiPost } from '../../../api/client';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import ProgressBar from '../../../components/Progressbar';
 
 const SponsorEmailScreen = ({ navigation, route }) => {
@@ -18,6 +20,7 @@ const SponsorEmailScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = async () => {
     if (!email) {
@@ -106,28 +109,38 @@ const SponsorEmailScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isFocused && { borderColor: COLORS.primary, backgroundColor: '#fff' }]}
             placeholder="Enter your email"
+            placeholderTextColor={COLORS.textSecondary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
           onPress={handleContinue}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+                <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+                <Text style={styles.buttonText}>Continue</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -137,7 +150,7 @@ const SponsorEmailScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -152,7 +165,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
@@ -162,12 +175,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1D2A32',
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -175,45 +188,46 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    color: COLORS.textPrimary,
+  },
+  buttonContainer: {
+    marginTop: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   button: {
-    backgroundColor: '#5f27cd',
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
-    marginTop: 20,
+    justifyContent: 'center',
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },
   errorText: {
-    color: '#dc3545',
+    color: COLORS.error,
     fontSize: 14,
     marginTop: 10,
     textAlign: 'center',
   },
   stepText: {
     fontSize: 14,
-    color: '#6c757d',
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e9ecef',
-    overflow: 'hidden',
-    flexDirection: 'row',
     marginBottom: 20,
   },
 });

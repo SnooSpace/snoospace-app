@@ -13,15 +13,13 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons";
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd";
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
-const BACKGROUND_COLOR = "#ffffff";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const CommunityNameScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken } = route.params || {};
   const [name, setName] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
     navigation.navigate("CommunityLogo", { email, accessToken, refreshToken, name });
@@ -41,7 +39,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -61,11 +59,16 @@ const CommunityNameScreen = ({ navigation, route }) => {
 
           {/* Name Input */}
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              isFocused && styles.inputFocused,
+            ]}
             onChangeText={setName}
             value={name}
             placeholder="Enter your name"
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={COLORS.textSecondary}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             keyboardType="default"
             autoCapitalize="words"
             textContentType="name"
@@ -75,11 +78,19 @@ const CommunityNameScreen = ({ navigation, route }) => {
 
         {/* 👇 Button moved inside the ScrollView for dynamic positioning 👇 */}
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -91,13 +102,12 @@ const CommunityNameScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    // Add bottom padding to the ScrollView container
     paddingBottom: 20, 
   },
   header: {
@@ -105,11 +115,11 @@ const styles = StyleSheet.create({
   },
   headerProgress: {
     paddingVertical: 15,
-    paddingHorizontal: 5, // Match content container's padding
+    paddingHorizontal: 5,
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
@@ -120,43 +130,48 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   contentContainer: {
-    // Removed flex: 1 to allow the button below to flow correctly
     marginTop: 50,
     paddingHorizontal: 5,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 40,
   },
   input: {
     height: 50,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#ced4da",
-    color: TEXT_COLOR,
-    marginBottom: 0, // Ensure no unexpected margin here
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
+    marginBottom: 0,
   },
-  // 👇 Next button styles adapted for flow positioning 👇
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  nextButtonContainer: {
+    marginTop: 40, 
+    marginHorizontal: 5,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    // Added margin to position it after the input content
-    marginTop: 40, 
-    marginHorizontal: 5, // Match content padding
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

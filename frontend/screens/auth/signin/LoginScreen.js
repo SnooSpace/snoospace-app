@@ -12,14 +12,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-const TEXT_COLOR = "#1e1e1e";
+const TEXT_COLOR = COLORS.textPrimary;
 
 const LoginScreen = ({ navigation, route }) => {
   const { email: preFilledEmail, isAddingAccount } = route.params || {};
   const [email, setEmail] = useState(preFilledEmail || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleLogin = async () => {
     if (!email) {
@@ -88,10 +91,16 @@ const LoginScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              isFocused && styles.inputFocused,
+            ]}
             placeholder="Enter your email"
+            placeholderTextColor={COLORS.textSecondary}
             value={email}
             onChangeText={setEmail}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -101,15 +110,23 @@ const LoginScreen = ({ navigation, route }) => {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
           onPress={handleLogin}
           disabled={loading}
+          activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Send Login Code</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Send Login Code</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -129,7 +146,7 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
@@ -139,13 +156,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   backButton: {
-    padding: 15, 
-    marginLeft: -15, 
+    padding: 15,
+    marginLeft: -15,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1D2A32",
+    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
@@ -155,12 +172,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1D2A32",
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: "#6c757d",
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -168,25 +185,33 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.m,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
+  buttonContainer: {
+    marginTop: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   button: {
-    backgroundColor: "#5f27cd",
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
-    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },
@@ -196,14 +221,14 @@ const styles = StyleSheet.create({
   },
   signupText: {
     fontSize: 16,
-    color: "#6c757d",
+    color: COLORS.textSecondary,
   },
   signupLinkText: {
-    color: "#5f27cd",
+    color: COLORS.primary,
     fontWeight: "600",
   },
   errorText: {
-    color: "#dc3545",
+    color: COLORS.error,
     fontSize: 14,
     marginTop: 10,
     textAlign: "center",

@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the radio button icon
 import ProgressBar from "../../../components/Progressbar";
-
-// --- Design Constants ---
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button, progress bar, and selected state
 const TEXT_COLOR = "#1e1e1e"; // Dark text color
 const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
@@ -37,11 +37,11 @@ const RadioOption = ({ label, isSelected, onPress }) => {
       {/* Radio Icon */}
       {isChecked ? (
         <View style={styles.radioChecked}>
-          <Ionicons name="radio-button-on" size={20} color={PRIMARY_COLOR} />
+          <Ionicons name="radio-button-on" size={20} color={COLORS.primary} />
         </View>
       ) : (
         <View style={styles.radioUnchecked}>
-          <Ionicons name="radio-button-off" size={20} color={BORDER_COLOR} />
+          <Ionicons name="radio-button-off" size={20} color={COLORS.border} />
         </View>
       )}
     </TouchableOpacity>
@@ -112,11 +112,19 @@ const GenderSelectionScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -128,7 +136,7 @@ const GenderSelectionScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -140,7 +148,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
     marginLeft: 5,
   },
@@ -151,15 +159,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
   },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
-  },
+  // ProgressBar handles active state
   contentContainer: {
     flex: 1,
     marginTop: 30,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 30,
   },
 
@@ -179,19 +179,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 15,
     paddingHorizontal: 15,
-    backgroundColor: "#f8f9fa", // Light background color for all options
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: COLORS.border,
   },
   selectedOptionContainer: {
-    backgroundColor: PRIMARY_COLOR + "10", // Very light purple background
-    borderColor: PRIMARY_COLOR,
+    backgroundColor: "#F0F8FF", // Very light blue
+    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: 18,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     fontWeight: "500",
   },
   radioUnchecked: {
@@ -204,28 +204,32 @@ const styles = StyleSheet.create({
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderTopWidth: 0,
     marginBottom: 50,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },
   backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+    padding: 15,
+    marginLeft: -15,
   },
 });
 

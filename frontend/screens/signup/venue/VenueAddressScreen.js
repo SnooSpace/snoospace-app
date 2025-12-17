@@ -13,18 +13,16 @@ import {
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
 import ProgressBar from "../../../components/Progressbar";
 
-// --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
-const BORDER_COLOR = "#ced4da"; // Light border color
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const VenueLocationScreen = ({ navigation, route }) => {
   const { email, accessToken, phone, name, category, logo_url, bio, interests, capacity_max } =
     route.params || {};
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
+  const [isAddressFocused, setIsAddressFocused] = useState(false);
+  const [isCityFocused, setIsCityFocused] = useState(false);
 
   const handleNext = () => {
     navigation.navigate("VenueMaxCap", {
@@ -56,7 +54,7 @@ const VenueLocationScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -76,11 +74,12 @@ const VenueLocationScreen = ({ navigation, route }) => {
           <Text style={styles.title}>Where is your venue located?</Text>
 
           {/* Location Input Field */}
-          <View style={styles.inputWrapper}>
+          {/* Location Input Field */}
+          <View style={[styles.inputWrapper, isAddressFocused && styles.inputFocused]}>
             <Ionicons
               name="location-outline"
               size={20}
-              color={LIGHT_TEXT_COLOR}
+              color={COLORS.textSecondary}
               style={styles.locationIcon}
             />
             <TextInput
@@ -88,19 +87,21 @@ const VenueLocationScreen = ({ navigation, route }) => {
               onChangeText={setAddress}
               value={address}
               placeholder="Enter address"
-              placeholderTextColor="#adb5bd"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="default"
               autoCapitalize="words"
               textContentType="addressCity" // iOS specific (best fit)
               autoComplete="postal-address-locality" // Android specific (best fit)
+              onFocus={() => setIsAddressFocused(true)}
+              onBlur={() => setIsAddressFocused(false)}
             />
           </View>
 
-          <View style={[styles.inputWrapper, { marginTop: 12 }]}>
+          <View style={[styles.inputWrapper, { marginTop: 12 }, isCityFocused && styles.inputFocused]}>
             <Ionicons
               name="business-outline"
               size={20}
-              color={LIGHT_TEXT_COLOR}
+              color={COLORS.textSecondary}
               style={styles.locationIcon}
             />
             <TextInput
@@ -108,11 +109,13 @@ const VenueLocationScreen = ({ navigation, route }) => {
               onChangeText={setCity}
               value={city}
               placeholder="Enter city"
-              placeholderTextColor="#adb5bd"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="default"
               autoCapitalize="words"
               textContentType="addressCity"
               autoComplete="postal-address-locality"
+              onFocus={() => setIsCityFocused(true)}
+              onBlur={() => setIsCityFocused(false)}
             />
           </View>
         </View>
@@ -121,11 +124,18 @@ const VenueLocationScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -137,7 +147,7 @@ const VenueLocationScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -146,7 +156,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingBottom: 5,
-    backgroundColor: BACKGROUND_COLOR, // Ensure header is white
+    backgroundColor: COLORS.background,
   },
   headerRow: {
     flexDirection: "row",
@@ -159,34 +169,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
-    flex: 1, // Pushes back button to the left
+    color: COLORS.textPrimary,
+    flex: 1,
     textAlign: "center",
-    marginLeft: -40, // Adjust to center the text visually
+    marginLeft: -40,
   },
   progressSection: {
     paddingHorizontal: 5,
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
+    marginBottom: 20,
   },
   contentContainer: {
     flex: 1,
@@ -196,18 +193,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 40,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     height: 50,
-    backgroundColor: "#f8f9fa", // Light background for the input field
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: COLORS.border,
     paddingHorizontal: 15,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   locationIcon: {
     marginRight: 10,
@@ -215,34 +216,38 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: TEXT_COLOR,
-    paddingVertical: 0, // Ensures text is centered vertically
+    color: COLORS.textPrimary,
+    paddingVertical: 0,
   },
 
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },
   backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
+    padding: 15,
+    marginLeft: -15,
   },
 });
 

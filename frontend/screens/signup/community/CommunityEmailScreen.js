@@ -15,12 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { apiPost } from '../../../api/client';
 
-// --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd';
-const TEXT_COLOR = '#1D2A32';
-const LIGHT_TEXT_COLOR = '#6c757d';
-const BACKGROUND_COLOR = '#fff';
-const ERROR_COLOR = '#dc3545';
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const CommunityEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
@@ -29,6 +25,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -117,11 +114,16 @@ const CommunityEmailScreen = ({ navigation, route }) => {
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                isFocused && styles.inputFocused,
+              ]}
               placeholder="Enter your email"
-              placeholderTextColor="#adb5bd"
+              placeholderTextColor={COLORS.textSecondary}
               value={email}
               onChangeText={validateEmail}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -142,17 +144,25 @@ const CommunityEmailScreen = ({ navigation, route }) => {
 
           <TouchableOpacity
             style={[
-              styles.button,
+              styles.buttonContainer,
               (!isValidEmail || loading) && styles.buttonDisabled,
             ]}
             onPress={handleContinue}
             disabled={!isValidEmail || loading}
+            activeOpacity={0.8}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Get Code</Text>
-            )}
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.button}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.textInverted} />
+              ) : (
+                <Text style={styles.buttonText}>Get Code</Text>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -164,7 +174,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -182,7 +192,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   contentContainer: {
     paddingTop: 30,
@@ -191,12 +201,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   inputContainer: {
@@ -205,40 +215,48 @@ const styles = StyleSheet.create({
   input: {
     height: 50,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
-    color: TEXT_COLOR,
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    color: COLORS.textPrimary,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   validationErrorText: {
-    color: ERROR_COLOR,
+    color: COLORS.error,
     fontSize: 12,
     marginTop: 5,
     marginLeft: 5,
   },
   apiErrorText: {
-    color: ERROR_COLOR,
+    color: COLORS.error,
     fontSize: 14,
     marginTop: 15,
     textAlign: 'center',
   },
+  buttonContainer: {
+    marginTop: 150,
+    marginBottom: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   button: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 150, // Increased from 30 to 40 for more space
-    marginBottom: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
   },

@@ -14,14 +14,13 @@ import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
 import ProgressBar from '../../../components/Progressbar';
 
 // --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
-const TEXT_COLOR = '#1e1e1e'; // Dark text color
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey for smaller text
-const BACKGROUND_COLOR = '#ffffff'; // White background
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
   const { email, accessToken } = route.params || {};
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = () => {
     console.log('SponsorPhoneNoScreen - phoneNumber:', phoneNumber);
@@ -45,14 +44,16 @@ const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Progress Bar and Step Text) */}
+        {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.stepText}>Step 3 of 8</Text>
+            <TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="Go back" style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+        </View>
 
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
+        <View style={styles.progressBarContainer}>
+            <Text style={styles.stepText}>Step 3 of 8</Text>
             <ProgressBar progress={37} />
-          </View>
         </View>
 
         {/* Content Section */}
@@ -63,13 +64,13 @@ const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
           </Text>
 
           {/* Phone Number Input */}
-          <View style={styles.phoneInputContainer}>
+          <View style={[styles.phoneInputContainer, isFocused && styles.phoneInputFocused]}>
             {/* Country Code and Flag for India */}
             <View style={styles.countryCodePill}>
               {/* Using a flag emoji for simplicity */}
               <Text style={styles.flagEmoji}>🇮🇳</Text>
               <Text style={styles.countryCodeText}>+91</Text>
-              <Ionicons name="caret-down" size={12} color={TEXT_COLOR} style={{ marginLeft: 5 }} />
+              <Ionicons name="caret-down" size={12} color={COLORS.textPrimary} style={{ marginLeft: 5 }} />
             </View>
 
             {/* Actual Phone Number Input Field */}
@@ -78,11 +79,13 @@ const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
               onChangeText={formatPhoneNumber}
               value={phoneNumber}
               placeholder="(000) 000-0000"
-              placeholderTextColor="#adb5bd"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="phone-pad"
               textContentType="telephoneNumber" // iOS specific
               autoComplete="tel" // Android specific
               maxLength={10} // Indian numbers are typically 10 digits
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
             />
           </View>
         </View>
@@ -91,12 +94,18 @@ const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButton, phoneNumber.length !== 10 && styles.disabledButton]}
+          style={[styles.continueButtonContainer, phoneNumber.length !== 10 && styles.disabledButton]}
           onPress={handleContinue}
-          // Button is enabled only when 10 digits are entered
           disabled={phoneNumber.length !== 10}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.continueButton}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -108,47 +117,68 @@ const SponsorPhoneNumberInputScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
-    // Add padding top for Android
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  backButton: {
+    padding: 5,
+    marginLeft: -5,
+  },
+  progressBarContainer: {
+    marginBottom: 40,
+  },
+  stepText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
+  },
   contentContainer: {
     flex: 1,
-    marginTop: 50,
+    paddingTop: 0,
     paddingHorizontal: 5,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 40,
   },
   phoneInputContainer: {
     flexDirection: 'row',
-    height: 50,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
+    height: 56,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ced4da',
-    overflow: 'hidden', // Ensures everything fits neatly
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  phoneInputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   countryCodePill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    backgroundColor: '#e9ecef', // Slightly darker background for the code section
+    paddingHorizontal: 15,
+    backgroundColor: 'transparent',
     borderRightWidth: 1,
-    borderRightColor: '#ced4da',
+    borderRightColor: COLORS.border,
   },
   flagEmoji: {
     fontSize: 18,
@@ -157,54 +187,40 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginRight: 2,
   },
   inputField: {
-    flex: 1, // Takes up the remaining space
+    flex: 1,
     paddingHorizontal: 15,
     fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: 'transparent', // Make sure it's transparent
+    color: COLORS.textPrimary,
+    backgroundColor: 'transparent',
   },
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderTopWidth: 0,
-    marginBottom: 50,
+    marginBottom: 20,
+  },
+  continueButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   continueButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   disabledButton: {
-    opacity: 0.6, // Dim the button when disabled
+    opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '600',
-  },
-    progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-    marginBottom: 20,
-  },
-   stepText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 5,
-    marginTop: 5,
-    marginLeft: 0,
-  },
-   header: {
-    paddingVertical: 60,
   },
 });
 

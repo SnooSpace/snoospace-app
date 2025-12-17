@@ -12,15 +12,14 @@ import {
 } from 'react-native';
 // Removed all external imports to resolve compilation issues.
 
-// --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
-const TEXT_COLOR = '#1e1e1e'; // Dark text color (for titles and labels)
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey (for helper text)
-const BACKGROUND_COLOR = '#f7f7f7'; // Very light grey background
-const CARD_BACKGROUND = '#ffffff'; // White background for the card/inputs
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 
 // Reusable component for the pricing input fields (allow one decimal)
 const PricingInput = ({ title, placeholder, unit, value, onChangeText }) => {
+  const [isFocused, setIsFocused] = useState(false);
+  
   // Allow digits only - no decimal formatting
   const handleTextChange = (text) => {
     const sanitized = text.replace(/\D/g, ''); // digits only
@@ -30,17 +29,19 @@ const PricingInput = ({ title, placeholder, unit, value, onChangeText }) => {
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{title}</Text>
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
         <Text style={styles.currencySymbol}>₹</Text>
         <TextInput
           style={styles.textInput}
           onChangeText={handleTextChange}
           value={value}
           placeholder={placeholder}
-          placeholderTextColor="#adb5bd"
+          placeholderTextColor={COLORS.textSecondary}
           keyboardType="number-pad"
           // Allow empty input for better UX
           defaultValue=""
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
         {unit && <Text style={styles.unitText}>{unit}</Text>}
       </View>
@@ -48,12 +49,7 @@ const PricingInput = ({ title, placeholder, unit, value, onChangeText }) => {
   );
 };
 
-// Simple Text Back Arrow (Replaces the failing SVG component)
-const BackArrow = ({ color }) => (
-    <Text style={{ fontSize: 24, color: color, transform: [{ scaleX: Platform.OS === 'ios' ? 1.5 : 1.2 }] }}>
-        {'<'} 
-    </Text>
-);
+
 
 // Main Screen Component
 const EventPricingScreen = ({ navigation, route }) => {
@@ -103,11 +99,10 @@ const EventPricingScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity 
-            // In a production app, navigation.goBack() handles the back action.
-            onPress={() => navigation && navigation.goBack ? navigation.goBack() : console.log('Go Back Action')}
+            onPress={() => navigation.goBack()}
             style={styles.backButton}
         >
-          <BackArrow color={TEXT_COLOR} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pricing</Text>
         <View style={styles.placeholder} />
@@ -155,11 +150,18 @@ const EventPricingScreen = ({ navigation, route }) => {
       {/* Fixed Confirm Button Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.confirmButton, !isValid && styles.disabledButton]}
+          style={[styles.confirmButtonContainer, !isValid && styles.disabledButton]}
           onPress={handleConfirm}
           disabled={!isValid}
         >
-          <Text style={styles.buttonText}>Confirm</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.confirmButton}
+          >
+            <Text style={styles.buttonText}>Confirm</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -173,7 +175,7 @@ export default EventPricingScreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     // Add padding top for Android
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
@@ -183,14 +185,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 15,
     paddingVertical: 15,
-    backgroundColor: CARD_BACKGROUND,
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   backButton: {
     padding: 5,
@@ -203,15 +205,20 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     flexGrow: 1,
   },
+  stepText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
+  },
   subtitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 30,
   },
   mandatoryMessage: {
-    backgroundColor: '#fff3cd',
-    borderColor: '#ffeaa7',
+    backgroundColor: COLORS.inputBackground,
+    borderColor: COLORS.primary + "40",
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
@@ -219,7 +226,7 @@ const styles = StyleSheet.create({
   },
   mandatoryText: {
     fontSize: 14,
-    color: '#856404',
+    color: COLORS.textPrimary,
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -228,64 +235,64 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     fontWeight: '500',
     marginBottom: 10,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: CARD_BACKGROUND,
+    backgroundColor: COLORS.inputBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ced4da',
+    borderColor: COLORS.border,
     height: 55,
     paddingHorizontal: 15,
   },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
+  },
   currencySymbol: {
     fontSize: 18,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginRight: 8,
     fontWeight: 'bold',
   },
   textInput: {
     flex: 1,
     fontSize: 18,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     // Ensure padding is correct across platforms
     paddingVertical: Platform.OS === 'ios' ? 15 : 10, 
   },
   unitText: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginLeft: 8,
   },
   footer: {
     padding: 20,
-    backgroundColor: CARD_BACKGROUND,
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: COLORS.border,
+  },
+  confirmButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   confirmButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
   },
   disabledButton: {
-    backgroundColor: '#9c88ff',
-    opacity: 0.8,
-    elevation: 0,
+    opacity: 0.6,
     shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

@@ -11,15 +11,8 @@ import {
 } from "react-native";
 import { apiPost } from "../../../api/client";
 
-const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#FFFFFF",
-  white: "#fff",
-  error: "#FF4444",
-  success: "#00C851",
-};
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const FONT_SIZES = {
   largeHeader: 28,
@@ -27,16 +20,14 @@ const FONT_SIZES = {
   small: 13,
 };
 
-const SPACING = {
-  horizontal: 24,
-  vertical: 20,
-};
+
 
 const VenueUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const { userData, accessToken } = route.params;
 
@@ -104,11 +95,11 @@ const VenueUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textLight };
-    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textLight };
+    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
+    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textSecondary };
     if (isAvailable === true) return { text: "✓ Username is available", color: COLORS.success };
     if (isAvailable === false) return { text: "✗ Username is already taken", color: COLORS.error };
-    return { text: "", color: COLORS.textLight };
+    return { text: "", color: COLORS.textSecondary };
   };
 
   const status = getUsernameStatus();
@@ -126,16 +117,18 @@ const VenueUsernameScreen = ({ navigation, route }) => {
         <View style={styles.content}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, isFocused && styles.inputFocused]}>
               <TextInput
                 style={styles.textInput}
                 value={username}
                 onChangeText={validateUsername}
                 placeholder="Enter your username"
-                placeholderTextColor={COLORS.textLight}
+                placeholderTextColor={COLORS.textSecondary}
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={30}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
               />
               {isChecking && (
                 <ActivityIndicator size="small" color={COLORS.primary} />
@@ -156,15 +149,26 @@ const VenueUsernameScreen = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={[
-            styles.nextButton,
+            styles.nextButtonContainer,
             (!username || username.length < 3 || !isAvailable || isSubmitting) && styles.nextButtonDisabled
           ]}
           onPress={handleFinish}
           disabled={!username || username.length < 3 || !isAvailable || isSubmitting}
         >
-          <Text style={styles.nextButtonText}>
-            {isSubmitting ? "Setting Username..." : "Complete Signup"}
-          </Text>
+          <LinearGradient
+            colors={
+              (!username || username.length < 3 || !isAvailable || isSubmitting) 
+                ? [COLORS.border, COLORS.border] 
+                : COLORS.primaryGradient
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.nextButtonText}>
+              {isSubmitting ? "Setting Username..." : "Complete Signup"}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -178,21 +182,21 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: SPACING.horizontal,
-    paddingVertical: SPACING.vertical,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
   },
   header: {
     marginBottom: 40,
   },
   title: {
-    fontSize: FONT_SIZES.largeHeader,
+    fontSize: 28,
     fontWeight: "800",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textLight,
+    fontSize: 16,
+    color: COLORS.textSecondary,
     lineHeight: 24,
   },
   content: {
@@ -202,62 +206,73 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   inputLabel: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: COLORS.textLight,
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: COLORS.background,
+    paddingVertical: 10,
+    backgroundColor: COLORS.inputBackground,
+    height: 55,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   textInput: {
     flex: 1,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textDark,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
   statusText: {
-    fontSize: FONT_SIZES.small,
+    fontSize: 13,
     marginTop: 8,
     marginLeft: 4,
   },
   rulesContainer: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: COLORS.inputBackground,
     padding: 20,
     borderRadius: 12,
   },
   rulesTitle: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
   rule: {
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textDark,
+    fontSize: 13,
+    color: COLORS.textPrimary,
     marginBottom: 6,
     lineHeight: 18,
   },
-  nextButton: {
-    backgroundColor: COLORS.primary,
+  nextButtonContainer: {
     height: 56,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
     marginTop: 20,
   },
+  nextButton: {
+    width: "100%",
+    height: "100%",
+    borderRadius: BORDER_RADIUS.pill,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   nextButtonDisabled: {
-    backgroundColor: COLORS.textLight,
+    opacity: 0.6,
+    shadowOpacity: 0,
   },
   nextButtonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.body,
+    color: COLORS.textInverted,
+    fontSize: 16,
     fontWeight: "700",
   },
 });

@@ -19,8 +19,8 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import ProgressBar from "../../../components/Progressbar";
-
-// --- Design Constants ---
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected elements
 const TEXT_COLOR = "#1e1e1e"; // Dark text color
 const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
@@ -81,19 +81,23 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         profileUrl = await uploadImage(imageUri, () => {});
       }
 
-      await apiPost("/members/signup", {
-        name,
-        email,
-        phone,
-        dob,
-        gender,
-        location,
-        interests,
-        profile_photo_url: profileUrl || null,
+      // DON'T create the member record here - pass all data to username screen
+      // Record will be created when username is set (final step)
+      navigation.navigate("MemberUsername", { 
+        userData: { 
+          name, 
+          email, 
+          phone, 
+          dob, 
+          gender, 
+          location, 
+          interests,
+          profile_photo_url: profileUrl || null
+        }, 
+        accessToken 
       });
-      navigation.navigate("MemberUsername", { userData: { name, email, phone, dob, gender, location, interests }, accessToken });
     } catch (e) {
-      alert(e.message || "Failed to complete signup");
+      alert(e.message || "Failed to upload image");
     } finally {
       setUploading(false);
     }
@@ -151,7 +155,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                   <Ionicons
                     name="camera-outline"
                     size={35}
-                    color={PRIMARY_COLOR}
+                    color={COLORS.primary}
                   />
                   <Text style={styles.uploadText}>Add Photo</Text>
                 </View>
@@ -172,18 +176,26 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
+          activeOpacity={0.8}
         >
-          {uploading ? (
-            <View style={styles.buttonLoadingContainer}>
-              <ActivityIndicator size="small" color="#fff" style={styles.buttonSpinner} />
-              <Text style={styles.buttonText}>Uploading...</Text>
-            </View>
-          ) : (
-            <Text style={styles.buttonText}>Next</Text>
-          )}
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            {uploading ? (
+              <View style={styles.buttonLoadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.textInverted} style={styles.buttonSpinner} />
+                <Text style={styles.buttonText}>Uploading...</Text>
+              </View>
+            ) : (
+              <Text style={styles.buttonText}>Next</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -275,9 +287,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR + "80", // Slightly transparent purple
+    borderColor: COLORS.primary + "80", 
     borderStyle: "dashed",
-    backgroundColor: PRIMARY_COLOR + "10", // Very light purple background
+    backgroundColor: COLORS.primary + "10",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -288,10 +300,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 16,
     fontWeight: "600",
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   imagePlaceholderText: {
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   profileImage: {
     width: "100%",
@@ -302,21 +314,25 @@ const styles = StyleSheet.create({
   // --- Footer/Button Styles ---
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     marginBottom: 50,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
   },

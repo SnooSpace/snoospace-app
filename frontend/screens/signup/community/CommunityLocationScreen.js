@@ -20,13 +20,8 @@ import { reverseGeocodeStructured } from "../../../utils/geocoding";
 import { isValidGoogleMapsUrl } from "../../../utils/validateGoogleMapsUrl";
 import { parseGoogleMapsLink } from "../../../utils/googleMapsParser";
 
-// --- Consistent Design Constants ---
-const PRIMARY_COLOR = "#5f27cd";
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
-const BACKGROUND_COLOR = "#ffffff";
-const SUCCESS_COLOR = "#34C759";
-const ERROR_COLOR = "#FF3B30";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 const CommunityLocationScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, name, logo_url, bio, category, categories } = route.params || {};
@@ -42,6 +37,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   
   // Validation state
   const [urlValid, setUrlValid] = useState(null); // null = not validated, true/false = valid/invalid
+  const [isUrlFocused, setIsUrlFocused] = useState(false);
 
   // Validate URL on change
   useEffect(() => {
@@ -196,7 +192,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           {/* Header Row */}
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -220,9 +216,9 @@ const CommunityLocationScreen = ({ navigation, route }) => {
               disabled={isLoadingGps}
             >
               {isLoadingGps ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               ) : (
-                <Ionicons name="locate" size={22} color={PRIMARY_COLOR} />
+                <Ionicons name="locate" size={22} color={COLORS.primary} />
               )}
               <Text style={styles.gpsButtonText}>
                 {isLoadingGps ? "Getting location..." : "Use My Current Location"}
@@ -245,13 +241,16 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             <TextInput
               style={[
                 styles.urlInput,
+                isUrlFocused && styles.urlInputFocused,
                 urlValid === true && styles.urlInputValid,
                 urlValid === false && styles.urlInputInvalid,
               ]}
               value={locationUrl}
               onChangeText={setLocationUrl}
+              onFocus={() => setIsUrlFocused(true)}
+              onBlur={() => setIsUrlFocused(false)}
               placeholder="Paste Google Maps link here..."
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor={COLORS.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
@@ -268,14 +267,14 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             
             {urlValid === true && !isParsingUrl && (
               <View style={styles.validationRow}>
-                <Ionicons name="checkmark-circle" size={20} color={SUCCESS_COLOR} />
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success || "#34C759"} />
                 <Text style={styles.validText}>Valid Google Maps link</Text>
               </View>
             )}
             
             {urlValid === false && (
               <View style={styles.validationRow}>
-                <Ionicons name="close-circle" size={20} color={ERROR_COLOR} />
+                <Ionicons name="close-circle" size={20} color={COLORS.error} />
                 <Text style={styles.invalidText}>Invalid URL - must be from Google Maps</Text>
               </View>
             )}
@@ -283,7 +282,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             {/* Display Address */}
             {displayAddress && !isParsingUrl && (
               <View style={styles.addressContainer}>
-                <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
+                <Ionicons name="location" size={20} color={COLORS.primary} />
                 <Text style={styles.addressText} numberOfLines={3}>
                   {displayAddress}
                 </Text>
@@ -295,12 +294,20 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         {/* Footer with Continue Button */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+            style={[styles.continueButtonContainer, !canContinue && styles.continueButtonDisabled]}
             onPress={handleContinue}
             disabled={!canContinue || isParsingUrl}
+            activeOpacity={0.8}
           >
-            <Text style={styles.continueButtonText}>Continue</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
+            <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.continueButton}
+            >
+              <Text style={styles.continueButtonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color={COLORS.textInverted} />
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -311,7 +318,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
@@ -340,7 +347,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   contentBody: {
@@ -349,19 +356,19 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: "800",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 30,
   },
   gpsButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f0e6ff",
+    backgroundColor: COLORS.inputBackground || "#f0e6ff",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -370,7 +377,7 @@ const styles = StyleSheet.create({
   gpsButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   dividerContainer: {
     flexDirection: "row",
@@ -380,40 +387,44 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: COLORS.border,
   },
   dividerText: {
     marginHorizontal: 15,
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     fontWeight: "500",
   },
   label: {
     fontSize: 16,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 6,
   },
   helperText: {
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 12,
   },
   urlInput: {
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    backgroundColor: "#f8f9fa",
-    color: TEXT_COLOR,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    color: COLORS.textPrimary,
+  },
+  urlInputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   urlInputValid: {
-    borderColor: SUCCESS_COLOR,
+    borderColor: COLORS.success || "#34C759",
   },
   urlInputInvalid: {
-    borderColor: ERROR_COLOR,
+    borderColor: COLORS.error,
   },
   validationRow: {
     flexDirection: "row",
@@ -423,21 +434,21 @@ const styles = StyleSheet.create({
   },
   parsingText: {
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   validText: {
     fontSize: 14,
-    color: SUCCESS_COLOR,
+    color: COLORS.success || "#34C759",
     fontWeight: "500",
   },
   invalidText: {
     fontSize: 14,
-    color: ERROR_COLOR,
+    color: COLORS.error,
   },
   addressContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#f0e6ff",
+    backgroundColor: COLORS.inputBackground || "#f0e6ff",
     padding: 14,
     borderRadius: 10,
     marginTop: 16,
@@ -446,32 +457,36 @@ const styles = StyleSheet.create({
   addressText: {
     flex: 1,
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     lineHeight: 20,
   },
   footer: {
     padding: 20,
     paddingBottom: Platform.OS === "ios" ? 30 : 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: COLORS.border,
+  },
+  continueButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   continueButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     gap: 8,
   },
   continueButtonDisabled: {
     opacity: 0.5,
+    shadowOpacity: 0,
   },
   continueButtonText: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#fff",
+    color: COLORS.textInverted,
   },
 });
 

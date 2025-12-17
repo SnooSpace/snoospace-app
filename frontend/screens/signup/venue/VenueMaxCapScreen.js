@@ -14,24 +14,13 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-// --- Design Constants ---
-const PRIMARY_COLOR = '#5f27cd'; // Deep purple for the button
-const TEXT_COLOR = '#1e1e1e'; // Dark text color (for titles and labels)
-const LIGHT_TEXT_COLOR = '#6c757d'; // Lighter grey (for helper text)
-const BACKGROUND_COLOR = '#ffffff'; // White background
-const BORDER_COLOR = '#e0e0e0'; // Light grey border
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-// Simple Text Back Arrow (Ensures compatibility by avoiding external dependencies)
-const BackArrow = ({ color }) => (
-    <Text style={{ fontSize: 24, color: color, transform: [{ scaleX: Platform.OS === 'ios' ? 1.5 : 1.2 }] }}>
-        {'<'} 
-    </Text>
-);
-
-// Main Screen Component
 const VenueCapacityScreen = ({ navigation, route }) => {
   const { email, accessToken, phone, name, category, logo_url, bio, interests, address, city } = route.params || {};
   const [capacity, setCapacity] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const minCapacity = 0; // Minimum capacity allowed
 
   const handleTextChange = (text) => {
@@ -61,25 +50,16 @@ const VenueCapacityScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity 
-            onPress={() => navigation && navigation.goBack ? navigation.goBack() : console.log('Go Back Action')}
-            style={styles.backButton}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
         >
-
-          {/* Header Section (Only Back Button) */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
-        </View>
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
       
       <View style={styles.contentContainer}>
+
         <Text style={styles.questionText}>What's the maximum capacity?</Text>
         <Text style={styles.stepText}>Step 9 of 11</Text>
 
@@ -90,27 +70,42 @@ const VenueCapacityScreen = ({ navigation, route }) => {
         <View style={styles.capacityDisplayArea}>
           <View style={styles.capacityValueContainer}>
             <TextInput
-              style={styles.capacityInput}
+              style={[
+                  styles.capacityInput,
+                  isFocused && { borderColor: COLORS.primary } 
+               ]}
               value={capacity}
               onChangeText={handleTextChange}
               placeholder="0"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="number-pad"
               maxLength={5}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
             />
-            <View style={styles.underline} />
+            {/* Underline removed as we are using border style for input now, or we can keep it if we want a specific look. 
+                Let's stick to a clean input style. */}
           </View>
         </View>
 
       </View>
 
       {/* Fixed Next Button Footer */}
+      {/* Fixed Next Button Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -124,29 +119,28 @@ export default VenueCapacityScreen;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: BACKGROUND_COLOR,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    backgroundColor: COLORS.background,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: TEXT_COLOR,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
   },
   backButton: {
     padding: 5,
+    marginLeft: -5,
   },
   placeholder: {
-    width: 24, // Matches the size of the back icon for centering the title
+    width: 24, 
   },
   contentContainer: {
     flex: 1,
@@ -157,72 +151,58 @@ const styles = StyleSheet.create({
   questionText: {
     fontSize: 24,
     fontWeight: '700',
-    color: TEXT_COLOR,
-    alignSelf: 'flex-start',
-    marginBottom: 80, // Space between question and counter
+    color: COLORS.textPrimary,
+    alignSelf: 'center',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  stepText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 60,
   },
   capacityDisplayArea: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     width: '100%',
+    alignItems: 'center',
   },
   capacityValueContainer: {
-    alignItems: 'center',
-    marginHorizontal: 40, // Space between number and controls
-    minWidth: 100, // Ensure the number area doesn't shrink
-  },
-  capacityValue: {
-    fontSize: 80,
-    fontWeight: '300', // Light font weight for a sleek look
-    color: TEXT_COLOR,
-    marginBottom: 5,
-  },
-  underline: {
     width: '100%',
-    height: 2,
-    backgroundColor: BORDER_COLOR,
+    alignItems: 'center',
   },
-  controlButton: {
-    padding: 10,
-    // Increase hit area slightly
+  capacityInput: {
+    fontSize: 80,
+    fontWeight: '300',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    minWidth: 150,
+    paddingVertical: 10,
+    borderBottomWidth: 2, // Minimalist underline style matching the "modern" field
+    borderBottomColor: COLORS.border,
   },
-  controlButtonDisabled: {
-      opacity: 0.5,
-  },
-  controlText: {
-    fontSize: 48,
-    color: TEXT_COLOR,
-    fontWeight: '200',
-  },
-  controlTextDisabled: {
-    color: BORDER_COLOR,
-  },
+  
+  // Footer
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
+    marginBottom: 20,
+  },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
   },
   disabledButton: {
-    backgroundColor: '#9c88ff',
-    opacity: 0.8,
-    elevation: 0,
+    opacity: 0.6,
     shadowOpacity: 0,
   },
   buttonText: {
-    color: '#fff',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

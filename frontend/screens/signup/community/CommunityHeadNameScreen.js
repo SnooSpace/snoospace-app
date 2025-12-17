@@ -12,17 +12,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// import ProgressBar from '../../../components/Progressbar'; // Removed problematic import
-
-// --- Consistent Design Constants ---
-const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#5f27cd'; // Consistent Deep Purple
-const TEXT_COLOR = '#1e1e1e';
-const LIGHT_TEXT_COLOR = '#6c757d';
-const BACKGROUND_COLOR = '#ffffff';
-const INPUT_BACKGROUND = '#f8f9fa';
-const PLACEHOLDER_TEXT = '#6c757d';
-const TRACK_COLOR = '#e0e0e0'; // Light gray for the progress bar background/track
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from "../../../components/Progressbar";
 
 // --- Custom Progress Bar Reimplementation ---
 
@@ -57,18 +49,26 @@ const progressBarStyles = StyleSheet.create({
 /**
  * Custom TextInput Component
  */
-const CustomInput = ({ placeholder, required = false, value, onChangeText }) => (
-  <TextInput
-    style={styles.input}
-    placeholder={placeholder}
-    placeholderTextColor={PLACEHOLDER_TEXT}
-    value={value}
-    onChangeText={onChangeText}
-    aria-label={placeholder}
-    accessibilityRole="text"
-    autoCapitalize="words"
-  />
-);
+/**
+ * Custom TextInput Component
+ */
+const CustomInput = ({ placeholder, required = false, value, onChangeText }) => {
+  const [isFocused, setIsFocused] = useState(false);
+  return (
+    <TextInput
+        style={[styles.input, isFocused && styles.inputFocused]}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textSecondary}
+        value={value}
+        onChangeText={onChangeText}
+        aria-label={placeholder}
+        accessibilityRole="text"
+        autoCapitalize="words"
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+    />
+  );
+};
 
 /**
  * Main Screen Component
@@ -133,14 +133,14 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
             style={styles.backButton}
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Progress Bar and Step Text */}
         <View style={styles.progressContainer}>
           <Text style={styles.stepText}>Step 7 of 9</Text>
-          <SimpleProgressBar progress={78} />
+          <ProgressBar progress={78} />
         </View>
 
         {/* Scrollable Content */}
@@ -182,7 +182,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       <View style={styles.buttonFixedContainer}>
         <TouchableOpacity
           style={[
-            styles.nextButton,
+            styles.nextButtonContainer,
             isButtonDisabled && styles.disabledButton,
           ]}
           onPress={handleNext}
@@ -191,7 +191,14 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
           accessibilityLabel="Next step"
           disabled={isButtonDisabled}
         >
-          <Text style={styles.buttonText}>Next</Text>
+            <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.nextButton}
+            >
+                <Text style={styles.buttonText}>Next</Text>
+            </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -202,13 +209,13 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
     paddingHorizontal: width * 0.05,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
   },
   
   // --- Header Styles ---
@@ -233,7 +240,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
 
@@ -255,7 +262,7 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 32,
     fontWeight: '800',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     textAlign: 'left',
     marginBottom: 60,
     lineHeight: 38,
@@ -269,13 +276,17 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     height: 60,
-    backgroundColor: INPUT_BACKGROUND,
+    backgroundColor: COLORS.inputBackground || '#f8f9fa',
     borderRadius: 15,
     paddingHorizontal: 20,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     borderWidth: 1,
-    borderColor: TRACK_COLOR,
+    borderColor: COLORS.border,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
 
   // --- Button Styles ---
@@ -285,28 +296,30 @@ const styles = StyleSheet.create({
     width: width,
     paddingHorizontal: width * 0.05,
     paddingVertical: 15,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingBottom: Platform.OS === 'ios' ? 40 : 25,
     zIndex: 10,
-    // FIX: Removed borderTopWidth and borderTopColor to eliminate the line separator
-    // borderTopWidth: 1,
-    // borderTopColor: TRACK_COLOR,
+  },
+  nextButtonContainer: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
   },
   nextButton: {
     width: '100%',
     height: 70,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },
   disabledButton: {
     opacity: 0.6,
+    shadowOpacity: 0,
   },
 });
 

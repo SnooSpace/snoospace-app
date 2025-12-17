@@ -14,15 +14,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { apiPost } from '../../../api/client';
 
-// --- Consistent Design Constants ---
-const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = '#5f27cd';     // Consistent Deep Purple
-const TEXT_COLOR = '#1e1e1e';
-const LIGHT_TEXT_COLOR = '#6c757d'; // Used for step text
-const BACKGROUND_COLOR = '#ffffff'; // Consistent White background
-const BUTTON_INACTIVE_BG = '#FFFFFF';
-const TRACK_COLOR = '#e0e0e0';      // Light gray for track/border
-const PLACEHOLDER_TEXT = '#6c757d'; // Used for subtitles
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from "../../../components/Progressbar";
 
 // --- Custom Progress Bar Reimplementation ---
 const SimpleProgressBar = ({ progress }) => {
@@ -65,8 +59,8 @@ const SponsorChip = ({ type, isSelected, onPress }) => (
         style={[
             styles.chip,
             {
-                backgroundColor: isSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-                borderColor: isSelected ? PRIMARY_COLOR : TRACK_COLOR, // Using consistent track color for inactive border
+                backgroundColor: isSelected ? COLORS.primary : COLORS.background,
+                borderColor: isSelected ? COLORS.primary : COLORS.border,
             }
         ]}
         onPress={() => onPress(type)}
@@ -79,7 +73,7 @@ const SponsorChip = ({ type, isSelected, onPress }) => (
             style={[
                 styles.chipText,
                 // Using consistent TEXT_COLOR for inactive text
-                { color: isSelected ? 'white' : TEXT_COLOR },
+                { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
             ]}
         >
             {type}
@@ -223,7 +217,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                         style={styles.backButton}
                         accessibilityLabel="Go back"
                     >
-                        <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+                        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
@@ -231,7 +225,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                 <View style={styles.progressContainer}>
                     <Text style={styles.stepText}>Step 8 of 9</Text>
                     {/* FIX 2: Using SimpleProgressBar with updated progress value */}
-                    <SimpleProgressBar progress={89} />
+                    <ProgressBar progress={89} />
                 </View>
 
                 {/* Scrollable Content */}
@@ -261,13 +255,12 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                             ))}
                         </View>
 
-                        {/* Open to All Button (Styled like a main button) */}
                         <TouchableOpacity
                             style={[
                                 styles.openToAllButton,
                                 {
-                                    backgroundColor: openToAllIsSelected ? PRIMARY_COLOR : BUTTON_INACTIVE_BG,
-                                    borderColor: openToAllIsSelected ? PRIMARY_COLOR : TRACK_COLOR,
+                                    backgroundColor: openToAllIsSelected ? COLORS.primary : COLORS.background,
+                                    borderColor: openToAllIsSelected ? COLORS.primary : COLORS.border,
                                 }
                             ]}
                             onPress={handleOpenToAll}
@@ -278,7 +271,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                             <Text 
                                 style={[
                                     styles.openToAllText,
-                                    { color: openToAllIsSelected ? 'white' : TEXT_COLOR }
+                                    { color: openToAllIsSelected ? COLORS.textInverted : COLORS.textPrimary }
                                 ]}
                             >
                                 Open to All
@@ -288,11 +281,10 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                 </ScrollView>
             </View>
 
-            {/* Fixed Finish Button Container */}
             <View style={styles.buttonFixedContainer}>
                 <TouchableOpacity
                     style={[
-                        styles.finishButton,
+                        styles.finishButtonContainer,
                         isButtonDisabled && styles.disabledButton,
                     ]}
                     onPress={handleFinish}
@@ -301,9 +293,16 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                     accessibilityLabel="Next step"
                     disabled={isButtonDisabled}
                 >
-                    <Text style={styles.buttonText}>
-                        {isSubmitting ? 'Submitting...' : 'Next'}
-                    </Text>
+                    <LinearGradient
+                        colors={COLORS.primaryGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.finishButton}
+                    >
+                        <Text style={styles.buttonText}>
+                            {isSubmitting ? 'Submitting...' : 'Next'}
+                        </Text>
+                    </LinearGradient>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -314,13 +313,13 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: BACKGROUND_COLOR,
+        backgroundColor: COLORS.background,
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
     container: {
         flex: 1,
         paddingHorizontal: width * 0.05, // Consistent horizontal padding
-        backgroundColor: BACKGROUND_COLOR,
+        backgroundColor: COLORS.background,
     },
     
     // --- Header Styles ---
@@ -345,7 +344,7 @@ const styles = StyleSheet.create({
     },
     stepText: {
         fontSize: 14,
-        color: LIGHT_TEXT_COLOR,
+        color: COLORS.textSecondary,
         marginBottom: 5,
         textAlign: 'left', // Aligned left for consistency
     },
@@ -366,13 +365,13 @@ const styles = StyleSheet.create({
     mainTitle: {
         fontSize: 32,
         fontWeight: '800',
-        color: TEXT_COLOR,
+        color: COLORS.textPrimary,
         marginBottom: 10,
         lineHeight: 38,
     },
     subtitle: {
         fontSize: 16,
-        color: PLACEHOLDER_TEXT,
+        color: COLORS.textSecondary,
         marginBottom: 30,
     },
 
@@ -418,25 +417,30 @@ const styles = StyleSheet.create({
         width: width,
         paddingHorizontal: width * 0.05,
         paddingVertical: 15,
-        backgroundColor: BACKGROUND_COLOR,
+        backgroundColor: COLORS.background,
         paddingBottom: Platform.OS === 'ios' ? 40 : 25,
         zIndex: 10,
+    },
+    finishButtonContainer: {
+        width: '100%',
+        borderRadius: BORDER_RADIUS.pill,
+        ...SHADOWS.primaryGlow,
     },
     finishButton: {
         width: '100%',
         height: 70, // Consistent button height
-        backgroundColor: PRIMARY_COLOR,
-        borderRadius: 15,
+        borderRadius: BORDER_RADIUS.pill,
         justifyContent: 'center',
         alignItems: 'center',
     },
     buttonText: {
-        color: 'white',
+        color: COLORS.textInverted,
         fontSize: 18,
         fontWeight: '700',
     },
     disabledButton: {
         opacity: 0.6,
+        shadowOpacity: 0,
     },
 });
 

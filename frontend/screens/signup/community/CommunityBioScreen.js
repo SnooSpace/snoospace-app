@@ -13,13 +13,8 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
 
-// --- Consistent Design Constants ---
-const PRIMARY_COLOR = "#5f27cd";    // Deep purple
-const TEXT_COLOR = "#1e1e1e";      // Dark text
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
-const INPUT_BG_COLOR = "#f8f9fa";  // Light grey background for input
-const INPUT_BORDER_COLOR = "#ced4da"; // Light border for input
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 /**
  * Main Screen Component
@@ -27,6 +22,7 @@ const INPUT_BORDER_COLOR = "#ced4da"; // Light border for input
 const CommunityBioScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, name, logo_url } = route.params || {};
   const [bioText, setBioText] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleSkip = () => {
     navigation.navigate("CommunityCategory", { 
@@ -70,7 +66,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
         {/* Header Row (Back Button and Skip Button) */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -95,14 +91,19 @@ const CommunityBioScreen = ({ navigation, route }) => {
           </Text>
 
           <TextInput
-            style={styles.bioInput}
+            style={[
+              styles.bioInput,
+              isFocused && styles.bioInputFocused,
+            ]}
             placeholder="Write a brief description of your community. What is its purpose? Who is it for? (500 characters max)"
-            placeholderTextColor={LIGHT_TEXT_COLOR} 
+            placeholderTextColor={COLORS.textSecondary} 
             value={bioText}
             onChangeText={setBioText}
             multiline={true}
             textAlignVertical="top" 
             maxLength={500} 
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
           <Text style={styles.charCount}>
             {bioText.length} / 500
@@ -113,12 +114,19 @@ const CommunityBioScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton]}
+          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
           onPress={handleNext}
           activeOpacity={0.8}
           disabled={isButtonDisabled} // Apply disabled prop
         >
-          <Text style={styles.buttonText}>Next</Text>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -129,7 +137,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -157,14 +165,14 @@ const styles = StyleSheet.create({
   skipText: {
     fontSize: 16,
     fontWeight: '500',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   // New styles for disabled Skip button
   disabledSkipButton: {
     // No visual changes to the container needed, relying on text opacity
   },
   disabledSkipText: {
-    color: LIGHT_TEXT_COLOR, // Change color to light grey when disabled
+    color: COLORS.textSecondary, // Change color to light grey when disabled
     opacity: 0.7,
   },
 
@@ -175,7 +183,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   
@@ -188,49 +196,57 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 30,
   },
   bioInput: {
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     minHeight: 180, 
-    backgroundColor: INPUT_BG_COLOR,
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 10,
     padding: 15,
     borderWidth: 1,
-    borderColor: INPUT_BORDER_COLOR,
+    borderColor: COLORS.border,
     lineHeight: 24,
+  },
+  bioInputFocused: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#fff",
   },
   charCount: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginTop: 8,
     textAlign: 'right',
   },
 
   // --- Footer/Button Styles (Fixed at bottom) ---
   footer: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 10, 
     paddingBottom: 0, 
     borderTopWidth: 0,
   },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+    marginBottom: 280,
+  },
   nextButton: {
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
     height: 60,
-    marginBottom: 280,
   },
   disabledButton: {
     opacity: 0.6, // Visually dim the button when disabled
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: 'white',
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: '700',
   },

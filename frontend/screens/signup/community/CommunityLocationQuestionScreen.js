@@ -10,42 +10,9 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-// import ProgressBar from "../../../components/Progressbar"; // <<< Removed the problematic import
-
-// --- Consistent Design Constants ---
-const { width } = Dimensions.get('window');
-const PRIMARY_COLOR = "#5f27cd"; // Deep Purple - Used for buttons AND progress fill
-const TEXT_COLOR = "#1e1e1e";
-const LIGHT_TEXT_COLOR = "#6c757d";
-const BACKGROUND_COLOR = "#ffffff";
-const TRACK_COLOR = "#e0e0e0"; // Light gray for the progress bar background/track
-
-/**
- * Custom Simple Progress Bar Component (Reimplementation)
- * @param {number} progress - The percentage (e.g., 56 for 56%)
- */
-const SimpleProgressBar = ({ progress }) => {
-  return (
-    <View style={progressBarStyles.track}>
-      <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
-    </View>
-  );
-};
-
-const progressBarStyles = StyleSheet.create({
-  track: {
-    height: 8, // Define the bar height
-    width: '100%',
-    backgroundColor: TRACK_COLOR,
-    borderRadius: 4,
-    overflow: 'hidden', // Essential to clip the fill
-  },
-  fill: {
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 4,
-  }
-});
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import ProgressBar from "../../../components/Progressbar";
 
 
 const CommunityLocationQuestionScreen = ({ navigation, route }) => {
@@ -75,15 +42,14 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
         {/* Header Row (Back Button) */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Progress Bar and Step Text */}
         <View style={styles.progressContainer}>
           <Text style={styles.stepText}>Step 5 of 9</Text>
-          {/* FIX: Using the newly defined SimpleProgressBar */}
-          <SimpleProgressBar progress={56} />
+          <ProgressBar progress={56} />
         </View>
 
         {/* Content */}
@@ -95,11 +61,18 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.yesButton}
+              style={styles.yesButtonContainer}
               onPress={handleYes}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>Yes</Text>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.yesButton}
+              >
+                <Text style={styles.buttonText}>Yes</Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -119,12 +92,12 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0, 
   },
   container: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingHorizontal: 20, 
   },
   
@@ -147,7 +120,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   contentBody: {
@@ -157,21 +130,25 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 32,
     fontWeight: "800",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 60,
   },
   buttonContainer: {
     gap: 20,
   },
+  yesButtonContainer: {
+    width: "100%",
+    borderRadius: 15,
+    ...SHADOWS.primaryGlow,
+  },
   yesButton: {
     width: "100%",
     height: 70,
-    backgroundColor: PRIMARY_COLOR,
     borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
@@ -179,20 +156,20 @@ const styles = StyleSheet.create({
   noButton: {
     width: "100%",
     height: 70,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     borderRadius: 15,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
   },
   buttonText: {
-    color: "white",
+    color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "700",
   },
   noButtonText: {
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontSize: 18,
     fontWeight: "700",
   },
