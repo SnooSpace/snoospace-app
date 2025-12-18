@@ -144,6 +144,12 @@ export async function refreshTokens(refreshToken) {
   const deviceId = await getDeviceId();
   
   console.log('[SessionManager] Refreshing tokens');
+  console.log('[SessionManager] Refresh token to send:', {
+    length: refreshToken?.length,
+    preview: refreshToken ? `${refreshToken.substring(0, 20)}...${refreshToken.substring(refreshToken.length - 10)}` : 'null',
+    isHex: refreshToken ? /^[0-9a-f]+$/i.test(refreshToken) : false,
+  });
+  console.log('[SessionManager] Device ID:', deviceId);
   
   const response = await fetch(`${BACKEND_BASE_URL}/auth/v2/refresh`, {
     method: 'POST',

@@ -36,7 +36,10 @@ export async function getAllAccounts() {
           refreshToken: account.refreshToken ? await decryptToken(account.refreshToken) : null,
         };
         decryptedAccounts.push(decryptedAccount);
-        console.log('[getAllAccounts] Decrypted account:', account.id, 'tokenLength:', decryptedAccount.authToken?.length || 'null', 'isLoggedIn:', decryptedAccount.isLoggedIn);
+        console.log('[getAllAccounts] Decrypted account:', account.id, 
+          'tokenLength:', decryptedAccount.authToken?.length || 'null', 
+          'refreshLength:', decryptedAccount.refreshToken?.length || 'null',
+          'isLoggedIn:', decryptedAccount.isLoggedIn);
       } catch (error) {
         console.error(`[getAllAccounts] Skipping corrupted account ${account.id}:`, error.message);
         // Skip this account - it's corrupted
@@ -426,12 +429,100 @@ export async function migrateExistingUser() {
   }
 }
 
+/**
+ * Remove account by ID and auto-switch to next available logged-in account
+ * Use this when permanently deleting an account
+ * Returns: { removedAccount, switchedToAccount, navigateToLanding }
+ */
+export async function removeAccountAndAutoSwitch(accountId) {
+  try {
+    const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
+    if (!accountsJson) {
+      console.log('[removeAccountAndAutoSwitch] No accounts in storage');
+      return { removedAccount: null, switchedToAccount: null, navigateToLanding: true };
+    }
+    
+    const accounts = JSON.parse(accountsJson);
+    const accountIdStr = String(accountId);
+    
+    // Find the account to remove
+    const accountToRemove = accounts.find(acc => String(acc.id) === accountIdStr);
+    if (!accountToRemove) {
+      console.log('[removeAccountAndAutoSwitch] Account not found:', accountIdStr);
+      return { removedAccount: null, switchedToAccount: null, navigateToLanding: false };
+    }
+    
+    console.log('[removeAccountAndAutoSwitch] Removing account:', accountToRemove.email);
+    
+    // Filter out the account (keep encrypted in storage)
+    const remainingAccounts = accounts.filter(acc => String(acc.id) !== accountIdStr);
+    
+    // Find next logged-in account with valid tokens
+    const decryptedRemaining = [];
+    for (const acc of remainingAccounts) {
+      try {
+        const decrypted = {
+          ...acc,
+          authToken: acc.authToken ? await decryptToken(acc.authToken) : null,
+          refreshToken: acc.refreshToken ? await decryptToken(acc.refreshToken) : null,
+        };
+        decryptedRemaining.push(decrypted);
+      } catch {
+        // Skip corrupted accounts
+      }
+    }
+    
+    const nextLoggedIn = decryptedRemaining.find(acc => acc.isLoggedIn !== false && acc.authToken);
+    
+    // Update storage with remaining accounts (encrypted)
+    await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(remainingAccounts));
+    console.log('[removeAccountAndAutoSwitch] Remaining accounts:', remainingAccounts.length);
+    
+    // Handle active account switch
+    const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
+    const wasActiveAccount = String(activeId) === accountIdStr || 
+                              activeId === `${accountToRemove.type}_${accountIdStr}`;
+    
+    if (wasActiveAccount || !activeId) {
+      if (nextLoggedIn) {
+        const compositeId = `${nextLoggedIn.type}_${nextLoggedIn.id}`;
+        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
+        console.log('[removeAccountAndAutoSwitch] Switched to:', nextLoggedIn.email);
+        return { 
+          removedAccount: accountToRemove, 
+          switchedToAccount: nextLoggedIn, 
+          navigateToLanding: false 
+        };
+      } else {
+        await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
+        console.log('[removeAccountAndAutoSwitch] No other logged-in accounts, navigate to landing');
+        return { 
+          removedAccount: accountToRemove, 
+          switchedToAccount: null, 
+          navigateToLanding: true 
+        };
+      }
+    }
+    
+    // Removed a non-active account, no navigation needed
+    return { 
+      removedAccount: accountToRemove, 
+      switchedToAccount: null, 
+      navigateToLanding: false 
+    };
+  } catch (error) {
+    console.error('[removeAccountAndAutoSwitch] Error:', error);
+    throw error;
+  }
+}
+
 export default {
   getAllAccounts,
   getActiveAccount,
   addAccount,
   switchAccount,
   removeAccount,
+  removeAccountAndAutoSwitch,
   updateAccount,
   updateUnreadCount,
   clearAllAccounts,

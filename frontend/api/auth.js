@@ -23,9 +23,21 @@ export async function getAuthToken() {
   try {
     // Try new multi-account system first
     const activeAccount = await accountManager.getActiveAccount();
-    if (activeAccount?.authToken) {
+    
+    // Check if active account is logged in AND has a token
+    if (activeAccount?.authToken && activeAccount.isLoggedIn !== false) {
       console.log('[getAuthToken] Using multi-account token for:', activeAccount.email, 'length:', activeAccount.authToken?.length);
       return activeAccount.authToken;
+    }
+    
+    // Active account not logged in - try to find another logged-in account
+    const allAccounts = await accountManager.getAllAccounts();
+    const loggedInAccount = allAccounts.find(acc => acc.isLoggedIn !== false && acc.authToken);
+    
+    if (loggedInAccount) {
+      console.log('[getAuthToken] Active account not logged in. Switching to:', loggedInAccount.email);
+      await accountManager.switchAccount(loggedInAccount.id);
+      return loggedInAccount.authToken;
     }
     
     // Fallback to old storage (for migration)
@@ -33,7 +45,7 @@ export async function getAuthToken() {
     if (v) {
       console.log('[getAuthToken] Using old storage token, length:', v?.length);
     } else {
-      console.log('[getAuthToken] No token found');
+      console.log('[getAuthToken] No logged-in account found');
     }
     return v || null;
   } catch (error) {
@@ -268,6 +280,14 @@ export async function addAccount(accountData) {
  */
 export async function logoutCurrentAccount() {
   return await accountManager.logoutCurrentAccount();
+}
+
+/**
+ * Remove account and auto-switch to next logged-in account
+ * Use this when permanently deleting an account
+ */
+export async function removeAccountAndAutoSwitch(accountId) {
+  return await accountManager.removeAccountAndAutoSwitch(accountId);
 }
 
 /**

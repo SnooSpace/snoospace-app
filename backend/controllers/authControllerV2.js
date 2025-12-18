@@ -200,6 +200,13 @@ async function refreshToken(req, res) {
   try {
     const { refreshToken, deviceId } = req.body;
 
+    console.log('[Auth] refreshToken called with:', {
+      tokenLength: refreshToken?.length,
+      tokenPreview: refreshToken ? `${refreshToken.substring(0, 16)}...${refreshToken.substring(refreshToken.length - 8)}` : 'null',
+      deviceId: deviceId?.substring(0, 8) + '...',
+      isHex: refreshToken ? /^[0-9a-f]+$/i.test(refreshToken) : false,
+    });
+
     if (!refreshToken || !deviceId) {
       return res.status(400).json({ error: 'refreshToken and deviceId are required' });
     }

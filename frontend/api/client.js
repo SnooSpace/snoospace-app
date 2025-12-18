@@ -44,6 +44,8 @@ async function tryRefreshAndRetry(doRequest) {
     }
     
     console.log('[tryRefreshAndRetry] Refresh token length:', refreshToken?.length);
+    console.log('[tryRefreshAndRetry] Refresh token preview:', refreshToken ? `${refreshToken.substring(0, 16)}...` : 'null');
+    console.log('[tryRefreshAndRetry] Refresh token source:', activeAccount?.refreshToken ? 'accountManager' : 'getRefreshToken legacy');
     
     // VALIDATION: Refresh tokens should be at least 20 characters
     // If token is too short, it's likely corrupted - skip refresh attempt
@@ -64,16 +66,33 @@ async function tryRefreshAndRetry(doRequest) {
     // Try V2 refresh first (new device-based sessions)
     let newAccess, newRefresh;
     
-    try {
-      console.log('[tryRefreshAndRetry] Trying V2 refresh endpoint...');
-      const v2Result = await sessionManager.refreshTokens(refreshToken);
-      newAccess = v2Result.accessToken;
-      newRefresh = v2Result.refreshToken;
-      console.log('[tryRefreshAndRetry] V2 refresh successful');
-    } catch (v2Error) {
-      console.log('[tryRefreshAndRetry] V2 refresh failed, trying V1 fallback:', v2Error.message);
-      
-      // Fallback to V1 endpoint for legacy sessions
+    // V2 refresh tokens are 64-character hex strings (32 bytes hex-encoded)
+    // Only attempt V2 refresh if the token matches this format
+    const isV2Token = refreshToken.length === 64 && /^[0-9a-f]+$/i.test(refreshToken);
+    console.log('[tryRefreshAndRetry] Token format check:', { 
+      length: refreshToken.length, 
+      isHex: /^[0-9a-f]+$/i.test(refreshToken), 
+      isV2Token 
+    });
+    
+    let needV1Fallback = !isV2Token; // Skip V2 for non-V2 tokens
+    
+    if (isV2Token) {
+      try {
+        console.log('[tryRefreshAndRetry] Trying V2 refresh endpoint (V2 token detected)...');
+        const v2Result = await sessionManager.refreshTokens(refreshToken);
+        newAccess = v2Result.accessToken;
+        newRefresh = v2Result.refreshToken;
+        console.log('[tryRefreshAndRetry] V2 refresh successful');
+      } catch (v2Error) {
+        console.log('[tryRefreshAndRetry] V2 refresh failed:', v2Error.message);
+        needV1Fallback = true;
+      }
+    }
+    
+    // V1 fallback for legacy Supabase sessions or failed V2 refresh
+    if (needV1Fallback && !newAccess) {
+      console.log('[tryRefreshAndRetry] Trying V1 fallback endpoint...');
       const res = await withTimeout(
         fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
           method: 'POST',
