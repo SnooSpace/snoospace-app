@@ -162,6 +162,25 @@ export default function SearchScreen({ navigation }) {
     }
   }, [userId, loadRecents]);
 
+  // Listen for follow updates from other screens (profile pages)
+  useEffect(() => {
+    const handleFollowUpdate = (data) => {
+      // Update following state for the entity that was followed/unfollowed
+      const entityId = data?.memberId || data?.communityId || data?.sponsorId || data?.venueId;
+      if (entityId && typeof data?.isFollowing === 'boolean') {
+        setFollowing((prev) => ({
+          ...prev,
+          [entityId]: data.isFollowing,
+        }));
+      }
+    };
+
+    const unsubscribe = EventBus.on('follow-updated', handleFollowUpdate);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   const onEndReached = useCallback(() => {
     if (loading || !hasMore) return;
     doSearch(false);
