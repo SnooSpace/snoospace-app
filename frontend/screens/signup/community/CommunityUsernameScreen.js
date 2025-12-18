@@ -103,6 +103,9 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       
       const signupResult = await apiPost('/communities/signup', signupPayload, 15000, accessToken);
       const communityProfile = signupResult?.community;
+      // Get tokens from signup response (backend now returns them)
+      const newAccessToken = signupResult?.accessToken;
+      const newRefreshToken = signupResult?.refreshToken;
       
       if (!communityProfile || !communityProfile.id) {
         throw new Error("Failed to create community account");
@@ -113,10 +116,13 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       console.log('[CommunityUsername] Community created:', {
         communityId,
         username: communityProfile.username,
-        email: communityProfile.email
+        email: communityProfile.email,
+        hasAccessToken: !!newAccessToken,
+        hasRefreshToken: !!newRefreshToken,
       });
 
       // Step 2: Add the new community account to account manager
+      // Use tokens from signup response (not route params)
       await addAccount({
         id: communityId,
         type: 'community',
@@ -124,13 +130,15 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         email: userData.email || communityProfile.email,
         name: communityProfile.name || userData.name,
         profilePicture: communityProfile.logo_url || userData.logo_url || null,
-        authToken: accessToken,
-        refreshToken: refreshToken || null,
+        authToken: newAccessToken,     // From signup response
+        refreshToken: newRefreshToken,  // From signup response
         isLoggedIn: true,
       });
       
       // Step 3: Also update the old auth storage for backward compatibility
-      await setAuthSession(accessToken, userData.email, null);
+      if (newAccessToken) {
+        await setAuthSession(newAccessToken, userData.email, newRefreshToken);
+      }
       
       console.log('[CommunitySignup] Account added and auth session updated');
 
@@ -284,7 +292,6 @@ const styles = StyleSheet.create({
   progressContainer: {
     width: "100%",
     marginBottom: 40,
-    height: 20,
   },
   stepText: {
     fontSize: 14,

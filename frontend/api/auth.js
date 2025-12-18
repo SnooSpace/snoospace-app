@@ -30,14 +30,12 @@ export async function getAuthToken() {
       return activeAccount.authToken;
     }
     
-    // Active account not logged in - try to find another logged-in account
-    const allAccounts = await accountManager.getAllAccounts();
-    const loggedInAccount = allAccounts.find(acc => acc.isLoggedIn !== false && acc.authToken);
-    
-    if (loggedInAccount) {
-      console.log('[getAuthToken] Active account not logged in. Switching to:', loggedInAccount.email);
-      await accountManager.switchAccount(loggedInAccount.id);
-      return loggedInAccount.authToken;
+    // Active account is logged out - DO NOT auto-switch to avoid UI mismatch
+    // Instead, return null and let the caller handle the session expiry
+    if (activeAccount && activeAccount.isLoggedIn === false) {
+      console.log('[getAuthToken] Active account is logged out:', activeAccount.email);
+      console.log('[getAuthToken] Returning null - caller should handle session expiry');
+      return null;
     }
     
     // Fallback to old storage (for migration)
@@ -66,6 +64,23 @@ export async function getAuthEmail() {
     const v = await AsyncStorage.getItem(KEY_EMAIL);
     return v || null;
   } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if the active account needs re-authentication
+ * Returns the account info if re-auth is needed, null otherwise
+ */
+export async function checkActiveAccountNeedsReauth() {
+  try {
+    const activeAccount = await accountManager.getActiveAccount();
+    if (activeAccount && activeAccount.isLoggedIn === false) {
+      return activeAccount;
+    }
+    return null;
+  } catch (error) {
+    console.error('[checkActiveAccountNeedsReauth] Error:', error);
     return null;
   }
 }

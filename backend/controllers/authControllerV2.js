@@ -474,4 +474,5 @@ module.exports = {
   validateToken,
   verifyAccessToken,
   generateAccessToken,
+  createSession, // Export for use by signup controllers
 };

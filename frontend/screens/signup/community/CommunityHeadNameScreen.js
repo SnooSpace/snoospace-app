@@ -210,7 +210,6 @@ const styles = StyleSheet.create({
   progressContainer: {
     width: '100%',
     marginBottom: 40,
-    height: 20,
   },
   stepText: {
     fontSize: 14,

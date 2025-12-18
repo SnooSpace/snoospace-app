@@ -359,10 +359,21 @@ export default function SponsorProfileScreen({ navigation }) {
                   if (deleteInput.trim().toLowerCase() !== 'delete') return;
                   setDeleting(true);
                   try {
-                    await apiDeleteAccount();
-                    await clearAuthSession();
+                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
                     setShowDeleteModal(false);
-                    navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                    
+                    if (navigateToLanding || !switchedToAccount) {
+                      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                    } else {
+                      const routeMap = {
+                        member: 'MemberHome',
+                        community: 'CommunityHome',
+                        sponsor: 'SponsorHome',
+                        venue: 'VenueHome',
+                      };
+                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
+                      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+                    }
                   } catch (e) {
                     Alert.alert('Delete failed', e?.message || 'Could not delete account');
                   } finally {

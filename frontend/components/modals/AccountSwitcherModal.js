@@ -143,28 +143,9 @@ export default function AccountSwitcherModal({
       console.log('[AccountSwitcher] Calling switchAccount...');
       await switchAccount(account.id);      
       
-      // Verify the token belongs to this account by checking JWT email
-      try {
-        const switchedToken = await (await import('../../api/auth')).getAuthToken();
-        if (switchedToken) {
-          // Decode JWT to get email
-          const parts = switchedToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            const tokenEmail = payload.email;
-            
-            if (tokenEmail && tokenEmail !== account.email) {
-              console.error('[AccountSwitcher] TOKEN M ISMATCH! Token email:', tokenEmail, 'Account email:', account.email);
-              // Token doesn't match this account - re-auth required
-              await accountManager.updateAccount(account.id, { isLoggedIn: false });
-              promptReAuthentication(account);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('[AccountSwitcher] Could not verify token email:', e);
-      }
+      // Token was already validated at the start of this function
+      // No need to re-verify after switch - the account.authToken is correct
+      console.log('[AccountSwitcher] Switch successful, token length:', account.authToken?.length);
       
       // Navigate to correct screen
       if (onAccountSwitch) {

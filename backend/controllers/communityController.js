@@ -147,7 +147,29 @@ async function signup(req, res) {
       }
 
       await client.query('COMMIT');
-      res.json({ community });
+      
+      // Generate tokens for the new community account
+      const { createSession } = require('./authControllerV2');
+      const deviceId = req.headers['x-device-id'] || 'signup-' + Date.now();
+      
+      let session = null;
+      try {
+        session = await createSession(pool, community.id, 'community', deviceId, email);
+        console.log('[Signup] Session created for new community:', {
+          communityId: community.id,
+          accessTokenLength: session?.accessToken?.length,
+          refreshTokenLength: session?.refreshToken?.length,
+        });
+      } catch (sessionErr) {
+        console.error('[Signup] Failed to create session:', sessionErr);
+        // Don't fail the signup, just log the error
+      }
+      
+      res.json({ 
+        community,
+        accessToken: session?.accessToken || null,
+        refreshToken: session?.refreshToken || null,
+      });
     } catch (txErr) {
       await client.query('ROLLBACK');
       throw txErr;

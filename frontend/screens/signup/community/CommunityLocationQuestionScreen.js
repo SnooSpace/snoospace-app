@@ -115,8 +115,6 @@ const styles = StyleSheet.create({
   progressContainer: {
     width: "100%",
     marginBottom: 40,
-    // The bar itself has height 8, so 20 is sufficient for step text + bar
-    height: 20, 
   },
   stepText: {
     fontSize: 14,

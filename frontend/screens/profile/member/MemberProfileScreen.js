@@ -1480,8 +1480,7 @@ export default function MemberProfileScreen({ navigation }) {
                   if (deleteInput.trim().toLowerCase() !== "delete") return;
                   setDeleting(true);
                   try {
-                    await apiDeleteAccount();
-                    await clearAuthSession();
+                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
                     await AsyncStorage.multiRemove([
                       "accessToken",
                       "userData",
@@ -1490,6 +1489,7 @@ export default function MemberProfileScreen({ navigation }) {
                       "pending_otp",
                     ]);
                     setShowDeleteModal(false);
+                    
                     // Get the root navigator
                     let rootNavigator = navigation;
                     if (navigation.getParent) {
@@ -1500,12 +1500,31 @@ export default function MemberProfileScreen({ navigation }) {
                           : parent;
                       }
                     }
-                    rootNavigator.dispatch(
-                      CommonActions.reset({
-                        index: 0,
-                        routes: [{ name: "Landing" }],
-                      })
-                    );
+                    
+                    if (navigateToLanding || !switchedToAccount) {
+                      // No other accounts or explicitly told to go to landing
+                      rootNavigator.dispatch(
+                        CommonActions.reset({
+                          index: 0,
+                          routes: [{ name: "Landing" }],
+                        })
+                      );
+                    } else {
+                      // Switch to other account
+                      const routeMap = {
+                        member: 'MemberHome',
+                        community: 'CommunityHome',
+                        sponsor: 'SponsorHome',
+                        venue: 'VenueHome',
+                      };
+                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
+                      rootNavigator.dispatch(
+                        CommonActions.reset({
+                          index: 0,
+                          routes: [{ name: routeName }],
+                        })
+                      );
+                    }
                   } catch (e) {
                     Alert.alert(
                       "Delete failed",
