@@ -21,10 +21,9 @@ import { getAuthToken } from '../../../api/auth';
 import { uploadMultipleImages } from '../../../api/cloudinary';
 import { getCommunityProfile } from '../../../api/communities';
 import EventBus from '../../../utils/EventBus';
+import { COLORS } from '../../../constants/theme';
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+// Local constants removed in favor of theme constants
 
 export default function CommunityCreatePostScreen({ navigation }) {
   const [caption, setCaption] = useState('');
@@ -211,11 +210,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
               {loadingProfile ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               ) : profile?.logo_url ? (
                 <Image source={{ uri: profile.logo_url }} style={styles.authorAvatarImage} />
               ) : (
-                <Ionicons name="people" size={24} color={PRIMARY_COLOR} />
+                <Ionicons name="people" size={24} color={COLORS.primary} />
               )}
             </View>
             <View style={styles.authorDetails}>
@@ -237,7 +236,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
               onChangeText={setCaption}
               onTaggedEntitiesChange={setTaggedEntities}
               placeholder="What's happening in your community? Use @ to mention someone..."
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor={COLORS.textSecondary}
               maxLength={2000}
               style={styles.mentionInput}
             />
@@ -290,15 +289,15 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   postButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
@@ -312,7 +311,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   postButtonTextDisabled: {
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   content: {
     flex: 1,
@@ -345,11 +344,11 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   authorType: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   authorError: {
     fontSize: 12,
@@ -360,7 +359,7 @@ const styles = StyleSheet.create({
   },
   captionInput: {
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     minHeight: 100,
     textAlignVertical: 'top',
   },
@@ -377,7 +376,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 15,
   },
   guidelinesContainer: {
@@ -389,12 +388,12 @@ const styles = StyleSheet.create({
   guidelinesTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   guidelinesText: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     lineHeight: 18,
   },
   errorBanner: {

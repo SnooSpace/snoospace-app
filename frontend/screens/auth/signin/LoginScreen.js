@@ -15,7 +15,7 @@ import { setPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-const TEXT_COLOR = COLORS.textPrimary;
+// Removed local constants in favor of theme constants
 
 const LoginScreen = ({ navigation, route }) => {
   const { email: preFilledEmail, isAddingAccount } = route.params || {};
@@ -79,7 +79,7 @@ const LoginScreen = ({ navigation, route }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
 

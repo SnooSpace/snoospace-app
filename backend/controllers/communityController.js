@@ -15,14 +15,15 @@ async function signup(req, res) {
       phone,
       secondary_phone,
       sponsor_types,
-      heads
+      heads,
+      username
     } = req.body || {};
     
     // No longer using supabase_user_id - we use email as the login credential
     // and backend-generated id as the account identity
     let user_id = null;
     
-    console.log('[Signup] Request for email:', email);
+    console.log('[Signup] Request for email:', email, 'username:', username);
 
     console.log('Validation check:', {
       name: !!name,
@@ -59,6 +60,23 @@ async function signup(req, res) {
       return res.status(400).json({ error: "sponsor_types must include at least 3 items, or select 'Open to All'" });
     }
 
+    // Validate username if provided
+    let sanitizedUsername = null;
+    if (username && typeof username === 'string') {
+      sanitizedUsername = username.toLowerCase().trim();
+      if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
+        return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only" });
+      }
+      // Check if username is already taken across all user types
+      const existingUsername = await pool.query(
+        `SELECT id FROM communities WHERE username = $1 LIMIT 1`,
+        [sanitizedUsername]
+      );
+      if (existingUsername.rows.length > 0) {
+        return res.status(409).json({ error: "Username is already taken" });
+      }
+    }
+
     const { categories: categoryList, error: categoriesError } = normalizeCategoriesInput(category, categories, { required: true });
     if (categoriesError) {
       return res.status(400).json({ error: categoriesError });
@@ -93,10 +111,10 @@ async function signup(req, res) {
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
       
-      // Simple INSERT - no supabase_user_id, backend-generated id is the identity
+      // INSERT with optional username - backend-generated id is the identity
       const communityResult = await client.query(
-        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb)
+        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types, username)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb,$12)
          RETURNING *`,
         [
           user_id,
@@ -109,7 +127,8 @@ async function signup(req, res) {
           email,
           phone,
           secondary_phone || null,
-          JSON.stringify(sponsor_types)
+          JSON.stringify(sponsor_types),
+          sanitizedUsername
         ]
       );
       const community = communityResult.rows[0];

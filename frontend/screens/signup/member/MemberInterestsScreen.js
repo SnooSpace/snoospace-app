@@ -16,10 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected chips
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for subtitle and unselected chips
-const BACKGROUND_COLOR = "#ffffff"; // White background
+// Removed local constants in favor of theme constants
 const MIN_SELECTIONS = 3; // Requirement from the design text
 const MAX_SELECTIONS = 7; // Maximum selections allowed
 
@@ -50,7 +47,7 @@ const InterestChip = ({ label, isSelected, onPress, isDisabled }) => {
 };
 
 const InterestsScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone, name, gender, dob } = route.params || {};
+  const { email, accessToken, refreshToken, phone, name, gender, dob } = route.params || {};
   const [selectedInterests, setSelectedInterests] = useState([]);
 
   // All available interests as shown in the design
@@ -92,6 +89,7 @@ const InterestsScreen = ({ navigation, route }) => {
     navigation.navigate("MemberLocation", {
       email,
       accessToken,
+      refreshToken,
       phone,
       name,
       gender,
@@ -115,7 +113,7 @@ const InterestsScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -188,7 +186,7 @@ const InterestsScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -209,7 +207,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1,
     textAlign: "center",
     marginLeft: -40, // Visual centering adjustment

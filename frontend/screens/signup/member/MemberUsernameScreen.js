@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  SafeAreaView,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -13,9 +14,10 @@ import {
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
+import { addAccount } from "../../../utils/accountManager";
+import * as sessionManager from "../../../utils/sessionManager";
 
 const { width, height } = Dimensions.get("window");
 
@@ -36,7 +38,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  const { userData, accessToken } = route.params;
+  const { userData } = route.params;
 
   // Debounced username availability check
   useEffect(() => {
@@ -86,7 +88,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      // Create the member record with ALL data including username (single API call)
+      // Step 1: Create the member record with ALL data including username
       const signupResult = await apiPost("/members/signup", {
         name: userData.name,
         email: userData.email,
@@ -96,19 +98,53 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         location: userData.location,
         interests: userData.interests,
         profile_photo_url: userData.profile_photo_url || null,
-        username: username, // Include username in signup
+        username: username,
       });
 
-      // Get the new member's ID
-      const memberId = signupResult?.member?.id;
+      // Get the new member's data
+      const memberProfile = signupResult?.member;
       
-      if (!memberId) {
+      if (!memberProfile || !memberProfile.id) {
         throw new Error("Failed to create account - please try again");
       }
 
-      console.log('[MemberUsername] Signup successful, member ID:', memberId);
+      const memberId = String(memberProfile.id);
+      
+      console.log('[MemberUsername] Member created:', {
+        memberId,
+        username: memberProfile.username,
+        email: memberProfile.email
+      });
 
-      // Navigate to member home
+      // Step 2: Create a session for the new member (generates JWT tokens)
+      console.log('[MemberUsername] Creating session for new member...');
+      const sessionResult = await sessionManager.createSession(
+        memberId,
+        'member',
+        userData.email
+      );
+      
+      console.log('[MemberUsername] Session created:', {
+        hasAccessToken: !!sessionResult?.session?.accessToken,
+        hasRefreshToken: !!sessionResult?.session?.refreshToken,
+      });
+
+      // Step 3: Add the account to account manager with the new tokens
+      await addAccount({
+        id: memberId,
+        type: 'member',
+        username: memberProfile.username || username,
+        email: userData.email || memberProfile.email,
+        name: memberProfile.name || userData.name,
+        profilePicture: memberProfile.profile_photo_url || userData.profile_photo_url || null,
+        authToken: sessionResult?.session?.accessToken,
+        refreshToken: sessionResult?.session?.refreshToken || null,
+        isLoggedIn: true,
+      });
+      
+      console.log('[MemberSignup] Account added with session tokens');
+
+      // Step 4: Navigate to member home with navigation reset
       navigation.reset({
         index: 0,
         routes: [{ name: "MemberHome" }],
@@ -266,7 +302,6 @@ const styles = StyleSheet.create({
   progressContainer: {
     width: "100%",
     marginBottom: 40,
-    height: 20,
   },
   stepText: {
     fontSize: 14,
@@ -357,9 +392,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.05,
     paddingVertical: 15,
     backgroundColor: COLORS.background,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)", // Subtle separator
+    paddingBottom: Platform.OS === "ios" ? 40 : 25
   },
   nextButtonContainer: {
     borderRadius: 15,

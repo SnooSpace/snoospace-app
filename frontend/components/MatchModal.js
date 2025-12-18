@@ -12,8 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
+import { COLORS } from '../constants/theme';
+
+// Local constants removed in favor of theme constants
 
 const MatchModal = ({ visible, matchData, onClose, onSendMessage }) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -132,7 +133,7 @@ const MatchModal = ({ visible, matchData, onClose, onSendMessage }) => {
 
           {/* Close Button */}
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={TEXT_COLOR} />
+            <Ionicons name="close" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
   matchTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     marginBottom: 8,
   },
   matchSubtitle: {
@@ -183,7 +184,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     overflow: 'hidden',
     borderWidth: 3,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
   },
   profilePhoto: {
     width: '100%',
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
   name1: {
     fontSize: 18,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   andText: {
     fontSize: 16,
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
   name2: {
     fontSize: 18,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   actionButtons: {
     width: '100%',
@@ -233,10 +234,10 @@ const styles = StyleSheet.create({
   continueButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   messageButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   messageButtonText: {
     fontSize: 16,

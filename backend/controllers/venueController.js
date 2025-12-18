@@ -1,7 +1,7 @@
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-    const { name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url } = req.body || {};
+    const { name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url, username } = req.body || {};
     
     // Validate required fields
     if (!name || !address || !city || !contact_name || !contact_email || !contact_phone || capacity_max === undefined || capacity_max === null) {
@@ -23,16 +23,33 @@ async function signup(req, res) {
       return res.status(400).json({ error: "capacity_min must be less than capacity_max" });
     }
     
+    // Validate username if provided
+    let sanitizedUsername = null;
+    if (username && typeof username === 'string') {
+      sanitizedUsername = username.toLowerCase().trim();
+      if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
+        return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only" });
+      }
+      // Check if username is already taken
+      const existingUsername = await pool.query(
+        `SELECT id FROM venues WHERE username = $1 LIMIT 1`,
+        [sanitizedUsername]
+      );
+      if (existingUsername.rows.length > 0) {
+        return res.status(409).json({ error: "Username is already taken" });
+      }
+    }
+    
     // No longer using supabase_user_id - we use email as login credential
     // and backend-generated id as account identity
-    console.log('[VenueSignup] Creating venue for email:', contact_email);
+    console.log('[VenueSignup] Creating venue for email:', contact_email, 'username:', sanitizedUsername);
     
-    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
+    // INSERT with optional username
     const result = await pool.query(
-      `INSERT INTO venues (name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO venues (name, address, city, contact_name, contact_email, contact_phone, capacity_min, capacity_max, price_per_head, hourly_price, daily_price, conditions, logo_url, username)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [name, address, city, contact_name, contact_email, contact_phone, finalCapacityMin, capacity_max, price_per_head || 0, hourly_price || 0, daily_price || 0, conditions || null, logo_url || null]
+      [name, address, city, contact_name, contact_email, contact_phone, finalCapacityMin, capacity_max, price_per_head || 0, hourly_price || 0, daily_price || 0, conditions || null, logo_url || null, sanitizedUsername]
     );
     res.json({ venue: result.rows[0] });
   } catch (err) {

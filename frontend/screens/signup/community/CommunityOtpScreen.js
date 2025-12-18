@@ -170,7 +170,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             disabled={resendTimer > 0 || resendLoading}
           >
             {resendLoading ? (
-              <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+              <ActivityIndicator color={COLORS.primary} size="small" />
             ) : (
               <Text
                 style={[

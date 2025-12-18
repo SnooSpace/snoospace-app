@@ -21,17 +21,14 @@ import {
 import ProgressBar from "../../../components/Progressbar";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and selected elements
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
+// Removed local constants in favor of theme constants
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
 import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone, name, gender, dob, interests, location } =
+  const { email, accessToken, refreshToken, phone, name, gender, dob, interests, location } =
     route.params || {};
   const [imageUri, setImageUri] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -94,7 +91,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           interests,
           profile_photo_url: profileUrl || null
         }, 
-        accessToken 
+        accessToken,
+        refreshToken
       });
     } catch (e) {
       alert(e.message || "Failed to upload image");
@@ -121,7 +119,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -207,7 +205,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -228,7 +226,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1,
     textAlign: "center",
     marginLeft: -40, // Visual centering adjustment
@@ -238,7 +236,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
   },
   progressBarContainer: {
@@ -250,7 +248,7 @@ const styles = StyleSheet.create({
   },
   progressBarActive: {
     height: "100%",
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     borderRadius: 2,
   },
   progressBarInactive: {
@@ -266,12 +264,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 50,
   },
   // --- Photo Upload Area Styles ---

@@ -7,6 +7,8 @@ import {
   SafeAreaView,
   Dimensions,
   ScrollView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import ProgressBar from '../../../components/Progressbar';
 
@@ -100,34 +102,23 @@ const SponsorTypeSelect = ({ navigation, route }) => {
     
     const interests = isOpenToAll ? ['Open to All'] : selectedTypes;
     
-    // Debug: Log the data being sent
-    console.log('Sponsor signup data:', {
-      name,
-      logo_url,
-      bio,
-      category,
-      email,
-      phone,
+    // DON'T create the sponsor record here - pass all data to username screen
+    // Record will be created when username is set (final step)
+    const userData = {
+      ...route.params,
       interests,
+    };
+    
+    console.log('[SponsorInterests] Passing data to username screen:', {
+      name: userData.name,
+      email: userData.email,
+      interests: userData.interests,
     });
-    try {
-      const { apiPost } = require('../../../api/client');
-      await apiPost("/sponsors/signup", {
-        name,
-        logo_url,
-        bio,
-        category,
-        email,
-        phone,
-        interests,
-      });
-      
-      navigation.navigate("SponsorUsername", { userData: route.params, accessToken });
-    } catch (e) {
-      console.error('Sponsor signup error:', e);
-      console.error('Error details:', e.response?.data || e.message);
-      alert(`Failed to create sponsor account: ${e.response?.data?.error || e.message || 'Unknown error'}`);
-    }
+    
+    navigation.navigate("SponsorUsername", { 
+      userData, 
+      accessToken: route.params?.accessToken 
+    });
   };
 
   // Determine the state of the Open to All button - only highlight when explicitly selected

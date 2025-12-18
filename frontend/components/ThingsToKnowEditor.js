@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const PRIMARY_COLOR = '#6B46C1';
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS } from '../constants/theme';
+
+// Local constants removed in favor of theme constants
 
 // 40+ Presets across 7 categories
 const PRESETS = {
@@ -152,7 +152,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
   const renderItem = ({ item, index }) => (
     <View style={styles.item}>
       <View style={styles.itemContent}>
-        <Ionicons name={item.icon_name} size={20} color={PRIMARY_COLOR} />
+        <Ionicons name={item.icon_name} size={20} color={COLORS.primary} />
         <Text style={styles.itemLabel}>{item.label}</Text>
       </View>
       <TouchableOpacity onPress={() => removeItem(index)}>
@@ -189,7 +189,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
           style={styles.actionButton}
           onPress={() => setShowPresets(true)}
         >
-          <Ionicons name="list-outline" size={20} color={PRIMARY_COLOR} />
+          <Ionicons name="list-outline" size={20} color={COLORS.primary} />
           <Text style={styles.actionButtonText}>Browse Presets</Text>
         </TouchableOpacity>
 
@@ -197,7 +197,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
           style={styles.actionButton}
           onPress={() => setShowCustom(true)}
         >
-          <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
+          <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
           <Text style={styles.actionButtonText}>Add Custom</Text>
         </TouchableOpacity>
       </View>
@@ -214,7 +214,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select from Presets</Text>
             <TouchableOpacity onPress={() => setShowPresets(false)}>
-              <Ionicons name="close" size={28} color={TEXT_COLOR} />
+              <Ionicons name="close" size={28} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -234,7 +234,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                       <Ionicons
                         name={preset.icon}
                         size={20}
-                        color={isAdded ? LIGHT_TEXT_COLOR : PRIMARY_COLOR}
+                        color={isAdded ? COLORS.textSecondary : COLORS.primary}
                       />
                       <Text style={[styles.presetLabel, isAdded && styles.presetLabelAdded]}>
                         {preset.label}
@@ -258,7 +258,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Custom Item</Text>
               <TouchableOpacity onPress={() => setShowCustom(false)}>
-                <Ionicons name="close" size={24} color={TEXT_COLOR} />
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -267,7 +267,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
               style={styles.iconSelector}
               onPress={() => setShowIconPicker(!showIconPicker)}
             >
-              <Ionicons name={customIcon} size={32} color={PRIMARY_COLOR} />
+              <Ionicons name={customIcon} size={32} color={COLORS.primary} />
               <Text style={styles.iconSelectorText}>Tap to change icon</Text>
             </TouchableOpacity>
 
@@ -285,7 +285,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                       setShowIconPicker(false);
                     }}
                   >
-                    <Ionicons name={icon.name} size={24} color={PRIMARY_COLOR} />
+                    <Ionicons name={icon.name} size={24} color={COLORS.primary} />
                     <Text style={styles.iconLabel}>{icon.label}</Text>
                   </TouchableOpacity>
                 ))}
@@ -298,7 +298,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
               value={customLabel}
               onChangeText={setCustomLabel}
               placeholder="e.g., 'Bring your own chair'"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor={COLORS.textSecondary}
               maxLength={60}
             />
 
@@ -325,11 +325,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   subtitle: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   subtitleInvalid: {
     color: '#FF3B30',
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   },
   itemLabel: {
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginLeft: 10,
     flex: 1,
   },
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     borderRadius: 12,
     backgroundColor: '#F8F5FF',
   },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   helperText: {
     fontSize: 12,
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   category: {
     padding: 20,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     marginBottom: 12,
     textTransform: 'uppercase',
   },
@@ -436,12 +436,12 @@ const styles = StyleSheet.create({
   },
   presetLabel: {
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginLeft: 10,
     flex: 1,
   },
   presetLabelAdded: {
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   customModal: {
     backgroundColor: '#FFFFFF',
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginTop: 15,
     marginBottom: 8,
   },
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   iconSelectorText: {
     marginLeft: 12,
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   iconGrid: {
     flexDirection: 'row',
@@ -493,12 +493,12 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   iconOptionSelected: {
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     backgroundColor: '#F8F5FF',
   },
   iconLabel: {
     fontSize: 10,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginTop: 4,
     textAlign: 'center',  
   },
@@ -508,10 +508,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   saveButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 12,
     alignItems: 'center',

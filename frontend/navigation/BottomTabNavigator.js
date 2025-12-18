@@ -15,8 +15,9 @@ import YourEventsScreen from '../screens/events/YourEventsScreen';
 
 const Tab = createBottomTabNavigator();
 
-const PRIMARY_COLOR = '#6A0DAD';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS } from '../constants/theme'; // Use COLORS theme
+
+// Local constants removed in favor of theme constants
 const { width } = Dimensions.get('window');
 
 const BottomTabNavigator = ({ navigation, route }) => {
@@ -54,7 +55,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
                   width: 4,
                   height: 4,
                   borderRadius: 2,
-                  backgroundColor: PRIMARY_COLOR,
+                  backgroundColor: COLORS.primary,
                   marginTop: 4,
                 }} />
               )}
@@ -62,8 +63,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
           );
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: PRIMARY_COLOR,
-        tabBarInactiveTintColor: LIGHT_TEXT_COLOR,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarStyle: {
           position: 'absolute',
           bottom: 0,

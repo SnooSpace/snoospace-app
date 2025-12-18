@@ -13,9 +13,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadEventBanner } from '../api/upload';
 
-const PRIMARY_COLOR = '#6B46C1';
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS } from '../constants/theme';
+
+// Local constants removed in favor of theme constants
 
 /**
  * ImageCarouselUpload - Upload and manage carousel images (1-5 images)
@@ -153,10 +153,10 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color={PRIMARY_COLOR} />
+              <ActivityIndicator color={COLORS.primary} />
             ) : (
               <>
-                <Ionicons name="add-circle-outline" size={40} color={PRIMARY_COLOR} />
+                <Ionicons name="add-circle-outline" size={40} color={COLORS.primary} />
                 <Text style={styles.addText}>Add Image</Text>
               </>
             )}
@@ -183,12 +183,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   scrollContent: {
     paddingVertical: 10,
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   setPrimaryButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   deleteButton: {
     backgroundColor: '#FF3B30',
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: LIGHT_TEXT_COLOR,
+    borderColor: COLORS.textSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
@@ -267,12 +267,12 @@ const styles = StyleSheet.create({
   addText: {
     marginTop: 8,
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontWeight: '600',
   },
   emptyText: {
     textAlign: 'center',
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 10,
   },

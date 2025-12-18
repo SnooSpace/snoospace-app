@@ -266,7 +266,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
             <TextInput
               style={styles.modalInput}
               placeholder="Enter category name"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor={COLORS.textSecondary}
               value={newCategoryName}
               onChangeText={setNewCategoryName}
               autoFocus={true}

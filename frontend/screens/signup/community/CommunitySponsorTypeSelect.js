@@ -18,29 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import ProgressBar from "../../../components/Progressbar";
 
-// --- Custom Progress Bar Reimplementation ---
-const SimpleProgressBar = ({ progress }) => {
-    return (
-        <View style={progressBarStyles.track}>
-            <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
-        </View>
-    );
-};
-
-const progressBarStyles = StyleSheet.create({
-    track: {
-        height: 8,
-        width: '100%',
-        backgroundColor: TRACK_COLOR,
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    fill: {
-        height: '100%',
-        backgroundColor: PRIMARY_COLOR,
-        borderRadius: 4,
-    }
-});
+const { width } = Dimensions.get('window');
 
 
 // --- Initial Data ---
@@ -160,7 +138,10 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       Alert.alert('Missing Categories', 'Please go back and select at least one category.');
       return;
     }
-    const payload = {
+    
+    // DON'T create the community record here - pass all data to username screen
+    // Record will be created when username is set (final step)
+    const userData = {
       name,
       logo_url,
       bio,
@@ -174,30 +155,11 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       heads,
     };
 
-    try {
-      setIsSubmitting(true);
-      
-      console.log('[CommunitySponsorTypeSelect] Calling signup API:', {
-        hasAccessToken: !!accessToken,
-        accessTokenLength: accessToken?.length,
-        payloadEmail: payload.email
-      });
-      
-      await apiPost('/communities/signup', payload, 15000, accessToken);
-
-      navigation.navigate('CommunityUsername', {
-        userData: payload,
-        accessToken,
-        refreshToken,
-      });
-    } catch (error) {
-      console.error('Community signup error:', error);
-      const message =
-        error?.response?.data?.error || error?.message || 'Unknown error occurred';
-      Alert.alert('Unable to create community', message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    navigation.navigate('CommunityUsername', {
+      userData,
+      accessToken,
+      refreshToken,
+    });
   };
 
   const openToAllIsSelected = isOpenToAll;

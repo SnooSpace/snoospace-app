@@ -101,7 +101,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 

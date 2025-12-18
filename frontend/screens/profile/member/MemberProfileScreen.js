@@ -51,9 +51,9 @@ import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling"
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 // Map legacy constants to new theme for backward compatibility during refactor
-const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+const PRIMARY_COLOR = COLORS.primary;
 
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
@@ -524,7 +524,7 @@ export default function MemberProfileScreen({ navigation }) {
                   <Ionicons
                     name="image-outline"
                     size={30}
-                    color={LIGHT_TEXT_COLOR}
+                    color={COLORS.textSecondary}
                   />
                 </View>
               )}

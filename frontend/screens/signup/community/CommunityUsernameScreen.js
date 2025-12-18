@@ -89,50 +89,39 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      // Step 1: Get the community profile to get the ID
-      const profileResult = await apiGet("/communities/profile", 15000, accessToken);
-      const communityProfile = profileResult?.profile;
+      // Step 1: Create the community record with ALL data including username
+      const signupPayload = {
+        ...userData,
+        username: username.toLowerCase().trim(), // Include username in signup
+      };
+      
+      console.log('[CommunityUsername] Creating community with payload:', {
+        name: signupPayload.name,
+        email: signupPayload.email,
+        username: signupPayload.username,
+      });
+      
+      const signupResult = await apiPost('/communities/signup', signupPayload, 15000, accessToken);
+      const communityProfile = signupResult?.community;
       
       if (!communityProfile || !communityProfile.id) {
-        throw new Error("Failed to fetch community profile");
+        throw new Error("Failed to create community account");
       }
 
       const communityId = String(communityProfile.id);
       
-      console.log('[CommunityUsername] Setting username for community:', {
+      console.log('[CommunityUsername] Community created:', {
         communityId,
-        username,
+        username: communityProfile.username,
         email: communityProfile.email
       });
 
-      // Step 2: Set the username with the community ID
-      await apiPost(
-        "/username/set",
-        {
-          username,
-          userType: "community",
-          communityId: communityId, // Pass the community ID explicitly
-        },
-        15000,
-        accessToken
-      );
-
-      // Step 3: Add the new community account to account manager
-      const newAccountId = communityId;
-      const newEmail = userData.email || communityProfile.email;
-      
-      console.log('[CommunitySignup] Creating new account:', {
-        id: newAccountId,
-        email: newEmail,
-        name: communityProfile.name,
-      });
-
-      // This also sets it as the active account
+      // Step 2: Add the new community account to account manager
       await addAccount({
-        id: newAccountId,
+        id: communityId,
         type: 'community',
-        username: username,
-        email: newEmail,
+        username: communityProfile.username || username,
+        email: userData.email || communityProfile.email,
         name: communityProfile.name || userData.name,
         profilePicture: communityProfile.logo_url || userData.logo_url || null,
         authToken: accessToken,
@@ -140,18 +129,16 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         isLoggedIn: true,
       });
       
-      // Step 4: Also update the old auth storage for backward compatibility
-      // This ensures screens that use old-style auth get the new token
-      await setAuthSession(accessToken, newEmail, null);
+      // Step 3: Also update the old auth storage for backward compatibility
+      await setAuthSession(accessToken, userData.email, null);
       
       console.log('[CommunitySignup] Account added and auth session updated');
 
-      // Step 5: Navigate to community home with navigation reset
-      // The reset ensures all screens are fresh and use the new account
+      // Step 4: Navigate to community home with navigation reset
       navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
     } catch (error) {
       console.error("Error completing signup:", error);
-      Alert.alert("Error", "Failed to complete signup. Please try again.");
+      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

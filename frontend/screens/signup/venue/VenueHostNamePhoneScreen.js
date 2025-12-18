@@ -137,41 +137,25 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
       alert('Please enter host name and a 10-digit phone number.');
       return;
     }
-    try {
-      console.log('Venue signup data:', {
-        name: venueName,
-        address,
-        city,
-        contact_name: hostName,
-        contact_email: email,
-        contact_phone: hostPhone,
-        capacity_min: 0,
-        capacity_max,
-        price_per_head,
-        hourly_price,
-        daily_price,
-        conditions: null,
-      });
-      
-      await apiPost('/venues/signup', {
-        name: venueName,
-        address,
-        city,
-        contact_name: hostName,
-        contact_email: email,
-        contact_phone: hostPhone,
-        capacity_min: 0,
-        capacity_max,
-        price_per_head,
-        hourly_price,
-        daily_price,
-        conditions: null,
-      }, 15000);
-      navigation.navigate('VenueUsername', { userData: route.params, accessToken });
-    } catch (e) {
-      console.error('Venue signup error:', e);
-      alert(e.message || 'Failed to create venue');
-    }
+    
+    // DON'T create the venue record here - pass all data to username screen
+    // Record will be created when username is set (final step)
+    const userData = {
+      ...route.params,
+      contact_name: hostName,
+      contact_phone: hostPhone,
+    };
+    
+    console.log('[VenueHostNamePhone] Passing data to username screen:', {
+      name: userData.name,
+      email: userData.email,
+      contact_name: userData.contact_name,
+    });
+    
+    navigation.navigate('VenueUsername', { 
+      userData, 
+      accessToken: route.params?.accessToken 
+    });
   };
 
   // Determine if the button should be disabled

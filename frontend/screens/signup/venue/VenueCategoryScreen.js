@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';

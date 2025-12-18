@@ -14,14 +14,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button, progress bar, and selected state
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BORDER_COLOR = "#ced4da"; // Light border color
-const BACKGROUND_COLOR = "#ffffff"; // White background
+// --- Design Constants ---
+// Removed local constants in favor of theme constants
 
 export default function Example({ navigation, route }) {
-  const { email, accessToken, phone, name, gender } = route?.params || {};
+  const { email, accessToken, refreshToken, phone, name, gender } = route?.params || {};
   const [form, setForm] = useState({});
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -67,7 +64,7 @@ export default function Example({ navigation, route }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -159,6 +156,7 @@ export default function Example({ navigation, route }) {
                       navigation?.navigate?.("MemberInterests", {
                         email,
                         accessToken,
+                        refreshToken,
                         phone,
                         name,
                         gender,
@@ -290,7 +288,7 @@ const styles = StyleSheet.create({
   },
   progressBarActive: {
     height: "100%",
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     borderRadius: 2,
   },
   progressBarInactive: {
@@ -299,7 +297,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginBottom: 5,
     marginLeft: 5,
   },

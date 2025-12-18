@@ -79,16 +79,38 @@ const VenueUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      await apiPost("/username/set", { 
-        username, 
-        userType: 'venue' 
-      }, 15000, accessToken);
+      // Create the venue record with ALL data including username
+      const signupResult = await apiPost("/venues/signup", {
+        name: userData.name,
+        address: userData.address,
+        city: userData.city,
+        contact_name: userData.contact_name,
+        contact_email: userData.email,
+        contact_phone: userData.contact_phone,
+        capacity_min: 0,
+        capacity_max: userData.capacity_max,
+        price_per_head: userData.price_per_head,
+        hourly_price: userData.hourly_price,
+        daily_price: userData.daily_price,
+        conditions: null,
+        username: username.toLowerCase().trim(), // Include username in signup
+      });
 
-      // Navigate to venue home
-      navigation.navigate("VenueHome");
+      const venue = signupResult?.venue;
+      if (!venue || !venue.id) {
+        throw new Error("Failed to create venue account");
+      }
+
+      console.log('[VenueUsername] Signup successful, venue ID:', venue.id);
+
+      // Navigate to venue home with reset
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "VenueHome" }],
+      });
     } catch (error) {
-      console.error("Error setting username:", error);
-      Alert.alert("Error", "Failed to set username. Please try again.");
+      console.error("Error completing signup:", error);
+      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

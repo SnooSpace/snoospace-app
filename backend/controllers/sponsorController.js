@@ -1,7 +1,7 @@
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-    const { name, logo_url, bio, category, email, phone, interests } = req.body || {};
+    const { name, logo_url, bio, category, email, phone, interests, username } = req.body || {};
     
     console.log('Sponsor signup request body:', req.body);
     
@@ -25,19 +25,36 @@ async function signup(req, res) {
       return res.status(400).json({ error: "interests must include at least 3 items, or select 'Open to All'" });
     }
     
+    // Validate username if provided
+    let sanitizedUsername = null;
+    if (username && typeof username === 'string') {
+      sanitizedUsername = username.toLowerCase().trim();
+      if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
+        return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only" });
+      }
+      // Check if username is already taken
+      const existingUsername = await pool.query(
+        `SELECT id FROM sponsors WHERE username = $1 LIMIT 1`,
+        [sanitizedUsername]
+      );
+      if (existingUsername.rows.length > 0) {
+        return res.status(409).json({ error: "Username is already taken" });
+      }
+    }
+    
     // Get user_id from authenticated user (optional for now)
     const user_id = req.user?.id || null;
     
     // No longer using supabase_user_id - we use email as login credential
     // and backend-generated id as account identity
-    console.log('[SponsorSignup] Creating sponsor for email:', email);
+    console.log('[SponsorSignup] Creating sponsor for email:', email, 'username:', sanitizedUsername);
     
-    // Simple INSERT - no supabase_user_id, allow multiple accounts per email
+    // INSERT with optional username
     const result = await pool.query(
-      `INSERT INTO sponsors (user_id, brand_name, logo_url, bio, category, email, phone, interests)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+      `INSERT INTO sponsors (user_id, brand_name, logo_url, bio, category, email, phone, interests, username)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
        RETURNING *`,
-      [user_id, name, logo_url || null, bio || null, category || null, email, phone, JSON.stringify(interests)]
+      [user_id, name, logo_url || null, bio || null, category || null, email, phone, JSON.stringify(interests), sanitizedUsername]
     );
     
     console.log('Sponsor created successfully:', result.rows[0]);

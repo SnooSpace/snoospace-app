@@ -16,11 +16,9 @@ import LocationConfirmationModal from './LocationConfirmationModal';
 import AddressSearchBar from './AddressSearchBar';
 import LocationMapView from './MapView';
 import ConfirmationScreen from './ConfirmationScreen';
+import { COLORS } from '../../constants/theme';
 
-const PRIMARY_COLOR = '#5f27cd';
-const TEXT_COLOR = '#1e1e1e';
-const LIGHT_TEXT_COLOR = '#6c757d';
-const BACKGROUND_COLOR = '#ffffff';
+// Local constants removed in favor of theme constants
 
 export default function LocationPicker({ 
   businessName,
@@ -188,7 +186,7 @@ export default function LocationPicker({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Getting your location...</Text>
         </View>
       </SafeAreaView>
@@ -245,14 +243,14 @@ export default function LocationPicker({
 
           {isLoadingAddress && (
             <View style={styles.loadingAddressContainer}>
-              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <ActivityIndicator size="small" color={COLORS.primary} />
               <Text style={styles.loadingAddressText}>Getting address...</Text>
             </View>
           )}
 
           {displayAddress && !isLoadingAddress && (
             <View style={styles.addressDisplay}>
-              <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
+              <Ionicons name="location" size={20} color={COLORS.primary} />
               <Text style={styles.addressText} numberOfLines={2}>
                 {displayAddress}
               </Text>
@@ -267,7 +265,7 @@ export default function LocationPicker({
             style={styles.useCurrentButton}
             onPress={handleUseCurrentLocation}
           >
-            <Ionicons name="locate-outline" size={20} color={PRIMARY_COLOR} />
+            <Ionicons name="locate-outline" size={20} color={COLORS.primary} />
             <Text style={styles.useCurrentButtonText}>Use My Current Location</Text>
           </TouchableOpacity>
         </View>
@@ -296,7 +294,7 @@ export default function LocationPicker({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background || '#ffffff',
   },
   loadingContainer: {
     flex: 1,
@@ -306,7 +304,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -328,7 +326,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     flex: 1,
   },
   content: {
@@ -348,7 +346,7 @@ const styles = StyleSheet.create({
   },
   loadingAddressText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
   addressDisplay: {
     flexDirection: 'row',
@@ -362,12 +360,12 @@ const styles = StyleSheet.create({
   addressText: {
     flex: 1,
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     lineHeight: 20,
   },
   instructionText: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -385,17 +383,17 @@ const styles = StyleSheet.create({
   },
   useCurrentButtonText: {
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontWeight: '500',
   },
   footer: {
     padding: 20,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background || '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
+    borderTopColor: COLORS.border || '#e9ecef',
   },
   confirmButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

@@ -9,15 +9,10 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for the radio button icon
+import { Ionicons } from "@expo/vector-icons";
 import ProgressBar from "../../../components/Progressbar";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button, progress bar, and selected state
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BORDER_COLOR = "#ced4da"; // Light border color
-const BACKGROUND_COLOR = "#ffffff"; // White background
 
 // --- Reusable Radio Button Component ---
 const RadioOption = ({ label, isSelected, onPress }) => {
@@ -49,7 +44,7 @@ const RadioOption = ({ label, isSelected, onPress }) => {
 };
 
 const GenderSelectionScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone, name } = route.params || {};
+  const { email, accessToken, refreshToken, phone, name } = route.params || {};
   const [selectedGender, setSelectedGender] = useState(null);
 
   const genderOptions = ["Male", "Female", "Non-binary"];
@@ -58,6 +53,7 @@ const GenderSelectionScreen = ({ navigation, route }) => {
     navigation.navigate("MemberAge", {
       email,
       accessToken,
+      refreshToken,
       phone,
       name,
       gender: selectedGender,
@@ -79,9 +75,8 @@ const GenderSelectionScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
         </View>
         {/* Header Section (Progress Bar and Step Text) */}
         <View style={styles.header}>
@@ -159,7 +154,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
   },
-  // ProgressBar handles active state
   contentContainer: {
     flex: 1,
     marginTop: 30,
@@ -186,7 +180,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   selectedOptionContainer: {
-    backgroundColor: "#F0F8FF", // Very light blue
+    backgroundColor: "#F0F8FF",
     borderColor: COLORS.primary,
   },
   optionText: {
@@ -194,12 +188,8 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontWeight: "500",
   },
-  radioUnchecked: {
-    // Hidden component, just using the icon's built-in styles
-  },
-  radioChecked: {
-    // Hidden component, just using the icon's built-in styles
-  },
+  radioUnchecked: {},
+  radioChecked: {},
 
   // --- Footer/Button Styles ---
   footer: {

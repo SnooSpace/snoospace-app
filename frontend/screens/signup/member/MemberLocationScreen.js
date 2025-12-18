@@ -17,14 +17,10 @@ import ProgressBar from "../../../components/Progressbar";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
-const BORDER_COLOR = "#ced4da"; // Light border color
+// Removed local constants in favor of theme constants
 
 const LocationInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone, name, gender, dob, interests } =
+  const { email, accessToken, refreshToken, phone, name, gender, dob, interests } =
     route.params || {};
   const [location, setLocation] = useState({
     address: "",
@@ -84,6 +80,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           navigation.navigate("MemberProfilePic", {
             email,
             accessToken,
+            refreshToken,
             phone,
             name,
             gender,
@@ -100,6 +97,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           navigation.navigate("MemberProfilePic", {
             email,
             accessToken,
+            refreshToken,
             phone,
             name,
             gender,
@@ -121,6 +119,7 @@ const LocationInputScreen = ({ navigation, route }) => {
     navigation.navigate("MemberProfilePic", {
       email,
       accessToken,
+      refreshToken,
       phone,
       name,
       gender,
@@ -147,7 +146,7 @@ const LocationInputScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -183,7 +182,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           </TouchableOpacity>
 
           {/* Helper text */}
-          <Text style={{ color: LIGHT_TEXT_COLOR, marginTop: 8 }}>
+          <Text style={{ color: COLORS.textSecondary, marginTop: 8 }}>
             We only use your location while the app is open to show nearby events and improve recommendations.
           </Text>
         </View>
@@ -279,7 +278,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa", // Light background for the input field
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: COLORS.border,
     paddingHorizontal: 15,
   },
   locationIcon: {
@@ -288,7 +287,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     paddingVertical: 0, // Ensures text is centered vertically
   },
   locationButton: {
@@ -356,7 +355,7 @@ const styles = StyleSheet.create({
   // Map Picker Modal Styles
   mapModalContainer: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background,
   },
   mapHeader: {
     flexDirection: "row",
@@ -365,7 +364,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    borderBottomColor: COLORS.border,
   },
   mapCloseButton: {
     padding: 8,
@@ -373,12 +372,12 @@ const styles = StyleSheet.create({
   mapHeaderTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
   mapConfirmButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
   },
   mapConfirmButtonText: {

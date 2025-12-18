@@ -72,16 +72,33 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
-      await apiPost("/username/set", { 
-        username, 
-        userType: 'sponsor' 
-      }, 15000, accessToken);
+      // Create the sponsor record with ALL data including username
+      const signupResult = await apiPost("/sponsors/signup", {
+        name: userData.name,
+        logo_url: userData.logo_url,
+        bio: userData.bio,
+        category: userData.category,
+        email: userData.email,
+        phone: userData.phone,
+        interests: userData.interests,
+        username: username.toLowerCase().trim(), // Include username in signup
+      });
 
-      // Navigate to sponsor home
-      navigation.navigate("SponsorHome");
+      const sponsor = signupResult?.sponsor;
+      if (!sponsor || !sponsor.id) {
+        throw new Error("Failed to create sponsor account");
+      }
+
+      console.log('[SponsorUsername] Signup successful, sponsor ID:', sponsor.id);
+
+      // Navigate to sponsor home with reset
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SponsorHome" }],
+      });
     } catch (error) {
-      console.error("Error setting username:", error);
-      Alert.alert("Error", "Failed to set username. Please try again.");
+      console.error("Error completing signup:", error);
+      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

@@ -9,9 +9,9 @@ import SponsorOffersScreen from '../screens/home/sponsor/SponsorOffersScreen';
 import CreatePostScreen from '../components/CreatePostScreen';
 import SponsorProfileScreen from '../screens/profile/sponsor/SponsorProfileScreen';
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+import { COLORS } from '../constants/theme';
+
+// Local constants removed in favor of theme constants
 
 const SponsorBottomTabNavigator = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('Home');
@@ -74,7 +74,7 @@ const SponsorBottomTabNavigator = ({ navigation }) => {
             <Ionicons
               name={activeTab === tab.name ? tab.activeIcon : tab.icon}
               size={24}
-              color={activeTab === tab.name ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+              color={activeTab === tab.name ? COLORS.primary : COLORS.textSecondary}
             />
             <Text style={[
               styles.tabLabel,
@@ -116,12 +116,12 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     marginTop: 4,
     fontWeight: '500',
   },
   activeTabLabel: {
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontWeight: '600',
   },
 });

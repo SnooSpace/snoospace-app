@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   Dimensions,
   ScrollView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
@@ -24,6 +26,7 @@ const { width } = Dimensions.get('window');
 const SponsorBioScreen = ({ navigation, route }) => {
   const { email, accessToken, name, logo_url, phone } = route.params || {};
   const [bioText, setBioText] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleSkip = () => {
     navigation.navigate("SponsorCategory", { 
@@ -50,10 +53,6 @@ const SponsorBioScreen = ({ navigation, route }) => {
   const handleBack = () => {
     navigation.goBack();
   };
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -123,8 +122,6 @@ const SponsorBioScreen = ({ navigation, route }) => {
             </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
-  );
     </SafeAreaView>
   );
 };

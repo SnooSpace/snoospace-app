@@ -18,7 +18,7 @@ import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
-const TEXT_COLOR = COLORS.textPrimary;
+// Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
 
 const LoginOtpScreen = ({ navigation, route }) => {
@@ -207,7 +207,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
 

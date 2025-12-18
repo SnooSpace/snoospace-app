@@ -7,11 +7,9 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/theme';
 
-const TEXT_COLOR = '#1e1e1e';
-const LIGHT_TEXT_COLOR = '#6c757d';
-const BACKGROUND_COLOR = '#ffffff';
-const BORDER_COLOR = '#e9ecef';
+// Local constants removed in favor of theme constants
 
 export default function SearchResultsList({ 
   results, 
@@ -30,7 +28,7 @@ export default function SearchResultsList({
       <Ionicons 
         name="location-outline" 
         size={20} 
-        color={LIGHT_TEXT_COLOR} 
+        color={COLORS.textSecondary} 
         style={styles.icon}
       />
       <View style={styles.textContainer}>
@@ -61,10 +59,10 @@ export default function SearchResultsList({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: COLORS.background || '#ffffff',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: COLORS.border || '#e9ecef',
     maxHeight: 200,
     marginTop: 4,
     shadowColor: '#000',
@@ -81,7 +79,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    borderBottomColor: COLORS.border || '#e9ecef',
   },
   icon: {
     marginRight: 12,
@@ -92,12 +90,12 @@ const styles = StyleSheet.create({
   addressText: {
     fontSize: 14,
     fontWeight: '500',
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   locationText: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
   },
 });
 

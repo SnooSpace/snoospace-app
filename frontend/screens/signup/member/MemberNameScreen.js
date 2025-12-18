@@ -16,18 +16,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 
 // --- Design Constants ---
-const PRIMARY_COLOR = "#5f27cd"; // Deep purple for the button and progress bar
-const TEXT_COLOR = "#1e1e1e"; // Dark text color
-const LIGHT_TEXT_COLOR = "#6c757d"; // Lighter grey for step text
-const BACKGROUND_COLOR = "#ffffff"; // White background
+// Removed local constants in favor of theme constants
 
 const NameInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, phone } = route.params || {};
+  const { email, accessToken, refreshToken, phone } = route.params || {};
   const [name, setName] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
-    navigation.navigate("MemberGender", { email, accessToken, phone, name });
+    navigation.navigate("MemberGender", { email, accessToken, refreshToken, phone, name });
   };
 
   // Determine if the button should be disabled (e.g., if the name is empty)
@@ -45,9 +42,8 @@ const NameInputScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
         </View>
 
         {/* Header Section (Progress Bar and Step Text) */}
@@ -78,8 +74,8 @@ const NameInputScreen = ({ navigation, route }) => {
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="default"
             autoCapitalize="words"
-            textContentType="name" // iOS specific
-            autoComplete="name" // Android specific
+            textContentType="name"
+            autoComplete="name"
           />
         </View>
       </ScrollView>
@@ -112,7 +108,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-    // Add padding top for Android
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
@@ -130,11 +125,10 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#e9ecef", // Keep light grey for track
+    backgroundColor: "#e9ecef",
     overflow: "hidden",
     flexDirection: "row",
   },
-  // Note: ProgressBar component handles the gradient fill internally now (if updated)
   contentContainer: {
     flex: 1,
     marginTop: 50,
@@ -178,7 +172,7 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
-    shadowOpacity: 0, // Remove glow when disabled
+    shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,

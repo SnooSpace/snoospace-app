@@ -16,29 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import ProgressBar from "../../../components/Progressbar"; 
 
-// --- Custom Progress Bar Reimplementation ---
-const SimpleProgressBar = ({ progress }) => {
-  return (
-    <View style={progressBarStyles.track}>
-      <View style={[progressBarStyles.fill, { width: `${progress}%` }]} />
-    </View>
-  );
-};
-
-const progressBarStyles = StyleSheet.create({
-  track: {
-    height: 8,
-    width: '100%',
-    backgroundColor: TRACK_COLOR,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 4,
-  }
-});
+const { width } = Dimensions.get('window');
 
 
 // --- Components ---

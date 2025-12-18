@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
@@ -256,7 +258,7 @@ const SponsorCategoryScreen = ({ navigation, route }) => {
             <TextInput
               style={styles.modalInput}
               placeholder="Enter category name"
-              placeholderTextColor={PLACEHOLDER_TEXT}
+              placeholderTextColor={COLORS.textSecondary}
               value={newCategoryName}
               onChangeText={setNewCategoryName}
               autoFocus={true}
@@ -443,20 +445,20 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: LIGHT_GRAY,
+    borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
     marginBottom: 25,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.inputBackground,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -470,15 +472,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: LIGHT_GRAY,
+    backgroundColor: COLORS.border,
   },
   createButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: DARK_TEXT,
+    color: COLORS.textPrimary,
   },
   createButtonText: {
     fontSize: 16,

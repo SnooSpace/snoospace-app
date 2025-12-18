@@ -260,7 +260,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             {/* URL Validation Indicator */}
             {isParsingUrl && (
               <View style={styles.validationRow}>
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                <ActivityIndicator size="small" color={COLORS.primary} />
                 <Text style={styles.parsingText}>Parsing location...</Text>
               </View>
             )}

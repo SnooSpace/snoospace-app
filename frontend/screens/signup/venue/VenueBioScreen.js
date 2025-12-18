@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   Dimensions,
   ScrollView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
