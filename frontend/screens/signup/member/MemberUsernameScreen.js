@@ -117,19 +117,27 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       });
 
       // Step 2: Create a session for the new member (generates JWT tokens)
+      // This internally saves to sessionManager's @sessions_v2 storage
       console.log('[MemberUsername] Creating session for new member...');
-      const sessionResult = await sessionManager.createSession(
+      await sessionManager.createSession(
         memberId,
         'member',
         userData.email
       );
       
-      console.log('[MemberUsername] Session created:', {
-        hasAccessToken: !!sessionResult?.session?.accessToken,
-        hasRefreshToken: !!sessionResult?.session?.refreshToken,
+      // Step 3: Get the stored session with ACTUAL tokens from sessionManager
+      // This ensures we use the correctly encrypted/stored tokens
+      const storedSession = await sessionManager.getActiveSession();
+      
+      console.log('[MemberUsername] Session stored:', {
+        hasAccessToken: !!storedSession?.accessToken,
+        hasRefreshToken: !!storedSession?.refreshToken,
+        accessTokenLength: storedSession?.accessToken?.length,
+        refreshTokenLength: storedSession?.refreshToken?.length,
       });
 
-      // Step 3: Add the account to account manager with the new tokens
+      // Step 4: Sync to accountManager storage (used by AuthGate on app reload)
+      // This ensures @accounts has the same tokens as @sessions_v2
       await addAccount({
         id: memberId,
         type: 'member',
@@ -137,14 +145,14 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         email: userData.email || memberProfile.email,
         name: memberProfile.name || userData.name,
         profilePicture: memberProfile.profile_photo_url || userData.profile_photo_url || null,
-        authToken: sessionResult?.session?.accessToken,
-        refreshToken: sessionResult?.session?.refreshToken || null,
+        authToken: storedSession?.accessToken,
+        refreshToken: storedSession?.refreshToken || null,
         isLoggedIn: true,
       });
       
-      console.log('[MemberSignup] Account added with session tokens');
+      console.log('[MemberSignup] Account synced to accountManager');
 
-      // Step 4: Navigate to member home with navigation reset
+      // Step 5: Navigate to member home with navigation reset
       navigation.reset({
         index: 0,
         routes: [{ name: "MemberHome" }],
