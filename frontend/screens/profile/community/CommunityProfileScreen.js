@@ -45,9 +45,12 @@ import HapticsService from '../../../services/HapticsService';
 import { useProfileCountsPolling } from '../../../hooks/useProfileCountsPolling';
 
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
+const AVATAR_SIZE = 120;
 
 const formatPhoneNumber = (value) => {
   if (!value) return '';
@@ -678,6 +681,14 @@ export default function CommunityProfileScreen({ navigation }) {
               <Text style={styles.bannerPlaceholderText}>Add a banner (1200 x 400 recommended)</Text>
             </View>
           )}
+          {/* Blur + Dim Overlay for mood effect */}
+          {profile.banner_url && (
+            <BlurView
+              intensity={15}
+              tint="dark"
+              style={styles.bannerOverlay}
+            />
+          )}
           <TouchableOpacity style={styles.bannerEdit} onPress={handleBannerAction}>
             {bannerUploading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -687,26 +698,16 @@ export default function CommunityProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.summarySection}>
-          <View style={styles.topBar}>
-            <TouchableOpacity 
-              style={styles.handleContainer}
-              onPress={() => setShowAccountSwitcher(true)}
-            >
-              <Text style={styles.handle}>{profile.username ? `@${profile.username}` : profile.name}</Text>
-              <Ionicons name="chevron-down" size={16} color={TEXT_COLOR} style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
-            <View style={styles.iconButtons}>
-              <TouchableOpacity
-                onPress={() => setShowSettingsModal(true)}
-                style={styles.iconButton}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="settings-outline" size={22} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-          </View>
+        {/* Settings Icon - positioned below banner on right */}
+        <TouchableOpacity
+          onPress={() => setShowSettingsModal(true)}
+          style={styles.settingsIconAbsolute}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
 
+        <View style={styles.summarySection}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
                 {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
@@ -724,7 +725,15 @@ export default function CommunityProfileScreen({ navigation }) {
                   </LinearGradient>
                 )}
             </View>
+            {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
             <Text style={styles.communityName}>{profile.name}</Text>
+            <TouchableOpacity 
+              style={styles.usernameRow}
+              onPress={() => setShowAccountSwitcher(true)}
+            >
+              <Text style={styles.usernameText}>{profile.username ? `@${profile.username}` : ''}</Text>
+              <Ionicons name="chevron-down" size={14} color={LIGHT_TEXT_COLOR} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
             {Array.isArray(profile.categories) && profile.categories.length > 0 && (
               <View style={styles.categoriesRow}>
                 {profile.categories.map((cat, idx) => (
@@ -739,6 +748,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
+
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -1580,7 +1590,7 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     width: '100%',
-    height: 180,
+    height: BANNER_HEIGHT,
     backgroundColor: '#EFEFF4',
   },
   bannerImage: {
@@ -1589,6 +1599,12 @@ const styles = StyleSheet.create({
   },
   bannerPlaceholder: {
     backgroundColor: '#E5E5EA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dim on top of blur
   },
   bannerEdit: {
     position: 'absolute',
@@ -1597,50 +1613,61 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 20,
     padding: 8,
+    zIndex: 5,
+  },
+  settingsIconAbsolute: {
+    position: 'absolute',
+    right: 16,
+    top: BANNER_HEIGHT + 12, // Just below banner
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   summarySection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  handle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: TEXT_COLOR,
-  },
-  iconButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconButton: {
-    padding: 6,
-    borderRadius: 10,
+    paddingTop: 0, // Avatar overlap handles spacing
   },
   profileHeader: {
     alignItems: 'center',
-    gap: 8,
-    marginTop: -50,
+    gap: 6,
+    marginTop: -(AVATAR_SIZE * 0.4), // 40% overlap on banner
     marginBottom: 16,
   },
   avatarWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: 'hidden',
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    overflow: 'visible', // Allow shadow to show
     borderWidth: 4,
     borderColor: '#FFFFFF',
     backgroundColor: '#E5E5EA',
+    // Soft shadow for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
   },
   avatar: {
     width: '100%',
     height: '100%',
-    borderRadius: 60,
+    borderRadius: AVATAR_SIZE / 2,
+  },
+  usernameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  usernameText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#555555', // Darker than secondary, lighter than primary
   },
   communityName: {
     fontSize: 26,
@@ -1736,6 +1763,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginTop: 10, // Space between title and chips
   },
   sponsorTypeTag: {
     backgroundColor: PRIMARY_COLOR,
