@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import {
   getPublicCommunity,
   getCommunityPosts,
@@ -47,7 +48,9 @@ const formatPhoneNumber = (value) => {
   return digits || String(value);
 };
 
-const { width: screenWidth } = Dimensions.get("window");
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
+const AVATAR_SIZE = 120;
 const GAP = 10;
 const ITEM_SIZE = (screenWidth - 40 - GAP * 2) / 3;
 
@@ -422,10 +425,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         >
           <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          @{profile?.username || profile?.name || "community"}
-        </Text>
-        <View style={{ width: 40 }} />
+        
+        
       </View>
 
       <ScrollView
@@ -445,6 +446,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </Text>
             </View>
           )}
+          {/* Blur + Dim Overlay for mood effect */}
+          {profile?.banner_url && (
+            <BlurView
+              intensity={15}
+              tint="dark"
+              style={styles.bannerOverlay}
+            />
+          )}
         </View>
 
         <View style={styles.summarySection}>
@@ -459,15 +468,19 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   end={{ x: 1, y: 1 }}
                   style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
                 >
-                  <Text style={{ fontSize: 48, fontWeight: 'bold', color: '#fff' }}>
+                  <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#fff' }}>
                     {getInitials(profile?.name || 'Community')}
                   </Text>
                 </LinearGradient>
               )}
             </View>
+            {/* Identity Block: Name → Username → Categories → Bio */}
             <Text style={styles.communityName}>
               {profile?.name || "Community"}
             </Text>
+            {profile?.username && (
+              <Text style={styles.usernameText}>@{profile.username}</Text>
+            )}
             {Array.isArray(profile?.categories) &&
               profile.categories.length > 0 && (
                 <View style={styles.categoriesRow}>
@@ -483,6 +496,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
+
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -1210,7 +1224,7 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     width: "100%",
-    height: 180,
+    height: BANNER_HEIGHT,
     backgroundColor: "#EFEFF4",
   },
   bannerImage: {
@@ -1222,33 +1236,49 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dim on top of blur
+  },
   bannerPlaceholderText: {
     color: "#8E8E93",
     fontSize: 12,
   },
   summarySection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 0, // Avatar overlap handles spacing
   },
   profileHeader: {
     alignItems: "center",
-    gap: 8,
-    marginTop: -50,
+    gap: 6,
+    marginTop: -(AVATAR_SIZE * 0.4), // 40% overlap on banner
     marginBottom: 16,
   },
   avatarWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: "hidden",
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    overflow: "visible", // Allow shadow to show
     borderWidth: 4,
     borderColor: "#FFFFFF",
     backgroundColor: "#E5E5EA",
+    // Soft shadow for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
   },
   avatar: {
     width: "100%",
     height: "100%",
-    borderRadius: 60,
+    borderRadius: AVATAR_SIZE / 2,
+  },
+  usernameText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#555555',
+    marginTop: 2,
   },
   communityName: {
     fontSize: 26,

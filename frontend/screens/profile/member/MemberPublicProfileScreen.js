@@ -334,10 +334,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         >
           <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          @{profile?.username || "member"}
-        </Text>
-        <View style={{ width: 40 }} />
       </View>
 
       {loading ? (
