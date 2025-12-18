@@ -12,6 +12,7 @@ export async function getEncryptionKey() {
     let key = await SecureStore.getItemAsync(ENCRYPTION_KEY_NAME);
     
     if (!key) {
+      console.log('[Encryption] ⚠️ No encryption key found, generating new one...');
       // Generate new encryption key (32 bytes = 256 bits)
       const randomBytes = await Crypto.getRandomBytesAsync(32);
       key = Array.from(randomBytes)
@@ -19,11 +20,14 @@ export async function getEncryptionKey() {
         .join('');
       
       await SecureStore.setItemAsync(ENCRYPTION_KEY_NAME, key);
+      console.log('[Encryption] ✓ New encryption key generated and saved, hash:', key.substring(0, 8) + '...');
+    } else {
+      console.log('[Encryption] ✓ Existing encryption key found, hash:', key.substring(0, 8) + '...');
     }
     
     return key;
   } catch (error) {
-    console.error('Error getting encryption key:', error);
+    console.error('[Encryption] ❌ Error getting encryption key:', error);
     throw error;
   }
 }
@@ -69,6 +73,7 @@ export async function encryptToken(token) {
  */
 export async function decryptToken(encryptedToken) {
   try {
+    // console.log('[decryptToken] Input:', encryptedToken?.substring(0, 20) + '..., length:', encryptedToken?.length);
     if (!encryptedToken) return null;
     
     // CRITICAL FIX: Detect if token is already plaintext (not encrypted)

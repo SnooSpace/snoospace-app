@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { addAccount } from "../../../utils/accountManager";
-import { setAuthSession } from "../../../api/auth";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { startForegroundWatch, attachAppStateListener } from "../../../services/LocationTracker";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import { LinearGradient } from "expo-linear-gradient";
@@ -83,6 +83,9 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
     // Set legacy auth session for API client compatibility
     await setAuthSession(session.accessToken, email, session.refreshToken);
+
+    // CRITICAL: Clear pending OTP so AuthGate doesn't redirect back to OTP screen on reload
+    await clearPendingOtp();
 
     // Start location tracking
     console.log('[LoginOtpV2] Starting location tracking...');
