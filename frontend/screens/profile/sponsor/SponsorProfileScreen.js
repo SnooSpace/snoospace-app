@@ -318,6 +318,11 @@ export default function SponsorProfileScreen({ navigation }) {
             keyExtractor={(item) => item.id.toString()}
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: LIGHT_TEXT_COLOR }}>No posts</Text>
+              </View>
+            }
           />
         </View>
       </ScrollView>

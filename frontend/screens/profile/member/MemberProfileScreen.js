@@ -475,7 +475,8 @@ export default function MemberProfileScreen({ navigation }) {
     const gap = 10;
     const itemSize = (screenWidth - 40 - gap * 2) / 3;
     // Only show placeholders if there are NO posts (empty state)
-    const data = posts.length > 0 ? posts : new Array(6).fill(null);
+    // Only show placeholders if there are NO posts (empty state)
+    const data = posts;
     
     return (
       <FlatList
@@ -532,6 +533,11 @@ export default function MemberProfileScreen({ navigation }) {
           );
         }}
         scrollEnabled={false}
+        ListEmptyComponent={
+          <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.textSecondary }}>No posts</Text>
+          </View>
+        }
       />
     );
   };

@@ -660,7 +660,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     paddingTop: 40,
                   }}
                 >
-                  <Text style={{ color: "#8E8E93" }}>No posts yet</Text>
+                  <Text style={{ color: "#8E8E93", fontWeight: 'bold' }}>No posts</Text>
                 </View>
               )
             }

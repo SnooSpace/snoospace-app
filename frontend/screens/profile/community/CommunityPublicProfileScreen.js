@@ -708,7 +708,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             />
           ) : (
             <View style={styles.emptyPostsContainer}>
-              <Text style={styles.emptyPostsText}>No posts yet</Text>
+              <Text style={[styles.emptyPostsText, { fontWeight: 'bold' }]}>No posts</Text>
             </View>
           )}
         </View>
