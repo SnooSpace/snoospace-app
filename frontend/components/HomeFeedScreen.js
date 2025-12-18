@@ -538,6 +538,7 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
         renderItem={loading && posts.length === 0 ? () => <SkeletonCard /> : renderPost}
         keyExtractor={(item) => (loading && posts.length === 0 ? `skeleton-${item}` : item.id.toString())}
         style={styles.feed}
+        contentContainerStyle={styles.feedContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -629,6 +630,9 @@ const styles = StyleSheet.create({
   },
   feed: {
     flex: 1,
+  },
+  feedContent: {
+    paddingBottom: 60,
   },
   postContainer: {
     backgroundColor: '#FFFFFF',
