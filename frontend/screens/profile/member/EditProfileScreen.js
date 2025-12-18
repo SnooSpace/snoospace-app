@@ -318,8 +318,10 @@ export default function EditProfileScreen({ route, navigation }) {
             onPress={handleSave}
             disabled={!hasChanges || saving}
             loading={saving}
-            style={{ minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 }} 
-            // Adjustable padding for header context
+            style={[
+              { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
+              (!hasChanges || saving) && { shadowOpacity: 0, elevation: 0, shadowColor: 'transparent' }
+            ]}
           />
         </View>
 
@@ -507,6 +509,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: TEXT_COLOR,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    zIndex: -1,
   },
   // saveButton styles removed as GradientButton handles them
   content: {
