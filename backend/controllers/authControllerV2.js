@@ -4,9 +4,9 @@ const supabase = require('../supabase');
 
 // JWT secret - should be in .env
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const JWT_EXPIRES_IN = '1h';
+const JWT_EXPIRES_IN = '7d'; // Extended from 1h to reduce refresh frequency
 const REFRESH_TOKEN_BYTES = 32;
-const REFRESH_TOKEN_EXPIRES_DAYS = 30;
+const REFRESH_TOKEN_EXPIRES_DAYS = 90; // Extended from 30 to 90 days
 
 /**
  * Generate a cryptographically secure refresh token
@@ -229,15 +229,17 @@ async function refreshToken(req, res) {
     // Generate new access token
     const newAccessToken = generateAccessToken(session.user_id, session.user_type, account.email);
 
-    // Optionally rotate refresh token
-    const newRefreshToken = generateRefreshToken();
+    // IMPORTANT: Do NOT rotate refresh token to prevent auth failures
+    // If the app closes before saving the new token, the old token would become invalid
+    // causing users to be logged out unexpectedly
+    const newRefreshToken = session.refresh_token; // Keep the same refresh token
     const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
 
     await pool.query(
       `UPDATE sessions 
-       SET access_token = $1, refresh_token = $2, expires_at = $3, last_used_at = NOW()
-       WHERE id = $4`,
-      [newAccessToken, newRefreshToken, newExpiresAt, session.id]
+       SET access_token = $1, expires_at = $2, last_used_at = NOW()
+       WHERE id = $3`,
+      [newAccessToken, newExpiresAt, session.id]
     );
 
     res.json({

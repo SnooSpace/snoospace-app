@@ -29,11 +29,14 @@ export async function getAllAccounts() {
       try {
         const decryptedAccount = {
           ...account,
+          // Ensure isLoggedIn defaults to true if not explicitly set to false
+          // This handles older accounts that may not have this property
+          isLoggedIn: account.isLoggedIn !== false,
           authToken: await decryptToken(account.authToken),
           refreshToken: account.refreshToken ? await decryptToken(account.refreshToken) : null,
         };
         decryptedAccounts.push(decryptedAccount);
-        console.log('[getAllAccounts] Decrypted account:', account.id, 'tokenLength:', decryptedAccount.authToken?.length || 'null');
+        console.log('[getAllAccounts] Decrypted account:', account.id, 'tokenLength:', decryptedAccount.authToken?.length || 'null', 'isLoggedIn:', decryptedAccount.isLoggedIn);
       } catch (error) {
         console.error(`[getAllAccounts] Skipping corrupted account ${account.id}:`, error.message);
         // Skip this account - it's corrupted

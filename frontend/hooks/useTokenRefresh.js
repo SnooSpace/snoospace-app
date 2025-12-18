@@ -60,8 +60,10 @@ async function refreshExpiredTokens() {
     console.log(`[TokenRefresh] Checking ${accounts.length} accounts`);
 
     for (const account of accounts) {
-      if (!account.isLoggedIn || !account.authToken) {
-        console.log(`[TokenRefresh] Skipping ${account.email} - not logged in or no token`);
+      // Check if account has tokens - isLoggedIn might be undefined for older accounts
+      // Only skip if explicitly set to false (not just falsy/undefined)
+      if (account.isLoggedIn === false || !account.authToken) {
+        console.log(`[TokenRefresh] Skipping ${account.email} - logged out or no token`);
         continue;
       }
 

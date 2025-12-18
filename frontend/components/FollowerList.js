@@ -138,7 +138,7 @@ export default function FollowerList({
   );
 
   const handleToggleFollow = useCallback(
-    async (id, isFollowing) => {
+    async (id, isFollowing, entityType = 'member') => {
       if (!onToggleFollow) return;
       setItems((prev) =>
         prev.map((item) =>
@@ -146,7 +146,7 @@ export default function FollowerList({
         )
       );
       try {
-        await onToggleFollow(id, isFollowing);
+        await onToggleFollow(id, isFollowing, entityType);
       } catch (error) {
         console.warn("[FollowerList] onToggleFollow failed", error);
         setItems((prev) =>
@@ -187,7 +187,7 @@ export default function FollowerList({
                 ? styles.followingBtn
                 : styles.followBtnPrimary(primaryColor),
             ]}
-            onPress={() => handleToggleFollow(item.id, !!item.isFollowing)}
+            onPress={() => handleToggleFollow(item.id, !!item.isFollowing, item.type || 'member')}
           >
             <Text
               style={[
