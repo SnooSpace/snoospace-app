@@ -47,3 +47,33 @@ export async function getEventAttendees(eventId) {
   const token = await (await import('./auth')).getAuthToken();
   return apiGet(`/events/${eventId}/attendees`, 15000, token);
 }
+
+/**
+ * Discover events for home feed (interspersed with posts)
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Number of events to fetch (default: 10)
+ * @param {number} options.offset - Offset for pagination
+ * @returns {Promise<Object>} List of events prioritized by following and popularity
+ */
+export async function discoverEvents(options = {}) {
+  const { limit = 10, offset = 0 } = options;
+  const token = await (await import('./auth')).getAuthToken();
+  return apiGet(`/events/discover?limit=${limit}&offset=${offset}`, 15000, token);
+}
+
+/**
+ * Search events by query
+ * @param {string} query - Search query
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Number of events to fetch (default: 20)
+ * @param {number} options.offset - Offset for pagination
+ * @param {boolean} options.upcomingOnly - Only show upcoming events (default: true)
+ * @returns {Promise<Object>} List of matching events
+ */
+export async function searchEvents(query, options = {}) {
+  const { limit = 20, offset = 0, upcomingOnly = true } = options;
+  const token = await (await import('./auth')).getAuthToken();
+  const upcoming = upcomingOnly ? 'true' : 'false';
+  return apiGet(`/events/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}&upcoming_only=${upcoming}`, 15000, token);
+}
+

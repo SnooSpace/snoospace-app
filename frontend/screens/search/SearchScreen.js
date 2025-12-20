@@ -21,6 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { searchMembers, globalSearch } from "../../api/search";
+import { searchEvents } from "../../api/events";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
@@ -28,6 +29,7 @@ import EventBus from "../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
+import { COLORS, BORDER_RADIUS } from '../../constants/theme';
 
 const DEBOUNCE_MS = 300;
 
@@ -46,7 +48,8 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
-  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'community', 'sponsor', 'venue'
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
+  const [eventResults, setEventResults] = useState([]); // Separate state for event results
 
   const canSearch = query.trim().length >= 2;
 
@@ -82,6 +85,7 @@ export default function SearchScreen({ navigation }) {
     async (reset = false) => {
       if (!canSearch) {
         setResults([]);
+        setEventResults([]);
         setOffset(0);
         setHasMore(false);
         setLoading(false);
@@ -91,6 +95,28 @@ export default function SearchScreen({ navigation }) {
       const nextOffset = reset ? 0 : offset;
       setLoading(true);
       setError("");
+      
+      // If filter is 'event', use event-specific search
+      if (activeFilter === 'event') {
+        try {
+          const eventsData = await searchEvents(query.trim(), {
+            limit: 20,
+            offset: nextOffset,
+          });
+          
+          const newEventResults = reset ? (eventsData.events || []) : [...eventResults, ...(eventsData.events || [])];
+          setEventResults(newEventResults);
+          setResults([]); // Clear regular results
+          setOffset(nextOffset + (eventsData.events?.length || 0));
+          setHasMore(!!eventsData.hasMore);
+          setLoading(false);
+        } catch (err) {
+          console.error("Event search error:", err);
+          setError("Failed to search events");
+          setLoading(false);
+        }
+        return;
+      }
       
       // Use global search for all entity types
       try {
@@ -107,6 +133,7 @@ export default function SearchScreen({ navigation }) {
         
         const newResults = reset ? filteredResults : [...results, ...filteredResults];
         setResults(newResults);
+        setEventResults([]); // Clear event results
         
         // initialize following map from payload
         setFollowing((prev) => {
@@ -128,7 +155,7 @@ export default function SearchScreen({ navigation }) {
         setLoading(false);
        }
     },
-    [query, offset, results, canSearch, activeFilter]
+    [query, offset, results, eventResults, canSearch, activeFilter]
   );
 
   useEffect(() => {
@@ -267,6 +294,78 @@ export default function SearchScreen({ navigation }) {
     const fallback = entityType === 'community' ? 'Community' : 'Member';
     if (!name) return fallback;
     return String(name).split(/\r?\n/)[0];
+  };
+
+  // Render event item for search results
+  const renderEventItem = ({ item }) => {
+    const displayImage = item.banner_url;
+    const hasValidPhoto = item.community_logo && /^https?:\/\//.test(item.community_logo);
+    
+    return (
+      <TouchableOpacity
+        style={styles.eventRow}
+        onPress={() => {
+          // Navigate to event details (placeholder for now)
+          navigation.navigate('CommunityPublicProfile', {
+            communityId: item.community_id,
+            viewerRole: 'member'
+          });
+        }}
+        activeOpacity={0.7}
+      >
+        {/* Event Image */}
+        <View style={styles.eventImageContainer}>
+          {displayImage ? (
+            <Image source={{ uri: displayImage }} style={styles.eventImage} />
+          ) : (
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.eventImage, { justifyContent: 'center', alignItems: 'center' }]}
+            >
+              <Ionicons name="calendar-outline" size={24} color="rgba(255,255,255,0.8)" />
+            </LinearGradient>
+          )}
+          {/* Date Badge */}
+          <View style={styles.eventDateBadge}>
+            <Text style={styles.eventDateBadgeText}>{item.formatted_date}</Text>
+          </View>
+        </View>
+        
+        {/* Event Info */}
+        <View style={styles.eventInfo}>
+          <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.eventCommunityRow}>
+            {hasValidPhoto ? (
+              <Image source={{ uri: item.community_logo }} style={styles.eventCommunityAvatar} />
+            ) : (
+              <LinearGradient
+                colors={getGradientForName(item.community_name || 'Community')}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.eventCommunityAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+              >
+                <Text style={{ fontSize: 8, fontWeight: '700', color: '#fff' }}>
+                  {getInitials(item.community_name || 'C')}
+                </Text>
+              </LinearGradient>
+            )}
+            <Text style={styles.eventCommunityName} numberOfLines={1}>{item.community_name}</Text>
+          </View>
+          <View style={styles.eventMeta}>
+            <Ionicons name="time-outline" size={12} color="#8E8E93" />
+            <Text style={styles.eventMetaText}>{item.formatted_time}</Text>
+            {item.attendee_count > 0 && (
+              <>
+                <Ionicons name="people-outline" size={12} color="#8E8E93" style={{ marginLeft: 8 }} />
+                <Text style={styles.eventMetaText}>{item.attendee_count}</Text>
+              </>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   const renderItem = ({ item }) => {
@@ -461,7 +560,7 @@ export default function SearchScreen({ navigation }) {
         contentContainerStyle={styles.filterContent}
         style={{ flexGrow: 0 }} // Added to prevent expansion
       >
-        {['all', 'member', 'community', 'sponsor', 'venue'].map((filter) => (
+        {['all', 'member', 'community', 'sponsor', 'venue', 'event'].map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[
@@ -471,6 +570,7 @@ export default function SearchScreen({ navigation }) {
             onPress={() => {
               setActiveFilter(filter);
               setResults([]);
+              setEventResults([]);
               setOffset(0);
             }}
           >
@@ -480,7 +580,7 @@ export default function SearchScreen({ navigation }) {
                 activeFilter === filter && styles.filterTabTextActive,
               ]}
             >
-              {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : 'Venues'}
+              {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : filter === 'venue' ? 'Venues' : 'Events'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -536,19 +636,21 @@ export default function SearchScreen({ navigation }) {
       {canSearch && (
         <View style={styles.contentContainer}>
           <FlatList
-            data={results}
+            data={activeFilter === 'event' ? eventResults : results}
             keyExtractor={(item) => String(item.id)}
-            renderItem={renderItem}
+            renderItem={activeFilter === 'event' ? renderEventItem : renderItem}
             onEndReached={onEndReached}
             onEndReachedThreshold={0.6}
             ListEmptyComponent={
               canSearch && !loading ? (
                 <View style={styles.helper}>
-                  <Text style={styles.helperText}>No members found</Text>
+                  <Text style={styles.helperText}>
+                    {activeFilter === 'event' ? 'No events found' : 'No results found'}
+                  </Text>
                 </View>
               ) : null
             }
-            contentContainerStyle={results.length === 0 ? { flexGrow: 1 } : null}
+            contentContainerStyle={(activeFilter === 'event' ? eventResults : results).length === 0 ? { flexGrow: 1 } : null}
           />
         </View>
       )}
@@ -681,5 +783,80 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#1D1D1F',
+  },
+  // Event search result styles
+  eventRow: {
+    flexDirection: 'row',
+    padding: 12,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  eventImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  eventImage: {
+    width: '100%',
+    height: '100%',
+  },
+  eventDateBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  eventDateBadgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  eventInfo: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'center',
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1D1D1F',
+    marginBottom: 4,
+  },
+  eventCommunityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  eventCommunityAvatar: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 6,
+  },
+  eventCommunityName: {
+    fontSize: 12,
+    color: '#8E8E93',
+    flex: 1,
+  },
+  eventMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  eventMetaText: {
+    fontSize: 11,
+    color: '#8E8E93',
   },
 });

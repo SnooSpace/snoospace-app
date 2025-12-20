@@ -17,7 +17,9 @@ import { useNotifications } from '../context/NotificationsContext';
 import { apiGet, apiPost } from '../api/client';
 import { getAuthToken, getAuthEmail } from '../api/auth';
 import { getUnreadCount as getMessageUnreadCount } from '../api/messages';
+import { discoverEvents } from '../api/events';
 import PostCard from './PostCard';
+import EventCard from './EventCard';
 import CommentsModal from './CommentsModal';
 import EventBus from '../utils/EventBus';
 import LikeStateManager from '../utils/LikeStateManager';
@@ -56,6 +58,8 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     }
   };
   const [posts, setPosts] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [feedItems, setFeedItems] = useState([]); // Combined posts + events
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -99,9 +103,48 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     },
   });
 
+  // Load events for discovery
+  const loadEvents = async () => {
+    try {
+      const response = await discoverEvents({ limit: 5 });
+      if (response?.events) {
+        setEvents(response.events);
+      }
+    } catch (error) {
+      console.warn('[HomeFeed] Error loading events:', error.message);
+      // Don't block feed for event errors
+    }
+  };
+
+  // Merge posts and events into a single feed (events interspersed every 4-6 posts)
+  useEffect(() => {
+    if (posts.length === 0) {
+      setFeedItems([]);
+      return;
+    }
+
+    const merged = [];
+    let eventIndex = 0;
+    let nextEventAt = 4 + Math.floor(Math.random() * 3); // First event after 4-6 posts
+
+    posts.forEach((post, index) => {
+      merged.push({ ...post, itemType: 'post' });
+
+      // Insert event at intervals
+      if ((index + 1) === nextEventAt && eventIndex < events.length) {
+        merged.push({ ...events[eventIndex], itemType: 'event' });
+        eventIndex++;
+        nextEventAt += 4 + Math.floor(Math.random() * 3); // Next event after 4-6 more posts
+      }
+    });
+
+    setFeedItems(merged);
+  }, [posts, events]);
+
   useEffect(() => {
     // Always load feed once on mount
     loadFeed();
+    loadEvents();
     loadGreetingName();
     loadMessageUnreadCount();
     const off = EventBus.on('follow-updated', () => {
@@ -310,6 +353,7 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     setRefreshing(true);
     await Promise.all([
       loadFeed(),
+      loadEvents(),
       loadMessageUnreadCount()
     ]);
     setRefreshing(false);
@@ -366,8 +410,43 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     };
   };
 
-  const renderPost = ({ item }) => {
-    // Debug: Log post data for community posts
+  // Handle event card press
+  const handleEventPress = (event) => {
+    // TODO: Navigate to EventDetailsScreen when implemented
+    Alert.alert(
+      event.title,
+      `${event.formatted_date} at ${event.formatted_time}\n\nHosted by ${event.community_name}`,
+      [
+        { text: 'Close', style: 'cancel' },
+        { text: 'View Community', onPress: () => {
+          navigation.navigate('CommunityPublicProfile', {
+            communityId: event.community_id,
+            viewerRole: role
+          });
+        }}
+      ]
+    );
+  };
+
+  // Handle interested button press
+  const handleInterestedPress = (event) => {
+    HapticsService.triggerImpactLight();
+    Alert.alert('Interested!', `You've marked interest in "${event.title}"`);
+  };
+
+  const renderFeedItem = ({ item }) => {
+    // Render event card
+    if (item.itemType === 'event') {
+      return (
+        <EventCard
+          event={item}
+          onPress={handleEventPress}
+          onInterestedPress={handleInterestedPress}
+        />
+      );
+    }
+
+    // Render post card (default)
     if (item?.author_type === 'community') {
       console.log('[HomeFeedScreen] Rendering community post:', {
         postId: item.id,
@@ -534,9 +613,9 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
       {/* Feed */}
       <FlatList
-        data={loading && posts.length === 0 ? [1, 2, 3] : posts}
-        renderItem={loading && posts.length === 0 ? () => <SkeletonCard /> : renderPost}
-        keyExtractor={(item) => (loading && posts.length === 0 ? `skeleton-${item}` : item.id.toString())}
+        data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
+        renderItem={loading && feedItems.length === 0 ? () => <SkeletonCard /> : renderFeedItem}
+        keyExtractor={(item) => (loading && feedItems.length === 0 ? `skeleton-${item}` : `${item.itemType || 'post'}-${item.id}`)}
         style={styles.feed}
         contentContainerStyle={styles.feedContent}
         refreshControl={

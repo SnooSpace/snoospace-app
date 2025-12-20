@@ -581,6 +581,206 @@ const requestNextEvent = async (req, res) => {
   }
 };
 
+// Discover events for home feed (interspersed with posts)
+// Returns upcoming public events prioritized by:
+// 1. Events from communities user follows
+// 2. Popular/trending events (by attendee count)
+// 3. Recent events
+const discoverEvents = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { limit = 10, offset = 0 } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Build query based on user type
+    // For members: prioritize events from followed communities
+    // For communities: show events from similar categories
+    const query = `
+      WITH followed_communities AS (
+        SELECT following_id 
+        FROM follows 
+        WHERE follower_id = $1 
+          AND follower_type = $2 
+          AND following_type = 'community'
+      ),
+      event_scores AS (
+        SELECT 
+          e.id,
+          e.title,
+          e.description,
+          e.start_datetime as event_date,
+          e.end_datetime,
+          e.location_url,
+          e.max_attendees,
+          e.banner_url,
+          e.event_type,
+          e.virtual_link,
+          e.is_published,
+          e.created_at,
+          c.id as community_id,
+          c.name as community_name,
+          c.username as community_username,
+          c.logo_url as community_logo,
+          c.category as community_category,
+          COALESCE(
+            (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
+            0
+          ) as attendee_count,
+          CASE WHEN fc.following_id IS NOT NULL THEN 1 ELSE 0 END as is_following_community,
+          -- Score: following bonus + recency + popularity
+          (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
+          (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int + -- Newer is better
+          (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 2) as score
+        FROM events e
+        INNER JOIN communities c ON e.community_id = c.id
+        LEFT JOIN followed_communities fc ON e.community_id = fc.following_id
+        WHERE e.is_published = true
+          AND e.start_datetime > NOW() -- Only future events
+        ORDER BY score DESC, e.start_datetime ASC
+        LIMIT $3 OFFSET $4
+      )
+      SELECT * FROM event_scores
+    `;
+
+    const result = await pool.query(query, [userId, userType, parseInt(limit), parseInt(offset)]);
+
+    // For each event, get banner carousel images
+    const eventsWithBanners = await Promise.all(result.rows.map(async (event) => {
+      const bannersResult = await pool.query(
+        `SELECT image_url, cloudinary_public_id, image_order 
+         FROM event_banners 
+         WHERE event_id = $1 
+         ORDER BY image_order ASC 
+         LIMIT 3`,
+        [event.id]
+      );
+
+      return {
+        ...event,
+        banner_carousel: bannersResult.rows,
+        // Format for display
+        formatted_date: new Date(event.event_date).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        }),
+        formatted_time: new Date(event.event_date).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      };
+    }));
+
+    res.json({
+      success: true,
+      events: eventsWithBanners,
+      hasMore: result.rows.length === parseInt(limit)
+    });
+
+  } catch (error) {
+    console.error("Error discovering events:", error);
+    res.status(500).json({ error: "Failed to discover events" });
+  }
+};
+
+// Search events by query
+const searchEvents = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { q, limit = 20, offset = 0, upcoming_only = 'true' } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!q || q.trim().length < 2) {
+      return res.json({
+        success: true,
+        events: [],
+        hasMore: false
+      });
+    }
+
+    const searchTerm = `%${q.trim().toLowerCase()}%`;
+    const upcomingFilter = upcoming_only === 'true' ? 'AND e.start_datetime > NOW()' : '';
+
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        e.start_datetime as event_date,
+        e.end_datetime,
+        e.location_url,
+        e.max_attendees,
+        e.banner_url,
+        e.event_type,
+        e.virtual_link,
+        e.is_published,
+        e.created_at,
+        c.id as community_id,
+        c.name as community_name,
+        c.username as community_username,
+        c.logo_url as community_logo,
+        c.category as community_category,
+        COALESCE(
+          (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
+          0
+        ) as attendee_count,
+        'event' as type
+      FROM events e
+      INNER JOIN communities c ON e.community_id = c.id
+      WHERE e.is_published = true
+        ${upcomingFilter}
+        AND (
+          LOWER(e.title) LIKE $1
+          OR LOWER(e.description) LIKE $1
+          OR LOWER(c.name) LIKE $1
+          OR LOWER(c.username) LIKE $1
+        )
+      ORDER BY e.start_datetime ASC
+      LIMIT $2 OFFSET $3
+    `;
+
+    console.log('[searchEvents] Query:', query);
+    console.log('[searchEvents] Params:', { searchTerm, limit: parseInt(limit), offset: parseInt(offset) });
+
+    const result = await pool.query(query, [searchTerm, parseInt(limit), parseInt(offset)]);
+    
+    console.log('[searchEvents] Found', result.rows.length, 'events');
+
+    // Format events for display
+    const events = result.rows.map(event => ({
+      ...event,
+      formatted_date: new Date(event.event_date).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      }),
+      formatted_time: new Date(event.event_date).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+    }));
+
+    res.json({
+      success: true,
+      events,
+      hasMore: result.rows.length === parseInt(limit)
+    });
+
+  } catch (error) {
+    console.error("Error searching events:", error);
+    res.status(500).json({ error: "Failed to search events" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -588,5 +788,8 @@ module.exports = {
   getEventAttendees,
   recordSwipe,
   getEventMatches,
-  requestNextEvent
+  requestNextEvent,
+  discoverEvents,
+  searchEvents
 };
+

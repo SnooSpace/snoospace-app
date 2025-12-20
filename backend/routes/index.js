@@ -141,6 +141,8 @@ router.delete("/account", authMiddleware, AccountController.deleteAccount);
 // Events and matching
 router.post("/events", authMiddleware, EventController.createEvent);
 router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
+router.get("/events/discover", authMiddleware, EventController.discoverEvents);
+router.get("/events/search", authMiddleware, EventController.searchEvents);
 router.get("/events/:eventId/attendees", authMiddleware, EventController.getEventAttendees);
 router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwipe);
 router.get("/events/:eventId/matches", authMiddleware, EventController.getEventMatches);
