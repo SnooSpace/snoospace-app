@@ -207,17 +207,19 @@ async function refreshToken(req, res) {
       isHex: refreshToken ? /^[0-9a-f]+$/i.test(refreshToken) : false,
     });
 
-    if (!refreshToken || !deviceId) {
-      return res.status(400).json({ error: 'refreshToken and deviceId are required' });
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'refreshToken is required' });
     }
 
     const pool = req.app.locals.pool;
 
-    // Find session by refresh token
+    // Find session by refresh token only (device_id not required for refresh)
+    // Refresh tokens are 64-character hex strings (256-bit entropy) - secure without device binding
+    // This fixes token loss when signup creates session with different device_id than app uses
     const result = await pool.query(
       `SELECT * FROM sessions 
-       WHERE refresh_token = $1 AND device_id = $2 AND expires_at > NOW()`,
-      [refreshToken, deviceId]
+       WHERE refresh_token = $1 AND expires_at > NOW()`,
+      [refreshToken]
     );
 
     if (result.rows.length === 0) {
