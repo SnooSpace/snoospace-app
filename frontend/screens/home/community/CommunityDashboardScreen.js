@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mockData } from '../../../data/mockData';
 import CreateEventModal from '../../../components/modals/CreateEventModal';
+import EditEventModal from '../../../components/modals/EditEventModal';
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -21,6 +22,8 @@ const LIGHT_TEXT_COLOR = '#8E8E93';
 export default function CommunityDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' or 'previous'
   const [metrics, setMetrics] = useState({
     totalMembers: 1250,
@@ -89,15 +92,24 @@ export default function CommunityDashboardScreen({ navigation }) {
     console.log('View all events');
   };
 
+  const handleEditEvent = (event) => {
+    setSelectedEvent(event);
+    setShowEditEventModal(true);
+  };
+
+  const handleEventUpdated = (updatedEvent) => {
+    // Refresh dashboard to show updated event
+    loadDashboard();
+  };
+
   const renderEventCard = ({ item }) => (
-    <TouchableOpacity
-      style={styles.eventCard}
-      onPress={() => handleViewEvent(item)}
-    >
-      <Image
-        source={{ uri: item.banner_url || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200' }}
-        style={styles.eventImage}
-      />
+    <View style={styles.eventCard}>
+      <TouchableOpacity onPress={() => handleViewEvent(item)}>
+        <Image
+          source={{ uri: item.banner_url || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200' }}
+          style={styles.eventImage}
+        />
+      </TouchableOpacity>
       <View style={styles.eventInfo}>
         <Text style={styles.eventTitle} numberOfLines={1}>
           {item.title}
@@ -105,14 +117,22 @@ export default function CommunityDashboardScreen({ navigation }) {
         <Text style={styles.eventDate}>
           {new Date(item.event_date).toLocaleDateString()}
         </Text>
-        <View style={styles.eventStats}>
-          <Ionicons name="people" size={12} color={LIGHT_TEXT_COLOR} />
-          <Text style={styles.eventAttendees}>
-            {item.current_attendees || 0} attendees
-          </Text>
+        <View style={styles.eventStatsRow}>
+          <View style={styles.eventStats}>
+            <Ionicons name="people" size={12} color={LIGHT_TEXT_COLOR} />
+            <Text style={styles.eventAttendees}>
+              {item.current_attendees || 0} attendees
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => handleEditEvent(item)}
+          >
+            <Ionicons name="pencil" size={14} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
@@ -238,6 +258,16 @@ export default function CommunityDashboardScreen({ navigation }) {
         visible={showCreateEventModal}
         onClose={() => setShowCreateEventModal(false)}
         onEventCreated={handleEventCreated}
+      />
+
+      <EditEventModal
+        visible={showEditEventModal}
+        onClose={() => {
+          setShowEditEventModal(false);
+          setSelectedEvent(null);
+        }}
+        onEventUpdated={handleEventUpdated}
+        eventData={selectedEvent}
       />
     </SafeAreaView>
   );
@@ -411,6 +441,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  eventStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  editButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#F8F5FF',
   },
   eventAttendees: {
     fontSize: 11,

@@ -77,3 +77,14 @@ export async function searchEvents(query, options = {}) {
   return apiGet(`/events/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}&upcoming_only=${upcoming}`, 15000, token);
 }
 
+/**
+ * Update an existing event
+ * @param {string|number} eventId - Event ID
+ * @param {Object} eventData - Updated event details
+ * @returns {Promise<Object>} Updated event with notification info
+ */
+export async function updateEvent(eventId, eventData) {
+  const { apiPatch } = await import('./client');
+  const token = await (await import('./auth')).getAuthToken();
+  return apiPatch(`/events/${eventId}`, eventData, 15000, token);
+}

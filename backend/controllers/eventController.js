@@ -781,6 +781,232 @@ const searchEvents = async (req, res) => {
   }
 };
 
+/**
+ * Update an existing event
+ * Notifies registered attendees if key details change
+ */
+const updateEvent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    // Only communities can edit events
+    if (!userId || userType !== 'community') {
+      return res.status(403).json({ error: "Only communities can edit events" });
+    }
+
+    // Verify event exists and belongs to this community
+    const existingResult = await pool.query(
+      'SELECT * FROM events WHERE id = $1 AND creator_id = $2',
+      [eventId, userId]
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found or you don't have permission to edit it" });
+    }
+
+    const existingEvent = existingResult.rows[0];
+
+    const {
+      title,
+      description,
+      event_date,
+      end_datetime,
+      location_url,
+      max_attendees,
+      banner_carousel,
+      gallery,
+      event_type,
+      virtual_link,
+      venue_id,
+      is_published
+    } = req.body;
+
+    // Validate Google Maps URL if provided
+    if (location_url && !isValidGoogleMapsUrl(location_url)) {
+      return res.status(400).json({ error: "Invalid Google Maps URL" });
+    }
+
+    // Track which key fields changed (for notifications)
+    const changedFields = [];
+    
+    if (title && title !== existingEvent.title) {
+      changedFields.push('title');
+    }
+    if (event_date && new Date(event_date).getTime() !== new Date(existingEvent.start_datetime).getTime()) {
+      changedFields.push('date');
+    }
+    if (location_url && location_url !== existingEvent.location_url) {
+      changedFields.push('location');
+    }
+    if (event_type && event_type !== existingEvent.event_type) {
+      changedFields.push('event_type');
+    }
+
+    // Build dynamic update query
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (title !== undefined) {
+      updates.push(`title = $${paramIndex++}`);
+      values.push(title);
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(description);
+    }
+    if (event_date !== undefined) {
+      updates.push(`start_datetime = $${paramIndex++}`);
+      values.push(event_date);
+    }
+    if (end_datetime !== undefined) {
+      updates.push(`end_datetime = $${paramIndex++}`);
+      values.push(end_datetime);
+    }
+    if (location_url !== undefined) {
+      updates.push(`location_url = $${paramIndex++}`);
+      values.push(location_url);
+    }
+    if (max_attendees !== undefined) {
+      updates.push(`max_attendees = $${paramIndex++}`);
+      values.push(max_attendees);
+    }
+    if (event_type !== undefined) {
+      updates.push(`event_type = $${paramIndex++}`);
+      values.push(event_type);
+    }
+    if (virtual_link !== undefined) {
+      updates.push(`virtual_link = $${paramIndex++}`);
+      values.push(virtual_link);
+    }
+    if (venue_id !== undefined) {
+      updates.push(`venue_id = $${paramIndex++}`);
+      values.push(venue_id);
+    }
+    if (is_published !== undefined) {
+      updates.push(`is_published = $${paramIndex++}`);
+      values.push(is_published);
+    }
+
+    // Update banner_url if new carousel provided
+    if (banner_carousel && banner_carousel.length > 0) {
+      updates.push(`banner_url = $${paramIndex++}`);
+      values.push(banner_carousel[0].url);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    // Add event ID as last parameter
+    values.push(eventId);
+    
+    const updateQuery = `
+      UPDATE events 
+      SET ${updates.join(', ')}, updated_at = NOW()
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await pool.query(updateQuery, values);
+
+    // Update banner carousel if provided
+    if (banner_carousel && Array.isArray(banner_carousel)) {
+      // Delete existing banners
+      await pool.query('DELETE FROM event_banners WHERE event_id = $1', [eventId]);
+      
+      // Insert new banners
+      if (banner_carousel.length > 0) {
+        const bannerInserts = banner_carousel.map((banner, index) =>
+          pool.query(
+            `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
+            [eventId, banner.url, banner.cloudinary_public_id || null, index]
+          )
+        );
+        await Promise.all(bannerInserts);
+      }
+    }
+
+    // Update gallery if provided
+    if (gallery && Array.isArray(gallery)) {
+      // Delete existing gallery
+      await pool.query('DELETE FROM event_gallery WHERE event_id = $1', [eventId]);
+      
+      // Insert new gallery
+      if (gallery.length > 0) {
+        const galleryInserts = gallery.map((image, index) =>
+          pool.query(
+            `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
+            [eventId, image.url, image.cloudinary_public_id || null, index]
+          )
+        );
+        await Promise.all(galleryInserts);
+      }
+    }
+
+    // Notify registered attendees if key fields changed
+    if (changedFields.length > 0) {
+      // Get community name for notification
+      const communityResult = await pool.query(
+        'SELECT name FROM communities WHERE id = $1',
+        [userId]
+      );
+      const communityName = communityResult.rows[0]?.name || 'Community';
+
+      // Get all registered attendees
+      const attendeesResult = await pool.query(
+        `SELECT member_id FROM event_registrations 
+         WHERE event_id = $1 AND registration_status = 'registered'`,
+        [eventId]
+      );
+
+      // Create notification for each attendee
+      const notificationPayload = JSON.stringify({
+        event_id: parseInt(eventId),
+        event_title: title || existingEvent.title,
+        changed_fields: changedFields,
+        community_name: communityName
+      });
+
+      const notificationPromises = attendeesResult.rows.map(attendee =>
+        pool.query(
+          `INSERT INTO notifications (
+            recipient_id, recipient_type, actor_id, actor_type, 
+            type, payload, is_read, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
+          [
+            attendee.member_id,
+            'member',
+            userId,
+            'community',
+            'event_updated',
+            notificationPayload
+          ]
+        )
+      );
+
+      await Promise.all(notificationPromises);
+      
+      console.log(`[Event Update] Notified ${attendeesResult.rows.length} attendees about changes to event ${eventId}`);
+    }
+
+    res.json({
+      success: true,
+      event: result.rows[0],
+      changedFields,
+      notifiedAttendees: changedFields.length > 0 ? 
+        (await pool.query('SELECT COUNT(*) FROM event_registrations WHERE event_id = $1', [eventId])).rows[0].count : 0,
+      message: "Event updated successfully"
+    });
+
+  } catch (error) {
+    console.error("Error updating event:", error);
+    res.status(500).json({ error: "Failed to update event" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -790,6 +1016,7 @@ module.exports = {
   getEventMatches,
   requestNextEvent,
   discoverEvents,
-  searchEvents
+  searchEvents,
+  updateEvent
 };
 
