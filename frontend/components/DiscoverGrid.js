@@ -151,7 +151,7 @@ export default function DiscoverGrid({
 
 const styles = StyleSheet.create({
   gridContainer: {
-    paddingTop: 12, // Spacing from filters
+    paddingTop: 0, // Reduced spacing from search bar
     paddingBottom: 100, // Extra padding for tab bar
   },
   gridItem: {
