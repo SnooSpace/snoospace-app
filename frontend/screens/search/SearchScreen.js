@@ -577,10 +577,10 @@ export default function SearchScreen({ navigation }) {
   // Handle discover grid item press
   const handleDiscoverItemPress = (item) => {
     if (item.item_type === 'event') {
-      // Navigate to community that hosts the event
-      navigation.navigate('CommunityPublicProfile', {
-        communityId: item.community_id,
-        viewerRole: 'member'
+      // Navigate to EventDetails screen
+      navigation.navigate('EventDetails', {
+        eventId: item.id,
+        eventData: item, // Pass initial data for faster display
       });
     } else {
       // Navigate to post author profile

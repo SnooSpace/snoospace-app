@@ -58,6 +58,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [locationUrl, setLocationUrl] = useState('');  // Changed to simple URL string
   const [virtualLink, setVirtualLink] = useState('');
   const [maxAttendees, setMaxAttendees] = useState('');
+  const [ticketPrice, setTicketPrice] = useState('');  // Ticket price (empty = free)
   const [categories, setCategories] = useState([]);
 
   // Step 2: Media
@@ -108,6 +109,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setLocationUrl('');
     setVirtualLink('');
     setMaxAttendees('');
+    setTicketPrice('');
     setCategories([]);
     setBannerCarousel([]);
     setGallery([]);
@@ -128,6 +130,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     locationUrl,
     virtualLink,
     maxAttendees,
+    ticketPrice,
     categories,
     bannerCarousel,
     gallery,
@@ -377,6 +380,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         location_url: locationUrl.trim() || null,  // Changed from location
         virtual_link: virtualLink.trim() || null,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
+        ticket_price: ticketPrice ? parseFloat(ticketPrice) : null,
         categories,
 
         // Media
@@ -611,6 +615,16 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               value={maxAttendees}
               onChangeText={setMaxAttendees}
               placeholder="Leave empty for unlimited"
+              placeholderTextColor={LIGHT_TEXT_COLOR}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>Ticket Price (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={ticketPrice}
+              onChangeText={setTicketPrice}
+              placeholder="Leave empty for free event"
               placeholderTextColor={LIGHT_TEXT_COLOR}
               keyboardType="numeric"
             />

@@ -115,8 +115,8 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       // Don't block feed for event errors
     }
   };
-
-  // Merge posts and events into a single feed (events interspersed every 5 posts - deterministic)
+  // Merge posts and events into a single feed
+  // First event after 2 posts, then every 5 posts
   useEffect(() => {
     // Always show events even if no posts
     if (posts.length === 0 && events.length === 0) {
@@ -126,21 +126,29 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
     const merged = [];
     let eventIndex = 0;
-    const EVENT_INTERVAL = 5; // Event after every 5 posts (deterministic, not random)
+    
+    // First event appears early (after 2 posts), subsequent ones every 5 posts
+    const FIRST_EVENT_AT = 2;
+    const SUBSEQUENT_INTERVAL = 5;
 
     // If we have posts, intersperse events
     if (posts.length > 0) {
       posts.forEach((post, index) => {
         merged.push({ ...post, itemType: 'post' });
 
-        // Insert event at fixed intervals (every 5 posts)
-        if ((index + 1) % EVENT_INTERVAL === 0 && eventIndex < events.length) {
+        // First event after 2 posts, then every 5 posts after that
+        const postNumber = index + 1;
+        const shouldInsertEvent = 
+          (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
+          (eventIndex > 0 && postNumber > FIRST_EVENT_AT && (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
+        
+        if (shouldInsertEvent && eventIndex < events.length) {
           merged.push({ ...events[eventIndex], itemType: 'event' });
           eventIndex++;
         }
       });
 
-      // Add remaining events at the end
+      // Add remaining events at the end (spaced out)
       while (eventIndex < events.length) {
         merged.push({ ...events[eventIndex], itemType: 'event' });
         eventIndex++;
@@ -426,20 +434,10 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
   // Handle event card press
   const handleEventPress = (event) => {
-    // TODO: Navigate to EventDetailsScreen when implemented
-    Alert.alert(
-      event.title,
-      `${event.formatted_date} at ${event.formatted_time}\n\nHosted by ${event.community_name}`,
-      [
-        { text: 'Close', style: 'cancel' },
-        { text: 'View Community', onPress: () => {
-          navigation.navigate('CommunityPublicProfile', {
-            communityId: event.community_id,
-            viewerRole: role
-          });
-        }}
-      ]
-    );
+    navigation.navigate('EventDetails', {
+      eventId: event.id,
+      eventData: event, // Pass initial data for faster display
+    });
   };
 
   // Handle interested button press

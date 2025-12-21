@@ -93,6 +93,19 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   const handleEditEvent = (event) => {
+    console.log('[CommunityDashboard] Edit event clicked:', {
+      id: event.id,
+      title: event.title,
+      has_highlights: !!event.highlights,
+      highlights_count: event.highlights?.length || 0,
+      has_featured: !!event.featured_accounts,
+      featured_count: event.featured_accounts?.length || 0,
+      has_things: !!event.things_to_know,
+      things_count: event.things_to_know?.length || 0,
+      has_gallery: !!event.gallery,
+      gallery_count: event.gallery?.length || 0,
+      all_keys: Object.keys(event),
+    });
     setSelectedEvent(event);
     setShowEditEventModal(true);
   };

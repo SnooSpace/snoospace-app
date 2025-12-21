@@ -153,6 +153,7 @@ router.post("/events/:eventId/swipe", authMiddleware, EventController.recordSwip
 router.get("/events/:eventId/matches", authMiddleware, EventController.getEventMatches);
 router.post("/events/:eventId/request-next", authMiddleware, EventController.requestNextEvent);
 router.get("/events/community", authMiddleware, EventController.getCommunityEvents);
+router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
 
 // Upload (Cloudinary)

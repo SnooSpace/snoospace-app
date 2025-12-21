@@ -24,7 +24,11 @@ const createEvent = async (req, res) => {
       gallery,  // Array of {url, cloudinary_public_id, order}
       event_type,
       virtual_link,
-      venue_id
+      venue_id,
+      highlights,  // Array of {icon_name, title, description}
+      featured_accounts,  // Array of {display_name, role, description, profile_photo_url, ...}
+      things_to_know,  // Array of {icon_name, label, preset_id}
+      ticket_price  // Ticket price (null = free)
     } = req.body;
 
     // Validation
@@ -52,9 +56,9 @@ const createEvent = async (req, res) => {
       INSERT INTO events (
         community_id, title, description, start_datetime, end_datetime, location_url,
         max_attendees, banner_url, event_type, virtual_link, venue_id,
-        creator_id, is_published, created_at
+        creator_id, is_published, ticket_price, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
       RETURNING *
     `;
 
@@ -71,7 +75,8 @@ const createEvent = async (req, res) => {
       virtual_link || null,
       venue_id || null,
       userId, // creator_id
-      true // is_published
+      true, // is_published
+      ticket_price || null  // Ticket price
     ];
 
     const result = await pool.query(query, values);
@@ -97,6 +102,52 @@ const createEvent = async (req, res) => {
         )
       );
       await Promise.all(galleryInserts);
+    }
+
+    // Save highlights
+    if (highlights && Array.isArray(highlights) && highlights.length > 0) {
+      const highlightInserts = highlights.map((highlight, index) => 
+        pool.query(
+          `INSERT INTO event_highlights (event_id, icon_name, title, description, highlight_order) VALUES ($1, $2, $3, $4, $5)`,
+          [eventId, highlight.icon_name || 'star', highlight.title, highlight.description || null, index]
+        )
+      );
+      await Promise.all(highlightInserts);
+    }
+
+    // Save featured accounts
+    if (featured_accounts && Array.isArray(featured_accounts) && featured_accounts.length > 0) {
+      const featuredInserts = featured_accounts.map((account, index) => 
+        pool.query(
+          `INSERT INTO event_featured_accounts (
+            event_id, linked_account_id, linked_account_type, display_name, 
+            role, description, profile_photo_url, cloudinary_public_id, display_order
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            eventId, 
+            account.linked_account_id || null,
+            account.linked_account_type || null,
+            account.display_name,
+            account.role || null,
+            account.description || null,
+            account.profile_photo_url || null,
+            account.cloudinary_public_id || null,
+            index
+          ]
+        )
+      );
+      await Promise.all(featuredInserts);
+    }
+
+    // Save things to know
+    if (things_to_know && Array.isArray(things_to_know) && things_to_know.length > 0) {
+      const thingsInserts = things_to_know.map((item, index) => 
+        pool.query(
+          `INSERT INTO event_things_to_know (event_id, preset_id, icon_name, label, item_order) VALUES ($1, $2, $3, $4, $5)`,
+          [eventId, item.preset_id || null, item.icon_name || 'information-circle', item.label, index]
+        )
+      );
+      await Promise.all(thingsInserts);
     }
 
     res.status(201).json({
@@ -226,6 +277,15 @@ const getCommunityEvents = async (req, res) => {
         ORDER BY fa.display_order ASC
       `;
       const featuredAccountsResult = await pool.query(featuredAccountsQuery, [eventId]);
+
+      // Debug: Log what we're returning for this event
+      console.log(`[getCommunityEvents] Event ${event.id} (${event.title}):`, {
+        highlights_count: highlightsResult.rows.length,
+        things_to_know_count: thingsToKnowResult.rows.length,
+        featured_accounts_count: featuredAccountsResult.rows.length,
+        highlights: highlightsResult.rows.slice(0, 2), // Log first 2 for debugging
+        things_to_know: thingsToKnowResult.rows.slice(0, 2),
+      });
 
       return {
         ...event,
@@ -812,7 +872,9 @@ const updateEvent = async (req, res) => {
       title,
       description,
       event_date,
+      start_datetime,
       end_datetime,
+      gates_open_time,
       location_url,
       max_attendees,
       banner_carousel,
@@ -820,7 +882,10 @@ const updateEvent = async (req, res) => {
       event_type,
       virtual_link,
       venue_id,
-      is_published
+      is_published,
+      highlights,
+      featured_accounts,
+      things_to_know
     } = req.body;
 
     // Validate Google Maps URL if provided
@@ -889,6 +954,16 @@ const updateEvent = async (req, res) => {
       updates.push(`is_published = $${paramIndex++}`);
       values.push(is_published);
     }
+    if (gates_open_time !== undefined) {
+      updates.push(`gates_open_time = $${paramIndex++}`);
+      values.push(gates_open_time);
+    }
+    if (start_datetime !== undefined) {
+      updates.push(`start_datetime = $${paramIndex++}`);
+      values.push(start_datetime);
+    }
+    // Note: highlights, featured_accounts, things_to_know are in separate tables
+    // They are updated after the main query below
 
     // Update banner_url if new carousel provided
     if (banner_carousel && banner_carousel.length > 0) {
@@ -896,7 +971,7 @@ const updateEvent = async (req, res) => {
       values.push(banner_carousel[0].url);
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && !banner_carousel && !gallery && !highlights && !featured_accounts && !things_to_know) {
       return res.status(400).json({ error: "No fields to update" });
     }
 
@@ -919,12 +994,14 @@ const updateEvent = async (req, res) => {
       
       // Insert new banners
       if (banner_carousel.length > 0) {
-        const bannerInserts = banner_carousel.map((banner, index) =>
-          pool.query(
+        const bannerInserts = banner_carousel.map((banner, index) => {
+          // Support multiple possible field names from frontend
+          const imageUrl = banner.url || banner.image_url || banner.secure_url;
+          return pool.query(
             `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-            [eventId, banner.url, banner.cloudinary_public_id || null, index]
-          )
-        );
+            [eventId, imageUrl, banner.cloudinary_public_id || banner.public_id || null, index]
+          );
+        });
         await Promise.all(bannerInserts);
       }
     }
@@ -936,13 +1013,72 @@ const updateEvent = async (req, res) => {
       
       // Insert new gallery
       if (gallery.length > 0) {
-        const galleryInserts = gallery.map((image, index) =>
-          pool.query(
+        const galleryInserts = gallery.map((image, index) => {
+          // Support multiple possible field names from frontend
+          const imageUrl = image.url || image.image_url || image.secure_url;
+          return pool.query(
             `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-            [eventId, image.url, image.cloudinary_public_id || null, index]
+            [eventId, imageUrl, image.cloudinary_public_id || image.public_id || null, index]
+          );
+        });
+        await Promise.all(galleryInserts);
+      }
+    }
+
+    // Update highlights if provided
+    if (highlights && Array.isArray(highlights)) {
+      console.log(`[updateEvent] Saving ${highlights.length} highlights for event ${eventId}`);
+      await pool.query('DELETE FROM event_highlights WHERE event_id = $1', [eventId]);
+      if (highlights.length > 0) {
+        const highlightInserts = highlights.map((h, index) =>
+          pool.query(
+            `INSERT INTO event_highlights (event_id, icon_name, title, description, highlight_order) VALUES ($1, $2, $3, $4, $5)`,
+            [eventId, h.icon_name || 'star', h.title, h.description || null, index]
           )
         );
-        await Promise.all(galleryInserts);
+        await Promise.all(highlightInserts);
+        console.log(`[updateEvent] Successfully saved ${highlights.length} highlights`);
+      }
+    }
+
+    // Update things_to_know if provided
+    if (things_to_know && Array.isArray(things_to_know)) {
+      console.log(`[updateEvent] Saving ${things_to_know.length} things_to_know for event ${eventId}`);
+      await pool.query('DELETE FROM event_things_to_know WHERE event_id = $1', [eventId]);
+      if (things_to_know.length > 0) {
+        const thingsInserts = things_to_know.map((item, index) =>
+          pool.query(
+            `INSERT INTO event_things_to_know (event_id, icon_name, label, preset_id, item_order) VALUES ($1, $2, $3, $4, $5)`,
+            [eventId, item.icon_name || 'information-circle-outline', item.label, item.preset_id || null, index]
+          )
+        );
+        await Promise.all(thingsInserts);
+      }
+    }
+
+    // Update featured_accounts if provided
+    if (featured_accounts && Array.isArray(featured_accounts)) {
+      await pool.query('DELETE FROM event_featured_accounts WHERE event_id = $1', [eventId]);
+      if (featured_accounts.length > 0) {
+        const accountInserts = featured_accounts.map((acc, index) =>
+          pool.query(
+            `INSERT INTO event_featured_accounts (
+              event_id, display_name, role, description, profile_photo_url, 
+              linked_account_type, linked_account_id, display_order
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              eventId, 
+              acc.display_name || acc.account_name, 
+              acc.role, 
+              acc.description || null, 
+              acc.profile_photo_url || acc.account_photo || null,
+              acc.linked_account_type || null,
+              acc.linked_account_id || null,
+              index
+            ]
+          )
+        );
+        await Promise.all(accountInserts);
       }
     }
 
@@ -1007,6 +1143,133 @@ const updateEvent = async (req, res) => {
   }
 };
 
+/**
+ * Get single event by ID with all details
+ */
+const getEventById = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Get main event data with community info
+    const eventQuery = `
+      SELECT 
+        e.*,
+        c.name as community_name,
+        c.logo_url as community_logo,
+        c.id as community_id,
+        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+        (SELECT COUNT(*) FROM events WHERE creator_id = e.creator_id) as community_events_count
+      FROM events e
+      LEFT JOIN communities c ON e.creator_id = c.id
+      LEFT JOIN event_registrations er ON e.id = er.event_id
+      WHERE e.id = $1
+      GROUP BY e.id, c.id
+    `;
+    
+    const eventResult = await pool.query(eventQuery, [eventId]);
+    
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventResult.rows[0];
+
+    // Fetch banners
+    const bannersResult = await pool.query(
+      `SELECT id, image_url, cloudinary_public_id, image_order 
+       FROM event_banners 
+       WHERE event_id = $1 
+       ORDER BY image_order ASC`,
+      [eventId]
+    );
+
+    // Fetch gallery
+    const galleryResult = await pool.query(
+      `SELECT id, image_url, cloudinary_public_id, image_order 
+       FROM event_gallery 
+       WHERE event_id = $1 
+       ORDER BY image_order ASC`,
+      [eventId]
+    );
+
+    // Fetch highlights
+    const highlightsResult = await pool.query(
+      `SELECT id, icon_name, title, description, highlight_order 
+       FROM event_highlights 
+       WHERE event_id = $1 
+       ORDER BY highlight_order ASC`,
+      [eventId]
+    );
+
+    // Fetch things to know
+    const thingsResult = await pool.query(
+      `SELECT id, preset_id, icon_name, label, item_order 
+       FROM event_things_to_know 
+       WHERE event_id = $1 
+       ORDER BY item_order ASC`,
+      [eventId]
+    );
+
+    // Fetch featured accounts with linked data
+    const featuredQuery = `
+      SELECT 
+        fa.id,
+        fa.linked_account_id,
+        fa.linked_account_type,
+        fa.display_name,
+        fa.role,
+        fa.description,
+        fa.profile_photo_url,
+        fa.display_order,
+        CASE 
+          WHEN fa.linked_account_type = 'member' THEN m.name
+          WHEN fa.linked_account_type = 'community' THEN c.name
+          WHEN fa.linked_account_type = 'sponsor' THEN s.brand_name
+          ELSE fa.display_name
+        END as account_name,
+        CASE 
+          WHEN fa.linked_account_type = 'member' THEN m.profile_photo_url
+          WHEN fa.linked_account_type = 'community' THEN c.logo_url
+          WHEN fa.linked_account_type = 'sponsor' THEN s.logo_url
+          ELSE fa.profile_photo_url
+        END as account_photo
+      FROM event_featured_accounts fa
+      LEFT JOIN members m ON fa.linked_account_id = m.id AND fa.linked_account_type = 'member'
+      LEFT JOIN communities c ON fa.linked_account_id = c.id AND fa.linked_account_type = 'community'
+      LEFT JOIN sponsors s ON fa.linked_account_id = s.id AND fa.linked_account_type = 'sponsor'
+      WHERE fa.event_id = $1
+      ORDER BY fa.display_order ASC
+    `;
+    const featuredResult = await pool.query(featuredQuery, [eventId]);
+
+    // Fetch community heads
+    const headsResult = await pool.query(
+      `SELECT id, name, profile_photo_url, role, designation
+       FROM community_heads 
+       WHERE community_id = $1
+       ORDER BY display_order ASC`,
+      [event.community_id]
+    );
+
+    res.json({
+      success: true,
+      event: {
+        ...event,
+        banners: bannersResult.rows,
+        gallery: galleryResult.rows,
+        highlights: highlightsResult.rows,
+        things_to_know: thingsResult.rows,
+        featured_accounts: featuredResult.rows,
+        community_heads: headsResult.rows,
+      }
+    });
+
+  } catch (error) {
+    console.error("Error getting event:", error);
+    res.status(500).json({ error: "Failed to get event" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -1017,6 +1280,7 @@ module.exports = {
   requestNextEvent,
   discoverEvents,
   searchEvents,
-  updateEvent
+  updateEvent,
+  getEventById
 };
 

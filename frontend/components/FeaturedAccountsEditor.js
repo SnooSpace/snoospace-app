@@ -166,8 +166,12 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
   };
 
   const renderAccount = ({ item, index }) => {
-    const accountName = item._accountData?.name || item.display_name;
-    const accountPhoto = item._accountData?.photo || item.profile_photo_url;
+    // Check multiple sources for name/photo:
+    // 1. _accountData (set when adding new linked account in UI)
+    // 2. account_name/account_photo (from database JOIN in getCommunityEvents)
+    // 3. display_name/profile_photo_url (for manual entries)
+    const accountName = item._accountData?.name || item.account_name || item.display_name;
+    const accountPhoto = item._accountData?.photo || item.account_photo || item.profile_photo_url;
     const isLinked = !!item.linked_account_id;
 
     return (
