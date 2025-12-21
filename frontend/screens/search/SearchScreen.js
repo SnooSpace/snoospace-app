@@ -613,38 +613,40 @@ export default function SearchScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterContent}
-        style={{ flexGrow: 0 }} // Added to prevent expansion
-      >
-        {['all', 'member', 'community', 'sponsor', 'venue', 'event'].map((filter) => (
-          <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterTab,
-              activeFilter === filter && styles.filterTabActive,
-            ]}
-            onPress={() => {
-              setActiveFilter(filter);
-              setResults([]);
-              setEventResults([]);
-              setOffset(0);
-            }}
-          >
-            <Text
+      {/* Filter Tabs - Only show when search is focused */}
+      {focused && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContent}
+          style={{ flexGrow: 0 }} // Added to prevent expansion
+        >
+          {['all', 'member', 'community', 'sponsor', 'venue', 'event'].map((filter) => (
+            <TouchableOpacity
+              key={filter}
               style={[
-                styles.filterTabText,
-                activeFilter === filter && styles.filterTabTextActive,
+                styles.filterTab,
+                activeFilter === filter && styles.filterTabActive,
               ]}
+              onPress={() => {
+                setActiveFilter(filter);
+                setResults([]);
+                setEventResults([]);
+                setOffset(0);
+              }}
             >
-              {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : filter === 'venue' ? 'Venues' : 'Events'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <Text
+                style={[
+                  styles.filterTabText,
+                  activeFilter === filter && styles.filterTabTextActive,
+                ]}
+              >
+                {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : filter === 'venue' ? 'Venues' : 'Events'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
 
       {focused && query.trim().length === 0 ? (
