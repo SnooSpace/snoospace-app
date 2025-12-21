@@ -186,6 +186,121 @@ const getDiscoverFeed = async (req, res) => {
   }
 };
 
+/**
+ * Get suggested communities based on user's interests
+ * Excludes communities user already follows
+ * Used for "Based on your Interests" section
+ */
+const getSuggestedCommunities = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { limit = 10 } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Only members see suggestions (communities don't need to join other communities)
+    if (userType !== 'member') {
+      return res.json({ success: true, suggestions: [] });
+    }
+
+    // Get user's interests
+    const interestsResult = await pool.query(
+      'SELECT interests FROM members WHERE id = $1',
+      [userId]
+    );
+    
+    const userInterests = interestsResult.rows[0]?.interests || [];
+    
+    // If no interests, return popular communities
+    let suggestionsQuery;
+    let queryParams;
+
+    if (userInterests.length > 0) {
+      // Find communities matching user interests (category matches)
+      suggestionsQuery = `
+        SELECT 
+          c.id,
+          c.name,
+          c.username,
+          c.logo_url,
+          c.category,
+          c.bio,
+          COALESCE(
+            (SELECT COUNT(*) FROM follows f 
+             WHERE f.following_id = c.id AND f.following_type = 'community'),
+            0
+          )::int as follower_count,
+          -- Matching score based on category match
+          CASE 
+            WHEN c.category = ANY($1) THEN 50
+            ELSE 0
+          END as match_score
+        FROM communities c
+        WHERE c.id NOT IN (
+          -- Exclude already followed
+          SELECT following_id FROM follows 
+          WHERE follower_id = $2 AND follower_type = 'member' AND following_type = 'community'
+        )
+        ORDER BY match_score DESC, follower_count DESC
+        LIMIT $3
+      `;
+      queryParams = [userInterests, userId, parseInt(limit)];
+    } else {
+      // Fallback: return popular communities
+      suggestionsQuery = `
+        SELECT 
+          c.id,
+          c.name,
+          c.username,
+          c.logo_url,
+          c.category,
+          c.bio,
+          COALESCE(
+            (SELECT COUNT(*) FROM follows f 
+             WHERE f.following_id = c.id AND f.following_type = 'community'),
+            0
+          )::int as follower_count,
+          0 as match_score
+        FROM communities c
+        WHERE c.id NOT IN (
+          SELECT following_id FROM follows 
+          WHERE follower_id = $1 AND follower_type = 'member' AND following_type = 'community'
+        )
+        ORDER BY follower_count DESC
+        LIMIT $2
+      `;
+      queryParams = [userId, parseInt(limit)];
+    }
+
+    const result = await pool.query(suggestionsQuery, queryParams);
+
+    const suggestions = result.rows.map(community => ({
+      id: community.id,
+      name: community.name,
+      username: community.username,
+      logo_url: community.logo_url,
+      category: community.category,
+      bio: community.bio,
+      follower_count: community.follower_count,
+      is_following: false // Always false since we exclude followed
+    }));
+
+    res.json({
+      success: true,
+      suggestions,
+      hasMore: result.rows.length === parseInt(limit)
+    });
+
+  } catch (error) {
+    console.error("Error getting suggested communities:", error);
+    res.status(500).json({ error: "Failed to get suggestions" });
+  }
+};
+
 module.exports = {
-  getDiscoverFeed
+  getDiscoverFeed,
+  getSuggestedCommunities
 };

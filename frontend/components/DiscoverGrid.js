@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Image,
@@ -6,8 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  FlatList,
+  ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +17,17 @@ import { COLORS, BORDER_RADIUS } from '../constants/theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 2;
 const COLUMN_COUNT = 3;
-const ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (COLUMN_COUNT + 1)) / COLUMN_COUNT;
-// All items same size for proper grid layout
+const SMALL_ITEM = (SCREEN_WIDTH - GRID_GAP * 4) / 3; // 1-column item
+const LARGE_ITEM_WIDTH = SMALL_ITEM * 2 + GRID_GAP; // 2-column item
+const POST_HEIGHT = SMALL_ITEM; // Square posts
+const EVENT_HEIGHT = SMALL_ITEM * 1.3; // Events are 1.3x taller
 
 /**
- * DiscoverGrid - Instagram-style 3-column grid for explore content
+ * DiscoverGrid - Custom grid with Row A/B pattern
+ * Row A: Event (2 cols) + Post (1 col)
+ * Row B: Post + Post + Post (3 posts)
+ * Row A': Post (1 col) + Event (2 cols) - inverted
+ * Repeats: A → B → A' → B
  */
 export default function DiscoverGrid({
   items = [],
@@ -31,32 +38,104 @@ export default function DiscoverGrid({
   onRefresh,
   ListHeaderComponent,
 }) {
-  // Render grid item - all items same size for proper grid layout
-  const renderItem = ({ item, index }) => {
-    const isEvent = item.item_type === 'event';
-    // All items same size now
-    const itemWidth = ITEM_SIZE;
-    const itemHeight = ITEM_SIZE;
+  // Organize items into row pattern
+  const rows = useMemo(() => {
+    const events = items.filter(i => i.item_type === 'event');
+    const posts = items.filter(i => i.item_type === 'post');
+    
+    const result = [];
+    let eventIndex = 0;
+    let postIndex = 0;
+    let rowPattern = 0; // 0: A, 1: B, 2: A', 3: B
+    
+    while (postIndex < posts.length || eventIndex < events.length) {
+      const patternType = rowPattern % 4;
+      
+      if (patternType === 0) {
+        // Row A: Event (2 cols) + Post (1 col)
+        if (eventIndex < events.length && postIndex < posts.length) {
+          result.push({
+            type: 'eventLeft',
+            event: events[eventIndex],
+            post: posts[postIndex],
+          });
+          eventIndex++;
+          postIndex++;
+        } else if (postIndex + 2 < posts.length) {
+          // No events, fall back to 3 posts
+          result.push({
+            type: 'posts3',
+            posts: [posts[postIndex], posts[postIndex + 1], posts[postIndex + 2]],
+          });
+          postIndex += 3;
+        } else {
+          // Fill remaining posts
+          const remaining = posts.slice(postIndex);
+          if (remaining.length > 0) {
+            result.push({ type: 'posts3', posts: remaining });
+          }
+          break;
+        }
+      } else if (patternType === 1 || patternType === 3) {
+        // Row B: 3 posts
+        if (postIndex + 2 < posts.length) {
+          result.push({
+            type: 'posts3',
+            posts: [posts[postIndex], posts[postIndex + 1], posts[postIndex + 2]],
+          });
+          postIndex += 3;
+        } else {
+          const remaining = posts.slice(postIndex);
+          if (remaining.length > 0) {
+            result.push({ type: 'posts3', posts: remaining });
+          }
+          break;
+        }
+      } else if (patternType === 2) {
+        // Row A': Post (1 col) + Event (2 cols) - inverted
+        if (eventIndex < events.length && postIndex < posts.length) {
+          result.push({
+            type: 'eventRight',
+            post: posts[postIndex],
+            event: events[eventIndex],
+          });
+          eventIndex++;
+          postIndex++;
+        } else if (postIndex + 2 < posts.length) {
+          result.push({
+            type: 'posts3',
+            posts: [posts[postIndex], posts[postIndex + 1], posts[postIndex + 2]],
+          });
+          postIndex += 3;
+        } else {
+          const remaining = posts.slice(postIndex);
+          if (remaining.length > 0) {
+            result.push({ type: 'posts3', posts: remaining });
+          }
+          break;
+        }
+      }
+      
+      rowPattern++;
+    }
+    
+    return result;
+  }, [items]);
 
+  // Render a single post item
+  const renderPostItem = (post, width = SMALL_ITEM, height = POST_HEIGHT) => {
+    if (!post) return <View style={{ width, height }} />;
+    
     return (
       <TouchableOpacity
-        style={[
-          styles.gridItem,
-          {
-            width: itemWidth,
-            height: itemHeight,
-            marginLeft: index % 3 === 0 ? GRID_GAP : GRID_GAP / 2,
-            marginRight: index % 3 === 2 ? GRID_GAP : GRID_GAP / 2,
-            marginTop: GRID_GAP,
-          },
-        ]}
-        onPress={() => onItemPress?.(item)}
+        key={`post-${post.id}`}
+        style={[styles.gridItem, { width, height }]}
+        onPress={() => onItemPress?.(post)}
         activeOpacity={0.85}
       >
-        {/* Thumbnail Image */}
-        {item.thumbnail_url ? (
+        {post.thumbnail_url ? (
           <Image
-            source={{ uri: item.thumbnail_url }}
+            source={{ uri: post.thumbnail_url }}
             style={styles.thumbnail}
             resizeMode="cover"
           />
@@ -67,41 +146,96 @@ export default function DiscoverGrid({
             end={{ x: 1, y: 1 }}
             style={styles.placeholderThumbnail}
           >
-            <Ionicons
-              name={isEvent ? 'calendar-outline' : 'image-outline'}
-              size={isEvent ? 32 : 24}
-              color="rgba(255,255,255,0.6)"
-            />
+            <Ionicons name="image-outline" size={24} color="rgba(255,255,255,0.6)" />
           </LinearGradient>
         )}
-
-        {/* Post Multi-Image Indicator */}
-        {!isEvent && item.image_urls?.length > 1 && (
+        {post.image_urls?.length > 1 && (
           <View style={styles.multiImageBadge}>
             <Ionicons name="copy" size={14} color="#FFFFFF" />
           </View>
         )}
-
-        {/* Event Overlay */}
-        {isEvent && (
-          <View style={styles.eventOverlay}>
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.8)']}
-              style={styles.eventGradient}
-            >
-              <View style={styles.eventBadge}>
-                <Ionicons name="calendar" size={10} color="#FFFFFF" />
-                <Text style={styles.eventBadgeText}>EVENT</Text>
-              </View>
-              <Text style={styles.eventTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
-              <Text style={styles.eventDate}>{item.formatted_date}</Text>
-            </LinearGradient>
-          </View>
-        )}
       </TouchableOpacity>
     );
+  };
+
+  // Render an event item
+  const renderEventItem = (event, width = LARGE_ITEM_WIDTH, height = EVENT_HEIGHT) => {
+    if (!event) return <View style={{ width, height }} />;
+    
+    return (
+      <TouchableOpacity
+        key={`event-${event.id}`}
+        style={[styles.gridItem, { width, height }]}
+        onPress={() => onItemPress?.(event)}
+        activeOpacity={0.85}
+      >
+        {event.thumbnail_url ? (
+          <Image
+            source={{ uri: event.thumbnail_url }}
+            style={styles.thumbnail}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.placeholderThumbnail}
+          >
+            <Ionicons name="calendar-outline" size={32} color="rgba(255,255,255,0.6)" />
+          </LinearGradient>
+        )}
+        <View style={styles.eventOverlay}>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.85)']}
+            style={styles.eventGradient}
+          >
+            <View style={styles.eventBadge}>
+              <Ionicons name="calendar" size={10} color="#FFFFFF" />
+              <Text style={styles.eventBadgeText}>EVENT</Text>
+            </View>
+            <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
+            <Text style={styles.eventDate}>{event.formatted_date}</Text>
+          </LinearGradient>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render a row based on type
+  const renderRow = (row, index) => {
+    if (row.type === 'eventLeft') {
+      // Event on left, post on right (post fills height to match event)
+      return (
+        <View key={`row-${index}`} style={styles.row}>
+          {renderEventItem(row.event)}
+          <View style={{ width: GRID_GAP }} />
+          {renderPostItem(row.post, SMALL_ITEM, EVENT_HEIGHT)}
+        </View>
+      );
+    } else if (row.type === 'eventRight') {
+      // Post on left, event on right
+      return (
+        <View key={`row-${index}`} style={styles.row}>
+          {renderPostItem(row.post, SMALL_ITEM, EVENT_HEIGHT)}
+          <View style={{ width: GRID_GAP }} />
+          {renderEventItem(row.event)}
+        </View>
+      );
+    } else if (row.type === 'posts3') {
+      // 3 posts in a row
+      return (
+        <View key={`row-${index}`} style={styles.row}>
+          {row.posts.map((post, i) => (
+            <React.Fragment key={post?.id || `empty-${i}`}>
+              {renderPostItem(post)}
+              {i < 2 && <View style={{ width: GRID_GAP }} />}
+            </React.Fragment>
+          ))}
+        </View>
+      );
+    }
+    return null;
   };
 
   // Loading state
@@ -125,34 +259,47 @@ export default function DiscoverGrid({
     );
   }
 
+  const handleScroll = (event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 200;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+      onEndReached?.();
+    }
+  };
+
   return (
-    <FlatList
-      data={items}
-      renderItem={renderItem}
-      keyExtractor={(item) => `${item.item_type}-${item.id}`}
-      numColumns={3}
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={styles.gridContainer}
       showsVerticalScrollIndicator={false}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.5}
-      refreshing={refreshing}
-      onRefresh={onRefresh}
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={
-        loading && items.length > 0 ? (
-          <View style={styles.footerLoader}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          </View>
-        ) : null
+      onScroll={handleScroll}
+      scrollEventThrottle={400}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
-    />
+    >
+      {ListHeaderComponent}
+      {rows.map((row, index) => renderRow(row, index))}
+      {loading && items.length > 0 && (
+        <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   gridContainer: {
-    paddingTop: 0, // Reduced spacing from search bar
-    paddingBottom: 100, // Extra padding for tab bar
+    paddingHorizontal: GRID_GAP,
+    paddingBottom: 100,
+  },
+  row: {
+    flexDirection: 'row',
+    marginTop: GRID_GAP,
   },
   gridItem: {
     borderRadius: 2,
@@ -182,12 +329,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
+    height: '50%',
   },
   eventGradient: {
     flex: 1,
     justifyContent: 'flex-end',
-    padding: 8,
+    padding: 10,
   },
   eventBadge: {
     flexDirection: 'row',
@@ -195,43 +342,26 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: COLORS.primary,
     alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   eventBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   eventTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   eventDate: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  engagementBadge: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  engagementText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
   },
   loadingContainer: {
     flex: 1,

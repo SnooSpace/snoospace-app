@@ -22,7 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
-import { getDiscoverFeed } from "../../api/discover";
+import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
@@ -32,6 +32,7 @@ import { apiPost } from "../../api/client";
 import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 import { COLORS, BORDER_RADIUS } from '../../constants/theme';
 import DiscoverGrid from '../../components/DiscoverGrid';
+import SuggestedCommunityCard from '../../components/SuggestedCommunityCard';
 
 const DEBOUNCE_MS = 300;
 
@@ -58,6 +59,11 @@ export default function SearchScreen({ navigation }) {
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverOffset, setDiscoverOffset] = useState(0);
   const [discoverHasMore, setDiscoverHasMore] = useState(true);
+  
+  // Community suggestions state
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const suggestionsCache = useRef(null); // Cache to avoid refetching
 
   const canSearch = query.trim().length >= 2;
   const showDiscoverGrid = !focused && !canSearch;
@@ -114,6 +120,28 @@ export default function SearchScreen({ navigation }) {
       setDiscoverLoading(false);
     }
   }, [discoverOffset, discoverLoading]);
+
+  // Load community suggestions (cached)
+  const loadSuggestions = useCallback(async (forceRefresh = false) => {
+    // Use cache if available and not forcing refresh
+    if (!forceRefresh && suggestionsCache.current) {
+      setSuggestions(suggestionsCache.current);
+      return;
+    }
+    
+    setSuggestionsLoading(true);
+    try {
+      const response = await getSuggestedCommunities(10);
+      if (response?.suggestions) {
+        setSuggestions(response.suggestions);
+        suggestionsCache.current = response.suggestions; // Cache for reuse
+      }
+    } catch (error) {
+      console.error('[Discover] Error loading suggestions:', error);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -217,9 +245,10 @@ export default function SearchScreen({ navigation }) {
     loadUserId();
   }, []);
 
-  // Load discover feed on mount
+  // Load discover feed and suggestions on mount
   useEffect(() => {
     loadDiscoverFeed(true);
+    loadSuggestions();
   }, []);
 
   useEffect(() => {
@@ -725,7 +754,48 @@ export default function SearchScreen({ navigation }) {
           onItemPress={handleDiscoverItemPress}
           onEndReached={() => discoverHasMore && loadDiscoverFeed()}
           refreshing={discoverLoading && discoverItems.length > 0}
-          onRefresh={() => loadDiscoverFeed(true)}
+          onRefresh={() => {
+            loadDiscoverFeed(true);
+            loadSuggestions(true); // Force refresh suggestions too
+          }}
+          ListHeaderComponent={
+            suggestions.length > 0 ? (
+              <View style={styles.suggestionsSection}>
+                {/* Header with See All */}
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsTitle}>Based on your Interests</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('ExploreCommunities')}>
+                    <Text style={styles.seeAllLink}>See All</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Horizontal Scroll of Community Cards */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.suggestionsScroll}
+                >
+                  {suggestions.map((community) => (
+                    <SuggestedCommunityCard
+                      key={community.id}
+                      community={community}
+                      onPress={(c) => navigation.navigate('CommunityPublicProfile', {
+                        communityId: c.id,
+                        viewerRole: 'member'
+                      })}
+                      onJoin={(c) => {
+                        // Remove from suggestions after joining
+                        setSuggestions(prev => prev.filter(s => s.id !== c.id));
+                        if (suggestionsCache.current) {
+                          suggestionsCache.current = suggestionsCache.current.filter(s => s.id !== c.id);
+                        }
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null
+          }
         />
       )}
     </View>
@@ -932,5 +1002,31 @@ const styles = StyleSheet.create({
   eventMetaText: {
     fontSize: 11,
     color: '#8E8E93',
+  },
+  // Suggestions section styles
+  suggestionsSection: {
+    marginBottom: 16,
+    paddingTop: 8,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  suggestionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1D1D1F',
+  },
+  seeAllLink: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  suggestionsScroll: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
 });

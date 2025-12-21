@@ -102,6 +102,7 @@ router.get("/search/global", authMiddleware, SearchController.globalSearch);
 
 // Discover
 router.get("/discover/feed", authMiddleware, DiscoverController.getDiscoverFeed);
+router.get("/discover/suggestions", authMiddleware, DiscoverController.getSuggestedCommunities);
 
 // Username management
 router.post("/username/check", UsernameController.checkUsername);
