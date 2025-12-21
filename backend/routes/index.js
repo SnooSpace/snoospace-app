@@ -18,6 +18,7 @@ const UploadController = require("../controllers/uploadController");
 const CatalogController = require("../controllers/catalogController");
 const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
+const DiscoverController = require("../controllers/discoverController");
 
 const router = express.Router();
 
@@ -98,6 +99,9 @@ router.get("/venues/search", authMiddleware, VenueController.searchVenues);
 
 // Global Search
 router.get("/search/global", authMiddleware, SearchController.globalSearch);
+
+// Discover
+router.get("/discover/feed", authMiddleware, DiscoverController.getDiscoverFeed);
 
 // Username management
 router.post("/username/check", UsernameController.checkUsername);

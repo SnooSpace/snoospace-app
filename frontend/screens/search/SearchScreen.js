@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
+import { getDiscoverFeed } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
@@ -30,6 +31,7 @@ import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 import { COLORS, BORDER_RADIUS } from '../../constants/theme';
+import DiscoverGrid from '../../components/DiscoverGrid';
 
 const DEBOUNCE_MS = 300;
 
@@ -50,8 +52,15 @@ export default function SearchScreen({ navigation }) {
   const [userType, setUserType] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
+  
+  // Discover grid state
+  const [discoverItems, setDiscoverItems] = useState([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverOffset, setDiscoverOffset] = useState(0);
+  const [discoverHasMore, setDiscoverHasMore] = useState(true);
 
   const canSearch = query.trim().length >= 2;
+  const showDiscoverGrid = !focused && !canSearch;
 
   const getRecentsKey = () => {
     return userId ? `recent_searches_${userId}` : "recent_searches";
@@ -80,6 +89,31 @@ export default function SearchScreen({ navigation }) {
       await AsyncStorage.setItem(key, JSON.stringify(items));
     } catch {}
   }, [userId]);
+
+  // Load discover feed for grid view
+  const loadDiscoverFeed = useCallback(async (reset = false) => {
+    if (discoverLoading && !reset) return;
+    
+    setDiscoverLoading(true);
+    try {
+      const nextOffset = reset ? 0 : discoverOffset;
+      const response = await getDiscoverFeed({ limit: 30, offset: nextOffset });
+      
+      if (response?.items) {
+        if (reset) {
+          setDiscoverItems(response.items);
+        } else {
+          setDiscoverItems(prev => [...prev, ...response.items]);
+        }
+        setDiscoverOffset(nextOffset + response.items.length);
+        setDiscoverHasMore(response.hasMore);
+      }
+    } catch (error) {
+      console.error('[Discover] Error loading feed:', error);
+    } finally {
+      setDiscoverLoading(false);
+    }
+  }, [discoverOffset, discoverLoading]);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -181,6 +215,11 @@ export default function SearchScreen({ navigation }) {
       }
     };
     loadUserId();
+  }, []);
+
+  // Load discover feed on mount
+  useEffect(() => {
+    loadDiscoverFeed(true);
   }, []);
 
   useEffect(() => {
@@ -506,11 +545,32 @@ export default function SearchScreen({ navigation }) {
     );
   };
 
+  // Handle discover grid item press
+  const handleDiscoverItemPress = (item) => {
+    if (item.item_type === 'event') {
+      // Navigate to community that hosts the event
+      navigation.navigate('CommunityPublicProfile', {
+        communityId: item.community_id,
+        viewerRole: 'member'
+      });
+    } else {
+      // Navigate to post author profile
+      if (item.author_type === 'member') {
+        navigation.navigate('MemberPublicProfile', { memberId: item.author_id });
+      } else if (item.author_type === 'community') {
+        navigation.navigate('CommunityPublicProfile', {
+          communityId: item.author_id,
+          viewerRole: 'member'
+        });
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header with Search Title - Always Visible */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Search</Text>
+        <Text style={styles.headerTitle}>{showDiscoverGrid ? 'Discover' : 'Search'}</Text>
       </View>
 
       {/* Search Input Box */}
@@ -653,6 +713,18 @@ export default function SearchScreen({ navigation }) {
             contentContainerStyle={(activeFilter === 'event' ? eventResults : results).length === 0 ? { flexGrow: 1 } : null}
           />
         </View>
+      )}
+
+      {/* Discover Grid - Show when not searching */}
+      {showDiscoverGrid && (
+        <DiscoverGrid
+          items={discoverItems}
+          loading={discoverLoading}
+          onItemPress={handleDiscoverItemPress}
+          onEndReached={() => discoverHasMore && loadDiscoverFeed()}
+          refreshing={discoverLoading && discoverItems.length > 0}
+          onRefresh={() => loadDiscoverFeed(true)}
+        />
       )}
     </View>
   );

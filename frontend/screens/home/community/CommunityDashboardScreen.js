@@ -128,7 +128,11 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Dashboard</Text>
