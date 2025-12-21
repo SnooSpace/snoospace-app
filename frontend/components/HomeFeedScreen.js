@@ -116,27 +116,41 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     }
   };
 
-  // Merge posts and events into a single feed (events interspersed every 4-6 posts)
+  // Merge posts and events into a single feed (events interspersed every 5 posts - deterministic)
   useEffect(() => {
-    if (posts.length === 0) {
+    // Always show events even if no posts
+    if (posts.length === 0 && events.length === 0) {
       setFeedItems([]);
       return;
     }
 
     const merged = [];
     let eventIndex = 0;
-    let nextEventAt = 4 + Math.floor(Math.random() * 3); // First event after 4-6 posts
+    const EVENT_INTERVAL = 5; // Event after every 5 posts (deterministic, not random)
 
-    posts.forEach((post, index) => {
-      merged.push({ ...post, itemType: 'post' });
+    // If we have posts, intersperse events
+    if (posts.length > 0) {
+      posts.forEach((post, index) => {
+        merged.push({ ...post, itemType: 'post' });
 
-      // Insert event at intervals
-      if ((index + 1) === nextEventAt && eventIndex < events.length) {
+        // Insert event at fixed intervals (every 5 posts)
+        if ((index + 1) % EVENT_INTERVAL === 0 && eventIndex < events.length) {
+          merged.push({ ...events[eventIndex], itemType: 'event' });
+          eventIndex++;
+        }
+      });
+
+      // Add remaining events at the end
+      while (eventIndex < events.length) {
         merged.push({ ...events[eventIndex], itemType: 'event' });
         eventIndex++;
-        nextEventAt += 4 + Math.floor(Math.random() * 3); // Next event after 4-6 more posts
       }
-    });
+    } else {
+      // No posts, just show events
+      events.forEach(event => {
+        merged.push({ ...event, itemType: 'event' });
+      });
+    }
 
     setFeedItems(merged);
   }, [posts, events]);

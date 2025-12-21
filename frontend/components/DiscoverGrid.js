@@ -17,7 +17,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 2;
 const COLUMN_COUNT = 3;
 const ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (COLUMN_COUNT + 1)) / COLUMN_COUNT;
-const LARGE_ITEM_WIDTH = ITEM_SIZE * 2 + GRID_GAP; // For events (2-column span)
+// All items same size for proper grid layout
 
 /**
  * DiscoverGrid - Instagram-style 3-column grid for explore content
@@ -31,12 +31,12 @@ export default function DiscoverGrid({
   onRefresh,
   ListHeaderComponent,
 }) {
-  // Transform items for grid layout
-  // Events span 2 columns, posts span 1
+  // Render grid item - all items same size for proper grid layout
   const renderItem = ({ item, index }) => {
     const isEvent = item.item_type === 'event';
-    const itemWidth = isEvent ? LARGE_ITEM_WIDTH : ITEM_SIZE;
-    const itemHeight = isEvent ? ITEM_SIZE * 1.2 : ITEM_SIZE;
+    // All items same size now
+    const itemWidth = ITEM_SIZE;
+    const itemHeight = ITEM_SIZE;
 
     return (
       <TouchableOpacity
@@ -45,7 +45,8 @@ export default function DiscoverGrid({
           {
             width: itemWidth,
             height: itemHeight,
-            marginLeft: GRID_GAP,
+            marginLeft: index % 3 === 0 ? GRID_GAP : GRID_GAP / 2,
+            marginRight: index % 3 === 2 ? GRID_GAP : GRID_GAP / 2,
             marginTop: GRID_GAP,
           },
         ]}
@@ -99,16 +100,6 @@ export default function DiscoverGrid({
             </LinearGradient>
           </View>
         )}
-
-        {/* Post Engagement Indicator (likes) */}
-        {!isEvent && item.like_count > 0 && (
-          <View style={styles.engagementBadge}>
-            <Ionicons name="heart" size={10} color="#FFFFFF" />
-            <Text style={styles.engagementText}>
-              {item.like_count > 999 ? `${(item.like_count / 1000).toFixed(1)}k` : item.like_count}
-            </Text>
-          </View>
-        )}
       </TouchableOpacity>
     );
   };
@@ -139,6 +130,7 @@ export default function DiscoverGrid({
       data={items}
       renderItem={renderItem}
       keyExtractor={(item) => `${item.item_type}-${item.id}`}
+      numColumns={3}
       contentContainerStyle={styles.gridContainer}
       showsVerticalScrollIndicator={false}
       onEndReached={onEndReached}
@@ -153,18 +145,14 @@ export default function DiscoverGrid({
           </View>
         ) : null
       }
-      // Use row wrap layout instead of numColumns for variable width items
-      columnWrapperStyle={null}
-      key="discover-grid"
     />
   );
 }
 
 const styles = StyleSheet.create({
   gridContainer: {
+    paddingTop: 12, // Spacing from filters
     paddingBottom: 100, // Extra padding for tab bar
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   gridItem: {
     borderRadius: 2,
