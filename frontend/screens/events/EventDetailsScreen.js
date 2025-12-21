@@ -164,11 +164,14 @@ const EventDetailsScreen = ({ route, navigation }) => {
     );
   }
 
-  const banners = event.banners?.length > 0 
-    ? event.banners 
-    : event.banner_url 
-      ? [{ image_url: event.banner_url }] 
-      : [];
+  // Handle multiple possible banner field names from API
+  const banners = event.banner_carousel?.length > 0 
+    ? event.banner_carousel 
+    : event.banners?.length > 0 
+      ? event.banners 
+      : event.banner_url 
+        ? [{ image_url: event.banner_url, url: event.banner_url }] 
+        : [];
 
   const categories = event.categories 
     ? (Array.isArray(event.categories) ? event.categories : [event.categories])
@@ -437,8 +440,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {event.community_heads.map((head, index) => (
                     <View key={index} style={styles.headCard}>
-                      {head.profile_photo_url ? (
-                        <Image source={{ uri: head.profile_photo_url }} style={styles.headPhoto} />
+                      {head.profile_pic_url || head.profile_photo_url ? (
+                        <Image source={{ uri: head.profile_pic_url || head.profile_photo_url }} style={styles.headPhoto} />
                       ) : (
                         <LinearGradient
                           colors={getGradientForName(head.name || 'H')}
@@ -450,7 +453,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                         </LinearGradient>
                       )}
                       <Text style={styles.headName} numberOfLines={1}>{head.name}</Text>
-                      {head.role && <Text style={styles.headRole}>{head.role}</Text>}
+                      {head.is_primary && <Text style={styles.headRole}>Primary</Text>}
                     </View>
                   ))}
                 </ScrollView>

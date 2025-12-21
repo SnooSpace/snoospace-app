@@ -216,6 +216,15 @@ const getCommunityEvents = async (req, res) => {
         [eventId]
       );
 
+      // Fetch banner carousel images
+      const bannerResult = await pool.query(
+        `SELECT id, image_url, cloudinary_public_id, image_order 
+         FROM event_banners 
+         WHERE event_id = $1 
+         ORDER BY image_order ASC`,
+        [eventId]
+      );
+
       // Fetch highlights
       const highlightsResult = await pool.query(
         `SELECT id, icon_name, title, description, highlight_order 
@@ -280,16 +289,35 @@ const getCommunityEvents = async (req, res) => {
 
       // Debug: Log what we're returning for this event
       console.log(`[getCommunityEvents] Event ${event.id} (${event.title}):`, {
+        banner_count: bannerResult.rows.length,
+        gallery_count: galleryResult.rows.length,
         highlights_count: highlightsResult.rows.length,
         things_to_know_count: thingsToKnowResult.rows.length,
         featured_accounts_count: featuredAccountsResult.rows.length,
-        highlights: highlightsResult.rows.slice(0, 2), // Log first 2 for debugging
-        things_to_know: thingsToKnowResult.rows.slice(0, 2),
       });
+
+      // Transform banner rows to match frontend expected format (url instead of image_url)
+      const bannerCarousel = bannerResult.rows.map(b => ({
+        id: b.id,
+        url: b.image_url,
+        image_url: b.image_url,
+        cloudinary_public_id: b.cloudinary_public_id,
+        order: b.image_order
+      }));
+
+      // Transform gallery rows to match frontend expected format
+      const gallery = galleryResult.rows.map(g => ({
+        id: g.id,
+        url: g.image_url,
+        image_url: g.image_url,
+        cloudinary_public_id: g.cloudinary_public_id,
+        order: g.image_order
+      }));
 
       return {
         ...event,
-        gallery: galleryResult.rows,
+        banner_carousel: bannerCarousel,
+        gallery: gallery,
         highlights: highlightsResult.rows,
         things_to_know: thingsToKnowResult.rows,
         featured_accounts: featuredAccountsResult.rows
@@ -989,6 +1017,10 @@ const updateEvent = async (req, res) => {
 
     // Update banner carousel if provided
     if (banner_carousel && Array.isArray(banner_carousel)) {
+      console.log(`[updateEvent] Saving ${banner_carousel.length} banners for event ${eventId}`);
+      if (banner_carousel.length > 0) {
+        console.log(`[updateEvent] First banner:`, JSON.stringify(banner_carousel[0]));
+      }
       // Delete existing banners
       await pool.query('DELETE FROM event_banners WHERE event_id = $1', [eventId]);
       
@@ -997,17 +1029,23 @@ const updateEvent = async (req, res) => {
         const bannerInserts = banner_carousel.map((banner, index) => {
           // Support multiple possible field names from frontend
           const imageUrl = banner.url || banner.image_url || banner.secure_url;
+          console.log(`[updateEvent] Banner ${index}: resolved URL = ${imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL'}`);
           return pool.query(
             `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
             [eventId, imageUrl, banner.cloudinary_public_id || banner.public_id || null, index]
           );
         });
         await Promise.all(bannerInserts);
+        console.log(`[updateEvent] Successfully saved ${banner_carousel.length} banners`);
       }
     }
 
     // Update gallery if provided
     if (gallery && Array.isArray(gallery)) {
+      console.log(`[updateEvent] Saving ${gallery.length} gallery images for event ${eventId}`);
+      if (gallery.length > 0) {
+        console.log(`[updateEvent] First gallery image:`, JSON.stringify(gallery[0]));
+      }
       // Delete existing gallery
       await pool.query('DELETE FROM event_gallery WHERE event_id = $1', [eventId]);
       
@@ -1016,12 +1054,14 @@ const updateEvent = async (req, res) => {
         const galleryInserts = gallery.map((image, index) => {
           // Support multiple possible field names from frontend
           const imageUrl = image.url || image.image_url || image.secure_url;
+          console.log(`[updateEvent] Gallery ${index}: resolved URL = ${imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL'}`);
           return pool.query(
             `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
             [eventId, imageUrl, image.cloudinary_public_id || image.public_id || null, index]
           );
         });
         await Promise.all(galleryInserts);
+        console.log(`[updateEvent] Successfully saved ${gallery.length} gallery images`);
       }
     }
 
@@ -1242,21 +1282,50 @@ const getEventById = async (req, res) => {
     `;
     const featuredResult = await pool.query(featuredQuery, [eventId]);
 
-    // Fetch community heads
-    const headsResult = await pool.query(
-      `SELECT id, name, profile_photo_url, role, designation
-       FROM community_heads 
-       WHERE community_id = $1
-       ORDER BY display_order ASC`,
-      [event.community_id]
-    );
+    // Fetch community heads (only if creator_id exists)
+    let headsResult = { rows: [] };
+    if (event.creator_id) {
+      headsResult = await pool.query(
+        `SELECT id, name, profile_pic_url, email, is_primary
+         FROM community_heads 
+         WHERE community_id = $1
+         ORDER BY is_primary DESC, id ASC`,
+        [event.creator_id]
+      );
+    }
+
+    // Transform banner and gallery data to include `url` field for frontend compatibility
+    const bannerCarousel = bannersResult.rows.map(b => ({
+      id: b.id,
+      url: b.image_url,
+      image_url: b.image_url,
+      cloudinary_public_id: b.cloudinary_public_id,
+      order: b.image_order
+    }));
+
+    const gallery = galleryResult.rows.map(g => ({
+      id: g.id,
+      url: g.image_url,
+      image_url: g.image_url,
+      cloudinary_public_id: g.cloudinary_public_id,
+      order: g.image_order
+    }));
+
+    console.log(`[getEventById] Event ${eventId}:`, {
+      banner_count: bannerCarousel.length,
+      gallery_count: gallery.length,
+      highlights_count: highlightsResult.rows.length,
+      things_to_know_count: thingsResult.rows.length,
+      featured_accounts_count: featuredResult.rows.length,
+      community_heads_count: headsResult.rows.length,
+    });
 
     res.json({
       success: true,
       event: {
         ...event,
-        banners: bannersResult.rows,
-        gallery: galleryResult.rows,
+        banner_carousel: bannerCarousel,
+        gallery: gallery,
         highlights: highlightsResult.rows,
         things_to_know: thingsResult.rows,
         featured_accounts: featuredResult.rows,
