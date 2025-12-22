@@ -16,6 +16,8 @@ import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CreatePostScreen from "../components/CreatePostScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
+import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
+import CheckoutScreen from "../screens/events/CheckoutScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 
@@ -38,6 +40,8 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="VenueHome" component={VenueBottomTabNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="CommunityCreatePost" component={CreatePostScreen} options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="TicketSelection" component={TicketSelectionScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: false }} />
       <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CommunityPublicProfile" component={CommunityPublicProfileScreen} options={{ headerShown: false }} />
     </Stack.Navigator>

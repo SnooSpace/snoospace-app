@@ -140,8 +140,13 @@ const EventDetailsScreen = ({ route, navigation }) => {
   };
 
   const handleRegister = () => {
-    // TODO: Implement registration flow
-    console.log('Register for event:', event?.id);
+    // Navigate to ticket selection if there are ticket types
+    if (event?.ticket_types?.length > 0) {
+      navigation.navigate('TicketSelection', { event });
+    } else {
+      // Free event registration
+      console.log('Register for free event:', event?.id);
+    }
   };
 
   // Navigate to featured account's profile based on account type
@@ -529,14 +534,27 @@ const EventDetailsScreen = ({ route, navigation }) => {
       {/* Sticky Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
         <View style={styles.priceContainer}>
-          <Text style={styles.priceText}>
-            {event.ticket_price ? `₹${event.ticket_price}` : 'Free'}
-          </Text>
-          {event.ticket_price && <Text style={styles.priceSubtext}>onwards</Text>}
+          {(() => {
+            // Calculate lowest price from ticket_types
+            const hasTicketTypes = event.ticket_types?.length > 0;
+            const lowestPrice = hasTicketTypes 
+              ? Math.min(...event.ticket_types.map(t => parseFloat(t.base_price) || 0))
+              : (event.ticket_price ? parseFloat(event.ticket_price) : 0);
+            const isFree = lowestPrice === 0;
+            
+            return (
+              <>
+                <Text style={styles.priceText}>
+                  {isFree ? 'Free' : `₹${lowestPrice.toLocaleString('en-IN')}`}
+                </Text>
+                {!isFree && <Text style={styles.priceSubtext}>onwards</Text>}
+              </>
+            );
+          })()}
         </View>
         <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
           <Text style={styles.registerButtonText}>
-            {event.ticket_price ? 'Book tickets' : 'Register'}
+            {event.ticket_types?.length > 0 || event.ticket_price ? 'Book tickets' : 'Register'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -908,6 +926,106 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: BACKGROUND_COLOR,
+  },
+  // Ticket Section Styles
+  earlyBirdBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  earlyBirdText: {
+    color: '#FFB800',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ticketCard: {
+    backgroundColor: CARD_BACKGROUND,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  ticketCardDisabled: {
+    opacity: 0.5,
+  },
+  ticketMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  ticketInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  ticketNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ticketName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT_COLOR,
+  },
+  ticketDesc: {
+    fontSize: 13,
+    color: MUTED_TEXT,
+    marginTop: 4,
+  },
+  ticketPriceContainer: {
+    alignItems: 'flex-end',
+  },
+  ticketPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: PRIMARY_COLOR,
+  },
+  ticketPriceDisabled: {
+    color: MUTED_TEXT,
+    textDecorationLine: 'line-through',
+  },
+  lowStockBadge: {
+    backgroundColor: 'rgba(255, 149, 0, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  lowStockText: {
+    color: '#FF9500',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  soldOutBadge: {
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  soldOutText: {
+    color: '#FF3B30',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  promoHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  promoHintText: {
+    color: '#34C759',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 

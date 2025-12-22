@@ -28,7 +28,10 @@ const createEvent = async (req, res) => {
       highlights,  // Array of {icon_name, title, description}
       featured_accounts,  // Array of {display_name, role, description, profile_photo_url, ...}
       things_to_know,  // Array of {icon_name, label, preset_id}
-      ticket_price  // Ticket price (null = free)
+      ticket_price,  // Legacy: single ticket price (null = free)
+      ticket_types,   // Array of {name, description, base_price, total_quantity, ...}
+      discount_codes, // Array of {code, discount_type, discount_value, max_uses, ...}
+      pricing_rules   // Array of {name, rule_type, discount_type, discount_value, ...}
     } = req.body;
 
     // Validation
@@ -148,6 +151,93 @@ const createEvent = async (req, res) => {
         )
       );
       await Promise.all(thingsInserts);
+    }
+
+    // Save ticket types (multi-tier pricing)
+    if (ticket_types && Array.isArray(ticket_types) && ticket_types.length > 0) {
+      const ticketInserts = ticket_types.map((ticket, index) => 
+        pool.query(
+          `INSERT INTO ticket_types (
+            event_id, name, description, base_price, total_quantity,
+            sale_start_at, sale_end_at, visibility, access_code,
+            min_per_order, max_per_order, max_per_user, refund_policy,
+            display_order, is_active
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+          [
+            eventId,
+            ticket.name,
+            ticket.description || null,
+            ticket.base_price || 0,
+            ticket.total_quantity || null,
+            ticket.sale_start_at || null,
+            ticket.sale_end_at || null,
+            ticket.visibility || 'public',
+            ticket.access_code || null,
+            ticket.min_per_order || 1,
+            ticket.max_per_order || 10,
+            ticket.max_per_user || null,
+            JSON.stringify(ticket.refund_policy || {allowed: true, deadline_hours_before: 24, percentage: 100}),
+            index,
+            ticket.is_active !== false
+          ]
+        )
+      );
+      await Promise.all(ticketInserts);
+    }
+
+    // Save discount codes
+    if (discount_codes && Array.isArray(discount_codes) && discount_codes.length > 0) {
+      const codeInserts = discount_codes.map((dc) => 
+        pool.query(
+          `INSERT INTO discount_codes (
+            event_id, code, code_normalized, discount_type, discount_value,
+            max_uses, max_uses_per_user, valid_from, valid_until,
+            min_cart_value, applicable_ticket_ids, is_active
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            eventId,
+            dc.code,
+            dc.code.toUpperCase().trim(),
+            dc.discount_type || 'percentage',
+            dc.discount_value,
+            dc.max_uses || null,
+            dc.max_uses_per_user || 1,
+            dc.valid_from || null,
+            dc.valid_until || null,
+            dc.min_cart_value || null,
+            dc.applicable_ticket_ids || null,
+            dc.is_active !== false
+          ]
+        )
+      );
+      await Promise.all(codeInserts);
+    }
+
+    // Save pricing rules (early bird, group discounts)
+    if (pricing_rules && Array.isArray(pricing_rules) && pricing_rules.length > 0) {
+      const ruleInserts = pricing_rules.map((rule) => 
+        pool.query(
+          `INSERT INTO pricing_rules (
+            event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
+            quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            eventId,
+            rule.ticket_type_id || null,
+            rule.name,
+            rule.rule_type,
+            rule.discount_type || 'percentage',
+            rule.discount_value,
+            rule.quantity_threshold || null,
+            rule.min_quantity || null,
+            rule.valid_from || null,
+            rule.valid_until || null,
+            rule.priority || 100,
+            rule.is_active !== false
+          ]
+        )
+      );
+      await Promise.all(ruleInserts);
     }
 
     res.status(201).json({
@@ -314,13 +404,49 @@ const getCommunityEvents = async (req, res) => {
         order: g.image_order
       }));
 
+      // Fetch ticket types
+      const ticketTypesResult = await pool.query(
+        `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
+                sale_start_at, sale_end_at, visibility, access_code,
+                min_per_order, max_per_order, max_per_user, refund_policy,
+                display_order, is_active
+         FROM ticket_types 
+         WHERE event_id = $1
+         ORDER BY display_order ASC`,
+        [eventId]
+      );
+
+      // Fetch discount codes
+      const discountCodesResult = await pool.query(
+        `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
+                max_uses_per_user, valid_from, valid_until, min_cart_value,
+                applicable_ticket_ids, is_active
+         FROM discount_codes 
+         WHERE event_id = $1
+         ORDER BY created_at ASC`,
+        [eventId]
+      );
+
+      // Fetch pricing rules
+      const pricingRulesResult = await pool.query(
+        `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
+                quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+         FROM pricing_rules 
+         WHERE event_id = $1
+         ORDER BY priority ASC`,
+        [eventId]
+      );
+
       return {
         ...event,
         banner_carousel: bannerCarousel,
         gallery: gallery,
         highlights: highlightsResult.rows,
         things_to_know: thingsToKnowResult.rows,
-        featured_accounts: featuredAccountsResult.rows
+        featured_accounts: featuredAccountsResult.rows,
+        ticket_types: ticketTypesResult.rows,
+        discount_codes: discountCodesResult.rows,
+        pricing_rules: pricingRulesResult.rows
       };
     }));
     
@@ -913,7 +1039,10 @@ const updateEvent = async (req, res) => {
       is_published,
       highlights,
       featured_accounts,
-      things_to_know
+      things_to_know,
+      ticket_types,  // Array of ticket type objects
+      discount_codes, // Array of discount code objects
+      pricing_rules   // Array of pricing rule objects
     } = req.body;
 
     // Validate Google Maps URL if provided
@@ -1122,6 +1251,116 @@ const updateEvent = async (req, res) => {
       }
     }
 
+    // Update ticket_types if provided
+    if (ticket_types && Array.isArray(ticket_types)) {
+      console.log(`[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`);
+      
+      // Delete existing ticket types
+      await pool.query('DELETE FROM ticket_types WHERE event_id = $1', [eventId]);
+      
+      // Insert new ticket types
+      if (ticket_types.length > 0) {
+        const ticketInserts = ticket_types.map((ticket, index) =>
+          pool.query(
+            `INSERT INTO ticket_types (
+              event_id, name, description, base_price, total_quantity,
+              sale_start_at, sale_end_at, visibility, access_code,
+              min_per_order, max_per_order, max_per_user, refund_policy,
+              display_order, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            [
+              eventId,
+              ticket.name,
+              ticket.description || null,
+              ticket.base_price || 0,
+              ticket.total_quantity || null,
+              ticket.sale_start_at || null,
+              ticket.sale_end_at || null,
+              ticket.visibility || 'public',
+              ticket.access_code || null,
+              ticket.min_per_order || 1,
+              ticket.max_per_order || 10,
+              ticket.max_per_user || null,
+              JSON.stringify(ticket.refund_policy || {allowed: true, deadline_hours_before: 24, percentage: 100}),
+              index,
+              ticket.is_active !== false
+            ]
+          )
+        );
+        await Promise.all(ticketInserts);
+        console.log(`[updateEvent] Successfully saved ${ticket_types.length} ticket types`);
+      }
+    }
+
+    // Update discount_codes if provided
+    if (discount_codes && Array.isArray(discount_codes)) {
+      console.log(`[updateEvent] Saving ${discount_codes.length} discount codes for event ${eventId}`);
+      
+      await pool.query('DELETE FROM discount_codes WHERE event_id = $1', [eventId]);
+      
+      if (discount_codes.length > 0) {
+        const codeInserts = discount_codes.map((dc) =>
+          pool.query(
+            `INSERT INTO discount_codes (
+              event_id, code, code_normalized, discount_type, discount_value,
+              max_uses, max_uses_per_user, valid_from, valid_until,
+              min_cart_value, applicable_ticket_ids, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [
+              eventId,
+              dc.code,
+              dc.code.toUpperCase().trim(),
+              dc.discount_type || 'percentage',
+              dc.discount_value,
+              dc.max_uses || null,
+              dc.max_uses_per_user || 1,
+              dc.valid_from || null,
+              dc.valid_until || null,
+              dc.min_cart_value || null,
+              dc.applicable_ticket_ids || null,
+              dc.is_active !== false
+            ]
+          )
+        );
+        await Promise.all(codeInserts);
+        console.log(`[updateEvent] Successfully saved ${discount_codes.length} discount codes`);
+      }
+    }
+
+    // Update pricing_rules if provided
+    if (pricing_rules && Array.isArray(pricing_rules)) {
+      console.log(`[updateEvent] Saving ${pricing_rules.length} pricing rules for event ${eventId}`);
+      
+      await pool.query('DELETE FROM pricing_rules WHERE event_id = $1', [eventId]);
+      
+      if (pricing_rules.length > 0) {
+        const ruleInserts = pricing_rules.map((rule) =>
+          pool.query(
+            `INSERT INTO pricing_rules (
+              event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
+              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [
+              eventId,
+              rule.ticket_type_id || null,
+              rule.name,
+              rule.rule_type,
+              rule.discount_type || 'percentage',
+              rule.discount_value,
+              rule.quantity_threshold || null,
+              rule.min_quantity || null,
+              rule.valid_from || null,
+              rule.valid_until || null,
+              rule.priority || 100,
+              rule.is_active !== false
+            ]
+          )
+        );
+        await Promise.all(ruleInserts);
+        console.log(`[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`);
+      }
+    }
+
     // Notify registered attendees if key fields changed
     if (changedFields.length > 0) {
       // Get community name for notification
@@ -1294,6 +1533,18 @@ const getEventById = async (req, res) => {
       );
     }
 
+    // Fetch ticket types
+    const ticketTypesResult = await pool.query(
+      `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
+              sale_start_at, sale_end_at, visibility, access_code,
+              min_per_order, max_per_order, max_per_user, refund_policy,
+              display_order, is_active
+       FROM ticket_types 
+       WHERE event_id = $1 AND is_active = true
+       ORDER BY display_order ASC`,
+      [eventId]
+    );
+
     // Transform banner and gallery data to include `url` field for frontend compatibility
     const bannerCarousel = bannersResult.rows.map(b => ({
       id: b.id,
@@ -1311,6 +1562,27 @@ const getEventById = async (req, res) => {
       order: g.image_order
     }));
 
+    // Fetch discount codes
+    const discountCodesResult = await pool.query(
+      `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
+              max_uses_per_user, valid_from, valid_until, min_cart_value,
+              applicable_ticket_ids, is_active
+       FROM discount_codes 
+       WHERE event_id = $1
+       ORDER BY created_at ASC`,
+      [eventId]
+    );
+
+    // Fetch pricing rules
+    const pricingRulesResult = await pool.query(
+      `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
+              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+       FROM pricing_rules 
+       WHERE event_id = $1
+       ORDER BY priority ASC`,
+      [eventId]
+    );
+
     console.log(`[getEventById] Event ${eventId}:`, {
       banner_count: bannerCarousel.length,
       gallery_count: gallery.length,
@@ -1318,6 +1590,9 @@ const getEventById = async (req, res) => {
       things_to_know_count: thingsResult.rows.length,
       featured_accounts_count: featuredResult.rows.length,
       community_heads_count: headsResult.rows.length,
+      ticket_types_count: ticketTypesResult.rows.length,
+      discount_codes_count: discountCodesResult.rows.length,
+      pricing_rules_count: pricingRulesResult.rows.length,
     });
 
     res.json({
@@ -1330,6 +1605,9 @@ const getEventById = async (req, res) => {
         things_to_know: thingsResult.rows,
         featured_accounts: featuredResult.rows,
         community_heads: headsResult.rows,
+        ticket_types: ticketTypesResult.rows,
+        discount_codes: discountCodesResult.rows,
+        pricing_rules: pricingRulesResult.rows,
       }
     });
 

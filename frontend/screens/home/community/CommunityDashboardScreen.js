@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { mockData } from '../../../data/mockData';
 import CreateEventModal from '../../../components/modals/CreateEventModal';
 import EditEventModal from '../../../components/modals/EditEventModal';
+import { COLORS, SHADOWS } from '../../../constants/theme';
 
-const PRIMARY_COLOR = '#6A0DAD';
+const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = '#1D1D1F';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
@@ -171,7 +173,6 @@ export default function CommunityDashboardScreen({ navigation }) {
           <Text style={styles.headerTitle}>Dashboard</Text>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActions}>
@@ -179,9 +180,14 @@ export default function CommunityDashboardScreen({ navigation }) {
               style={styles.actionButton}
               onPress={handleCreateEvent}
             >
-              <View style={styles.actionIconContainer}>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionIconContainer}
+              >
                 <Ionicons name="calendar" size={32} color="#FFFFFF" />
-              </View>
+              </LinearGradient>
               <Text style={styles.actionButtonText}>Create Event</Text>
             </TouchableOpacity>
             
@@ -189,9 +195,14 @@ export default function CommunityDashboardScreen({ navigation }) {
               style={styles.actionButton}
               onPress={handleCreatePost}
             >
-              <View style={styles.actionIconContainer}>
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionIconContainer}
+              >
                 <Ionicons name="add" size={32} color="#FFFFFF" />
-              </View>
+              </LinearGradient>
               <Text style={styles.actionButtonText}>Create Post</Text>
             </TouchableOpacity>
           </View>
@@ -336,18 +347,17 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#FAFAFA',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
+    borderColor: '#E5E5EA',
   },
   actionIconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: PRIMARY_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
@@ -364,10 +374,11 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#FAFAFA',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
+    ...SHADOWS.sm,
   },
   metricNumber: {
     fontSize: 24,

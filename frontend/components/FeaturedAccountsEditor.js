@@ -13,10 +13,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { uploadPerformerPhoto } from '../api/upload';
 import { searchAccounts as searchAccountsAPI } from '../api/search';
+import { COLORS, SHADOWS } from '../constants/theme';
 
-const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
@@ -222,7 +223,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
       )}
 
       <TouchableOpacity style={styles.addButton} onPress={startAdd}>
-        <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
+        <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
         <Text style={styles.addButtonText}>Add Featured Account</Text>
       </TouchableOpacity>
 
@@ -249,7 +250,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                   <Ionicons
                     name={r.icon}
                     size={20}
-                    color={role === r.value ? '#FFFFFF' : PRIMARY_COLOR}
+                    color={role === r.value ? '#FFFFFF' : COLORS.primary}
                   />
                   <Text
                     style={[styles.roleText, role === r.value && styles.roleTextSelected]}
@@ -269,7 +270,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                 style={styles.modeButton}
                 onPress={() => setMode('search')}
               >
-                <Ionicons name="search-outline" size={24} color={PRIMARY_COLOR} />
+                <Ionicons name="search-outline" size={24} color={COLORS.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modeTitle}>Link Existing Account</Text>
                   <Text style={styles.modeSubtitle}>Search for DJs, sponsors, venues</Text>
@@ -281,7 +282,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                 style={styles.modeButton}
                 onPress={() => setMode('manual')}
               >
-                <Ionicons name="create-outline" size={24} color={PRIMARY_COLOR} />
+                <Ionicons name="create-outline" size={24} color={COLORS.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modeTitle}>Manual Entry</Text>
                   <Text style={styles.modeSubtitle}>For performers without accounts</Text>
@@ -295,7 +296,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
           {mode === 'search' && (
             <View style={styles.section}>
               <TouchableOpacity onPress={() => setMode(null)} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
 
@@ -311,7 +312,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                 placeholderTextColor={LIGHT_TEXT_COLOR}
               />
 
-              {searching && <ActivityIndicator style={{ marginTop: 20 }} color={PRIMARY_COLOR} />}
+              {searching && <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} />}
 
               {searchResults.map((result) => (
                 <TouchableOpacity
@@ -339,7 +340,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
           {mode === 'manual' && (
             <View style={styles.section}>
               <TouchableOpacity onPress={() => setMode(null)} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
 
@@ -376,7 +377,14 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
               />
 
               <TouchableOpacity style={styles.saveButton} onPress={addManual}>
-                <Text style={styles.saveButtonText}>Add Account</Text>
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveButtonGradient}
+                >
+                  <Text style={styles.saveButtonText}>Add Account</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           )}
@@ -407,12 +415,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#E3F2FD',
     padding: 12,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5DBFF',
+    borderColor: '#BBDEFB',
   },
   accountInfo: {
     flexDirection: 'row',
@@ -450,15 +458,15 @@ const styles = StyleSheet.create({
     padding: 15,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     borderRadius: 12,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#E3F2FD',
   },
   addButtonText: {
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   modalContainer: {
     flex: 1,
@@ -498,16 +506,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    borderColor: COLORS.primary,
     backgroundColor: '#FFFFFF',
   },
   roleButtonSelected: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   roleText: {
     marginLeft: 6,
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontWeight: '600',
   },
   roleTextSelected: {
@@ -541,7 +549,7 @@ const styles = StyleSheet.create({
   backText: {
     marginLeft: 6,
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     fontWeight: '600',
   },
   searchInput: {
@@ -579,9 +587,9 @@ const styles = StyleSheet.create({
   },
   resultType: {
     fontSize: 11,
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
     textTransform: 'capitalize',
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#E3F2FD',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -624,11 +632,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   saveButton: {
-    backgroundColor: PRIMARY_COLOR,
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 30,
+    overflow: 'hidden',
     marginTop: 10,
+  },
+  saveButtonGradient: {
+    padding: 15,
+    borderRadius: 30,
+    alignItems: 'center',
   },
   saveButtonText: {
 color: '#FFFFFF',

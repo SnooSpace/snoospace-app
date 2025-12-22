@@ -10,8 +10,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SHADOWS } from '../constants/theme';
 
-const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
@@ -114,13 +115,13 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
       <View style={styles.highlightHeader}>
         <View style={styles.iconTitleRow}>
           <View style={styles.iconCircle}>
-            <Ionicons name={item.icon_name} size={24} color={PRIMARY_COLOR} />
+            <Ionicons name={item.icon_name} size={24} color={COLORS.primary} />
           </View>
           <Text style={styles.highlightTitle}>{item.title}</Text>
         </View>
         <View style={styles.actions}>
           <TouchableOpacity onPress={() => editHighlight(index)}>
-            <Ionicons name="create-outline" size={20} color={PRIMARY_COLOR} />
+            <Ionicons name="create-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => deleteHighlight(index)} style={{ marginLeft: 12 }}>
             <Ionicons name="trash-outline" size={20} color="#FF3B30" />
@@ -153,7 +154,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
       {highlights.length < maxHighlights && (
         <TouchableOpacity style={styles.addButton} onPress={addHighlight}>
-          <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
+          <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
           <Text style={styles.addButtonText}>Add Highlight</Text>
         </TouchableOpacity>
       )}
@@ -182,7 +183,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                 style={styles.iconSelector}
                 onPress={() => setShowIconPicker(!showIconPicker)}
               >
-                <Ionicons name={currentHighlight.icon_name} size={32} color={PRIMARY_COLOR} />
+                <Ionicons name={currentHighlight.icon_name} size={32} color={COLORS.primary} />
                 <Text style={styles.iconSelectorText}>Tap to change icon</Text>
               </TouchableOpacity>
 
@@ -200,7 +201,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                         setShowIconPicker(false);
                       }}
                     >
-                      <Ionicons name={icon.name} size={28} color={PRIMARY_COLOR} />
+                      <Ionicons name={icon.name} size={28} color={COLORS.primary} />
                       <Text style={styles.iconLabel}>{icon.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -233,9 +234,16 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
               {/* Save Button */}
               <TouchableOpacity style={styles.saveButton} onPress={saveHighlight}>
-                <Text style={styles.saveButtonText}>
-                  {editingIndex !== null ? 'Update' : 'Add'} Highlight
-                </Text>
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveButtonGradient}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {editingIndex !== null ? 'Update' : 'Add'} Highlight
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -262,12 +270,12 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
   },
   highlightCard: {
-    backgroundColor: '#F8F5FF',
+    backgroundColor: '#E3F2FD',
     borderRadius: 12,
     padding: 15,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5DBFF',
+    borderColor: '#BBDEFB',
   },
   highlightHeader: {
     flexDirection: 'row',
@@ -319,7 +327,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -382,8 +390,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   iconOptionSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: '#F8F5FF',
+    borderColor: COLORS.primary,
+    backgroundColor: '#E3F2FD',
   },
   iconLabel: {
     fontSize: 10,
@@ -405,11 +413,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   saveButton: {
-    backgroundColor: PRIMARY_COLOR,
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 30,
+    overflow: 'hidden',
     marginTop: 20,
+  },
+  saveButtonGradient: {
+    padding: 15,
+    borderRadius: 30,
+    alignItems: 'center',
   },
   saveButtonText: {
     color: '#FFFFFF',

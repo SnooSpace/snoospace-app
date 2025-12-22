@@ -12,8 +12,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadEventGallery } from '../api/upload';
+import { COLORS } from '../constants/theme';
 
-const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
@@ -138,10 +138,10 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
         disabled={uploading || images.length >= maxImages}
       >
         {uploading ? (
-          <ActivityIndicator color={PRIMARY_COLOR} />
+          <ActivityIndicator color={COLORS.primary} />
         ) : (
           <>
-            <Ionicons name="images-outline" size={32} color={PRIMARY_COLOR} />
+            <Ionicons name="images-outline" size={32} color={COLORS.primary} />
             <Text style={styles.addButtonText}>
               {images.length === 0 ? 'Add Gallery Images' : 'Add More Images'}
             </Text>
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 14,
     fontWeight: '600',
-    color: PRIMARY_COLOR,
+    color: COLORS.primary,
   },
   addButtonSubtext: {
     marginTop: 4,

@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SHADOWS } from '../constants/theme';
 
-const PRIMARY_COLOR = '#6B46C1';
 const LIGHT_GRAY = '#E5E5EA';
 const TEXT_COLOR = '#1C1C1E';
 
 /**
  * StepIndicator - Progress indicator for multi-step forms
  * Shows current step, completed steps, and remaining steps
+ * Updated with Blue/Cyan gradient aesthetic
  */
 const StepIndicator = ({ currentStep, totalSteps, stepLabels = [] }) => {
   return (
@@ -24,25 +26,26 @@ const StepIndicator = ({ currentStep, totalSteps, stepLabels = [] }) => {
             <React.Fragment key={stepNumber}>
               <View style={styles.stepWrapper}>
                 {/* Step circle */}
-                <View
-                  style={[
-                    styles.stepCircle,
-                    isCompleted && styles.stepCircleCompleted,
-                    isCurrent && styles.stepCircleCurrent,
-                    isUpcoming && styles.stepCircleUpcoming,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.stepNumber,
-                      isCompleted && styles.stepNumberCompleted,
-                      isCurrent && styles.stepNumberCurrent,
-                      isUpcoming && styles.stepNumberUpcoming,
-                    ]}
-                  >
-                    {stepNumber}
-                  </Text>
-                </View>
+                {(isCurrent || isCompleted) ? (
+                  <View style={[styles.stepCircleOuter, isCurrent && styles.stepCircleGlow]}>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.stepCircleGradient}
+                    >
+                      <Text style={styles.stepNumberActive}>
+                        {stepNumber}
+                      </Text>
+                    </LinearGradient>
+                  </View>
+                ) : (
+                  <View style={styles.stepCircleUpcoming}>
+                    <Text style={styles.stepNumberUpcoming}>
+                      {stepNumber}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Step label */}
                 {stepLabels[index] && (
@@ -95,37 +98,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  stepCircle: {
+  stepCircleOuter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  stepCircleGlow: {
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  stepCircleGradient: {
     width: 32,
     height: 32,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-  },
-  stepCircleCompleted: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
-  },
-  stepCircleCurrent: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
+    overflow: 'hidden',
   },
   stepCircleUpcoming: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    borderWidth: 2,
     borderColor: LIGHT_GRAY,
   },
-  stepNumber: {
+  stepNumberActive: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  stepNumberCompleted: {
-    color: '#FFFFFF',
-  },
-  stepNumberCurrent: {
     color: '#FFFFFF',
   },
   stepNumberUpcoming: {
+    fontSize: 14,
+    fontWeight: '600',
     color: LIGHT_GRAY,
   },
   stepLabel: {
@@ -136,17 +146,18 @@ const styles = StyleSheet.create({
     maxWidth: 80,
   },
   stepLabelCurrent: {
-    color: PRIMARY_COLOR,
-    fontWeight: '600',
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   connector: {
-    height: 2,
+    height: 3,
     backgroundColor: LIGHT_GRAY,
-    marginTop: 15,
+    marginTop: 14,
     flex: 0.5,
+    borderRadius: 1.5,
   },
   connectorCompleted: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: COLORS.primary,
   },
   progressText: {
     textAlign: 'center',

@@ -198,6 +198,9 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES communities(id);
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_price DECIMAL(10,2);
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Add constraint for event_type
       DO $$ BEGIN
@@ -238,6 +241,117 @@ async function ensureTables(pool) {
         UNIQUE(event_id, member_id)
       );
       
+      -- Ticket types for events (multi-tier pricing)
+      CREATE TABLE IF NOT EXISTS ticket_types (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        
+        -- Identity
+        name TEXT NOT NULL,                           -- "General Admission", "VIP", "Student"
+        description TEXT,
+        
+        -- Pricing (INR only)
+        base_price DECIMAL(10,2) NOT NULL DEFAULT 0,  -- 0 = free
+        
+        -- Inventory
+        total_quantity INTEGER,                       -- NULL = unlimited
+        sold_count INTEGER DEFAULT 0,
+        reserved_count INTEGER DEFAULT 0,             -- Currently in checkout
+        
+        -- Sale Window (in UTC)
+        sale_start_at TIMESTAMPTZ,                    -- NULL = immediately available
+        sale_end_at TIMESTAMPTZ,                      -- NULL = until event start
+        
+        -- Visibility & Access
+        visibility TEXT DEFAULT 'public',             -- 'public', 'hidden', 'invite_only'
+        access_code TEXT,                             -- Required for hidden/invite_only tickets
+        
+        -- Per-Order Limits
+        min_per_order INTEGER DEFAULT 1,
+        max_per_order INTEGER DEFAULT 10,
+        max_per_user INTEGER,                         -- NULL = no limit
+        
+        -- Refund Policy (JSONB for flexibility)
+        refund_policy JSONB DEFAULT '{"allowed": true, "deadline_hours_before": 24, "percentage": 100}'::jsonb,
+        
+        -- Display & Status
+        gender_restriction TEXT DEFAULT 'all',         -- 'all', 'Male', 'Female', 'Non-binary'
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_ticket_types_event ON ticket_types(event_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_types_visibility ON ticket_types(visibility);
+      CREATE INDEX IF NOT EXISTS idx_ticket_types_active ON ticket_types(is_active, event_id);
+
+      -- Discount codes for events (promo codes)
+      CREATE TABLE IF NOT EXISTS discount_codes (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        
+        -- Code
+        code TEXT NOT NULL,
+        code_normalized TEXT NOT NULL,             -- UPPER(TRIM(code)) for case-insensitive lookup
+        
+        -- Discount type and value
+        discount_type TEXT NOT NULL DEFAULT 'percentage',  -- 'percentage' or 'flat'
+        discount_value DECIMAL(10,2) NOT NULL,             -- e.g., 20 for 20% or 500 for ₹500 off
+        
+        -- Usage limits
+        max_uses INTEGER,                          -- NULL = unlimited
+        current_uses INTEGER DEFAULT 0,
+        max_uses_per_user INTEGER DEFAULT 1,
+        
+        -- Validity
+        valid_from TIMESTAMPTZ,
+        valid_until TIMESTAMPTZ,
+        
+        -- Restrictions
+        min_cart_value DECIMAL(10,2),              -- Minimum order value to apply
+        applicable_ticket_ids BIGINT[],            -- NULL = all tickets
+        
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_discount_codes_event_code ON discount_codes(event_id, code_normalized);
+      CREATE INDEX IF NOT EXISTS idx_discount_codes_event ON discount_codes(event_id);
+
+      -- Pricing rules for events (early bird, group discounts, etc.)
+      CREATE TABLE IF NOT EXISTS pricing_rules (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        ticket_type_id BIGINT REFERENCES ticket_types(id) ON DELETE CASCADE,  -- NULL = applies to all
+        
+        -- Rule identity
+        name TEXT NOT NULL,
+        rule_type TEXT NOT NULL,                   -- 'early_bird_time', 'early_bird_quantity', 'group_discount'
+        
+        -- Discount
+        discount_type TEXT NOT NULL DEFAULT 'percentage',  -- 'percentage' or 'flat'
+        discount_value DECIMAL(10,2) NOT NULL,
+        
+        -- Conditions (depend on rule_type)
+        -- For early_bird_time: valid_from/valid_until
+        -- For early_bird_quantity: quantity_threshold
+        -- For group_discount: min_quantity
+        quantity_threshold INTEGER,                -- For early_bird_quantity: discount when sold < this
+        min_quantity INTEGER,                      -- For group_discount: min tickets to get discount
+        
+        -- Validity
+        valid_from TIMESTAMPTZ,
+        valid_until TIMESTAMPTZ,
+        
+        -- Priority (lower = higher priority)
+        priority INTEGER DEFAULT 100,
+        
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pricing_rules_event ON pricing_rules(event_id);
+      CREATE INDEX IF NOT EXISTS idx_pricing_rules_active ON pricing_rules(is_active, event_id);
+
       -- Event swipes (for matching attendees)
       CREATE TABLE IF NOT EXISTS event_swipes (
         id BIGSERIAL PRIMARY KEY,

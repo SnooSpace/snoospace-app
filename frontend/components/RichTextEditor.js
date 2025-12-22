@@ -7,8 +7,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../constants/theme';
 
-const PRIMARY_COLOR = '#6B46C1';
 const TEXT_COLOR = '#1C1C1E';
 const LIGHT_TEXT_COLOR = '#8E8E93';
 
@@ -49,7 +49,7 @@ const RichTextEditor = ({ value, onChange, minLength = 50, maxLength = 2000, pla
           <Ionicons
             name={showPreview ? 'create-outline' : 'eye-outline'}
             size={20}
-            color={showPreview ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+            color={showPreview ? COLORS.primary : LIGHT_TEXT_COLOR}
           />
         </TouchableOpacity>
       </View>
