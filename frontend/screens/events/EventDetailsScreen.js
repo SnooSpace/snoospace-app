@@ -144,6 +144,31 @@ const EventDetailsScreen = ({ route, navigation }) => {
     console.log('Register for event:', event?.id);
   };
 
+  // Navigate to featured account's profile based on account type
+  const handleFeaturedAccountPress = (account) => {
+    if (!account.linked_account_id || !account.linked_account_type) return;
+    
+    switch (account.linked_account_type) {
+      case 'member':
+        navigation.navigate('MemberPublicProfile', { memberId: account.linked_account_id });
+        break;
+      case 'community':
+        navigation.navigate('CommunityPublicProfile', { communityId: account.linked_account_id });
+        break;
+      case 'sponsor':
+        // Sponsor profiles not yet implemented
+        console.log('Sponsor profile navigation not implemented');
+        break;
+    }
+  };
+
+  // Navigate to community head's linked member profile
+  const handleCommunityHeadPress = (head) => {
+    if (head.member_id) {
+      navigation.navigate('MemberPublicProfile', { memberId: head.member_id });
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -376,7 +401,16 @@ const EventDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.sectionTitle}>Featured</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {event.featured_accounts.map((account, index) => (
-                  <View key={index} style={styles.featuredCard}>
+                  <TouchableOpacity 
+                    key={index} 
+                    style={[
+                      styles.featuredCard,
+                      account.linked_account_id && styles.featuredCardClickable
+                    ]}
+                    onPress={() => handleFeaturedAccountPress(account)}
+                    disabled={!account.linked_account_id}
+                    activeOpacity={account.linked_account_id ? 0.7 : 1}
+                  >
                     {account.profile_photo_url || account.account_photo ? (
                       <Image 
                         source={{ uri: account.profile_photo_url || account.account_photo }} 
@@ -396,7 +430,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       {account.display_name || account.account_name}
                     </Text>
                     <Text style={styles.featuredRole}>{account.role}</Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
@@ -439,7 +473,16 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 <Text style={styles.headsTitle}>Community Heads</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {event.community_heads.map((head, index) => (
-                    <View key={index} style={styles.headCard}>
+                    <TouchableOpacity 
+                      key={index} 
+                      style={[
+                        styles.headCard,
+                        head.member_id && styles.headCardClickable
+                      ]}
+                      onPress={() => handleCommunityHeadPress(head)}
+                      disabled={!head.member_id}
+                      activeOpacity={head.member_id ? 0.7 : 1}
+                    >
                       {head.profile_pic_url || head.profile_photo_url ? (
                         <Image source={{ uri: head.profile_pic_url || head.profile_photo_url }} style={styles.headPhoto} />
                       ) : (
@@ -454,7 +497,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       )}
                       <Text style={styles.headName} numberOfLines={1}>{head.name}</Text>
                       {head.is_primary && <Text style={styles.headRole}>Primary</Text>}
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
               </View>

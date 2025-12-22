@@ -1286,7 +1286,7 @@ const getEventById = async (req, res) => {
     let headsResult = { rows: [] };
     if (event.creator_id) {
       headsResult = await pool.query(
-        `SELECT id, name, profile_pic_url, email, is_primary
+        `SELECT id, name, profile_pic_url, email, is_primary, member_id
          FROM community_heads 
          WHERE community_id = $1
          ORDER BY is_primary DESC, id ASC`,
