@@ -43,14 +43,30 @@ const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 const SPONSOR_TYPES = [
-  'Protein brands', 'Energy Drinks', 'Supplements', 'Apparel',
-  'Tech Gadgets', 'Local Businesses',
+  "Protein brands",
+  "Energy Drinks",
+  "Supplements",
+  "Apparel",
+  "Tech Gadgets",
+  "Local Businesses",
 ];
 
 const CATEGORIES = [
-  'Sports', 'Music', 'Technology', 'Travel', 'Food & Drink',
-  'Art & Culture', 'Fitness', 'Gaming', 'Movies', 'Books',
-  'Fashion', 'Photography', 'Outdoors', 'Volunteering', 'Networking',
+  "Sports",
+  "Music",
+  "Technology",
+  "Travel",
+  "Food & Drink",
+  "Art & Culture",
+  "Fitness",
+  "Gaming",
+  "Movies",
+  "Books",
+  "Fashion",
+  "Photography",
+  "Outdoors",
+  "Volunteering",
+  "Networking",
 ];
 
 export default function EditCommunityProfileScreen({ route, navigation }) {
@@ -68,11 +84,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
   const getPrimaryFromProfile = (p) =>
-    p?.phone ??
-    p?.primary_phone ??
-    p?.primaryPhone ??
-    p?.phone_primary ??
-    "";
+    p?.phone ?? p?.primary_phone ?? p?.primaryPhone ?? p?.phone_primary ?? "";
   const getSecondaryFromProfile = (p) =>
     p?.secondary_phone ??
     p?.secondaryPhone ??
@@ -81,8 +93,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     p?.phone_secondary ??
     "";
   const sanitizePhoneValue = (value) =>
-    String(value || "").replace(/\D/g, "").slice(0, 10);
-  const initialPrimaryPhone = sanitizePhoneValue(getPrimaryFromProfile(profile));
+    String(value || "")
+      .replace(/\D/g, "")
+      .slice(0, 10);
+  const initialPrimaryPhone = sanitizePhoneValue(
+    getPrimaryFromProfile(profile)
+  );
   const initialSecondaryPhone = sanitizePhoneValue(
     getSecondaryFromProfile(profile)
   );
@@ -95,9 +111,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const [primaryPhone, setPrimaryPhone] = useState(initialPrimaryPhone);
   const [secondaryPhone, setSecondaryPhone] = useState(initialSecondaryPhone);
-  const initialCategories = Array.isArray(profile?.categories) && profile.categories.length
-    ? profile.categories
-    : (profile?.category ? [profile.category] : []);
+  const initialCategories =
+    Array.isArray(profile?.categories) && profile.categories.length
+      ? profile.categories
+      : profile?.category
+      ? [profile.category]
+      : [];
   const [categories, setCategories] = useState(initialCategories);
   const [sponsorTypes, setSponsorTypes] = useState(
     profile?.sponsor_types || []
@@ -169,7 +188,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     );
     const originalEmail = sourceProfile?.email || "";
     const originalCategories =
-      Array.isArray(sourceProfile?.categories) && sourceProfile.categories.length
+      Array.isArray(sourceProfile?.categories) &&
+      sourceProfile.categories.length
         ? sourceProfile.categories
         : sourceProfile?.category
         ? [sourceProfile.category]
@@ -188,8 +208,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       primaryPhone !== originalPrimaryPhone ||
       secondaryPhone !== originalSecondaryPhone ||
       email !== originalEmail ||
-      JSON.stringify(currentCategories) !== JSON.stringify(originalCategoriesNormalized) ||
-      JSON.stringify(currentSponsorTypes) !== JSON.stringify(originalSponsorTypes) ||
+      JSON.stringify(currentCategories) !==
+        JSON.stringify(originalCategoriesNormalized) ||
+      JSON.stringify(currentSponsorTypes) !==
+        JSON.stringify(originalSponsorTypes) ||
       JSON.stringify(location) !== JSON.stringify(originalLocation);
 
     setHasChanges(!!changed);
@@ -197,13 +219,16 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const hydratePhonesFromProfile = useCallback((latestProfile) => {
     if (!latestProfile) return;
-    const nextPrimary = sanitizePhoneValue(getPrimaryFromProfile(latestProfile));
+    const nextPrimary = sanitizePhoneValue(
+      getPrimaryFromProfile(latestProfile)
+    );
     const nextSecondary = sanitizePhoneValue(
       getSecondaryFromProfile(latestProfile)
     );
     console.log("[EditCommunityProfile] hydratePhonesFromProfile", {
       latestProfilePhone: latestProfile?.phone,
-      latestSecondary: latestProfile?.secondary_phone ?? latestProfile?.secondaryPhone,
+      latestSecondary:
+        latestProfile?.secondary_phone ?? latestProfile?.secondaryPhone,
       nextPrimary,
       nextSecondary,
     });
@@ -329,9 +354,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     if (!hasChanges) return;
 
     // Validate sponsor types
-    const isOpenToAll = sponsorTypes.length === 1 && sponsorTypes[0] === 'Open to All';
+    const isOpenToAll =
+      sponsorTypes.length === 1 && sponsorTypes[0] === "Open to All";
     if (!isOpenToAll && sponsorTypes.length < 3) {
-      Alert.alert("Error", "Please select at least 3 sponsor types or 'Open to All'");
+      Alert.alert(
+        "Error",
+        "Please select at least 3 sponsor types or 'Open to All'"
+      );
       return;
     }
 
@@ -342,13 +371,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       const normalizedCategories = Array.from(
         new Set(
           (categories || [])
-            .map((c) => (typeof c === 'string' ? c.trim() : ''))
+            .map((c) => (typeof c === "string" ? c.trim() : ""))
             .filter((c) => c)
         )
       ).slice(0, 3);
 
       if (normalizedCategories.length === 0) {
-        Alert.alert('Error', 'Please select at least one category.');
+        Alert.alert("Error", "Please select at least one category.");
         setSaving(false);
         return;
       }
@@ -466,7 +495,11 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             loading={saving}
             style={[
               { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
-              (!hasChanges || saving) && { shadowOpacity: 0, elevation: 0, shadowColor: 'transparent' }
+              (!hasChanges || saving) && {
+                shadowOpacity: 0,
+                elevation: 0,
+                shadowColor: "transparent",
+              },
             ]}
           />
         </View>
@@ -483,11 +516,53 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               {uploadingPhoto ? (
                 <ActivityIndicator size="small" color={PRIMARY_COLOR} />
               ) : (
-                <Text style={styles.changeButtonText}>
-                  Change Logo
-                </Text>
+                <Text style={styles.changeButtonText}>Change Logo</Text>
               )}
             </TouchableOpacity>
+          </View>
+
+          {/* Banner Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Banner</Text>
+            <Text style={styles.sectionSubtitle}>
+              Add a banner to make your profile stand out (1200 x 400
+              recommended)
+            </Text>
+            {profile?.banner_url ? (
+              <View style={styles.bannerPreviewContainer}>
+                <Image
+                  source={{ uri: profile.banner_url }}
+                  style={styles.bannerPreview}
+                />
+                <View style={styles.bannerButtons}>
+                  <TouchableOpacity
+                    style={styles.changeButton}
+                    onPress={() => {
+                      // Navigate to CommunityProfile to use existing banner picker
+                      navigation.goBack();
+                      // Banner change is handled in main profile screen
+                    }}
+                  >
+                    <Text style={styles.changeButtonText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.addBannerButton}
+                onPress={() => {
+                  // Navigate back to profile to add banner
+                  navigation.goBack();
+                }}
+              >
+                <Ionicons
+                  name="image-outline"
+                  size={24}
+                  color={PRIMARY_COLOR}
+                />
+                <Text style={styles.addBannerText}>Add Banner</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Bio Section */}
@@ -534,7 +609,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 />
               )}
               {usernameAvailable === false &&
-                username !== (profileRef.current?.username || profile?.username) && (
+                username !==
+                  (profileRef.current?.username || profile?.username) && (
                   <Ionicons
                     name="close-circle"
                     size={20}
@@ -544,11 +620,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 )}
             </View>
             {usernameAvailable === false &&
-              username !== (profileRef.current?.username || profile?.username) && (
-              <Text style={styles.errorText}>
-                Username is already taken or invalid
-              </Text>
-            )}
+              username !==
+                (profileRef.current?.username || profile?.username) && (
+                <Text style={styles.errorText}>
+                  Username is already taken or invalid
+                </Text>
+              )}
           </View>
 
           {/* Email Section */}
@@ -616,7 +693,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 const sanitized = Array.from(
                   new Set(
                     (selected || [])
-                      .map((c) => (typeof c === 'string' ? c.trim() : ''))
+                      .map((c) => (typeof c === "string" ? c.trim() : ""))
                       .filter((c) => c)
                   )
                 ).slice(0, 3);
@@ -639,13 +716,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               selected={sponsorTypes}
               onSelectionChange={(selected) => {
                 // Handle "Open to All" special case
-                if (selected.includes('Open to All')) {
-                  setSponsorTypes(['Open to All']);
+                if (selected.includes("Open to All")) {
+                  setSponsorTypes(["Open to All"]);
                 } else {
-                  setSponsorTypes(selected.filter(s => s !== 'Open to All'));
+                  setSponsorTypes(selected.filter((s) => s !== "Open to All"));
                 }
               }}
-              presets={['Open to All', ...SPONSOR_TYPES]}
+              presets={["Open to All", ...SPONSOR_TYPES]}
               allowCustom={false}
               maxSelections={20}
               placeholder="Select sponsor types"
@@ -726,10 +803,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: TEXT_COLOR,
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
-    textAlign: 'center',
+    textAlign: "center",
     zIndex: -1,
   },
   // saveButton styles removed
@@ -858,5 +935,37 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
     textAlign: "center",
   },
+  // Banner styles
+  bannerPreviewContainer: {
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  bannerPreview: {
+    width: "100%",
+    height: 100,
+    borderRadius: 8,
+  },
+  bannerButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 12,
+    gap: 12,
+  },
+  addBannerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: "#F8F9FA",
+  },
+  addBannerText: {
+    color: PRIMARY_COLOR,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
 });
-

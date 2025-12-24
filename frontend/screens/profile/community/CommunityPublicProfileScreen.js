@@ -14,8 +14,8 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import {
   getPublicCommunity,
   getCommunityPosts,
@@ -28,8 +28,16 @@ import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { apiPost, apiDelete } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
-import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  getGradientForName,
+  getInitials,
+} from "../../../utils/AvatarGenerator";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
@@ -125,11 +133,20 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           is_liked: post.is_liked === true,
           isLiked: post.is_liked === true,
         }));
-        
+
         // Merge with cached like states to fix backend returning stale is_liked data
         const mergedPosts = LikeStateManager.mergeLikeStates(normalizedPosts);
-        
-        console.log('[CommunityPublicProfile] loadPosts - Setting posts, first post:', mergedPosts[0] ? { id: mergedPosts[0].id, is_liked: mergedPosts[0].is_liked, like_count: mergedPosts[0].like_count } : 'NO POSTS');
+
+        console.log(
+          "[CommunityPublicProfile] loadPosts - Setting posts, first post:",
+          mergedPosts[0]
+            ? {
+                id: mergedPosts[0].id,
+                is_liked: mergedPosts[0].is_liked,
+                like_count: mergedPosts[0].like_count,
+              }
+            : "NO POSTS"
+        );
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
@@ -191,12 +208,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   // Listen for post like/comment updates to refresh posts immediately
   useEffect(() => {
     const handlePostLikeUpdate = (payload) => {
-      console.log('[CommunityPublicProfile] EventBus post-like-updated received:', payload);
+      console.log(
+        "[CommunityPublicProfile] EventBus post-like-updated received:",
+        payload
+      );
       if (!payload?.postId) return;
-      
+
       // Cache the like state to persist across component unmounts
       LikeStateManager.setLikeState(payload.postId, payload.isLiked);
-      
+
       setPosts((prevPosts) => {
         const updatedPosts = prevPosts.map((post) =>
           post.id === payload.postId
@@ -215,7 +235,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               }
             : post
         );
-        console.log('[CommunityPublicProfile] Posts updated via EventBus, updated post:', updatedPosts.find(p => p.id === payload.postId));
+        console.log(
+          "[CommunityPublicProfile] Posts updated via EventBus, updated post:",
+          updatedPosts.find((p) => p.id === payload.postId)
+        );
         return updatedPosts;
       });
       // Also update selectedPost if it matches
@@ -273,10 +296,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       "post-comment-updated",
       handlePostCommentUpdate
     );
-    const unsubscribeDeleted = EventBus.on(
-      "post-deleted",
-      handlePostDeleted
-    );
+    const unsubscribeDeleted = EventBus.on("post-deleted", handlePostDeleted);
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -286,15 +306,28 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   }, [selectedPost]); // Added selectedPost dependency
 
   const openPostModal = (postId) => {
-    console.log('[CommunityPublicProfile] openPostModal called with postId:', postId);
+    console.log(
+      "[CommunityPublicProfile] openPostModal called with postId:",
+      postId
+    );
     // Look up the post from current state to ensure we have fresh data
-    const post = posts.find(p => p.id === postId);
-    console.log('[CommunityPublicProfile] Found post from state:', post ? { id: post.id, is_liked: post.is_liked, like_count: post.like_count } : 'NOT FOUND');
+    const post = posts.find((p) => p.id === postId);
+    console.log(
+      "[CommunityPublicProfile] Found post from state:",
+      post
+        ? { id: post.id, is_liked: post.is_liked, like_count: post.like_count }
+        : "NOT FOUND"
+    );
     if (!post) return;
-    
+
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = post.is_liked === true;
-    console.log('[CommunityPublicProfile] Normalized is_liked:', normalizedIsLiked, 'from post.is_liked:', post.is_liked);
+    console.log(
+      "[CommunityPublicProfile] Normalized is_liked:",
+      normalizedIsLiked,
+      "from post.is_liked:",
+      post.is_liked
+    );
     const normalizedPost = {
       ...post,
       is_liked: normalizedIsLiked,
@@ -425,51 +458,56 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         >
           <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
         </TouchableOpacity>
-        
-        
       </View>
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        <View style={styles.bannerContainer}>
-          {profile?.banner_url ? (
+        {/* Banner - only render if banner exists */}
+        {profile?.banner_url && (
+          <View style={styles.bannerContainer}>
             <Image
               source={{ uri: profile.banner_url }}
               style={styles.bannerImage}
             />
-          ) : (
-            <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
-              <Text style={styles.bannerPlaceholderText}>
-                Banner (1200 x 400 recommended)
-              </Text>
-            </View>
-          )}
-          {/* Blur + Dim Overlay for mood effect */}
-          {profile?.banner_url && (
-            <BlurView
-              intensity={15}
-              tint="dark"
-              style={styles.bannerOverlay}
-            />
-          )}
-        </View>
+            {/* Blur + Dim Overlay for mood effect */}
+            <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
+          </View>
+        )}
 
-        <View style={styles.summarySection}>
-          <View style={styles.profileHeader}>
+        <View
+          style={[
+            styles.summarySection,
+            !profile?.banner_url && styles.summarySectionNoBanner,
+          ]}
+        >
+          <View
+            style={[
+              styles.profileHeader,
+              !profile?.banner_url && styles.profileHeaderNoBanner,
+            ]}
+          >
             <View style={styles.avatarWrapper}>
               {profile?.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
-                <Image source={{ uri: profile.logo_url }} style={styles.avatar} />
+                <Image
+                  source={{ uri: profile.logo_url }}
+                  style={styles.avatar}
+                />
               ) : (
                 <LinearGradient
-                  colors={getGradientForName(profile?.name || 'Community')}
+                  colors={getGradientForName(profile?.name || "Community")}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+                  style={[
+                    styles.avatar,
+                    { justifyContent: "center", alignItems: "center" },
+                  ]}
                 >
-                  <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#fff' }}>
-                    {getInitials(profile?.name || 'Community')}
+                  <Text
+                    style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
+                  >
+                    {getInitials(profile?.name || "Community")}
                   </Text>
                 </LinearGradient>
               )}
@@ -485,18 +523,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               profile.categories.length > 0 && (
                 <View style={styles.categoriesRow}>
                   {profile.categories.map((cat, idx) => (
-                    <ThemeChip
-                      key={cat}
-                      label={cat}
-                      index={idx}
-                    />
+                    <ThemeChip key={cat} label={cat} index={idx} />
                   ))}
                 </View>
               )}
 
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
-
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -543,18 +576,29 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   >
                     {head.profile_pic_url || head.member_photo_url ? (
                       <Image
-                        source={{ uri: head.profile_pic_url || head.member_photo_url }}
+                        source={{
+                          uri: head.profile_pic_url || head.member_photo_url,
+                        }}
                         style={styles.headAvatar}
                       />
                     ) : (
                       <LinearGradient
-                        colors={getGradientForName(head.name || 'Head')}
+                        colors={getGradientForName(head.name || "Head")}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={[styles.headAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+                        style={[
+                          styles.headAvatar,
+                          { justifyContent: "center", alignItems: "center" },
+                        ]}
                       >
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
-                          {getInitials(head.name || 'H')}
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "bold",
+                            color: "#fff",
+                          }}
+                        >
+                          {getInitials(head.name || "H")}
                         </Text>
                       </LinearGradient>
                     )}
@@ -605,8 +649,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 </View>
               </View>
             )}
-
-
 
           <View
             style={{
@@ -716,13 +758,18 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               data={posts}
               keyExtractor={(item) => item.id.toString()}
               numColumns={3}
-              columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: GAP }}
+              columnWrapperStyle={{
+                justifyContent: "flex-start",
+                marginBottom: GAP,
+              }}
               renderItem={renderGridItem}
               scrollEnabled={false}
             />
           ) : (
             <View style={styles.emptyPostsContainer}>
-              <Text style={[styles.emptyPostsText, { fontWeight: 'bold' }]}>No posts</Text>
+              <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                No posts
+              </Text>
             </View>
           )}
         </View>
@@ -794,12 +841,7 @@ const PostModal = ({
     setIsLiked(newIsLiked);
     setLikes(post?.like_count || 0);
     setCommentCount(post?.comment_count || 0);
-  }, [
-    post?.is_liked,
-    post?.like_count,
-    post?.comment_count,
-    visible,
-  ]);
+  }, [post?.is_liked, post?.like_count, post?.comment_count, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -808,18 +850,19 @@ const PostModal = ({
   }, [visible]);
 
   useEffect(() => {
-    console.log('[PostModal] showDeleteMenu state changed:', showDeleteMenu);
+    console.log("[PostModal] showDeleteMenu state changed:", showDeleteMenu);
   }, [showDeleteMenu]);
 
   const isOwnPost = () => {
     if (!post) {
-      console.log('[PostModal] isOwnPost: No post');
+      console.log("[PostModal] isOwnPost: No post");
       return false;
     }
-    console.log('[PostModal] isOwnPost check:', {
+    console.log("[PostModal] isOwnPost check:", {
       postAuthorId: post.author_id,
       currentUserId: currentUserId,
-      isOwner: currentUserId && String(post.author_id) === String(currentUserId)
+      isOwner:
+        currentUserId && String(post.author_id) === String(currentUserId),
     });
     // Check if current logged-in user is the author of this post
     // Use currentUserId which is set from the actual logged-in user's profile
@@ -983,13 +1026,19 @@ const PostModal = ({
               <Text style={postModalStyles.postModalHeaderTitle}>Posts</Text>
               <View style={postModalStyles.postModalMoreButton}>
                 {isOwnPost() && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => {
-                      console.log('[PostModal] 3-dot button pressed, setting showDeleteMenu to true');
+                      console.log(
+                        "[PostModal] 3-dot button pressed, setting showDeleteMenu to true"
+                      );
                       setShowDeleteMenu(true);
                     }}
                   >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                    <Ionicons
+                      name="ellipsis-horizontal"
+                      size={20}
+                      color="#000"
+                    />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1139,7 +1188,9 @@ const PostModal = ({
           transparent={true}
           animationType="fade"
           onRequestClose={() => setShowDeleteMenu(false)}
-          onShow={() => console.log('[PostModal] Delete menu modal now showing')}
+          onShow={() =>
+            console.log("[PostModal] Delete menu modal now showing")
+          }
         >
           <TouchableOpacity
             style={postModalStyles.deleteMenuOverlay}
@@ -1238,7 +1289,7 @@ const styles = StyleSheet.create({
   },
   bannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dim on top of blur
+    backgroundColor: "rgba(0, 0, 0, 0.15)", // Subtle dim on top of blur
   },
   bannerPlaceholderText: {
     color: "#8E8E93",
@@ -1254,6 +1305,13 @@ const styles = StyleSheet.create({
     marginTop: -(AVATAR_SIZE * 0.4), // 40% overlap on banner
     marginBottom: 16,
   },
+  // Styles for when no banner exists
+  summarySectionNoBanner: {
+    paddingTop: 20, // Space at top when no banner
+  },
+  profileHeaderNoBanner: {
+    marginTop: 0, // No overlap when no banner
+  },
   avatarWrapper: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -1263,7 +1321,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
     backgroundColor: "#E5E5EA",
     // Soft shadow for depth
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -1276,8 +1334,8 @@ const styles = StyleSheet.create({
   },
   usernameText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#555555',
+    fontWeight: "500",
+    color: "#555555",
     marginTop: 2,
   },
   communityName: {

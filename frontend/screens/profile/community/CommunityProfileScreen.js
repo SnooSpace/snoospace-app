@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -15,46 +15,69 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions, useFocusEffect } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken, getAuthEmail, logoutCurrentAccount, clearAllAccounts, getAllAccounts } from '../../../api/auth';
-import { deleteAccount as apiDeleteAccount } from '../../../api/account';
-import { apiGet, apiPost, apiDelete } from '../../../api/client';
-import { getCommunityProfile, updateCommunityProfile, updateCommunityHeads } from '../../../api/communities';
-import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
-import { uploadImage } from '../../../api/cloudinary';
-import PostCard from '../../../components/PostCard';
-import { mockData } from '../../../data/mockData';
-import HeadsEditorModal from '../../../components/modals/HeadsEditorModal';
-import CommentsModal from '../../../components/CommentsModal';
-import SettingsModal from '../../../components/modals/SettingsModal';
-import AccountSwitcherModal from '../../../components/modals/AccountSwitcherModal';
-import AddAccountModal from '../../../components/modals/AddAccountModal';
-import LogoutModal from '../../../components/modals/LogoutModal';
-import EventBus from '../../../utils/EventBus';
-import MentionTextRenderer from '../../../components/MentionTextRenderer';
-import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
-import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions, useFocusEffect } from "@react-navigation/native";
+import {
+  clearAuthSession,
+  getAuthToken,
+  getAuthEmail,
+  logoutCurrentAccount,
+  clearAllAccounts,
+  getAllAccounts,
+} from "../../../api/auth";
+import { deleteAccount as apiDeleteAccount } from "../../../api/account";
+import { apiGet, apiPost, apiDelete } from "../../../api/client";
+import {
+  getCommunityProfile,
+  updateCommunityProfile,
+  updateCommunityHeads,
+} from "../../../api/communities";
+import {
+  launchImageLibraryAsync,
+  requestMediaLibraryPermissionsAsync,
+  MediaTypeOptions,
+} from "expo-image-picker";
+import { uploadImage } from "../../../api/cloudinary";
+import PostCard from "../../../components/PostCard";
+import { mockData } from "../../../data/mockData";
+import HeadsEditorModal from "../../../components/modals/HeadsEditorModal";
+import CommentsModal from "../../../components/CommentsModal";
+import SettingsModal from "../../../components/modals/SettingsModal";
+import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
+import AddAccountModal from "../../../components/modals/AddAccountModal";
+import LogoutModal from "../../../components/modals/LogoutModal";
+import EventBus from "../../../utils/EventBus";
+import MentionTextRenderer from "../../../components/MentionTextRenderer";
+import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
-import HapticsService from '../../../services/HapticsService';
-import { useProfileCountsPolling } from '../../../hooks/useProfileCountsPolling';
+import HapticsService from "../../../services/HapticsService";
+import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { getGradientForName, getInitials } from '../../../utils/AvatarGenerator';
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import {
+  getGradientForName,
+  getInitials,
+} from "../../../utils/AvatarGenerator";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
 const AVATAR_SIZE = 120;
 
 const formatPhoneNumber = (value) => {
-  if (!value) return '';
-  const digits = String(value).replace(/[^0-9]/g, '');
+  if (!value) return "";
+  const digits = String(value).replace(/[^0-9]/g, "");
   if (digits.length === 10) {
     return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
@@ -78,14 +101,20 @@ export default function CommunityProfileScreen({ navigation }) {
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [logoutModalData, setLogoutModalData] = useState({ hasMultiple: false, currentAccount: null });
-  const [deleteInput, setDeleteInput] = useState('');
+  const [logoutModalData, setLogoutModalData] = useState({
+    hasMultiple: false,
+    currentAccount: null,
+  });
+  const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [headsModalVisible, setHeadsModalVisible] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
-  const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null });
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+  });
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
@@ -94,10 +123,18 @@ export default function CommunityProfileScreen({ navigation }) {
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
-  const isAnyModalOpen = postModalVisible || showSettingsModal || showAccountSwitcher || showAddAccountModal || showLogoutModal || showDeleteModal || headsModalVisible || commentsModalState.visible;
+  const isAnyModalOpen =
+    postModalVisible ||
+    showSettingsModal ||
+    showAccountSwitcher ||
+    showAddAccountModal ||
+    showLogoutModal ||
+    showDeleteModal ||
+    headsModalVisible ||
+    commentsModalState.visible;
   const { counts: polledCounts, initializeCounts } = useProfileCountsPolling({
     userId: profile?.id,
-    userType: 'community',
+    userType: "community",
     interval: 5000, // 5 seconds
     enabled: !loading && !!profile?.id,
     paused: isAnyModalOpen,
@@ -141,7 +178,7 @@ export default function CommunityProfileScreen({ navigation }) {
   useEffect(() => {
     const handleFollowUpdate = (data) => {
       if (!profile) return;
-      
+
       // Case 1: Someone followed/unfollowed the current community (update follower_count)
       if (data?.communityId && data.communityId === profile.id) {
         setProfile((prev) => {
@@ -153,9 +190,13 @@ export default function CommunityProfileScreen({ navigation }) {
           };
         });
       }
-      
+
       // Case 2: Current community followed/unfollowed someone (update following_count)
-      if (data?.followerId && data?.followerType === 'community' && data.followerId === profile.id) {
+      if (
+        data?.followerId &&
+        data?.followerType === "community" &&
+        data.followerId === profile.id
+      ) {
         setProfile((prev) => {
           if (!prev) return prev;
           const change = data.isFollowing ? 1 : -1;
@@ -167,9 +208,9 @@ export default function CommunityProfileScreen({ navigation }) {
       }
     };
 
-    EventBus.on('follow-updated', handleFollowUpdate);
+    EventBus.on("follow-updated", handleFollowUpdate);
     return () => {
-      EventBus.off('follow-updated', handleFollowUpdate);
+      EventBus.off("follow-updated", handleFollowUpdate);
     };
   }, [profile]);
 
@@ -180,13 +221,18 @@ export default function CommunityProfileScreen({ navigation }) {
         const token = await getAuthToken();
         const email = await getAuthEmail();
         if (token && email && mounted) {
-          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          const profileResponse = await apiPost(
+            "/auth/get-user-profile",
+            { email },
+            10000,
+            token
+          );
           if (profileResponse?.profile?.id && mounted) {
             setCurrentUserId(profileResponse.profile.id);
           }
         }
       } catch (error) {
-        console.error('Failed to load current user info:', error);
+        console.error("Failed to load current user info:", error);
       }
     })();
     return () => {
@@ -206,11 +252,11 @@ export default function CommunityProfileScreen({ navigation }) {
                 is_liked: payload.isLiked,
                 isLiked: payload.isLiked,
                 like_count:
-                  typeof payload.likeCount === 'number'
+                  typeof payload.likeCount === "number"
                     ? payload.likeCount
                     : post.like_count,
                 comment_count:
-                  typeof payload.commentCount === 'number'
+                  typeof payload.commentCount === "number"
                     ? payload.commentCount
                     : post.comment_count,
               }
@@ -227,7 +273,7 @@ export default function CommunityProfileScreen({ navigation }) {
             ? {
                 ...post,
                 comment_count:
-                  typeof payload.commentCount === 'number'
+                  typeof payload.commentCount === "number"
                     ? payload.commentCount
                     : post.comment_count,
               }
@@ -236,8 +282,14 @@ export default function CommunityProfileScreen({ navigation }) {
       );
     };
 
-    const unsubscribeLike = EventBus.on('post-like-updated', handlePostLikeUpdate);
-    const unsubscribeComment = EventBus.on('post-comment-updated', handlePostCommentUpdate);
+    const unsubscribeLike = EventBus.on(
+      "post-like-updated",
+      handlePostLikeUpdate
+    );
+    const unsubscribeComment = EventBus.on(
+      "post-comment-updated",
+      handlePostCommentUpdate
+    );
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -246,7 +298,7 @@ export default function CommunityProfileScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = EventBus.on('post-created', () => {
+    const unsubscribe = EventBus.on("post-created", () => {
       loadProfile();
     });
     return () => {
@@ -265,64 +317,89 @@ export default function CommunityProfileScreen({ navigation }) {
       const token = await getAuthToken();
 
       // Fetch profile using communities/profile endpoint to get full profile with heads
-      let role = 'community';
+      let role = "community";
       let fullProfile = null;
       try {
         const profileRes = await getCommunityProfile();
         fullProfile = profileRes?.profile || null;
-        role = 'community';
+        role = "community";
       } catch (e) {
         try {
-          const email = await AsyncStorage.getItem('auth_email');
-          const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
-          role = profRes?.role || 'community';
+          const email = await AsyncStorage.getItem("auth_email");
+          const profRes = await apiPost(
+            "/auth/get-user-profile",
+            email ? { email } : {},
+            15000,
+            token
+          );
+          role = profRes?.role || "community";
           fullProfile = profRes?.profile || null;
         } catch {}
       }
 
       if (!fullProfile) {
         const communityProfile = mockData.communities[0];
-        const categoriesFallback = Array.isArray(communityProfile.categories) && communityProfile.categories.length
-          ? communityProfile.categories
-          : (communityProfile.category ? [communityProfile.category] : []);
+        const categoriesFallback =
+          Array.isArray(communityProfile.categories) &&
+          communityProfile.categories.length
+            ? communityProfile.categories
+            : communityProfile.category
+            ? [communityProfile.category]
+            : [];
         communityProfile.categories = categoriesFallback;
-        communityProfile.category = categoriesFallback[0] || communityProfile.category || '';
-        const communityPosts = mockData.posts.filter(p => p.author_type === 'community' && p.author_id === communityProfile.id);
+        communityProfile.category =
+          categoriesFallback[0] || communityProfile.category || "";
+        const communityPosts = mockData.posts.filter(
+          (p) =>
+            p.author_type === "community" && p.author_id === communityProfile.id
+        );
         setProfile(communityProfile);
         setPosts(communityPosts);
         return;
       }
 
       const userId = fullProfile.id;
-      const userType = role || 'community';
+      const userType = role || "community";
 
       // Fetch follow counts
       let followerCount = 0;
       let followingCount = 0;
       try {
-        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        const counts = await apiGet(
+          `/follow/counts/${userId}/${userType}`,
+          15000,
+          token
+        );
         const followersRaw = counts?.followers_count ?? counts?.followers;
         const followingRaw = counts?.following_count ?? counts?.following;
         followerCount =
-          typeof followersRaw === 'number'
+          typeof followersRaw === "number"
             ? followersRaw
-            : parseInt(followersRaw || '0', 10) || 0;
+            : parseInt(followersRaw || "0", 10) || 0;
         followingCount =
-          typeof followingRaw === 'number'
+          typeof followingRaw === "number"
             ? followingRaw
-            : parseInt(followingRaw || '0', 10) || 0;
+            : parseInt(followingRaw || "0", 10) || 0;
       } catch {}
 
       // Fetch posts by this user
       let userPosts = [];
       try {
-        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        const postsRes = await apiGet(
+          `/posts/user/${userId}/${userType}`,
+          15000,
+          token
+        );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch {}
 
       const normalizedCategories = (() => {
-        if (Array.isArray(fullProfile?.categories)) return fullProfile.categories;
-        if (fullProfile?.categories && typeof fullProfile.categories === 'string') {
+        if (Array.isArray(fullProfile?.categories))
+          return fullProfile.categories;
+        if (
+          fullProfile?.categories &&
+          typeof fullProfile.categories === "string"
+        ) {
           try {
             const parsed = JSON.parse(fullProfile.categories);
             if (Array.isArray(parsed)) return parsed;
@@ -349,15 +426,15 @@ export default function CommunityProfileScreen({ navigation }) {
 
       const mappedProfile = {
         id: userId,
-        name: fullProfile?.name || 'Community',
-        username: fullProfile?.username || '',
-        bio: fullProfile?.bio || '',
-        email: fullProfile?.email || '',
-        phone: String(primaryPhone || ''),
-        secondary_phone: String(secondaryPhone || ''),
+        name: fullProfile?.name || "Community",
+        username: fullProfile?.username || "",
+        bio: fullProfile?.bio || "",
+        email: fullProfile?.email || "",
+        phone: String(primaryPhone || ""),
+        secondary_phone: String(secondaryPhone || ""),
         categories: normalizedCategories,
-        location: fullProfile?.location || '',
-        logo_url: fullProfile?.logo_url || '',
+        location: fullProfile?.location || "",
+        logo_url: fullProfile?.logo_url || "",
         banner_url: fullProfile?.banner_url || null,
         sponsor_types: fullProfile?.sponsor_types || [],
         heads: fullProfile?.heads || [],
@@ -375,9 +452,12 @@ export default function CommunityProfileScreen({ navigation }) {
             fullProfile?.secondaryPhone ??
             fullProfile?.secondary_phone_number,
         },
-        { mappedPhone: mappedProfile.phone, mappedSecondary: mappedProfile.secondary_phone }
+        {
+          mappedPhone: mappedProfile.phone,
+          mappedSecondary: mappedProfile.secondary_phone,
+        }
       );
-      mappedProfile.category = mappedProfile.categories[0] || '';
+      mappedProfile.category = mappedProfile.categories[0] || "";
 
       setProfile(mappedProfile);
       setPosts(userPosts);
@@ -389,12 +469,20 @@ export default function CommunityProfileScreen({ navigation }) {
       });
     } catch (error) {
       const communityProfile = mockData.communities[0];
-      const categoriesFallback = Array.isArray(communityProfile.categories) && communityProfile.categories.length
-        ? communityProfile.categories
-        : (communityProfile.category ? [communityProfile.category] : []);
+      const categoriesFallback =
+        Array.isArray(communityProfile.categories) &&
+        communityProfile.categories.length
+          ? communityProfile.categories
+          : communityProfile.category
+          ? [communityProfile.category]
+          : [];
       communityProfile.categories = categoriesFallback;
-      communityProfile.category = categoriesFallback[0] || communityProfile.category || '';
-      const communityPosts = mockData.posts.filter(p => p.author_type === 'community' && p.author_id === communityProfile.id);
+      communityProfile.category =
+        categoriesFallback[0] || communityProfile.category || "";
+      const communityPosts = mockData.posts.filter(
+        (p) =>
+          p.author_type === "community" && p.author_id === communityProfile.id
+      );
       setProfile(communityProfile);
       setPosts(communityPosts);
     } finally {
@@ -410,16 +498,20 @@ export default function CommunityProfileScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       const allAccounts = await getAllAccounts();
-      const loggedInAccounts = allAccounts.filter(acc => acc.isLoggedIn !== false);
-      const currentAccount = allAccounts.find(acc => String(acc.id) === String(profile?.id));
-      
+      const loggedInAccounts = allAccounts.filter(
+        (acc) => acc.isLoggedIn !== false
+      );
+      const currentAccount = allAccounts.find(
+        (acc) => String(acc.id) === String(profile?.id)
+      );
+
       setLogoutModalData({
         hasMultiple: loggedInAccounts.length > 1,
         currentAccount: currentAccount || profile,
       });
       setShowLogoutModal(true);
     } catch (error) {
-      console.error('Error preparing logout:', error);
+      console.error("Error preparing logout:", error);
       performLogout(true);
     }
   };
@@ -432,17 +524,22 @@ export default function CommunityProfileScreen({ navigation }) {
         rootNavigator = parent.getParent ? parent.getParent() : parent;
       }
     }
-    
+
     const routeMap = {
-      member: 'MemberHome',
-      community: 'CommunityHome',
-      sponsor: 'SponsorHome',
-      venue: 'VenueHome',
+      member: "MemberHome",
+      community: "CommunityHome",
+      sponsor: "SponsorHome",
+      venue: "VenueHome",
     };
-    
-    const routeName = routeMap[accountType] || 'Landing';
-    console.log('[CommunityProfile] Navigating to:', routeName, 'for account type:', accountType);
-    
+
+    const routeName = routeMap[accountType] || "Landing";
+    console.log(
+      "[CommunityProfile] Navigating to:",
+      routeName,
+      "for account type:",
+      accountType
+    );
+
     rootNavigator.dispatch(
       CommonActions.reset({
         index: 0,
@@ -457,10 +554,16 @@ export default function CommunityProfileScreen({ navigation }) {
       setShowLogoutModal(false);
 
       if (logoutAll) {
-        console.log('[CommunityProfile] Logging out all accounts');
+        console.log("[CommunityProfile] Logging out all accounts");
         await clearAllAccounts();
-        await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-        
+        await AsyncStorage.multiRemove([
+          "accessToken",
+          "userData",
+          "auth_token",
+          "auth_email",
+          "pending_otp",
+        ]);
+
         let rootNavigator = navigation;
         if (navigation.getParent) {
           const parent = navigation.getParent();
@@ -468,19 +571,22 @@ export default function CommunityProfileScreen({ navigation }) {
             rootNavigator = parent.getParent ? parent.getParent() : parent;
           }
         }
-        
+
         rootNavigator.dispatch(
           CommonActions.reset({
             index: 0,
-            routes: [{ name: 'Landing' }],
+            routes: [{ name: "Landing" }],
           })
         );
       } else {
-        console.log('[CommunityProfile] Logging out current account');
-        const { switchToAccount, navigateToLanding } = await logoutCurrentAccount();
-        
+        console.log("[CommunityProfile] Logging out current account");
+        const { switchToAccount, navigateToLanding } =
+          await logoutCurrentAccount();
+
         if (navigateToLanding) {
-          console.log('[CommunityProfile] No other logged-in accounts, navigating to landing');
+          console.log(
+            "[CommunityProfile] No other logged-in accounts, navigating to landing"
+          );
           let rootNavigator = navigation;
           if (navigation.getParent) {
             const parent = navigation.getParent();
@@ -488,51 +594,63 @@ export default function CommunityProfileScreen({ navigation }) {
               rootNavigator = parent.getParent ? parent.getParent() : parent;
             }
           }
-          
+
           rootNavigator.dispatch(
             CommonActions.reset({
               index: 0,
-              routes: [{ name: 'Landing' }],
+              routes: [{ name: "Landing" }],
             })
           );
         } else if (switchToAccount) {
-          console.log('[CommunityProfile] Switching to account:', switchToAccount.type, switchToAccount.username);
+          console.log(
+            "[CommunityProfile] Switching to account:",
+            switchToAccount.type,
+            switchToAccount.username
+          );
           navigateToAccountHome(switchToAccount.type);
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to logout properly');
+      Alert.alert("Error", "Failed to logout properly");
     }
   };
 
   const handleBannerAction = () => {
     if (!profile) return;
     const options = [
-      { text: 'Change banner', onPress: () => pickBannerImage() },
+      { text: "Change banner", onPress: () => pickBannerImage() },
     ];
     if (profile.banner_url) {
-      options.push({ text: 'Remove banner', onPress: removeBanner });
+      options.push({ text: "Remove banner", onPress: removeBanner });
     }
-    options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Banner', 'Update your community banner', options);
+    options.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Banner", "Update your community banner", options);
   };
 
   const pickBannerImage = async () => {
     try {
       const perm = await requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission required', 'Allow photo access to change banner');
+        Alert.alert(
+          "Permission required",
+          "Allow photo access to change banner"
+        );
         return;
       }
-      const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [3, 1], quality: 0.85 });
+      const picker = await launchImageLibraryAsync({
+        mediaTypes: MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 1],
+        quality: 0.85,
+      });
       if (picker.canceled || !picker.assets || !picker.assets[0]) return;
       setBannerUploading(true);
       const uri = picker.assets[0].uri;
       const secureUrl = await uploadImage(uri);
       await updateCommunityProfile({ banner_url: secureUrl });
-      setProfile(prev => prev ? { ...prev, banner_url: secureUrl } : prev);
+      setProfile((prev) => (prev ? { ...prev, banner_url: secureUrl } : prev));
     } catch (e) {
-      Alert.alert('Update failed', e?.message || 'Could not update banner');
+      Alert.alert("Update failed", e?.message || "Could not update banner");
     } finally {
       setBannerUploading(false);
     }
@@ -543,9 +661,9 @@ export default function CommunityProfileScreen({ navigation }) {
     try {
       setBannerUploading(true);
       await updateCommunityProfile({ banner_url: null });
-      setProfile(prev => prev ? { ...prev, banner_url: null } : prev);
+      setProfile((prev) => (prev ? { ...prev, banner_url: null } : prev));
     } catch (e) {
-      Alert.alert('Update failed', e?.message || 'Could not remove banner');
+      Alert.alert("Update failed", e?.message || "Could not remove banner");
     } finally {
       setBannerUploading(false);
     }
@@ -557,7 +675,7 @@ export default function CommunityProfileScreen({ navigation }) {
       await loadProfile();
       setHeadsModalVisible(false);
     } catch (e) {
-      Alert.alert('Update failed', e?.message || 'Could not update heads');
+      Alert.alert("Update failed", e?.message || "Could not update heads");
     }
   };
 
@@ -569,26 +687,33 @@ export default function CommunityProfileScreen({ navigation }) {
         // Navigate to own profile screen
         const root = navigation.getParent()?.getParent();
         if (root) {
-          root.navigate('MemberHome', {
-            screen: 'Profile',
+          root.navigate("MemberHome", {
+            screen: "Profile",
             params: {
-              screen: 'MemberProfile'
-            }
+              screen: "MemberProfile",
+            },
           });
         } else {
           // Fallback navigation
-          navigation.navigate('MemberProfile');
+          navigation.navigate("MemberProfile");
         }
       } else {
         // Navigate to MemberPublicProfile within Community's Profile stack
-        navigation.navigate('MemberPublicProfile', { memberId: head.member_id });
+        navigation.navigate("MemberPublicProfile", {
+          memberId: head.member_id,
+        });
       }
     }
   };
 
-  const postsCount = polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
-  const followersCount = polledCounts.followers || (profile?.followers_count ?? profile?.follower_count ?? 0);
-  const followingCount = polledCounts.following || (profile?.following_count ?? profile?.following ?? 0);
+  const postsCount =
+    polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
+  const followersCount =
+    polledCounts.followers ||
+    (profile?.followers_count ?? profile?.follower_count ?? 0);
+  const followingCount =
+    polledCounts.following ||
+    (profile?.following_count ?? profile?.following ?? 0);
 
   const openPostModal = (post) => {
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
@@ -636,13 +761,19 @@ export default function CommunityProfileScreen({ navigation }) {
   const updatePostsGlobalState = (postId, isLiked, likes) => {
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
-        p.id === postId ? { ...p, isLiked, is_liked: isLiked, like_count: likes } : p
+        p.id === postId
+          ? { ...p, isLiked, is_liked: isLiked, like_count: likes }
+          : p
       )
     );
   };
 
   const handlePostLike = (postId, isLiked, likeCount) => {
-    pendingPostUpdateRef.current = { postId, is_liked: isLiked, like_count: likeCount };
+    pendingPostUpdateRef.current = {
+      postId,
+      is_liked: isLiked,
+      like_count: likeCount,
+    };
   };
 
   const handlePostComment = (postId) => {
@@ -673,82 +804,103 @@ export default function CommunityProfileScreen({ navigation }) {
           />
         }
       >
-        <View style={styles.bannerContainer}>
-          {profile.banner_url ? (
-            <Image source={{ uri: profile.banner_url }} style={styles.bannerImage} />
-          ) : (
-            <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
-              <Text style={styles.bannerPlaceholderText}>Add a banner (1200 x 400 recommended)</Text>
-            </View>
-          )}
-          {/* Blur + Dim Overlay for mood effect */}
-          {profile.banner_url && (
-            <BlurView
-              intensity={15}
-              tint="dark"
-              style={styles.bannerOverlay}
+        {/* Banner - only render if banner exists */}
+        {profile.banner_url && (
+          <View style={styles.bannerContainer}>
+            <Image
+              source={{ uri: profile.banner_url }}
+              style={styles.bannerImage}
             />
-          )}
-          <TouchableOpacity style={styles.bannerEdit} onPress={handleBannerAction}>
-            {bannerUploading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="camera" size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
+            {/* Blur + Dim Overlay for mood effect */}
+            <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
+            <TouchableOpacity
+              style={styles.bannerEdit}
+              onPress={handleBannerAction}
+            >
+              {bannerUploading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="camera" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Settings Icon - positioned below banner on right */}
+        {/* Settings Icon - positioned based on banner presence */}
         <TouchableOpacity
           onPress={() => setShowSettingsModal(true)}
-          style={styles.settingsIconAbsolute}
+          style={[
+            styles.settingsIconAbsolute,
+            !profile.banner_url && styles.settingsIconNoBanner,
+          ]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
 
-        <View style={styles.summarySection}>
-          <View style={styles.profileHeader}>
+        <View
+          style={[
+            styles.summarySection,
+            !profile.banner_url && styles.summarySectionNoBanner,
+          ]}
+        >
+          <View
+            style={[
+              styles.profileHeader,
+              !profile.banner_url && styles.profileHeaderNoBanner,
+            ]}
+          >
             <View style={styles.avatarWrapper}>
-                {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
-                  <Image source={{ uri: profile.logo_url }} style={styles.avatar} />
-                ) : (
-                  <LinearGradient
-                    colors={getGradientForName(profile.name)}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+              {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
+                <Image
+                  source={{ uri: profile.logo_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <LinearGradient
+                  colors={getGradientForName(profile.name)}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.avatar,
+                    { justifyContent: "center", alignItems: "center" },
+                  ]}
+                >
+                  <Text
+                    style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
                   >
-                    <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#fff' }}>
-                      {getInitials(profile.name)}
-                    </Text>
-                  </LinearGradient>
-                )}
+                    {getInitials(profile.name)}
+                  </Text>
+                </LinearGradient>
+              )}
             </View>
             {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
             <Text style={styles.communityName}>{profile.name}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.usernameRow}
               onPress={() => setShowAccountSwitcher(true)}
             >
-              <Text style={styles.usernameText}>{profile.username ? `@${profile.username}` : ''}</Text>
-              <Ionicons name="chevron-down" size={14} color={LIGHT_TEXT_COLOR} style={{ marginLeft: 4 }} />
+              <Text style={styles.usernameText}>
+                {profile.username ? `@${profile.username}` : ""}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color={LIGHT_TEXT_COLOR}
+                style={{ marginLeft: 4 }}
+              />
             </TouchableOpacity>
-            {Array.isArray(profile.categories) && profile.categories.length > 0 && (
-              <View style={styles.categoriesRow}>
-                {profile.categories.map((cat, idx) => (
-                  <ThemeChip
-                    key={cat}
-                    label={cat}
-                    index={idx}
-                  />
-                ))}
-              </View>
-            )}
+            {Array.isArray(profile.categories) &&
+              profile.categories.length > 0 && (
+                <View style={styles.categoriesRow}>
+                  {profile.categories.map((cat, idx) => (
+                    <ThemeChip key={cat} label={cat} index={idx} />
+                  ))}
+                </View>
+              )}
 
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
-
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -757,20 +909,24 @@ export default function CommunityProfileScreen({ navigation }) {
             </View>
             <TouchableOpacity
               style={styles.statItem}
-              onPress={() => navigation.navigate('CommunityFollowersList', {
-                communityId: profile.id,
-                title: 'Followers',
-              })}
+              onPress={() =>
+                navigation.navigate("CommunityFollowersList", {
+                  communityId: profile.id,
+                  title: "Followers",
+                })
+              }
             >
               <Text style={styles.statNumber}>{followersCount}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statItem}
-              onPress={() => navigation.navigate('CommunityFollowingList', {
-                communityId: profile.id,
-                title: 'Following',
-              })}
+              onPress={() =>
+                navigation.navigate("CommunityFollowingList", {
+                  communityId: profile.id,
+                  title: "Following",
+                })
+              }
             >
               <Text style={styles.statNumber}>{followingCount}</Text>
               <Text style={styles.statLabel}>Following</Text>
@@ -781,7 +937,7 @@ export default function CommunityProfileScreen({ navigation }) {
             title="Edit Profile"
             onPress={() => {
               HapticsService.triggerImpactLight();
-              navigation.navigate('EditCommunityProfile', { profile });
+              navigation.navigate("EditCommunityProfile", { profile });
             }}
             style={styles.editProfileButton}
           />
@@ -805,29 +961,52 @@ export default function CommunityProfileScreen({ navigation }) {
                   >
                     {head.profile_pic_url || head.member_photo_url ? (
                       <Image
-                        source={{ uri: head.profile_pic_url || head.member_photo_url }}
+                        source={{
+                          uri: head.profile_pic_url || head.member_photo_url,
+                        }}
                         style={styles.headAvatar}
                       />
                     ) : (
                       <LinearGradient
-                        colors={getGradientForName(head.name || 'Head')}
+                        colors={getGradientForName(head.name || "Head")}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={[styles.headAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+                        style={[
+                          styles.headAvatar,
+                          { justifyContent: "center", alignItems: "center" },
+                        ]}
                       >
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
-                          {getInitials(head.name || 'H')}
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "bold",
+                            color: "#fff",
+                          }}
+                        >
+                          {getInitials(head.name || "H")}
                         </Text>
                       </LinearGradient>
                     )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.headName}>{head.name}</Text>
-                      {head.is_primary && <Text style={styles.primaryTag}>Primary</Text>}
-                      {head.email && <Text style={styles.headSub}>{head.email}</Text>}
-                      {head.phone && <Text style={styles.headSub}>{formatPhoneNumber(head.phone)}</Text>}
+                      {head.is_primary && (
+                        <Text style={styles.primaryTag}>Primary</Text>
+                      )}
+                      {head.email && (
+                        <Text style={styles.headSub}>{head.email}</Text>
+                      )}
+                      {head.phone && (
+                        <Text style={styles.headSub}>
+                          {formatPhoneNumber(head.phone)}
+                        </Text>
+                      )}
                     </View>
                     {canNavigate && (
-                      <Ionicons name="chevron-forward" size={18} color={LIGHT_TEXT_COLOR} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={LIGHT_TEXT_COLOR}
+                      />
                     )}
                   </TouchableOpacity>
                 );
@@ -843,9 +1022,9 @@ export default function CommunityProfileScreen({ navigation }) {
               <View style={styles.sponsorTypesList}>
                 {profile.sponsor_types.map((type, index) => (
                   <ThemeChip
-                     key={index}
-                     label={type}
-                     index={index + 2} // Shift colors to differ from categories
+                    key={index}
+                    label={type}
+                    index={index + 2} // Shift colors to differ from categories
                   />
                 ))}
               </View>
@@ -861,7 +1040,10 @@ export default function CommunityProfileScreen({ navigation }) {
                 keyExtractor={(item) => item.id.toString()}
                 numColumns={3}
                 scrollEnabled={false}
-                columnWrapperStyle={{ justifyContent: 'flex-start', marginBottom: 10 }}
+                columnWrapperStyle={{
+                  justifyContent: "flex-start",
+                  marginBottom: 10,
+                }}
                 renderItem={({ item, index }) => {
                   const gap = 10;
                   const itemSize = (screenWidth - 40 - gap * 2) / 3;
@@ -875,7 +1057,7 @@ export default function CommunityProfileScreen({ navigation }) {
                         height: itemSize,
                         marginRight: isLastInRow ? 0 : gap,
                         borderRadius: 8,
-                        overflow: 'hidden',
+                        overflow: "hidden",
                       }}
                       onPress={() => openPostModal(item)}
                     >
@@ -884,20 +1066,42 @@ export default function CommunityProfileScreen({ navigation }) {
                         if (item?.image_urls) {
                           if (Array.isArray(item.image_urls)) {
                             const flatUrls = item.image_urls.flat();
-                            firstImageUrl = flatUrls.find(u => typeof u === 'string' && u.startsWith('http'));
-                          } else if (typeof item.image_urls === 'string' && item.image_urls.startsWith('http')) {
+                            firstImageUrl = flatUrls.find(
+                              (u) =>
+                                typeof u === "string" && u.startsWith("http")
+                            );
+                          } else if (
+                            typeof item.image_urls === "string" &&
+                            item.image_urls.startsWith("http")
+                          ) {
                             firstImageUrl = item.image_urls;
                           }
                         }
                         return firstImageUrl ? (
                           <Image
                             source={{ uri: firstImageUrl }}
-                            style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA' }}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              backgroundColor: "#E5E5EA",
+                            }}
                             resizeMode="cover"
                           />
                         ) : (
-                          <View style={{ width: '100%', height: '100%', backgroundColor: '#E5E5EA', justifyContent: 'center', alignItems: 'center' }}>
-                            <Ionicons name="image-outline" size={30} color={LIGHT_TEXT_COLOR} />
+                          <View
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              backgroundColor: "#E5E5EA",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Ionicons
+                              name="image-outline"
+                              size={30}
+                              color={LIGHT_TEXT_COLOR}
+                            />
                           </View>
                         );
                       })()}
@@ -908,7 +1112,9 @@ export default function CommunityProfileScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.emptyPostsContainer}>
-              <Text style={[styles.emptyPostsText, { fontWeight: 'bold' }]}>No posts</Text>
+              <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                No posts
+              </Text>
             </View>
           )}
         </View>
@@ -918,13 +1124,16 @@ export default function CommunityProfileScreen({ navigation }) {
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         onNotificationsPress={() =>
-          Alert.alert('Notifications', 'Notifications settings will be implemented soon!')
+          Alert.alert(
+            "Notifications",
+            "Notifications settings will be implemented soon!"
+          )
         }
         onPrivacyPress={() =>
-          Alert.alert('Privacy', 'Privacy settings will be implemented soon!')
+          Alert.alert("Privacy", "Privacy settings will be implemented soon!")
         }
         onHelpPress={() =>
-          Alert.alert('Help', 'Help & Support will be implemented soon!')
+          Alert.alert("Help", "Help & Support will be implemented soon!")
         }
         onAddAccountPress={() => setShowAddAccountModal(true)}
         onLogoutPress={handleLogout}
@@ -954,49 +1163,85 @@ export default function CommunityProfileScreen({ navigation }) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Delete Account</Text>
-              <TouchableOpacity onPress={() => setShowDeleteModal(false)} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(false)}
+                style={styles.closeButton}
+              >
                 <Ionicons name="close" size={24} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>This is permanent and cannot be undone. Type "delete" to confirm.</Text>
+              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
+                This is permanent and cannot be undone. Type "delete" to
+                confirm.
+              </Text>
               <TextInput
                 value={deleteInput}
                 onChangeText={setDeleteInput}
                 placeholder="Type delete"
                 autoCapitalize="none"
-                style={{ borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16 }}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#E5E5EA",
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  marginBottom: 16,
+                }}
               />
               <TouchableOpacity
-                disabled={deleting || deleteInput.trim().toLowerCase() !== 'delete'}
+                disabled={
+                  deleting || deleteInput.trim().toLowerCase() !== "delete"
+                }
                 onPress={async () => {
-                  if (deleteInput.trim().toLowerCase() !== 'delete') return;
+                  if (deleteInput.trim().toLowerCase() !== "delete") return;
                   setDeleting(true);
                   try {
-                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
+                    const { switchedToAccount, navigateToLanding } =
+                      await apiDeleteAccount();
                     setShowDeleteModal(false);
-                    
+
                     if (navigateToLanding || !switchedToAccount) {
-                      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Landing" }],
+                      });
                     } else {
                       const routeMap = {
-                        member: 'MemberHome',
-                        community: 'CommunityHome',
-                        sponsor: 'SponsorHome',
-                        venue: 'VenueHome',
+                        member: "MemberHome",
+                        community: "CommunityHome",
+                        sponsor: "SponsorHome",
+                        venue: "VenueHome",
                       };
-                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
-                      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+                      const routeName =
+                        routeMap[switchedToAccount.type] || "Landing";
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: routeName }],
+                      });
                     }
                   } catch (e) {
-                    Alert.alert('Delete failed', e?.message || 'Could not delete account');
+                    Alert.alert(
+                      "Delete failed",
+                      e?.message || "Could not delete account"
+                    );
                   } finally {
                     setDeleting(false);
                   }
                 }}
-                style={{ backgroundColor: deleteInput.trim().toLowerCase() === 'delete' ? '#FF3B30' : '#FFAAA3', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                style={{
+                  backgroundColor:
+                    deleteInput.trim().toLowerCase() === "delete"
+                      ? "#FF3B30"
+                      : "#FFAAA3",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: "center",
+                }}
               >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>{deleting ? 'Deleting...' : 'Delete Account'}</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  {deleting ? "Deleting..." : "Delete Account"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1045,15 +1290,20 @@ export default function CommunityProfileScreen({ navigation }) {
         visible={showAccountSwitcher}
         onClose={() => setShowAccountSwitcher(false)}
         currentAccountId={profile?.id ? `community_${profile.id}` : undefined}
-        currentProfile={profile ? { ...profile, type: 'community' } : null}
+        currentProfile={profile ? { ...profile, type: "community" } : null}
         onAccountSwitch={(account) => {
           // Navigate to correct home screen based on account type
-          const routeName = account.type === 'member' ? 'MemberHome'
-            : account.type === 'community' ? 'CommunityHome'
-            : account.type === 'sponsor' ? 'SponsorHome'
-            : account.type === 'venue' ? 'VenueHome'
-            : 'Landing';
-          
+          const routeName =
+            account.type === "member"
+              ? "MemberHome"
+              : account.type === "community"
+              ? "CommunityHome"
+              : account.type === "sponsor"
+              ? "SponsorHome"
+              : account.type === "venue"
+              ? "VenueHome"
+              : "Landing";
+
           // Get the ROOT navigator (go up the parent chain)
           let rootNavigator = navigation;
           try {
@@ -1068,10 +1318,13 @@ export default function CommunityProfileScreen({ navigation }) {
               }
             }
           } catch (error) {
-            console.warn('[AccountSwitch] Could not get root navigator:', error);
+            console.warn(
+              "[AccountSwitch] Could not get root navigator:",
+              error
+            );
           }
-          
-          console.log('[AccountSwitch] Resetting to:', routeName);
+
+          console.log("[AccountSwitch] Resetting to:", routeName);
           rootNavigator.reset({
             index: 0,
             routes: [{ name: routeName }],
@@ -1079,71 +1332,101 @@ export default function CommunityProfileScreen({ navigation }) {
         }}
         onAddAccount={() => setShowAddAccountModal(true)}
         onLoginRequired={(account) => {
-          console.log('[CommunityProfile] ============================================');
-          console.log('[CommunityProfile] onLoginRequired called!');
-          console.log('[CommunityProfile] Account:', {
+          console.log(
+            "[CommunityProfile] ============================================"
+          );
+          console.log("[CommunityProfile] onLoginRequired called!");
+          console.log("[CommunityProfile] Account:", {
             id: account?.id,
             username: account?.username,
             email: account?.email,
-            type: account?.type
+            type: account?.type,
           });
-          
+
           setShowAccountSwitcher(false);
-          console.log('[CommunityProfile] Closed account switcher modal');
-          
+          console.log("[CommunityProfile] Closed account switcher modal");
+
           let rootNavigator = navigation;
-          console.log('[CommunityProfile] Initial navigation object:', !!navigation);
-          
+          console.log(
+            "[CommunityProfile] Initial navigation object:",
+            !!navigation
+          );
+
           try {
             if (navigation.getParent) {
               const parent1 = navigation.getParent();
-              console.log('[CommunityProfile] Parent navigator:', !!parent1);
+              console.log("[CommunityProfile] Parent navigator:", !!parent1);
               if (parent1 && parent1.getParent) {
                 const parent2 = parent1.getParent();
-                console.log('[CommunityProfile] Grand parent navigator:', !!parent2);
+                console.log(
+                  "[CommunityProfile] Grand parent navigator:",
+                  !!parent2
+                );
                 rootNavigator = parent2 || parent1;
               }
             }
           } catch (error) {
-            console.warn('[CommunityProfile] Error getting root navigator:', error);
+            console.warn(
+              "[CommunityProfile] Error getting root navigator:",
+              error
+            );
           }
-          
-          console.log('[CommunityProfile] Root navigator obtained:', !!rootNavigator);
-          console.log('[CommunityProfile] Attempting navigation to Login...');
-          
+
+          console.log(
+            "[CommunityProfile] Root navigator obtained:",
+            !!rootNavigator
+          );
+          console.log("[CommunityProfile] Attempting navigation to Login...");
+
           try {
-            console.log('[CommunityProfile] Calling rootNavigator.navigate("Login", ...)');
-            rootNavigator.navigate('Login', { 
+            console.log(
+              '[CommunityProfile] Calling rootNavigator.navigate("Login", ...)'
+            );
+            rootNavigator.navigate("Login", {
               email: account.email,
               isAddingAccount: false,
             });
-            console.log('[CommunityProfile] Navigation call completed successfully');
+            console.log(
+              "[CommunityProfile] Navigation call completed successfully"
+            );
           } catch (error) {
-            console.error('[CommunityProfile] Navigation to Login failed!', error);
-            console.error('[CommunityProfile] Error details:', {
+            console.error(
+              "[CommunityProfile] Navigation to Login failed!",
+              error
+            );
+            console.error("[CommunityProfile] Error details:", {
               message: error.message,
-              name: error.name
+              name: error.name,
             });
-            console.log('[CommunityProfile] Attempting fallback: reset to Landing');
+            console.log(
+              "[CommunityProfile] Attempting fallback: reset to Landing"
+            );
             try {
               rootNavigator.reset({
                 index: 0,
-                routes: [{ name: 'Landing' }],
+                routes: [{ name: "Landing" }],
               });
-              console.log('[CommunityProfile] Fallback navigation completed');
+              console.log("[CommunityProfile] Fallback navigation completed");
             } catch (fallbackError) {
-              console.error('[CommunityProfile] Fallback navigation ALSO failed!', fallbackError);
+              console.error(
+                "[CommunityProfile] Fallback navigation ALSO failed!",
+                fallbackError
+              );
             }
           }
-          console.log('[CommunityProfile] ============================================');
+          console.log(
+            "[CommunityProfile] ============================================"
+          );
         }}
       />
 
       <AddAccountModal
         visible={showAddAccountModal}
         onClose={() => setShowAddAccountModal(false)}
-        onLoginExisting={() => navigation.navigate('Login', { isAddingAccount: true })}
-        onCreateNew={() => navigation.navigate('Landing')}
+        onLoginExisting={() =>
+          navigation.navigate("Login", { isAddingAccount: true })
+        }
+        onCreateNew={() => navigation.navigate("Landing")}
       />
     </SafeAreaView>
   );
@@ -1196,42 +1479,42 @@ const PostModal = ({
 
   const isOwnPost = () => {
     if (!post || !profileProp) {
-        console.log('[CommunityProfile] isOwnPost: Missing post or profile');
-        return false;
+      console.log("[CommunityProfile] isOwnPost: Missing post or profile");
+      return false;
     }
     const isOwner = String(post.author_id) === String(profileProp.id);
-    const isCommunity = (post.author_type || '').toLowerCase() === 'community';
-    
-    console.log('[CommunityProfile] isOwnPost check:', {
-        postAuthorId: post.author_id,
-        profileId: profileProp.id,
-        postAuthorType: post.author_type,
-        isOwner,
-        isCommunity
+    const isCommunity = (post.author_type || "").toLowerCase() === "community";
+
+    console.log("[CommunityProfile] isOwnPost check:", {
+      postAuthorId: post.author_id,
+      profileId: profileProp.id,
+      postAuthorType: post.author_type,
+      isOwner,
+      isCommunity,
     });
-    
+
     return isOwner; // Temporarily removed author_type check strictness or simplified it
   };
 
   const handleDeletePost = async () => {
     if (!post?.id) return;
     if (!isOwnPost()) {
-      Alert.alert('Error', 'You can only delete your own posts');
+      Alert.alert("Error", "You can only delete your own posts");
       setShowDeleteMenu(false);
       return;
     }
     Alert.alert(
-      'Delete Post',
-      'Are you sure you want to delete this post? This action cannot be undone.',
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
       [
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text: "Cancel",
+          style: "cancel",
           onPress: () => setShowDeleteMenu(false),
         },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             setDeleting(true);
             try {
@@ -1239,10 +1522,10 @@ const PostModal = ({
               await apiDelete(`/posts/${post.id}`, null, 15000, token);
               if (onCloseComments) onCloseComments();
               onClose();
-              Alert.alert('Success', 'Post deleted successfully');
+              Alert.alert("Success", "Post deleted successfully");
             } catch (error) {
-              console.error('Error deleting post:', error);
-              Alert.alert('Error', error?.message || 'Failed to delete post');
+              console.error("Error deleting post:", error);
+              Alert.alert("Error", error?.message || "Failed to delete post");
             } finally {
               setDeleting(false);
             }
@@ -1294,10 +1577,13 @@ const PostModal = ({
         setIsLiked(true);
       }
     } catch (error) {
-      console.error('Error liking post:', error);
+      console.error("Error liking post:", error);
       // Silently handle "Post already liked" and "Post not liked" errors
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('already liked') || errorMessage.includes('not liked')) {
+      const errorMessage = error?.message || "";
+      if (
+        errorMessage.includes("already liked") ||
+        errorMessage.includes("not liked")
+      ) {
         // These are expected errors when double-clicking, just ignore
         justUpdatedRef.current = false;
         return;
@@ -1317,7 +1603,7 @@ const PostModal = ({
   const images = Array.isArray(post.image_urls)
     ? post.image_urls
         .flat()
-        .filter((u) => typeof u === 'string' && u.startsWith('http'))
+        .filter((u) => typeof u === "string" && u.startsWith("http"))
     : [];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -1331,8 +1617,18 @@ const PostModal = ({
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
     ];
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
   };
@@ -1360,11 +1656,17 @@ const PostModal = ({
                 {isOwnPost() && (
                   <TouchableOpacity
                     onPress={() => {
-                      console.log('[CommunityProfile] 3-dot pressed. Setting showDeleteMenu=true');
+                      console.log(
+                        "[CommunityProfile] 3-dot pressed. Setting showDeleteMenu=true"
+                      );
                       setShowDeleteMenu(true);
                     }}
                   >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#000" />
+                    <Ionicons
+                      name="ellipsis-horizontal"
+                      size={20}
+                      color="#000"
+                    />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1376,14 +1678,14 @@ const PostModal = ({
                     post.author_photo_url ||
                     post.author_logo_url ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      post.author_name || post.author_username || 'Community'
+                      post.author_name || post.author_username || "Community"
                     )}&background=5f27cd&color=FFFFFF`,
                 }}
                 style={postModalStyles.postModalHeaderAvatar}
               />
               <View style={postModalStyles.postModalHeaderText}>
                 <Text style={postModalStyles.postModalHeaderUsername}>
-                  {post.author_username || post.author_name || 'Community'}
+                  {post.author_username || post.author_name || "Community"}
                 </Text>
                 <Text style={postModalStyles.postModalHeaderDate}>
                   {formatDate(post.created_at)}
@@ -1454,9 +1756,9 @@ const PostModal = ({
                 disabled={isLiking}
               >
                 <Ionicons
-                  name={isLiked ? 'heart' : 'heart-outline'}
+                  name={isLiked ? "heart" : "heart-outline"}
                   size={28}
-                  color={isLiked ? '#FF3040' : '#000'}
+                  color={isLiked ? "#FF3040" : "#000"}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -1465,12 +1767,8 @@ const PostModal = ({
                 }}
                 style={postModalStyles.modalActionButton}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons
-                    name="chatbubble-outline"
-                    size={26}
-                    color="#000"
-                  />
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons name="chatbubble-outline" size={26} color="#000" />
                   {commentCount > 0 && (
                     <Text style={postModalStyles.postModalCommentCount}>
                       {commentCount}
@@ -1483,7 +1781,7 @@ const PostModal = ({
             {likes > 0 && (
               <View style={postModalStyles.postModalLikesSection}>
                 <Text style={postModalStyles.postModalLikesText}>
-                  {likes === 1 ? '1 like' : `${likes} likes`}
+                  {likes === 1 ? "1 like" : `${likes} likes`}
                 </Text>
               </View>
             )}
@@ -1492,24 +1790,34 @@ const PostModal = ({
               <MentionTextRenderer
                 prefix={
                   <Text style={postModalStyles.postModalCaptionUsername}>
-                    {post.author_username || post.author_name || 'Community'}
+                    {post.author_username || post.author_name || "Community"}
                   </Text>
                 }
-                text={post.caption || ''}
+                text={post.caption || ""}
                 taggedEntities={post?.tagged_entities}
                 textStyle={postModalStyles.postModalCaption}
                 mentionStyle={postModalStyles.postModalCaptionMention}
                 onMentionPress={(entity) => {
                   if (!entity?.id) return;
-                  const type = (entity.type || 'member').toLowerCase();
-                  if (type === 'member') {
-                    navigation.navigate('MemberPublicProfile', { memberId: entity.id });
-                  } else if (type === 'community') {
-                    navigation.navigate('CommunityPublicProfile', { communityId: entity.id });
-                  } else if (type === 'sponsor') {
-                    Alert.alert('Coming soon', 'Sponsor profile navigation will be available soon.');
-                  } else if (type === 'venue') {
-                    Alert.alert('Coming soon', 'Venue profile navigation will be available soon.');
+                  const type = (entity.type || "member").toLowerCase();
+                  if (type === "member") {
+                    navigation.navigate("MemberPublicProfile", {
+                      memberId: entity.id,
+                    });
+                  } else if (type === "community") {
+                    navigation.navigate("CommunityPublicProfile", {
+                      communityId: entity.id,
+                    });
+                  } else if (type === "sponsor") {
+                    Alert.alert(
+                      "Coming soon",
+                      "Sponsor profile navigation will be available soon."
+                    );
+                  } else if (type === "venue") {
+                    Alert.alert(
+                      "Coming soon",
+                      "Venue profile navigation will be available soon."
+                    );
                   }
                 }}
               />
@@ -1523,8 +1831,8 @@ const PostModal = ({
                 style={postModalStyles.postModalViewCommentsButton}
               >
                 <Text style={postModalStyles.postModalViewCommentsText}>
-                  View all {commentCount}{' '}
-                  {commentCount === 1 ? 'comment' : 'comments'}
+                  View all {commentCount}{" "}
+                  {commentCount === 1 ? "comment" : "comments"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1536,7 +1844,9 @@ const PostModal = ({
           transparent={true}
           animationType="fade"
           onRequestClose={() => setShowDeleteMenu(false)}
-          onShow={() => console.log('[CommunityProfile] Delete menu modal now showing')}
+          onShow={() =>
+            console.log("[CommunityProfile] Delete menu modal now showing")
+          }
         >
           <TouchableOpacity
             style={postModalStyles.deleteMenuOverlay}
@@ -1556,11 +1866,7 @@ const PostModal = ({
                   <ActivityIndicator size="small" color="#FF3B30" />
                 ) : (
                   <>
-                    <Ionicons
-                      name="trash-outline"
-                      size={20}
-                      color="#FF3B30"
-                    />
+                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
                     <Text style={postModalStyles.deleteMenuOptionText}>
                       Delete Post
                     </Text>
@@ -1592,50 +1898,50 @@ const PostModal = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
   },
   bannerContainer: {
-    width: '100%',
+    width: "100%",
     height: BANNER_HEIGHT,
-    backgroundColor: '#EFEFF4',
+    backgroundColor: "#EFEFF4",
   },
   bannerImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   bannerPlaceholder: {
-    backgroundColor: '#E5E5EA',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#E5E5EA",
+    justifyContent: "center",
+    alignItems: "center",
   },
   bannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dim on top of blur
+    backgroundColor: "rgba(0, 0, 0, 0.15)", // Subtle dim on top of blur
   },
   bannerEdit: {
-    position: 'absolute',
+    position: "absolute",
     right: 16,
     bottom: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     borderRadius: 20,
     padding: 8,
     zIndex: 5,
   },
   settingsIconAbsolute: {
-    position: 'absolute',
+    position: "absolute",
     right: 16,
     top: BANNER_HEIGHT + 12, // Just below banner
     zIndex: 10,
     padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -1646,55 +1952,65 @@ const styles = StyleSheet.create({
     paddingTop: 0, // Avatar overlap handles spacing
   },
   profileHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 6,
     marginTop: -(AVATAR_SIZE * 0.4), // 40% overlap on banner
     marginBottom: 16,
+  },
+  // Styles for when no banner exists
+  settingsIconNoBanner: {
+    top: 16, // Position at top when no banner
+  },
+  summarySectionNoBanner: {
+    paddingTop: 50, // Space for settings icon when no banner
+  },
+  profileHeaderNoBanner: {
+    marginTop: 0, // No overlap when no banner
   },
   avatarWrapper: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    overflow: 'visible', // Allow shadow to show
+    overflow: "visible", // Allow shadow to show
     borderWidth: 4,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#E5E5EA',
+    borderColor: "#FFFFFF",
+    backgroundColor: "#E5E5EA",
     // Soft shadow for depth
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
   },
   avatar: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: AVATAR_SIZE / 2,
   },
   usernameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 2,
   },
   usernameText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#555555', // Darker than secondary, lighter than primary
+    fontWeight: "500",
+    color: "#555555", // Darker than secondary, lighter than primary
   },
   communityName: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
   },
   categoriesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 8,
     marginTop: 4,
   },
   categoryChip: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1702,11 +2018,11 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: 13,
     color: PRIMARY_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   locationText: {
@@ -1717,22 +2033,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 8,
   },
   statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginTop: 16,
     marginBottom: 16,
   },
   statItem: {
-    alignItems: 'center',
+    alignItems: "center",
     flex: 1,
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
   },
   statLabel: {
@@ -1741,13 +2057,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   editProfileButton: {
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 20,
-    width: '60%', // Give it some width
+    width: "60%", // Give it some width
   },
-  editProfileText: { // Used in GradientButton? No, handled by component props
-    color: '#FFFFFF',
-    fontWeight: '600',
+  editProfileText: {
+    // Used in GradientButton? No, handled by component props
+    color: "#FFFFFF",
+    fontWeight: "600",
     fontSize: 15,
   },
   sectionCard: {
@@ -1758,22 +2075,22 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
     // Removed border for cleaner look, or keep very subtle
     borderWidth: 1,
-    borderColor: '#F2F2F7', 
+    borderColor: "#F2F2F7",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   sponsorTypesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 10, // Space between title and chips
   },
@@ -1784,12 +2101,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   sponsorTypeText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   headRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingVertical: 10,
   },
@@ -1797,17 +2114,17 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
   },
   headName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   primaryTag: {
     fontSize: 12,
     color: PRIMARY_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 2,
   },
   headSub: {
@@ -1824,47 +2141,47 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   postsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginTop: 10,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingBottom: 40,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   closeButton: {
     padding: 5,
   },
   bannerPlaceholderText: {
-    color: '#8E8E93',
+    color: "#8E8E93",
     fontSize: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptyPostsContainer: {
     paddingVertical: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyPostsText: {
     color: LIGHT_TEXT_COLOR,
@@ -1875,22 +2192,22 @@ const styles = StyleSheet.create({
 const postModalStyles = StyleSheet.create({
   postModalSafeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   postModalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   postModalHeader: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   postModalHeaderTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 12,
   },
   postModalBackButton: {
@@ -1899,12 +2216,12 @@ const postModalStyles = StyleSheet.create({
   },
   postModalHeaderTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalHeaderUserInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   postModalHeaderAvatar: {
     width: 32,
@@ -1917,12 +2234,12 @@ const postModalStyles = StyleSheet.create({
   },
   postModalHeaderUsername: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalHeaderDate: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: "#8E8E93",
     marginTop: 2,
   },
   postModalMoreButton: {
@@ -1935,8 +2252,8 @@ const postModalStyles = StyleSheet.create({
   postModalImageWrapper: {
     width: screenWidth,
     height: screenWidth,
-    backgroundColor: '#000',
-    position: 'relative',
+    backgroundColor: "#000",
+    position: "relative",
   },
   modalImageCarousel: {
     width: screenWidth,
@@ -1945,52 +2262,52 @@ const postModalStyles = StyleSheet.create({
   postModalImageFrame: {
     width: screenWidth,
     height: screenWidth,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
   },
   postModalImage: {
     width: screenWidth,
     height: screenWidth,
   },
   postModalImageIndicator: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   postModalImageIndicatorText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   postModalImageDots: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 12,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
   },
   postModalDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
   },
   postModalDotActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     width: 8,
     height: 8,
     borderRadius: 4,
   },
   postModalActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -2000,8 +2317,8 @@ const postModalStyles = StyleSheet.create({
   },
   postModalCommentCount: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
     marginLeft: 6,
   },
   postModalLikesSection: {
@@ -2010,8 +2327,8 @@ const postModalStyles = StyleSheet.create({
   },
   postModalLikesText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalCaptionSection: {
     paddingHorizontal: 16,
@@ -2019,16 +2336,16 @@ const postModalStyles = StyleSheet.create({
   },
   postModalCaption: {
     fontSize: 14,
-    color: '#000',
+    color: "#000",
     lineHeight: 20,
   },
   postModalCaptionMention: {
     color: PRIMARY_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   postModalCaptionUsername: {
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   postModalViewCommentsButton: {
     paddingHorizontal: 16,
@@ -2036,44 +2353,44 @@ const postModalStyles = StyleSheet.create({
   },
   postModalViewCommentsText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: "#8E8E93",
   },
   deleteMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   deleteMenuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
   },
   deleteMenuOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   deleteMenuOptionDisabled: {
     opacity: 0.5,
   },
   deleteMenuOptionText: {
     fontSize: 18,
-    color: '#FF3B30',
-    fontWeight: '600',
+    color: "#FF3B30",
+    fontWeight: "600",
     marginLeft: 12,
   },
   deleteMenuCancelText: {
     fontSize: 18,
-    color: '#000',
-    fontWeight: '600',
+    color: "#000",
+    fontWeight: "600",
   },
   handleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
 });
