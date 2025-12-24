@@ -1,60 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   StyleSheet,
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
-  Image,
   RefreshControl,
   Alert,
-  FlatList, // Added FlatList
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNotifications } from '../context/NotificationsContext';
-import { apiGet, apiPost } from '../api/client';
-import { getAuthToken, getAuthEmail } from '../api/auth';
-import { getUnreadCount as getMessageUnreadCount } from '../api/messages';
-import { discoverEvents } from '../api/events';
-import PostCard from './PostCard';
-import EventCard from './EventCard';
-import CommentsModal from './CommentsModal';
-import EventBus from '../utils/EventBus';
-import LikeStateManager from '../utils/LikeStateManager';
-import { useMessagePolling } from '../hooks/useMessagePolling';
-import { useFeedPolling } from '../hooks/useFeedPolling';
-import SkeletonCard from './SkeletonCard';
-import HapticsService from '../services/HapticsService';
+  FlatList,
+  Animated,
+  Platform,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useNotifications } from "../context/NotificationsContext";
+import { apiGet, apiPost } from "../api/client";
+import { getAuthToken, getAuthEmail } from "../api/auth";
+import { getUnreadCount as getMessageUnreadCount } from "../api/messages";
+import { discoverEvents } from "../api/events";
+import PostCard from "./PostCard";
+import EventCard from "./EventCard";
+import CommentsModal from "./CommentsModal";
+import EventBus from "../utils/EventBus";
+import LikeStateManager from "../utils/LikeStateManager";
+import { useMessagePolling } from "../hooks/useMessagePolling";
+import { useFeedPolling } from "../hooks/useFeedPolling";
+import SkeletonCard from "./SkeletonCard";
+import HapticsService from "../services/HapticsService";
 
-import { COLORS } from '../constants/theme';
+import { COLORS } from "../constants/theme";
 
 // Map legacy constants to new theme
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
-export default function HomeFeedScreen({ navigation, role = 'member' }) {
+// Header height for animations
+const HEADER_HEIGHT = 50;
+
+export default function HomeFeedScreen({ navigation, role = "member" }) {
+  const insets = useSafeAreaInsets();
+
+  // Calculate total header height including status bar
+  const totalHeaderHeight = HEADER_HEIGHT + insets.top;
+
   // Determine header title based on role
   const getHeaderTitle = () => {
     switch (role) {
-      case 'community': return 'SnooSpace';
-      case 'sponsor': return 'SnooSpace';
-      case 'venue': return 'SnooSpace';
-      case 'member':
-      default: return 'SnooSpace';
+      case "community":
+        return "SnooSpace";
+      case "sponsor":
+        return "SnooSpace";
+      case "venue":
+        return "SnooSpace";
+      case "member":
+      default:
+        return "SnooSpace";
     }
   };
 
   // Determine navigation stack based on current role
   const getNavigationStack = () => {
     switch (role) {
-      case 'community': return 'CommunityHome';
-      case 'sponsor': return 'SponsorHome';
-      case 'venue': return 'VenueHome';
-      case 'member':
-      default: return 'MemberHome';
+      case "community":
+        return "CommunityHome";
+      case "sponsor":
+        return "SponsorHome";
+      case "venue":
+        return "VenueHome";
+      case "member":
+      default:
+        return "MemberHome";
     }
   };
   const [posts, setPosts] = useState([]);
@@ -70,35 +89,59 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Auto-poll for message count updates (Instagram-like)
-  // Features: 3-second interval, exponential backoff, stops when screen off, adaptive night polling
-  useMessagePolling((count) => {
-    setMessageUnread(count);
-  }, {
-    baseInterval: 3000, // Poll every 3 seconds
-    enabled: true,
-  });
+  // Refs for collapsible header animation
+  const flatListRef = useRef(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Auto-poll for new posts (30-second interval with backoff)
-  // Features: auto-loads new posts, exponential backoff when no changes, night-time adaptation
+  // --- INSTAGRAM HEADER ANIMATION LOGIC ---
+
+  // 1. Fix the "Glitch" & Implement Hysteresis:
+  // We use useMemo to preserve the diffClamp state across re-renders.
+  // We clamp the scrollY input to 0 so that pull-to-refresh (negative scroll)
+  // doesn't affect the header position calculation.
+  const SCROLL_THRESHOLD = 50; // Distance to scroll up before header appears
+
+  // 1. Sticky Header Logic:
+  // The header remains visible at the top (translateY = 0).
+  const headerTranslateY = 0;
+
+  // 2. Dynamic Border:
+  // Fade in the bottom border only when content scrolls under the header
+  // (Moved inside useMemo above)
+
+  // Auto-poll for message count updates (Instagram-like)
+  useMessagePolling(
+    (count) => {
+      setMessageUnread(count);
+    },
+    {
+      baseInterval: 3000,
+      enabled: true,
+    }
+  );
+
+  // Auto-poll for new posts
   const { isPolling: isFeedPolling, initializeTimestamp } = useFeedPolling({
-    baseInterval: 30000, // 30 seconds
-    enabled: !loading, // Don't poll while initial load is happening
+    baseInterval: 30000,
+    enabled: !loading,
     onNewPostsLoaded: (newPosts) => {
-      console.log('[HomeFeed] Auto-loading new posts from polling');
-      // Apply cached like states and update posts
+      console.log("[HomeFeed] Auto-loading new posts from polling");
       const mergedPosts = LikeStateManager.mergeLikeStates(
-        newPosts.map(post => ({
+        newPosts.map((post) => ({
           ...post,
           tagged_entities: (() => {
             if (!post.tagged_entities) return null;
-            if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
-            try { return JSON.parse(post.tagged_entities); } catch { return null; }
-          })()
+            if (Array.isArray(post.tagged_entities))
+              return post.tagged_entities;
+            try {
+              return JSON.parse(post.tagged_entities);
+            } catch {
+              return null;
+            }
+          })(),
         }))
       );
       setPosts(mergedPosts);
-      // Haptic feedback for new posts
       HapticsService.triggerImpactLight();
     },
   });
@@ -111,14 +154,12 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
         setEvents(response.events);
       }
     } catch (error) {
-      console.warn('[HomeFeed] Error loading events:', error.message);
-      // Don't block feed for event errors
+      console.warn("[HomeFeed] Error loading events:", error.message);
     }
   };
-  // Merge posts and events into a single feed
-  // First event after 2 posts, then every 5 posts
+
+  // Merge posts and events
   useEffect(() => {
-    // Always show events even if no posts
     if (posts.length === 0 && events.length === 0) {
       setFeedItems([]);
       return;
@@ -126,37 +167,33 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
     const merged = [];
     let eventIndex = 0;
-    
-    // First event appears early (after 2 posts), subsequent ones every 5 posts
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
 
-    // If we have posts, intersperse events
     if (posts.length > 0) {
       posts.forEach((post, index) => {
-        merged.push({ ...post, itemType: 'post' });
+        merged.push({ ...post, itemType: "post" });
 
-        // First event after 2 posts, then every 5 posts after that
         const postNumber = index + 1;
-        const shouldInsertEvent = 
+        const shouldInsertEvent =
           (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
-          (eventIndex > 0 && postNumber > FIRST_EVENT_AT && (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
-        
+          (eventIndex > 0 &&
+            postNumber > FIRST_EVENT_AT &&
+            (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
+
         if (shouldInsertEvent && eventIndex < events.length) {
-          merged.push({ ...events[eventIndex], itemType: 'event' });
+          merged.push({ ...events[eventIndex], itemType: "event" });
           eventIndex++;
         }
       });
 
-      // Add remaining events at the end (spaced out)
       while (eventIndex < events.length) {
-        merged.push({ ...events[eventIndex], itemType: 'event' });
+        merged.push({ ...events[eventIndex], itemType: "event" });
         eventIndex++;
       }
     } else {
-      // No posts, just show events
-      events.forEach(event => {
-        merged.push({ ...event, itemType: 'event' });
+      events.forEach((event) => {
+        merged.push({ ...event, itemType: "event" });
       });
     }
 
@@ -164,25 +201,24 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   }, [posts, events]);
 
   useEffect(() => {
-    // Always load feed once on mount
     loadFeed();
     loadEvents();
     loadGreetingName();
     loadMessageUnreadCount();
-    const off = EventBus.on('follow-updated', () => {
+    const off = EventBus.on("follow-updated", () => {
       loadFeed();
     });
-    const offMessages = EventBus.on('messages-read', () => {
+    const offMessages = EventBus.on("messages-read", () => {
       loadMessageUnreadCount();
     });
-    const offNewMessage = EventBus.on('new-message', () => {
+    const offNewMessage = EventBus.on("new-message", () => {
       loadMessageUnreadCount();
     });
-    const offPostCreated = EventBus.on('post-created', () => {
+    const offPostCreated = EventBus.on("post-created", () => {
       loadFeed();
     });
-    return () => { 
-      off(); 
+    return () => {
+      off();
       offMessages();
       offNewMessage();
       offPostCreated();
@@ -192,10 +228,8 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   useEffect(() => {
     const handlePostLikeUpdate = (payload) => {
       if (!payload?.postId) return;
-      
-      // Cache the like state to persist across screens
       LikeStateManager.setLikeState(payload.postId, payload.isLiked);
-      
+
       setPosts((prev) =>
         prev.map((post) =>
           post.id === payload.postId
@@ -204,11 +238,11 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
                 is_liked: payload.isLiked,
                 isLiked: payload.isLiked,
                 like_count:
-                  typeof payload.likeCount === 'number'
+                  typeof payload.likeCount === "number"
                     ? payload.likeCount
                     : post.like_count,
                 comment_count:
-                  typeof payload.commentCount === 'number'
+                  typeof payload.commentCount === "number"
                     ? payload.commentCount
                     : post.comment_count,
               }
@@ -225,7 +259,7 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
             ? {
                 ...post,
                 comment_count:
-                  typeof payload.commentCount === 'number'
+                  typeof payload.commentCount === "number"
                     ? payload.commentCount
                     : post.comment_count,
               }
@@ -234,8 +268,14 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       );
     };
 
-    const unsubscribeLike = EventBus.on('post-like-updated', handlePostLikeUpdate);
-    const unsubscribeComment = EventBus.on('post-comment-updated', handlePostCommentUpdate);
+    const unsubscribeLike = EventBus.on(
+      "post-like-updated",
+      handlePostLikeUpdate
+    );
+    const unsubscribeComment = EventBus.on(
+      "post-comment-updated",
+      handlePostCommentUpdate
+    );
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -243,14 +283,12 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     };
   }, []);
 
-  // Refresh message count when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
       loadMessageUnreadCount();
     }, [])
   );
 
-  // Refresh notifications when screen gains focus
   const { loadInitial: loadNotifications } = useNotifications();
   useFocusEffect(
     React.useCallback(() => {
@@ -263,7 +301,7 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       const response = await getMessageUnreadCount();
       setMessageUnread(response.unreadCount || 0);
     } catch (error) {
-      console.error('Error loading message unread count:', error);
+      console.error("Error loading message unread count:", error);
     }
   };
 
@@ -272,78 +310,37 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       setLoading(true);
       setErrorMsg("");
       const token = await getAuthToken();
-      if (!token) throw new Error("Authentication token not found."); // Added check for token
-      
-      const response = await apiGet('/posts/feed', 15000, token);
-      // Parse tagged_entities if they come as JSON strings
-      const posts = (response.posts || []).map(post => {
+      if (!token) throw new Error("Authentication token not found.");
+
+      const response = await apiGet("/posts/feed", 15000, token);
+      const posts = (response.posts || []).map((post) => {
         const mappedPost = {
           ...post,
-          // Explicitly preserve author_id and author_type
           author_id: post.author_id,
           author_type: post.author_type,
           tagged_entities: (() => {
             if (!post.tagged_entities) return null;
-            if (Array.isArray(post.tagged_entities)) return post.tagged_entities;
+            if (Array.isArray(post.tagged_entities))
+              return post.tagged_entities;
             try {
               return JSON.parse(post.tagged_entities);
             } catch {
               return null;
             }
-          })()
+          })(),
         };
-        // Debug log for community posts
-        if (post.author_type === 'community') {
-          console.log('[HomeFeedScreen] Community post loaded:', {
-            postId: post.id,
-            author_id: post.author_id,
-            author_type: post.author_type,
-            author_name: post.author_name
-          });
-        }
         return mappedPost;
       });
-      
-      console.log('[HomeFeedScreen] About to merge like states, posts count:', posts.length);
-      // Apply cached like states from LikeStateManager
+
       const mergedPosts = LikeStateManager.mergeLikeStates(posts);
-      console.log('[HomeFeedScreen] After merge, checking post 24:', mergedPosts.find(p => p.id === '24' || p.id === 24));
       setPosts(mergedPosts);
-      
-      // Initialize polling timestamp for new post detection
+
       if (mergedPosts.length > 0 && mergedPosts[0]?.created_at) {
         initializeTimestamp(mergedPosts[0].created_at);
       }
     } catch (error) {
-      console.error('Error loading feed:', error);
-      setErrorMsg(error?.message || 'Failed to load posts');
-      // For now, show mock data if API fails
-      setPosts([
-        {
-          id: 1,
-          author_name: "Tech Enthusiasts",
-          author_username: "tech_enthusiasts",
-          author_photo_url: "https://via.placeholder.com/40",
-          caption: "Alex The new gear is insane! Who's going to the Tech Summit?",
-          image_urls: ["https://via.placeholder.com/400x300"],
-          like_count: 2100,
-          comment_count: 312,
-          created_at: new Date().toISOString(),
-          isLiked: false
-        },
-        {
-          id: 2,
-          author_name: "Outdoor Explorers",
-          author_username: "outdoor_explorers",
-          author_photo_url: "https://via.placeholder.com/40",
-          caption: "Sarah Who's ready for an adventure? Yosemite is calling!",
-          image_urls: ["https://via.placeholder.com/400x300"],
-          like_count: 1800,
-          comment_count: 250,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          isLiked: false
-        }
-      ]);
+      console.error("Error loading feed:", error);
+      setErrorMsg(error?.message || "Failed to load posts");
     } finally {
       setLoading(false);
     }
@@ -352,38 +349,37 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
   const loadGreetingName = async () => {
     try {
       const token = await getAuthToken();
-      
-      // Import getActiveAccount to get correct email
-      const { getActiveAccount } = await import('../api/auth');
+      const { getActiveAccount } = await import("../api/auth");
       const activeAccount = await getActiveAccount();
-      
+
       if (!token || !activeAccount?.email) return;
-      
+
       const email = activeAccount.email;
-      const res = await apiPost('/auth/get-user-profile', { email }, 12000, token);
+      const res = await apiPost(
+        "/auth/get-user-profile",
+        { email },
+        12000,
+        token
+      );
       const prof = res?.profile || {};
-      const name = prof.full_name || prof.name || prof.username || 'Member';
+      const name = prof.full_name || prof.name || prof.username || "Member";
       setGreetingName(name);
-      setCurrentUserId(prof.id); // Store current user ID for profile navigation
+      setCurrentUserId(prof.id);
     } catch (e) {
-      console.error('[HomeFeed] Error loading greeting name:', e);
-      setGreetingName('Member');
+      console.error("[HomeFeed] Error loading greeting name:", e);
+      setGreetingName("Member");
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadFeed(),
-      loadEvents(),
-      loadMessageUnreadCount()
-    ]);
+    await Promise.all([loadFeed(), loadEvents(), loadMessageUnreadCount()]);
     setRefreshing(false);
   };
 
   const handleLikeUpdate = (postId, isLiked) => {
-    setPosts(prevPosts =>
-      prevPosts.map(p =>
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
         p.id === postId
           ? {
               ...p,
@@ -396,24 +392,6 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
     );
   };
 
-  const formatCount = (count) => {
-    if (count >= 1000) {
-      return (count / 1000).toFixed(1) + 'k';
-    }
-    return count.toString();
-  };
-
-  const formatTimeAgo = (timestamp) => {
-    const now = new Date();
-    const postTime = new Date(timestamp);
-    const diffInHours = Math.floor((now - postTime) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'now';
-    if (diffInHours < 24) return `${diffInHours}h`;
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d`;
-    return `${Math.floor(diffInHours / 168)}w`;
-  };
-
   const handleCommentPress = (postId) => {
     setSelectedPostId(postId);
     setCommentsModalVisible(true);
@@ -421,34 +399,41 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 
   const handleCommentCountChange = (postId) => {
     return (prevCount) => {
-      // Update the comment count in the posts array
-      setPosts(prevPosts =>
-        prevPosts.map(p =>
-          p.id === postId
-            ? { ...p, comment_count: prevCount }
-            : p
+      setPosts((prevPosts) =>
+        prevPosts.map((p) =>
+          p.id === postId ? { ...p, comment_count: prevCount } : p
         )
       );
     };
   };
 
-  // Handle event card press
   const handleEventPress = (event) => {
-    navigation.navigate('EventDetails', {
+    navigation.navigate("EventDetails", {
       eventId: event.id,
-      eventData: event, // Pass initial data for faster display
+      eventData: event,
     });
   };
 
-  // Handle interested button press
   const handleInterestedPress = (event) => {
     HapticsService.triggerImpactLight();
-    Alert.alert('Interested!', `You've marked interest in "${event.title}"`);
+    Alert.alert("Interested!", `You've marked interest in "${event.title}"`);
   };
 
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: true }
+  );
+
+  const handleLogoPress = useCallback(() => {
+    HapticsService.triggerImpactLight();
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setTimeout(() => {
+      onRefresh();
+    }, 300);
+  }, [onRefresh]);
+
   const renderFeedItem = ({ item }) => {
-    // Render event card
-    if (item.itemType === 'event') {
+    if (item.itemType === "event") {
       return (
         <EventCard
           event={item}
@@ -458,187 +443,203 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
       );
     }
 
-    // Render post card (default)
-    if (item?.author_type === 'community') {
-      console.log('[HomeFeedScreen] Rendering community post:', {
-        postId: item.id,
-        author_id: item.author_id,
-        author_type: item.author_type,
-        author_name: item.author_name,
-        currentUserId
-      });
-    }
-    
     return (
-      <PostCard 
+      <PostCard
         post={item}
         onLike={handleLikeUpdate}
         onComment={handleCommentPress}
         onUserPress={(userId, userType) => {
-          // Fallback: Use post item's author_type if userType is missing
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;
-          
-          console.log('[HomeFeedScreen] onUserPress called:', { 
-            userId, 
-            userType, 
-            actualUserId,
-            actualUserType,
-            currentUserId,
-            postId: item?.id,
-            postAuthorId: item?.author_id,
-            postAuthorType: item?.author_type,
-            fullItem: item
-          });
-          
-          // Check for community first to ensure it's handled correctly
-          if (actualUserType === 'community') {
-            console.log('[HomeFeedScreen] Navigating to community profile:', { actualUserId, currentUserId, role });
-            
-            // Check if it's the user's own community
-            const isOwnCommunity = currentUserId && String(actualUserId) === String(currentUserId);
-            
-            if (isOwnCommunity && role === 'community') {
-              // Navigate to own profile (Profile tab)
+
+          if (actualUserType === "community") {
+            const isOwnCommunity =
+              currentUserId && String(actualUserId) === String(currentUserId);
+
+            if (isOwnCommunity && role === "community") {
               const root = navigation.getParent()?.getParent();
               if (root) {
                 root.navigate(getNavigationStack(), {
-                  screen: 'Profile',
+                  screen: "Profile",
                   params: {
-                    screen: 'CommunityProfile'
-                  }
+                    screen: "CommunityProfile",
+                  },
                 });
               }
-            } else if (role === 'member') {
-              // Member viewing a community profile - navigate within Home stack
-              navigation.navigate('CommunityPublicProfile', {
+            } else if (role === "member") {
+              navigation.navigate("CommunityPublicProfile", {
                 communityId: actualUserId,
-                viewerRole: 'member'
+                viewerRole: "member",
               });
             } else {
-              // Community viewing another community's profile
-              // For now, show alert since CommunityPublicProfile might not be in Community's Home stack
-              Alert.alert('Community Profile', `Viewing community: ${actualUserId}\n\nNote: Community-to-community navigation will be enhanced soon.`);
+              Alert.alert(
+                "Community Profile",
+                `Viewing community: ${actualUserId}`
+              );
             }
-            return; // Important: return early to prevent fallthrough
+            return;
           }
-        
-        // Only handle member if explicitly member type
-        if (actualUserType === 'member') {
-          // Check if it's the current user's own profile
-          const isOwnProfile = currentUserId && actualUserId === currentUserId;
-          console.log('[HomeFeedScreen] Member navigation:', { actualUserId, isOwnProfile, currentUserId, role });
-          
-          // Member and Community have nested stack navigation with Profile tabs
-          // Sponsor and Venue have simple tab navigation without nested stacks
-          if (role === 'member' || role === 'community') {
-            // Navigate directly to MemberPublicProfile within the current Home stack
-            // This keeps the Home tab active instead of switching to Profile tab
-            if (!isOwnProfile) {
-              navigation.navigate('MemberPublicProfile', { memberId: actualUserId });
-            } else {
-              // For own profile, navigate to Profile tab
-              const root = navigation.getParent()?.getParent();
-              if (root) {
-                root.navigate(getNavigationStack(), {
-                  screen: 'Profile',
-                  params: {
-                    screen: 'MemberProfile'
-                  }
+
+          if (actualUserType === "member") {
+            const isOwnProfile =
+              currentUserId && actualUserId === currentUserId;
+
+            if (role === "member" || role === "community") {
+              if (!isOwnProfile) {
+                navigation.navigate("MemberPublicProfile", {
+                  memberId: actualUserId,
                 });
+              } else {
+                const root = navigation.getParent()?.getParent();
+                if (root) {
+                  root.navigate(getNavigationStack(), {
+                    screen: "Profile",
+                    params: {
+                      screen: "MemberProfile",
+                    },
+                  });
+                }
               }
+            } else {
+              Alert.alert(
+                "Member Profile",
+                `Viewing member profile: ${actualUserId}`
+              );
             }
-          } else {
-            // For Sponsor/Venue, navigate using simple navigation (they don't have nested stacks)
-            // Just show an alert for now since they don't have MemberPublicProfile in their navigation
-            Alert.alert('Member Profile', `Viewing member profile: ${actualUserId}\n\nNote: Full profile navigation for Sponsor/Venue roles will be implemented soon.`);
+            return;
           }
-          return;
-        }
-        
-        // If userType is undefined/null, log warning and don't navigate
-        // This prevents incorrect navigation when author_type is missing
-        if (!actualUserType) {
-          console.warn('[HomeFeedScreen] userType is undefined/null for userId:', actualUserId, 'Post data:', item);
-          Alert.alert('Navigation Error', 'Unable to determine profile type. Please try again.');
-          return;
-        }
-        
-        if (actualUserType === 'sponsor') {
-          // Navigate to sponsor profile - for now show alert, can be implemented later
-          Alert.alert('Sponsor Profile', 'Sponsor profile navigation will be implemented soon');
-        } else if (actualUserType === 'venue') {
-          // Navigate to venue profile - for now show alert, can be implemented later
-          Alert.alert('Venue Profile', 'Venue profile navigation will be implemented soon');
-        }
-      }}
-    />
-  );
+        }}
+      />
+    );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.appTitle}>{getHeaderTitle()}</Text>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+      {/* Animated Collapsible Header */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY: headerTranslateY }],
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            backgroundColor: "#FFFFFF",
+            paddingTop: insets.top,
+            height: totalHeaderHeight,
+          },
+        ]}
+      >
+        <TouchableOpacity onPress={handleLogoPress} activeOpacity={0.7}>
+          <Text style={styles.appTitle}>{getHeaderTitle()}</Text>
+        </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => {
-            // Navigate to Notifications (same stack - HomeStackNavigator)
-            navigation.navigate("Notifications");
-          }}>
-            <Ionicons name="notifications-outline" size={24} color={TEXT_COLOR} />
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => {
+              navigation.navigate("Notifications");
+            }}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color={TEXT_COLOR}
+            />
             {unread > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text>
+                <Text style={styles.badgeText}>
+                  {unread > 9 ? "9+" : String(unread)}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.headerButton}
             onPress={() => {
               navigation.navigate("ConversationsList");
             }}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={24} color={TEXT_COLOR} />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={24}
+              color={TEXT_COLOR}
+            />
             {messageUnread > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{messageUnread > 9 ? '9+' : String(messageUnread)}</Text>
+                <Text style={styles.badgeText}>
+                  {messageUnread > 9 ? "9+" : String(messageUnread)}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
 
       {errorMsg ? (
-        <View style={styles.errorBanner}>
+        <View style={[styles.errorBanner, { marginTop: totalHeaderHeight }]}>
           <Text style={styles.errorText}>{errorMsg}</Text>
-          <TouchableOpacity onPress={() => { setErrorMsg(""); loadFeed(); }}>
+          <TouchableOpacity
+            onPress={() => {
+              setErrorMsg("");
+              loadFeed();
+            }}
+          >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : null}
 
-      <View style={styles.greeting}>
-        <Text style={styles.greetingText}>Hi {greetingName || 'User'}!</Text>
-        <Text style={styles.greetingSubtext}>Discover what's happening</Text>
-      </View>
-
       {/* Feed */}
-      <FlatList
+      <Animated.FlatList
+        ref={flatListRef}
         data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
-        renderItem={loading && feedItems.length === 0 ? () => <SkeletonCard /> : renderFeedItem}
-        keyExtractor={(item) => (loading && feedItems.length === 0 ? `skeleton-${item}` : `${item.itemType || 'post'}-${item.id}`)}
+        renderItem={
+          loading && feedItems.length === 0
+            ? () => <SkeletonCard />
+            : renderFeedItem
+        }
+        keyExtractor={(item) =>
+          loading && feedItems.length === 0
+            ? `skeleton-${item}`
+            : `${item.itemType || "post"}-${item.id}`
+        }
         style={styles.feed}
-        contentContainerStyle={styles.feedContent}
+        contentContainerStyle={[
+          styles.feedContent,
+          { paddingTop: totalHeaderHeight },
+        ]}
+        // Progress view offset pushes the spinner down so it doesn't hide behind the header
+        progressViewOffset={totalHeaderHeight}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            // tintColor for iOS spinner color
+            tintColor={COLORS.primary}
+          />
         }
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={() => (
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        ListHeaderComponent={
+          <View style={styles.greeting}>
+            <Text style={styles.greetingText}>
+              Hi {greetingName || "User"}!
+            </Text>
+            <Text style={styles.greetingSubtext}>
+              Discover what's happening
+            </Text>
+          </View>
+        }
+        ListEmptyComponent={() =>
           !loading ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No posts yet</Text>
-              <Text style={styles.emptySubtext}>Follow some users to see their posts here</Text>
+              <Text style={styles.emptySubtext}>
+                Follow some users to see their posts here
+              </Text>
               {errorMsg ? (
                 <TouchableOpacity onPress={loadFeed} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>Retry</Text>
@@ -646,9 +647,9 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
               ) : null}
             </View>
           ) : null
-        )}
+        }
       />
-      
+
       {/* Comments Modal */}
       <CommentsModal
         visible={commentsModalVisible}
@@ -657,7 +658,9 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
           setCommentsModalVisible(false);
           setSelectedPostId(null);
         }}
-        onCommentCountChange={selectedPostId ? handleCommentCountChange(selectedPostId) : undefined}
+        onCommentCountChange={
+          selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
+        }
         navigation={navigation}
       />
     </SafeAreaView>
@@ -667,51 +670,66 @@ export default function HomeFeedScreen({ navigation, role = 'member' }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    // Removed explicit height here as it is set via style prop based on insets
+    // shadow removed to be flat like Instagram
+    zIndex: 100,
+    backgroundColor: "#FFFFFF", // Ensure background prevents see-through
+  },
+  // New style for the dynamic border
+  headerBorder: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "#E0E0E0", // Light gray separator
   },
   appTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
+    // Instagram uses a specific font, but we keep your bold styling
+    letterSpacing: -0.5,
   },
   headerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 15,
   },
   headerButton: {
     padding: 5,
   },
   badge: {
-    position: 'absolute',
+    position: "absolute",
     right: 0,
     top: -2,
-    backgroundColor: '#D93025',
+    backgroundColor: "#D93025",
     borderRadius: 8,
     minWidth: 16,
     paddingHorizontal: 4,
     height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   greeting: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 10,
+    marginTop: 10, // Added margin top for better spacing after refresh
   },
   greetingText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 5,
   },
@@ -726,20 +744,20 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   postContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginBottom: 20,
     paddingBottom: 15,
   },
   postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   authorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   authorAvatar: {
     width: 40,
@@ -752,7 +770,7 @@ const styles = StyleSheet.create({
   },
   authorName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   authorUsername: {
@@ -767,7 +785,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   postImage: {
-    width: '100%',
+    width: "100%",
     height: 300,
     borderRadius: 12,
     marginBottom: 12,
@@ -778,23 +796,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   postActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 12,
     gap: 20,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   bookmarkButton: {
-    marginLeft: 'auto',
+    marginLeft: "auto",
   },
   actionText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: TEXT_COLOR,
   },
   commentsPreview: {
@@ -812,8 +830,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 50,
   },
   loadingText: {
@@ -822,40 +840,40 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 50,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorBanner: {
     marginHorizontal: 20,
     marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#FFF2F0',
+    backgroundColor: "#FFF2F0",
     borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   errorText: {
-    color: '#D93025',
+    color: "#D93025",
     flex: 1,
     marginRight: 10,
   },
   retryText: {
     color: PRIMARY_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   retryButton: {
     marginTop: 12,
@@ -865,7 +883,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

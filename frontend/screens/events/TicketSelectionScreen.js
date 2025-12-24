@@ -4,7 +4,7 @@
  * Dynamic bottom bar with cart total and Checkout button
  * Filters tickets by user's gender (from profile)
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,22 +12,25 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../../constants/theme';
-import { getActiveAccount } from '../../api/auth';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { COLORS } from "../../constants/theme";
+import { getActiveAccount } from "../../api/auth";
 
-const BACKGROUND_COLOR = '#0A0A0A';
-const CARD_BACKGROUND = '#1A1A1A';
-const TEXT_COLOR = '#FFFFFF';
-const MUTED_TEXT = 'rgba(255,255,255,0.7)';
+// White Theme Colors
+const BACKGROUND_COLOR = "#F9FAFB";
+const CARD_BACKGROUND = "#FFFFFF";
+const TEXT_COLOR = "#1F2937";
+const MUTED_TEXT = "#6B7280";
+const BORDER_COLOR = "#E5E7EB";
 const PRIMARY_COLOR = COLORS.primary;
 
 export default function TicketSelectionScreen({ route, navigation }) {
   const { event } = route.params;
   const insets = useSafeAreaInsets();
-  
+
   // Cart state: { ticketId: quantity }
   const [cart, setCart] = useState({});
   const [userGender, setUserGender] = useState(null);
@@ -42,7 +45,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           setUserGender(account.gender);
         }
       } catch (error) {
-        console.log('Could not load user gender:', error);
+        console.log("Could not load user gender:", error);
       }
     };
     loadUserGender();
@@ -51,43 +54,45 @@ export default function TicketSelectionScreen({ route, navigation }) {
   // Filter tickets by user's gender
   const filteredTickets = useMemo(() => {
     if (!event.ticket_types) return [];
-    
-    return event.ticket_types.filter(ticket => {
-      const restriction = ticket.gender_restriction || 'all';
+
+    return event.ticket_types.filter((ticket) => {
+      const restriction = ticket.gender_restriction || "all";
       // Show ticket if it's for 'all' genders OR matches user's gender
-      return restriction === 'all' || restriction === userGender;
+      return restriction === "all" || restriction === userGender;
     });
   }, [event.ticket_types, userGender]);
-  
+
   // Calculate cart totals
   const { totalItems, totalAmount } = useMemo(() => {
     let items = 0;
     let amount = 0;
-    
+
     Object.entries(cart).forEach(([ticketId, qty]) => {
       if (qty > 0) {
-        const ticket = filteredTickets.find(t => t.id?.toString() === ticketId || t.name === ticketId);
+        const ticket = filteredTickets.find(
+          (t) => t.id?.toString() === ticketId || t.name === ticketId
+        );
         if (ticket) {
           items += qty;
           amount += qty * (parseFloat(ticket.base_price) || 0);
         }
       }
     });
-    
+
     return { totalItems: items, totalAmount: amount };
   }, [cart, filteredTickets]);
 
   const handleAdd = (ticket) => {
     const key = ticket.id?.toString() || ticket.name;
-    setCart(prev => ({
+    setCart((prev) => ({
       ...prev,
-      [key]: (prev[key] || 0) + 1
+      [key]: (prev[key] || 0) + 1,
     }));
   };
 
   const handleRemove = (ticket) => {
     const key = ticket.id?.toString() || ticket.name;
-    setCart(prev => {
+    setCart((prev) => {
       const newQty = (prev[key] || 0) - 1;
       if (newQty <= 0) {
         const { [key]: removed, ...rest } = prev;
@@ -107,50 +112,55 @@ export default function TicketSelectionScreen({ route, navigation }) {
     const cartItems = Object.entries(cart)
       .filter(([_, qty]) => qty > 0)
       .map(([ticketId, qty]) => {
-        const ticket = event.ticket_types.find(t => 
-          t.id?.toString() === ticketId || t.name === ticketId
+        const ticket = event.ticket_types.find(
+          (t) => t.id?.toString() === ticketId || t.name === ticketId
         );
         return { ticket, quantity: qty };
       });
-    
-    navigation.navigate('Checkout', { 
-      event, 
+
+    navigation.navigate("Checkout", {
+      event,
       cartItems,
-      totalAmount 
+      totalAmount,
     });
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return "";
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short' 
+    return date.toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
     });
   };
 
   const formatTime = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return "";
     const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-IN', { 
-      hour: 'numeric', 
-      minute: '2-digit', 
-      hour12: true 
+    return date.toLocaleTimeString("en-IN", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
-      
+      <StatusBar barStyle="dark-content" />
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {event.title}
+          </Text>
           <Text style={styles.headerSubtitle}>
             {formatDate(event.event_date)} | {formatTime(event.event_date)}
           </Text>
@@ -159,41 +169,48 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Choose tickets</Text>
-        
+
         {filteredTickets.map((ticket, index) => {
           const qty = getQuantity(ticket);
-          const isSoldOut = ticket.total_quantity && 
+          const isSoldOut =
+            ticket.total_quantity &&
             (ticket.sold_count || 0) >= ticket.total_quantity;
           const price = parseFloat(ticket.base_price) || 0;
-          
+
           return (
-            <View key={index} style={[styles.ticketCard, isSoldOut && styles.ticketCardDisabled]}>
+            <View
+              key={index}
+              style={[
+                styles.ticketCard,
+                isSoldOut && styles.ticketCardDisabled,
+              ]}
+            >
               <View style={styles.ticketHeader}>
                 <View style={styles.ticketInfo}>
                   <Text style={styles.ticketName}>{ticket.name}</Text>
                   <Text style={styles.ticketPrice}>
-                    {price === 0 ? 'Free' : `₹${price.toLocaleString('en-IN')}`}
+                    {price === 0 ? "Free" : `₹${price.toLocaleString("en-IN")}`}
                   </Text>
                 </View>
-                
+
                 {!isSoldOut ? (
                   qty === 0 ? (
-                    <TouchableOpacity 
-                      style={styles.addButton} 
+                    <TouchableOpacity
+                      style={styles.addButton}
                       onPress={() => handleAdd(ticket)}
                     >
                       <Text style={styles.addButtonText}>Add</Text>
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.quantityControl}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => handleRemove(ticket)}
                         style={styles.qtyButton}
                       >
                         <Text style={styles.qtyButtonText}>−</Text>
                       </TouchableOpacity>
                       <Text style={styles.qtyValue}>{qty}</Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => handleAdd(ticket)}
                         style={styles.qtyButton}
                       >
@@ -207,18 +224,20 @@ export default function TicketSelectionScreen({ route, navigation }) {
                   </View>
                 )}
               </View>
-              
+
               {ticket.description && (
                 <View style={styles.ticketDesc}>
-                  {ticket.description.split('\n').map((line, i) => (
-                    <Text key={i} style={styles.descLine}>− {line.replace(/^[-•]\s*/, '')}</Text>
+                  {ticket.description.split("\n").map((line, i) => (
+                    <Text key={i} style={styles.descLine}>
+                      − {line.replace(/^[-•]\s*/, "")}
+                    </Text>
                   ))}
                 </View>
               )}
             </View>
           );
         })}
-        
+
         {/* Spacer for bottom bar */}
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -228,14 +247,24 @@ export default function TicketSelectionScreen({ route, navigation }) {
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
           <View style={styles.cartInfo}>
             <Text style={styles.cartItems}>
-              {totalItems} ticket{totalItems > 1 ? 's' : ''}
+              {totalItems} ticket{totalItems > 1 ? "s" : ""}
             </Text>
             <Text style={styles.cartTotal}>
-              ₹{totalAmount.toLocaleString('en-IN')}
+              ₹{totalAmount.toLocaleString("en-IN")}
             </Text>
           </View>
-          <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
-            <Text style={styles.checkoutButtonText}>Checkout</Text>
+          <TouchableOpacity
+            style={styles.checkoutButtonWrapper}
+            onPress={handleCheckout}
+          >
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.checkoutButtonGradient}
+            >
+              <Text style={styles.checkoutButtonText}>Checkout</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       )}
@@ -249,12 +278,12 @@ const styles = StyleSheet.create({
     backgroundColor: BACKGROUND_COLOR,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: BORDER_COLOR,
   },
   backButton: {
     padding: 8,
@@ -265,7 +294,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   headerSubtitle: {
@@ -279,7 +308,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
     marginTop: 20,
     marginBottom: 16,
@@ -291,14 +320,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderLeftWidth: 3,
     borderLeftColor: PRIMARY_COLOR,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
   },
   ticketCardDisabled: {
     opacity: 0.5,
   },
   ticketHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   ticketInfo: {
     flex: 1,
@@ -306,7 +337,7 @@ const styles = StyleSheet.create({
   },
   ticketName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   ticketPrice: {
@@ -316,23 +347,24 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: CARD_BACKGROUND,
-    borderWidth: 1,
-    borderColor: TEXT_COLOR,
+    borderWidth: 2,
+    borderColor: PRIMARY_COLOR,
     paddingHorizontal: 24,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 20,
   },
   addButtonText: {
-    color: TEXT_COLOR,
-    fontWeight: '600',
+    color: PRIMARY_COLOR,
+    fontWeight: "600",
     fontSize: 14,
   },
   quantityControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: BORDER_COLOR,
     borderRadius: 8,
+    backgroundColor: "#F9FAFB",
   },
   qtyButton: {
     paddingHorizontal: 12,
@@ -341,32 +373,32 @@ const styles = StyleSheet.create({
   qtyButtonText: {
     color: TEXT_COLOR,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   qtyValue: {
     color: TEXT_COLOR,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     paddingHorizontal: 8,
     minWidth: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   soldOutBadge: {
-    backgroundColor: 'rgba(255,59,48,0.2)',
+    backgroundColor: "rgba(255,59,48,0.1)",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
   soldOutText: {
-    color: '#FF3B30',
-    fontWeight: '600',
+    color: "#FF3B30",
+    fontWeight: "600",
     fontSize: 12,
   },
   ticketDesc: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: BORDER_COLOR,
   },
   descLine: {
     fontSize: 13,
@@ -374,18 +406,18 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bottomBar: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 16,
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: CARD_BACKGROUND,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: BORDER_COLOR,
   },
   cartInfo: {
     flex: 1,
@@ -396,18 +428,21 @@ const styles = StyleSheet.create({
   },
   cartTotal: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
   },
-  checkoutButton: {
-    backgroundColor: '#2C2C2E',
+  checkoutButtonWrapper: {
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  checkoutButtonGradient: {
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 30,
   },
   checkoutButtonText: {
-    color: TEXT_COLOR,
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
