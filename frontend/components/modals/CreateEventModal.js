@@ -225,6 +225,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         Alert.alert("Invalid URL", "Please paste a valid Google Maps link");
         return false;
       }
+      if (ticketTypes.length === 0) {
+        Alert.alert("Required", "Add at least one ticket type");
+        return false;
+      }
     }
     if (step === 2 && bannerCarousel.length === 0) {
       Alert.alert("Required", "Add a banner image");
@@ -386,6 +390,14 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               ticketTypes={ticketTypes}
               onChange={setTicketTypes}
             />
+            <DiscountCodesEditor
+              discountCodes={discountCodes}
+              onChange={setDiscountCodes}
+            />
+            <PricingRulesEditor
+              pricingRules={pricingRules}
+              onChange={setPricingRules}
+            />
           </ScrollView>
         );
       case 2:
@@ -412,6 +424,27 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               value={description}
               onChange={setDescription}
               minLength={50}
+            />
+          </ScrollView>
+        );
+      case 4:
+        return (
+          <ScrollView style={styles.stepContent}>
+            <Text style={styles.stepTitle}>Highlights</Text>
+            <HighlightsEditor
+              highlights={highlights}
+              onChange={setHighlights}
+              maxHighlights={5}
+            />
+          </ScrollView>
+        );
+      case 5:
+        return (
+          <ScrollView style={styles.stepContent}>
+            <Text style={styles.stepTitle}>Featured</Text>
+            <FeaturedAccountsEditor
+              accounts={featuredAccounts}
+              onChange={setFeaturedAccounts}
             />
           </ScrollView>
         );

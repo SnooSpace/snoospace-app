@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
+import { calculateEffectivePrice } from "../../utils/pricingUtils";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -207,24 +208,44 @@ export default function CheckoutScreen({ route, navigation }) {
           </View>
 
           {/* Line Items */}
-          {cartItems.map((item, index) => (
-            <View key={index} style={styles.lineItem}>
-              <View style={styles.lineItemInfo}>
-                <Text style={styles.lineItemText}>
-                  {item.quantity} x {item.ticket.name}
-                </Text>
-                <TouchableOpacity onPress={() => handleRemoveItem(index)}>
-                  <Text style={styles.removeText}>Remove</Text>
-                </TouchableOpacity>
+          {cartItems.map((item, index) => {
+            const pricing = calculateEffectivePrice(
+              item.ticket,
+              event.pricing_rules
+            );
+            const itemTotal = item.quantity * pricing.effectivePrice;
+
+            return (
+              <View key={index} style={styles.lineItem}>
+                <View style={styles.lineItemInfo}>
+                  <Text style={styles.lineItemText}>
+                    {item.quantity} x {item.ticket.name}
+                  </Text>
+                  {pricing.hasDiscount && (
+                    <Text style={styles.lineItemDiscount}>
+                      {pricing.discountLabel} (Early Bird)
+                    </Text>
+                  )}
+                  <TouchableOpacity onPress={() => handleRemoveItem(index)}>
+                    <Text style={styles.removeText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.lineItemPriceContainer}>
+                  <Text style={styles.lineItemPrice}>
+                    ₹{itemTotal.toLocaleString("en-IN")}
+                  </Text>
+                  {pricing.hasDiscount && (
+                    <Text style={styles.lineItemPriceOriginal}>
+                      ₹
+                      {(item.quantity * pricing.originalPrice).toLocaleString(
+                        "en-IN"
+                      )}
+                    </Text>
+                  )}
+                </View>
               </View>
-              <Text style={styles.lineItemPrice}>
-                ₹
-                {(
-                  item.quantity * parseFloat(item.ticket.base_price || 0)
-                ).toLocaleString("en-IN")}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
 
           {/* M-Ticket Note */}
           <View style={styles.ticketNote}>
@@ -463,16 +484,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: TEXT_COLOR,
   },
+  lineItemDiscount: {
+    fontSize: 12,
+    color: "#059669", // Green
+    marginTop: 2,
+  },
   removeText: {
     fontSize: 12,
     color: PRIMARY_COLOR,
     marginTop: 4,
     textDecorationLine: "underline",
   },
+  lineItemPriceContainer: {
+    alignItems: "flex-end",
+  },
   lineItemPrice: {
     fontSize: 14,
     fontWeight: "600",
     color: TEXT_COLOR,
+  },
+  lineItemPriceOriginal: {
+    fontSize: 12,
+    color: MUTED_TEXT,
+    textDecorationLine: "line-through",
+    marginTop: 2,
   },
   ticketNote: {
     flexDirection: "row",

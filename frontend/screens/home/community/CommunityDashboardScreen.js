@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -8,29 +8,29 @@ import {
   FlatList,
   ActivityIndicator,
   Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { mockData } from '../../../data/mockData';
-import CreateEventModal from '../../../components/modals/CreateEventModal';
-import EditEventModal from '../../../components/modals/EditEventModal';
-import { COLORS, SHADOWS } from '../../../constants/theme';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { mockData } from "../../../data/mockData";
+import CreateEventModal from "../../../components/modals/CreateEventModal";
+import EditEventModal from "../../../components/modals/EditEventModal";
+import { COLORS, SHADOWS } from "../../../constants/theme";
 
 const PRIMARY_COLOR = COLORS.primary;
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 export default function CommunityDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' or 'previous'
+  const [activeTab, setActiveTab] = useState("upcoming"); // 'upcoming' or 'previous'
   const [metrics, setMetrics] = useState({
     totalMembers: 1250,
     eventsHosted: 15,
-    collaborations: 3
+    collaborations: 3,
   });
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [previousEvents, setPreviousEvents] = useState([]);
@@ -42,27 +42,27 @@ export default function CommunityDashboardScreen({ navigation }) {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch real events from API
-      const { getCommunityEvents } = await import('../../../api/events');
+      const { getCommunityEvents } = await import("../../../api/events");
       const eventsData = await getCommunityEvents();
-      
+
       if (eventsData?.events) {
         // Separate upcoming and past events
-        const upcoming = eventsData.events.filter(event => !event.is_past);
-        const past = eventsData.events.filter(event => event.is_past);
-        
+        const upcoming = eventsData.events.filter((event) => !event.is_past);
+        const past = eventsData.events.filter((event) => event.is_past);
+
         setUpcomingEvents(upcoming);
         setPreviousEvents(past);
-        
+
         // Update metrics
-        setMetrics(prev => ({
+        setMetrics((prev) => ({
           ...prev,
-          eventsHosted: eventsData.events.length
+          eventsHosted: eventsData.events.length,
         }));
       }
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error("Error loading dashboard:", error);
       // Fallback to empty arrays on error
       setUpcomingEvents([]);
       setPreviousEvents([]);
@@ -76,26 +76,29 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   const handleEventCreated = (event) => {
-    console.log('Event created:', event);
+    console.log("Event created:", event);
     // Refresh dashboard metrics and events list
     loadDashboard();
   };
 
   const handleCreatePost = () => {
     // Navigate to post creation screen with role param
-    navigation.navigate('CommunityCreatePost', { role: 'community' });
+    navigation.navigate("CommunityCreatePost", { role: "community" });
   };
 
   const handleViewEvent = (event) => {
-    console.log('View event:', event.id);
+    navigation.navigate("EventDetails", {
+      eventId: event.id,
+      eventData: event,
+    });
   };
 
   const handleViewAllEvents = () => {
-    console.log('View all events');
+    console.log("View all events");
   };
 
   const handleEditEvent = (event) => {
-    console.log('[CommunityDashboard] Edit event clicked:', {
+    console.log("[CommunityDashboard] Edit event clicked:", {
       id: event.id,
       title: event.title,
       has_highlights: !!event.highlights,
@@ -121,7 +124,11 @@ export default function CommunityDashboardScreen({ navigation }) {
     <View style={styles.eventCard}>
       <TouchableOpacity onPress={() => handleViewEvent(item)}>
         <Image
-          source={{ uri: item.banner_url || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200' }}
+          source={{
+            uri:
+              item.banner_url ||
+              "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
+          }}
           style={styles.eventImage}
         />
       </TouchableOpacity>
@@ -139,7 +146,7 @@ export default function CommunityDashboardScreen({ navigation }) {
               {item.current_attendees || 0} attendees
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.editButton}
             onPress={() => handleEditEvent(item)}
           >
@@ -163,8 +170,8 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
@@ -190,7 +197,7 @@ export default function CommunityDashboardScreen({ navigation }) {
               </LinearGradient>
               <Text style={styles.actionButtonText}>Create Event</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionButton}
               onPress={handleCreatePost}
@@ -217,13 +224,13 @@ export default function CommunityDashboardScreen({ navigation }) {
               <Text style={styles.metricNumber}>{metrics.totalMembers}</Text>
               <Text style={styles.metricLabel}>Total Members</Text>
             </View>
-            
+
             <View style={styles.metricCard}>
               <Ionicons name="calendar" size={32} color={PRIMARY_COLOR} />
               <Text style={styles.metricNumber}>{metrics.eventsHosted}</Text>
               <Text style={styles.metricLabel}>Events Hosted</Text>
             </View>
-            
+
             <View style={styles.metricCard}>
               <Ionicons name="handshake" size={32} color={PRIMARY_COLOR} />
               <Text style={styles.metricNumber}>{metrics.collaborations}</Text>
@@ -236,18 +243,28 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.section}>
           <View style={styles.tabsContainer}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
-              onPress={() => setActiveTab('upcoming')}
+              style={[styles.tab, activeTab === "upcoming" && styles.activeTab]}
+              onPress={() => setActiveTab("upcoming")}
             >
-              <Text style={[styles.tabText, activeTab === 'upcoming' && styles.activeTabText]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "upcoming" && styles.activeTabText,
+                ]}
+              >
                 Upcoming Events
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'previous' && styles.activeTab]}
-              onPress={() => setActiveTab('previous')}
+              style={[styles.tab, activeTab === "previous" && styles.activeTab]}
+              onPress={() => setActiveTab("previous")}
             >
-              <Text style={[styles.tabText, activeTab === 'previous' && styles.activeTabText]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "previous" && styles.activeTabText,
+                ]}
+              >
                 Previous Events
               </Text>
             </TouchableOpacity>
@@ -260,7 +277,7 @@ export default function CommunityDashboardScreen({ navigation }) {
           </View>
 
           <FlatList
-            data={activeTab === 'upcoming' ? upcomingEvents : previousEvents}
+            data={activeTab === "upcoming" ? upcomingEvents : previousEvents}
             renderItem={renderEventCard}
             keyExtractor={(item) => item.id.toString()}
             horizontal
@@ -268,9 +285,15 @@ export default function CommunityDashboardScreen({ navigation }) {
             contentContainerStyle={styles.eventsList}
             ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
-                <Ionicons name="calendar-outline" size={40} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={40}
+                  color={LIGHT_TEXT_COLOR}
+                />
                 <Text style={styles.emptyText}>
-                  {activeTab === 'upcoming' ? 'No upcoming events' : 'No previous events'}
+                  {activeTab === "upcoming"
+                    ? "No upcoming events"
+                    : "No previous events"}
                 </Text>
               </View>
             )}
@@ -300,12 +323,12 @@ export default function CommunityDashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     fontSize: 16,
@@ -321,7 +344,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   section: {
@@ -329,60 +352,60 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 15,
   },
   quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 15,
   },
   actionButton: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
   },
   actionIconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 10,
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   metricsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 15,
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
     ...SHADOWS.sm,
   },
   metricNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: PRIMARY_COLOR,
     marginTop: 10,
     marginBottom: 5,
@@ -390,18 +413,18 @@ const styles = StyleSheet.create({
   metricLabel: {
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
   },
   tabsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeTab: {
     borderBottomWidth: 2,
@@ -409,22 +432,22 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     color: LIGHT_TEXT_COLOR,
   },
   activeTabText: {
     color: PRIMARY_COLOR,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   eventsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
     marginBottom: 15,
   },
   viewAllText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: PRIMARY_COLOR,
   },
   eventsList: {
@@ -434,25 +457,25 @@ const styles = StyleSheet.create({
     width: 200,
     marginRight: 15,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   eventImage: {
-    width: '100%',
+    width: "100%",
     height: 120,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: "#F8F5FF",
   },
   eventInfo: {
     padding: 12,
   },
   eventTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 4,
   },
@@ -462,19 +485,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   eventStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   eventStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   editButton: {
     padding: 6,
     borderRadius: 6,
-    backgroundColor: '#F8F5FF',
+    backgroundColor: "#F8F5FF",
   },
   eventAttendees: {
     fontSize: 11,
@@ -482,7 +505,7 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 14,
@@ -490,4 +513,3 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 });
-

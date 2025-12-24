@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Modal,
   View,
@@ -43,6 +43,8 @@ export default function EditEventModal({
 }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState(null);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
   // Step 1: Basic Info
   const [title, setTitle] = useState("");
@@ -114,8 +116,91 @@ export default function EditEventModal({
       setDiscountCodes(eventData.discount_codes || []);
       setPricingRules(eventData.pricing_rules || []);
       setCurrentStep(1);
+
+      // Store initial snapshot for change detection
+      setInitialSnapshot({
+        title: eventData.title || "",
+        description: eventData.description || "",
+        eventDate: eventData.event_date
+          ? new Date(eventData.event_date).toISOString()
+          : new Date().toISOString(),
+        endDate: eventData.end_datetime
+          ? new Date(eventData.end_datetime).toISOString()
+          : new Date().toISOString(),
+        hasGates: !!eventData.gates_open_time,
+        eventType: eventData.event_type || "in-person",
+        locationUrl: eventData.location_url || "",
+        virtualLink: eventData.virtual_link || "",
+        maxAttendees: eventData.max_attendees?.toString() || "",
+        bannerCarousel: JSON.stringify(eventData.banner_carousel || []),
+        gallery: JSON.stringify(eventData.gallery || []),
+        highlights: JSON.stringify(eventData.highlights || []),
+        featuredAccounts: JSON.stringify(eventData.featured_accounts || []),
+        thingsToKnow: JSON.stringify(eventData.things_to_know || []),
+        ticketTypes: JSON.stringify(eventData.ticket_types || []),
+        discountCodes: JSON.stringify(eventData.discount_codes || []),
+        pricingRules: JSON.stringify(eventData.pricing_rules || []),
+      });
     }
   }, [eventData, visible]);
+
+  // Compute if form has changes from initial state
+  const hasChanges = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return (
+      title !== initialSnapshot.title ||
+      description !== initialSnapshot.description ||
+      eventDate.toISOString() !== initialSnapshot.eventDate ||
+      endDate.toISOString() !== initialSnapshot.endDate ||
+      hasGates !== initialSnapshot.hasGates ||
+      eventType !== initialSnapshot.eventType ||
+      locationUrl !== initialSnapshot.locationUrl ||
+      virtualLink !== initialSnapshot.virtualLink ||
+      maxAttendees !== initialSnapshot.maxAttendees ||
+      JSON.stringify(bannerCarousel) !== initialSnapshot.bannerCarousel ||
+      JSON.stringify(gallery) !== initialSnapshot.gallery ||
+      JSON.stringify(highlights) !== initialSnapshot.highlights ||
+      JSON.stringify(featuredAccounts) !== initialSnapshot.featuredAccounts ||
+      JSON.stringify(thingsToKnow) !== initialSnapshot.thingsToKnow ||
+      JSON.stringify(ticketTypes) !== initialSnapshot.ticketTypes ||
+      JSON.stringify(discountCodes) !== initialSnapshot.discountCodes ||
+      JSON.stringify(pricingRules) !== initialSnapshot.pricingRules
+    );
+  }, [
+    title,
+    description,
+    eventDate,
+    endDate,
+    hasGates,
+    eventType,
+    locationUrl,
+    virtualLink,
+    maxAttendees,
+    bannerCarousel,
+    gallery,
+    highlights,
+    featuredAccounts,
+    thingsToKnow,
+    ticketTypes,
+    discountCodes,
+    pricingRules,
+    initialSnapshot,
+  ]);
+
+  // Handle close with unsaved changes check
+  const handleCloseAttempt = () => {
+    if (hasChanges) {
+      setShowUnsavedModal(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Save and exit handler
+  const handleSaveAndExit = async () => {
+    setShowUnsavedModal(false);
+    await handleSave();
+  };
 
   const validateStep = (step) => {
     if (step === 1) {
@@ -435,11 +520,34 @@ export default function EditEventModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={handleCloseAttempt}>
             <Ionicons name="close" size={28} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Event</Text>
-          <View style={{ width: 28 }} />
+          <TouchableOpacity
+            disabled={!hasChanges || loading}
+            onPress={handleSave}
+            style={[
+              styles.saveHeaderButton,
+              hasChanges && !loading && styles.saveHeaderButtonActive,
+              (!hasChanges || loading) && styles.saveHeaderDisabled,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : hasChanges ? (
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.saveHeaderGradient}
+              >
+                <Text style={styles.saveHeaderTextActive}>Save</Text>
+              </LinearGradient>
+            ) : (
+              <Text style={styles.saveHeaderTextDisabled}>Save</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         <StepIndicator
@@ -502,6 +610,67 @@ export default function EditEventModal({
           )}
         </View>
       </SafeAreaView>
+
+      {/* Unsaved Changes Modal */}
+      <Modal visible={showUnsavedModal} transparent animationType="fade">
+        <View style={styles.unsavedOverlay}>
+          <View style={styles.unsavedCard}>
+            {/* Warning Icon */}
+            <View style={styles.unsavedIconContainer}>
+              <LinearGradient
+                colors={["#FF9500", "#FF6B00"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.unsavedIconGradient}
+              >
+                <Ionicons name="alert" size={28} color="#FFF" />
+              </LinearGradient>
+            </View>
+
+            {/* Title & Message */}
+            <Text style={styles.unsavedTitle}>Unsaved Changes</Text>
+            <Text style={styles.unsavedMessage}>
+              You have unsaved changes that will be lost if you leave now.
+            </Text>
+
+            {/* Primary Action - Save & Exit */}
+            <TouchableOpacity
+              style={styles.unsavedPrimaryBtnWrapper}
+              onPress={handleSaveAndExit}
+            >
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.unsavedPrimaryBtn}
+              >
+                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                <Text style={styles.unsavedPrimaryText}>Save & Exit</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Secondary Action - Discard */}
+            <TouchableOpacity
+              style={styles.unsavedSecondaryBtn}
+              onPress={() => {
+                setShowUnsavedModal(false);
+                onClose();
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+              <Text style={styles.unsavedSecondaryText}>Discard Changes</Text>
+            </TouchableOpacity>
+
+            {/* Cancel Action - Keep Editing */}
+            <TouchableOpacity
+              style={styles.unsavedCancelBtn}
+              onPress={() => setShowUnsavedModal(false)}
+            >
+              <Text style={styles.unsavedCancelText}>Keep Editing</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -635,4 +804,122 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nextButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+
+  // Header Save Button
+  saveHeaderButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  saveHeaderButtonActive: {
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  saveHeaderDisabled: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  saveHeaderGradient: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  saveHeaderTextActive: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  saveHeaderTextDisabled: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#9CA3AF",
+  },
+
+  // Unsaved Changes Modal
+  unsavedOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  unsavedCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    padding: 28,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 25,
+    elevation: 10,
+  },
+  unsavedIconContainer: {
+    marginBottom: 16,
+  },
+  unsavedIconGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unsavedTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  unsavedMessage: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  unsavedPrimaryBtnWrapper: {
+    width: "100%",
+    borderRadius: 30,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  unsavedPrimaryBtn: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  unsavedPrimaryText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  unsavedSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 6,
+  },
+  unsavedSecondaryText: {
+    fontSize: 14,
+    color: "#EF4444",
+    fontWeight: "600",
+  },
+  unsavedCancelBtn: {
+    paddingVertical: 8,
+  },
+  unsavedCancelText: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
 });

@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
 import { getActiveAccount } from "../../api/auth";
+import { calculateEffectivePrice } from "../../utils/pricingUtils";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -62,7 +63,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
     });
   }, [event.ticket_types, userGender]);
 
-  // Calculate cart totals
+  // Calculate cart totals using effective prices
   const { totalItems, totalAmount } = useMemo(() => {
     let items = 0;
     let amount = 0;
@@ -74,13 +75,15 @@ export default function TicketSelectionScreen({ route, navigation }) {
         );
         if (ticket) {
           items += qty;
-          amount += qty * (parseFloat(ticket.base_price) || 0);
+          // Use effective price (with early bird discount)
+          const pricing = calculateEffectivePrice(ticket, event.pricing_rules);
+          amount += qty * pricing.effectivePrice;
         }
       }
     });
 
     return { totalItems: items, totalAmount: amount };
-  }, [cart, filteredTickets]);
+  }, [cart, filteredTickets, event.pricing_rules]);
 
   const handleAdd = (ticket) => {
     const key = ticket.id?.toString() || ticket.name;
@@ -188,9 +191,36 @@ export default function TicketSelectionScreen({ route, navigation }) {
               <View style={styles.ticketHeader}>
                 <View style={styles.ticketInfo}>
                   <Text style={styles.ticketName}>{ticket.name}</Text>
-                  <Text style={styles.ticketPrice}>
-                    {price === 0 ? "Free" : `₹${price.toLocaleString("en-IN")}`}
-                  </Text>
+                  {(() => {
+                    const pricing = calculateEffectivePrice(
+                      ticket,
+                      event.pricing_rules
+                    );
+                    if (pricing.hasDiscount) {
+                      return (
+                        <View style={styles.priceRow}>
+                          <Text style={styles.ticketPriceDiscounted}>
+                            ₹{pricing.effectivePrice.toLocaleString("en-IN")}
+                          </Text>
+                          <Text style={styles.ticketPriceOriginal}>
+                            ₹{pricing.originalPrice.toLocaleString("en-IN")}
+                          </Text>
+                          <View style={styles.discountBadge}>
+                            <Text style={styles.discountBadgeText}>
+                              {pricing.discountLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    }
+                    return (
+                      <Text style={styles.ticketPrice}>
+                        {price === 0
+                          ? "Free"
+                          : `₹${price.toLocaleString("en-IN")}`}
+                      </Text>
+                    );
+                  })()}
                 </View>
 
                 {!isSoldOut ? (
@@ -344,6 +374,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED_TEXT,
     marginTop: 4,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: 4,
+    gap: 8,
+  },
+  ticketPriceDiscounted: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#059669", // Green for discount price
+  },
+  ticketPriceOriginal: {
+    fontSize: 13,
+    color: MUTED_TEXT,
+    textDecorationLine: "line-through",
+  },
+  discountBadge: {
+    backgroundColor: "#D1FAE5", // Light green
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  discountBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#059669", // Green
   },
   addButton: {
     backgroundColor: CARD_BACKGROUND,
