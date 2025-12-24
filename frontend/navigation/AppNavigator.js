@@ -14,6 +14,7 @@ import BottomTabNavigator from "./BottomTabNavigator";
 import CommunityBottomTabNavigator from "./CommunityBottomTabNavigator";
 import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
+import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import CreatePostScreen from "../components/CreatePostScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
@@ -25,25 +26,76 @@ const Stack = createStackNavigator();
 
 export default function AppNavigator({ initialRouteName }) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={initialRouteName}
+    >
       <Stack.Screen name="AuthGate" component={AuthGate} />
       <Stack.Screen name="Landing" component={LandingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="LoginOtp" component={LoginOtpScreen} />
       <Stack.Screen name="MemberSignup" component={MemberSignupNavigator} />
-      <Stack.Screen name="CommunitySignup" component={CommunitySignupNavigator} />
+      <Stack.Screen
+        name="CommunitySignup"
+        component={CommunitySignupNavigator}
+      />
       <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
       <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
-      <Stack.Screen name="MemberHome" component={BottomTabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="CommunityHome" component={CommunityBottomTabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="SponsorHome" component={SponsorBottomTabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="VenueHome" component={VenueBottomTabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="CommunityCreatePost" component={CreatePostScreen} options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="TicketSelection" component={TicketSelectionScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="MemberPublicProfile" component={MemberPublicProfileScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CommunityPublicProfile" component={CommunityPublicProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="MemberHome"
+        component={BottomTabNavigator}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CommunityHome"
+        component={CommunityBottomTabNavigator}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SponsorHome"
+        component={SponsorBottomTabNavigator}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="VenueHome"
+        component={VenueBottomTabNavigator}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CommunityEventsList"
+        component={CommunityEventsListScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CommunityCreatePost"
+        component={CreatePostScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="EventDetails"
+        component={EventDetailsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TicketSelection"
+        component={TicketSelectionScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Checkout"
+        component={CheckoutScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="MemberPublicProfile"
+        component={MemberPublicProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CommunityPublicProfile"
+        component={CommunityPublicProfileScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

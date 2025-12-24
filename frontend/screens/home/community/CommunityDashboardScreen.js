@@ -94,7 +94,9 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   const handleViewAllEvents = () => {
-    console.log("View all events");
+    // Map 'previous' to 'past' for CommunityEventsListScreen
+    const tabToPass = activeTab === "previous" ? "past" : activeTab;
+    navigation.navigate("CommunityEventsList", { initialTab: tabToPass });
   };
 
   const handleEditEvent = (event) => {
@@ -323,7 +325,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F9FAFB", // Light gray background
   },
   loadingContainer: {
     flex: 1,
@@ -456,13 +458,11 @@ const styles = StyleSheet.create({
   eventCard: {
     width: 200,
     marginRight: 15,
-    borderRadius: 12,
+    borderRadius: 16, // Softer radius
     backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E5E5EA", // Border for separation
+    ...SHADOWS.sm, // Theme shadow
     overflow: "hidden",
   },
   eventImage: {
