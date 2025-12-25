@@ -1,6 +1,117 @@
 const { createPool } = require("../config/db");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const pool = createPool();
+
+// JWT secret (should be in environment variable in production)
+const JWT_SECRET =
+  process.env.JWT_SECRET || "your-admin-jwt-secret-change-in-production";
+
+// ============================================
+// ADMIN AUTHENTICATION
+// ============================================
+
+/**
+ * Admin login
+ */
+const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // Find admin by email
+    const result = await pool.query(
+      "SELECT * FROM admins WHERE email = $1 AND is_active = true",
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const admin = result.rows[0];
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, admin.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Update last login
+    await pool.query("UPDATE admins SET last_login_at = NOW() WHERE id = $1", [
+      admin.id,
+    ]);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: admin.id,
+        email: admin.email,
+        role: admin.role,
+        type: "admin",
+      },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    console.error("Error in admin login:", error);
+    res.status(500).json({ error: "Login failed" });
+  }
+};
+
+/**
+ * Create admin (for initial setup - should be protected/removed in production)
+ */
+const createAdmin = async (req, res) => {
+  try {
+    const { email, password, name, role = "moderator" } = req.body;
+
+    if (!email || !password || !name) {
+      return res
+        .status(400)
+        .json({ error: "Email, password, and name are required" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(password, salt);
+
+    const result = await pool.query(
+      `INSERT INTO admins (email, password_hash, name, role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, email, name, role, is_active, created_at`,
+      [email.toLowerCase(), password_hash, name, role]
+    );
+
+    res.status(201).json({
+      success: true,
+      admin: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error creating admin:", error);
+    if (error.code === "23505") {
+      return res
+        .status(400)
+        .json({ error: "Admin with this email already exists" });
+    }
+    res.status(500).json({ error: "Failed to create admin" });
+  }
+};
 
 // ============================================
 // DISCOVER CATEGORIES CRUD
@@ -698,6 +809,10 @@ const deleteInterest = async (req, res) => {
 };
 
 module.exports = {
+  // Admin authentication
+  adminLogin,
+  createAdmin,
+
   // Category endpoints
   getDiscoverCategories,
   getAllCategoriesAdmin,

@@ -42,6 +42,12 @@ router.get("/db/health", async (req, res) => {
   }
 });
 
+// ============================================
+// ADMIN AUTHENTICATION (No auth required for login)
+// ============================================
+router.post("/admin/login", CategoryController.adminLogin);
+router.post("/admin/create", CategoryController.createAdmin); // TODO: Protect in production
+
 // Auth (Legacy - will be deprecated)
 router.post(
   "/auth/send-otp",
