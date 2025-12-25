@@ -29,6 +29,7 @@ import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import DiscountCodesEditor from "../editors/DiscountCodesEditor";
 import PricingRulesEditor from "../editors/PricingRulesEditor";
+import CategorySelector from "../CategorySelector";
 
 const PRIMARY_COLOR = COLORS.primary; // This should be your solid Blue
 const TEXT_COLOR = "#1F2937";
@@ -59,6 +60,7 @@ export default function EditEventModal({
   const [ticketTypes, setTicketTypes] = useState([]);
   const [discountCodes, setDiscountCodes] = useState([]);
   const [pricingRules, setPricingRules] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // Step 2-6: Content
   const [bannerCarousel, setBannerCarousel] = useState([]);
@@ -115,6 +117,7 @@ export default function EditEventModal({
       setTicketTypes(eventData.ticket_types || []);
       setDiscountCodes(eventData.discount_codes || []);
       setPricingRules(eventData.pricing_rules || []);
+      setCategories(eventData.categories || []);
       setCurrentStep(1);
 
       // Store initial snapshot for change detection
@@ -140,6 +143,7 @@ export default function EditEventModal({
         ticketTypes: JSON.stringify(eventData.ticket_types || []),
         discountCodes: JSON.stringify(eventData.discount_codes || []),
         pricingRules: JSON.stringify(eventData.pricing_rules || []),
+        categories: JSON.stringify(eventData.categories || []),
       });
     }
   }, [eventData, visible]);
@@ -164,7 +168,8 @@ export default function EditEventModal({
       JSON.stringify(thingsToKnow) !== initialSnapshot.thingsToKnow ||
       JSON.stringify(ticketTypes) !== initialSnapshot.ticketTypes ||
       JSON.stringify(discountCodes) !== initialSnapshot.discountCodes ||
-      JSON.stringify(pricingRules) !== initialSnapshot.pricingRules
+      JSON.stringify(pricingRules) !== initialSnapshot.pricingRules ||
+      JSON.stringify(categories) !== initialSnapshot.categories
     );
   }, [
     title,
@@ -184,6 +189,7 @@ export default function EditEventModal({
     ticketTypes,
     discountCodes,
     pricingRules,
+    categories,
     initialSnapshot,
   ]);
 
@@ -261,6 +267,7 @@ export default function EditEventModal({
         ticket_types: ticketTypes.length > 0 ? ticketTypes : null,
         discount_codes: discountCodes.length > 0 ? discountCodes : null,
         pricing_rules: pricingRules.length > 0 ? pricingRules : null,
+        categories: categories.length > 0 ? categories : [],
       };
 
       const result = await updateEvent(eventData.id, updateData);
@@ -421,6 +428,13 @@ export default function EditEventModal({
             <PricingRulesEditor
               pricingRules={pricingRules}
               onChange={setPricingRules}
+            />
+
+            {/* Event Categories for Discover Feed */}
+            <CategorySelector
+              selectedCategories={categories}
+              onChange={setCategories}
+              maxCategories={3}
             />
           </ScrollView>
         );

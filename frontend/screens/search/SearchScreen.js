@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
 import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
@@ -29,10 +29,10 @@ import { followCommunity, unfollowCommunity } from "../../api/communities";
 import EventBus from "../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
-import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
-import { COLORS, BORDER_RADIUS } from '../../constants/theme';
-import DiscoverGrid from '../../components/DiscoverGrid';
-import SuggestedCommunityCard from '../../components/SuggestedCommunityCard';
+import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
+import { COLORS, BORDER_RADIUS } from "../../constants/theme";
+import { DiscoverFeedV2 } from "../../components/discover";
+import SuggestedCommunityCard from "../../components/SuggestedCommunityCard";
 
 const DEBOUNCE_MS = 300;
 
@@ -51,15 +51,15 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
-  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
+  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
-  
+
   // Discover grid state
   const [discoverItems, setDiscoverItems] = useState([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverOffset, setDiscoverOffset] = useState(0);
   const [discoverHasMore, setDiscoverHasMore] = useState(true);
-  
+
   // Community suggestions state
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -88,38 +88,47 @@ export default function SearchScreen({ navigation }) {
     }
   }, [userId]);
 
-  const saveRecents = useCallback(async (items) => {
-    if (!userId) return;
-    try {
-      const key = getRecentsKey();
-      await AsyncStorage.setItem(key, JSON.stringify(items));
-    } catch {}
-  }, [userId]);
+  const saveRecents = useCallback(
+    async (items) => {
+      if (!userId) return;
+      try {
+        const key = getRecentsKey();
+        await AsyncStorage.setItem(key, JSON.stringify(items));
+      } catch {}
+    },
+    [userId]
+  );
 
   // Load discover feed for grid view
-  const loadDiscoverFeed = useCallback(async (reset = false) => {
-    if (discoverLoading && !reset) return;
-    
-    setDiscoverLoading(true);
-    try {
-      const nextOffset = reset ? 0 : discoverOffset;
-      const response = await getDiscoverFeed({ limit: 30, offset: nextOffset });
-      
-      if (response?.items) {
-        if (reset) {
-          setDiscoverItems(response.items);
-        } else {
-          setDiscoverItems(prev => [...prev, ...response.items]);
+  const loadDiscoverFeed = useCallback(
+    async (reset = false) => {
+      if (discoverLoading && !reset) return;
+
+      setDiscoverLoading(true);
+      try {
+        const nextOffset = reset ? 0 : discoverOffset;
+        const response = await getDiscoverFeed({
+          limit: 30,
+          offset: nextOffset,
+        });
+
+        if (response?.items) {
+          if (reset) {
+            setDiscoverItems(response.items);
+          } else {
+            setDiscoverItems((prev) => [...prev, ...response.items]);
+          }
+          setDiscoverOffset(nextOffset + response.items.length);
+          setDiscoverHasMore(response.hasMore);
         }
-        setDiscoverOffset(nextOffset + response.items.length);
-        setDiscoverHasMore(response.hasMore);
+      } catch (error) {
+        console.error("[Discover] Error loading feed:", error);
+      } finally {
+        setDiscoverLoading(false);
       }
-    } catch (error) {
-      console.error('[Discover] Error loading feed:', error);
-    } finally {
-      setDiscoverLoading(false);
-    }
-  }, [discoverOffset, discoverLoading]);
+    },
+    [discoverOffset, discoverLoading]
+  );
 
   // Load community suggestions (cached)
   const loadSuggestions = useCallback(async (forceRefresh = false) => {
@@ -128,7 +137,7 @@ export default function SearchScreen({ navigation }) {
       setSuggestions(suggestionsCache.current);
       return;
     }
-    
+
     setSuggestionsLoading(true);
     try {
       const response = await getSuggestedCommunities(10);
@@ -137,7 +146,7 @@ export default function SearchScreen({ navigation }) {
         suggestionsCache.current = response.suggestions; // Cache for reuse
       }
     } catch (error) {
-      console.error('[Discover] Error loading suggestions:', error);
+      console.error("[Discover] Error loading suggestions:", error);
     } finally {
       setSuggestionsLoading(false);
     }
@@ -157,16 +166,18 @@ export default function SearchScreen({ navigation }) {
       const nextOffset = reset ? 0 : offset;
       setLoading(true);
       setError("");
-      
+
       // If filter is 'event', use event-specific search
-      if (activeFilter === 'event') {
+      if (activeFilter === "event") {
         try {
           const eventsData = await searchEvents(query.trim(), {
             limit: 20,
             offset: nextOffset,
           });
-          
-          const newEventResults = reset ? (eventsData.events || []) : [...eventResults, ...(eventsData.events || [])];
+
+          const newEventResults = reset
+            ? eventsData.events || []
+            : [...eventResults, ...(eventsData.events || [])];
           setEventResults(newEventResults);
           setResults([]); // Clear regular results
           setOffset(nextOffset + (eventsData.events?.length || 0));
@@ -179,7 +190,7 @@ export default function SearchScreen({ navigation }) {
         }
         return;
       }
-      
+
       // Use global search for all entity types
       try {
         const globalData = await globalSearch(query.trim(), {
@@ -189,14 +200,18 @@ export default function SearchScreen({ navigation }) {
 
         // Filter results based on active filter
         let filteredResults = globalData.results || [];
-        if (activeFilter !== 'all') {
-          filteredResults = filteredResults.filter(r => r.type === activeFilter);
+        if (activeFilter !== "all") {
+          filteredResults = filteredResults.filter(
+            (r) => r.type === activeFilter
+          );
         }
-        
-        const newResults = reset ? filteredResults : [...results, ...filteredResults];
+
+        const newResults = reset
+          ? filteredResults
+          : [...results, ...filteredResults];
         setResults(newResults);
         setEventResults([]); // Clear event results
-        
+
         // initialize following map from payload
         setFollowing((prev) => {
           const copy = { ...prev };
@@ -206,7 +221,7 @@ export default function SearchScreen({ navigation }) {
           });
           return copy;
         });
-        
+
         const totalResults = filteredResults.length;
         setOffset(nextOffset + totalResults);
         setHasMore(!!globalData.hasMore);
@@ -215,7 +230,7 @@ export default function SearchScreen({ navigation }) {
         console.error("Search error:", err);
         setError("Failed to search");
         setLoading(false);
-       }
+      }
     },
     [query, offset, results, eventResults, canSearch, activeFilter]
   );
@@ -232,14 +247,19 @@ export default function SearchScreen({ navigation }) {
         const token = await getAuthToken();
         const email = await getAuthEmail();
         if (token && email) {
-          const profileResponse = await apiPost('/auth/get-user-profile', { email }, 10000, token);
+          const profileResponse = await apiPost(
+            "/auth/get-user-profile",
+            { email },
+            10000,
+            token
+          );
           if (profileResponse?.profile?.id) {
             setUserId(profileResponse.profile.id);
-            setUserType(profileResponse.role || 'member');
+            setUserType(profileResponse.role || "member");
           }
         }
       } catch (error) {
-        console.error('Error loading user ID:', error);
+        console.error("Error loading user ID:", error);
       }
     };
     loadUserId();
@@ -261,8 +281,9 @@ export default function SearchScreen({ navigation }) {
   useEffect(() => {
     const handleFollowUpdate = (data) => {
       // Update following state for the entity that was followed/unfollowed
-      const entityId = data?.memberId || data?.communityId || data?.sponsorId || data?.venueId;
-      if (entityId && typeof data?.isFollowing === 'boolean') {
+      const entityId =
+        data?.memberId || data?.communityId || data?.sponsorId || data?.venueId;
+      if (entityId && typeof data?.isFollowing === "boolean") {
         setFollowing((prev) => ({
           ...prev,
           [entityId]: data.isFollowing,
@@ -270,7 +291,7 @@ export default function SearchScreen({ navigation }) {
       }
     };
 
-    const unsubscribe = EventBus.on('follow-updated', handleFollowUpdate);
+    const unsubscribe = EventBus.on("follow-updated", handleFollowUpdate);
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -281,32 +302,32 @@ export default function SearchScreen({ navigation }) {
     doSearch(false);
   }, [loading, hasMore, doSearch]);
 
-  const toggleFollow = async (entityId, entityType = 'member') => {
+  const toggleFollow = async (entityId, entityType = "member") => {
     if (pending[entityId]) return;
     const isFollowing = !!following[entityId];
     setFollowing((prev) => ({ ...prev, [entityId]: !isFollowing }));
     setPending((prev) => ({ ...prev, [entityId]: true }));
     try {
-      if (entityType === 'member') {
+      if (entityType === "member") {
         if (isFollowing) {
           await unfollowMember(entityId);
         } else {
           await followMember(entityId);
         }
-        EventBus.emit("follow-updated", { 
-          memberId: entityId, 
+        EventBus.emit("follow-updated", {
+          memberId: entityId,
           isFollowing: !isFollowing,
           followerId: userId || null,
           followerType: userType || null,
         });
-      } else if (entityType === 'community') {
+      } else if (entityType === "community") {
         if (isFollowing) {
           await unfollowCommunity(entityId);
         } else {
           await followCommunity(entityId);
         }
-        EventBus.emit("follow-updated", { 
-          communityId: entityId, 
+        EventBus.emit("follow-updated", {
+          communityId: entityId,
           isFollowing: !isFollowing,
           followerId: userId || null,
           followerType: userType || null,
@@ -321,19 +342,19 @@ export default function SearchScreen({ navigation }) {
   };
 
   const onPressProfile = async (item, fromRecent = false) => {
-    const entityType = item.type || 'member';
-    
+    const entityType = item.type || "member";
+
     // Navigate to appropriate profile
-    if (entityType === 'community') {
+    if (entityType === "community") {
       navigation.navigate("CommunityPublicProfile", {
         communityId: item.id,
-        viewerRole: 'member',
+        viewerRole: "member",
       });
-    } else if (entityType === 'sponsor') {
+    } else if (entityType === "sponsor") {
       navigation.navigate("SponsorProfile", {
         sponsorId: item.id,
       });
-    } else if (entityType === 'venue') {
+    } else if (entityType === "venue") {
       navigation.navigate("VenueProfile", {
         venueId: item.id,
       });
@@ -359,7 +380,7 @@ export default function SearchScreen({ navigation }) {
   };
 
   const normalizeDisplayName = (name, entityType) => {
-    const fallback = entityType === 'community' ? 'Community' : 'Member';
+    const fallback = entityType === "community" ? "Community" : "Member";
     if (!name) return fallback;
     return String(name).split(/\r?\n/)[0];
   };
@@ -367,16 +388,17 @@ export default function SearchScreen({ navigation }) {
   // Render event item for search results
   const renderEventItem = ({ item }) => {
     const displayImage = item.banner_url;
-    const hasValidPhoto = item.community_logo && /^https?:\/\//.test(item.community_logo);
-    
+    const hasValidPhoto =
+      item.community_logo && /^https?:\/\//.test(item.community_logo);
+
     return (
       <TouchableOpacity
         style={styles.eventRow}
         onPress={() => {
           // Navigate to event details (placeholder for now)
-          navigation.navigate('CommunityPublicProfile', {
+          navigation.navigate("CommunityPublicProfile", {
             communityId: item.community_id,
-            viewerRole: 'member'
+            viewerRole: "member",
           });
         }}
         activeOpacity={0.7}
@@ -390,9 +412,16 @@ export default function SearchScreen({ navigation }) {
               colors={COLORS.primaryGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.eventImage, { justifyContent: 'center', alignItems: 'center' }]}
+              style={[
+                styles.eventImage,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
             >
-              <Ionicons name="calendar-outline" size={24} color="rgba(255,255,255,0.8)" />
+              <Ionicons
+                name="calendar-outline"
+                size={24}
+                color="rgba(255,255,255,0.8)"
+              />
             </LinearGradient>
           )}
           {/* Date Badge */}
@@ -400,33 +429,48 @@ export default function SearchScreen({ navigation }) {
             <Text style={styles.eventDateBadgeText}>{item.formatted_date}</Text>
           </View>
         </View>
-        
+
         {/* Event Info */}
         <View style={styles.eventInfo}>
-          <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
+          <Text style={styles.eventTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
           <View style={styles.eventCommunityRow}>
             {hasValidPhoto ? (
-              <Image source={{ uri: item.community_logo }} style={styles.eventCommunityAvatar} />
+              <Image
+                source={{ uri: item.community_logo }}
+                style={styles.eventCommunityAvatar}
+              />
             ) : (
               <LinearGradient
-                colors={getGradientForName(item.community_name || 'Community')}
+                colors={getGradientForName(item.community_name || "Community")}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={[styles.eventCommunityAvatar, { justifyContent: 'center', alignItems: 'center' }]}
+                style={[
+                  styles.eventCommunityAvatar,
+                  { justifyContent: "center", alignItems: "center" },
+                ]}
               >
-                <Text style={{ fontSize: 8, fontWeight: '700', color: '#fff' }}>
-                  {getInitials(item.community_name || 'C')}
+                <Text style={{ fontSize: 8, fontWeight: "700", color: "#fff" }}>
+                  {getInitials(item.community_name || "C")}
                 </Text>
               </LinearGradient>
             )}
-            <Text style={styles.eventCommunityName} numberOfLines={1}>{item.community_name}</Text>
+            <Text style={styles.eventCommunityName} numberOfLines={1}>
+              {item.community_name}
+            </Text>
           </View>
           <View style={styles.eventMeta}>
             <Ionicons name="time-outline" size={12} color="#8E8E93" />
             <Text style={styles.eventMetaText}>{item.formatted_time}</Text>
             {item.attendee_count > 0 && (
               <>
-                <Ionicons name="people-outline" size={12} color="#8E8E93" style={{ marginLeft: 8 }} />
+                <Ionicons
+                  name="people-outline"
+                  size={12}
+                  color="#8E8E93"
+                  style={{ marginLeft: 8 }}
+                />
                 <Text style={styles.eventMetaText}>{item.attendee_count}</Text>
               </>
             )}
@@ -437,11 +481,14 @@ export default function SearchScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => {
-    const entityType = item.type || 'member';
-    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
+    const entityType = item.type || "member";
+    const displayName = normalizeDisplayName(
+      item.full_name || item.name,
+      entityType
+    );
     const photoUrl = item.profile_photo_url || item.logo_url;
     const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
-    
+
     return (
       <View style={styles.row}>
         <TouchableOpacity
@@ -449,19 +496,21 @@ export default function SearchScreen({ navigation }) {
           onPress={() => onPressProfile(item, false)}
         >
           {hasValidPhoto ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={styles.avatar}
-            />
-          ) : entityType === 'community' ? (
+            <Image source={{ uri: photoUrl }} style={styles.avatar} />
+          ) : entityType === "community" ? (
             <LinearGradient
-              colors={getGradientForName(item.name || item.full_name || 'Community')}
+              colors={getGradientForName(
+                item.name || item.full_name || "Community"
+              )}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+              style={[
+                styles.avatar,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
             >
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>
-                {getInitials(item.name || item.full_name || 'C')}
+              <Text style={{ fontSize: 20, fontWeight: "bold", color: "#fff" }}>
+                {getInitials(item.name || item.full_name || "C")}
               </Text>
             </LinearGradient>
           ) : (
@@ -471,21 +520,42 @@ export default function SearchScreen({ navigation }) {
             />
           )}
           <View style={styles.meta}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
               <Text style={styles.name} numberOfLines={1}>
                 {displayName}
               </Text>
-              {activeFilter === 'all' && (
-                <View style={[styles.typeBadge, entityType === 'community' ? styles.typeBadgeCommunity : entityType === 'sponsor' ? styles.typeBadgeSponsor : entityType === 'venue' ? styles.typeBadgeVenue : styles.typeBadgeMember]}>
+              {activeFilter === "all" && (
+                <View
+                  style={[
+                    styles.typeBadge,
+                    entityType === "community"
+                      ? styles.typeBadgeCommunity
+                      : entityType === "sponsor"
+                      ? styles.typeBadgeSponsor
+                      : entityType === "venue"
+                      ? styles.typeBadgeVenue
+                      : styles.typeBadgeMember,
+                  ]}
+                >
                   <Text style={styles.typeBadgeText}>
-                    {entityType === 'community' ? 'C' : entityType === 'sponsor' ? 'S' : entityType === 'venue' ? 'V' : 'M'}
+                    {entityType === "community"
+                      ? "C"
+                      : entityType === "sponsor"
+                      ? "S"
+                      : entityType === "venue"
+                      ? "V"
+                      : "M"}
                   </Text>
                 </View>
               )}
             </View>
             <Text style={styles.username} numberOfLines={1}>
               @{item.username}
-              {entityType === 'community' && item.category && ` • ${item.category}`}
+              {entityType === "community" &&
+                item.category &&
+                ` • ${item.category}`}
             </Text>
           </View>
         </TouchableOpacity>
@@ -514,11 +584,14 @@ export default function SearchScreen({ navigation }) {
   };
 
   const renderRecentItem = ({ item }) => {
-    const entityType = item.type || 'member';
-    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
+    const entityType = item.type || "member";
+    const displayName = normalizeDisplayName(
+      item.full_name || item.name,
+      entityType
+    );
     const photoUrl = item.profile_photo_url || item.logo_url;
     const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
-    
+
     return (
       <View style={styles.row}>
         <TouchableOpacity
@@ -529,19 +602,21 @@ export default function SearchScreen({ navigation }) {
           activeOpacity={0.7}
         >
           {hasValidPhoto ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={styles.avatar}
-            />
-          ) : entityType === 'community' ? (
+            <Image source={{ uri: photoUrl }} style={styles.avatar} />
+          ) : entityType === "community" ? (
             <LinearGradient
-              colors={getGradientForName(item.name || item.full_name || 'Community')}
+              colors={getGradientForName(
+                item.name || item.full_name || "Community"
+              )}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}
+              style={[
+                styles.avatar,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
             >
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>
-                {getInitials(item.name || item.full_name || 'C')}
+              <Text style={{ fontSize: 20, fontWeight: "bold", color: "#fff" }}>
+                {getInitials(item.name || item.full_name || "C")}
               </Text>
             </LinearGradient>
           ) : (
@@ -561,7 +636,9 @@ export default function SearchScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
-            const next = recents.filter((r) => r.id !== item.id || r.type !== entityType);
+            const next = recents.filter(
+              (r) => r.id !== item.id || r.type !== entityType
+            );
             setRecents(next);
             saveRecents(next);
           }}
@@ -574,24 +651,17 @@ export default function SearchScreen({ navigation }) {
     );
   };
 
-  // Handle discover grid item press
-  const handleDiscoverItemPress = (item) => {
-    if (item.item_type === 'event') {
-      // Navigate to EventDetails screen
-      navigation.navigate('EventDetails', {
-        eventId: item.id,
-        eventData: item, // Pass initial data for faster display
+  // Handle discover feed event card press
+  const handleDiscoverItemPress = (event) => {
+    // Navigate to EventDetails screen if it exists
+    // Otherwise, navigate to the community profile with events tab
+    if (event.id) {
+      navigation.navigate("CommunityPublicProfile", {
+        communityId: event.community_id,
+        viewerRole: "member",
+        initialTab: "events",
+        highlightEventId: event.id,
       });
-    } else {
-      // Navigate to post author profile
-      if (item.author_type === 'member') {
-        navigation.navigate('MemberPublicProfile', { memberId: item.author_id });
-      } else if (item.author_type === 'community') {
-        navigation.navigate('CommunityPublicProfile', {
-          communityId: item.author_id,
-          viewerRole: 'member'
-        });
-      }
     }
   };
 
@@ -599,11 +669,18 @@ export default function SearchScreen({ navigation }) {
     <View style={styles.container}>
       {/* Header with Search Title - Always Visible */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>{showDiscoverGrid ? 'Discover' : 'Search'}</Text>
+        <Text style={styles.headerTitle}>
+          {showDiscoverGrid ? "Discover" : "Search"}
+        </Text>
       </View>
 
       {/* Search Input Box */}
-      <View style={[styles.searchContainer, focused && styles.searchContainerFocused]}>
+      <View
+        style={[
+          styles.searchContainer,
+          focused && styles.searchContainerFocused,
+        ]}
+      >
         {focused && (
           <TouchableOpacity
             onPress={() => {
@@ -650,33 +727,44 @@ export default function SearchScreen({ navigation }) {
           contentContainerStyle={styles.filterContent}
           style={{ flexGrow: 0 }} // Added to prevent expansion
         >
-          {['all', 'member', 'community', 'sponsor', 'venue', 'event'].map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterTab,
-                activeFilter === filter && styles.filterTabActive,
-              ]}
-              onPress={() => {
-                setActiveFilter(filter);
-                setResults([]);
-                setEventResults([]);
-                setOffset(0);
-              }}
-            >
-              <Text
+          {["all", "member", "community", "sponsor", "venue", "event"].map(
+            (filter) => (
+              <TouchableOpacity
+                key={filter}
                 style={[
-                  styles.filterTabText,
-                  activeFilter === filter && styles.filterTabTextActive,
+                  styles.filterTab,
+                  activeFilter === filter && styles.filterTabActive,
                 ]}
+                onPress={() => {
+                  setActiveFilter(filter);
+                  setResults([]);
+                  setEventResults([]);
+                  setOffset(0);
+                }}
               >
-                {filter === 'all' ? 'All' : filter === 'member' ? 'Members' : filter === 'community' ? 'Communities' : filter === 'sponsor' ? 'Sponsors' : filter === 'venue' ? 'Venues' : 'Events'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    activeFilter === filter && styles.filterTabTextActive,
+                  ]}
+                >
+                  {filter === "all"
+                    ? "All"
+                    : filter === "member"
+                    ? "Members"
+                    : filter === "community"
+                    ? "Communities"
+                    : filter === "sponsor"
+                    ? "Sponsors"
+                    : filter === "venue"
+                    ? "Venues"
+                    : "Events"}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
         </ScrollView>
       )}
-
 
       {focused && query.trim().length === 0 ? (
         <View style={styles.contentContainer}>
@@ -686,12 +774,14 @@ export default function SearchScreen({ navigation }) {
               justifyContent: "space-between",
               alignItems: "center", // Align text and button nicely
               paddingHorizontal: 16,
-              paddingTop: 0, 
-              marginTop: 12, 
+              paddingTop: 0,
+              marginTop: 12,
               marginBottom: 8,
             }}
           >
-            <Text style={{ fontWeight: "600", color: "#1D1D1F", fontSize: 18 }}>Recent</Text>
+            <Text style={{ fontWeight: "600", color: "#1D1D1F", fontSize: 18 }}>
+              Recent
+            </Text>
             {recents.length > 0 && (
               <TouchableOpacity
                 onPress={async () => {
@@ -727,48 +817,51 @@ export default function SearchScreen({ navigation }) {
       {canSearch && (
         <View style={styles.contentContainer}>
           <FlatList
-            data={activeFilter === 'event' ? eventResults : results}
+            data={activeFilter === "event" ? eventResults : results}
             keyExtractor={(item) => String(item.id)}
-            renderItem={activeFilter === 'event' ? renderEventItem : renderItem}
+            renderItem={activeFilter === "event" ? renderEventItem : renderItem}
             onEndReached={onEndReached}
             onEndReachedThreshold={0.6}
             ListEmptyComponent={
               canSearch && !loading ? (
                 <View style={styles.helper}>
                   <Text style={styles.helperText}>
-                    {activeFilter === 'event' ? 'No events found' : 'No results found'}
+                    {activeFilter === "event"
+                      ? "No events found"
+                      : "No results found"}
                   </Text>
                 </View>
               ) : null
             }
-            contentContainerStyle={(activeFilter === 'event' ? eventResults : results).length === 0 ? { flexGrow: 1 } : null}
+            contentContainerStyle={
+              (activeFilter === "event" ? eventResults : results).length === 0
+                ? { flexGrow: 1 }
+                : null
+            }
           />
         </View>
       )}
 
-      {/* Discover Grid - Show when not searching */}
+      {/* Discover Feed V2 - Category-based event carousels */}
       {showDiscoverGrid && (
-        <DiscoverGrid
-          items={discoverItems}
-          loading={discoverLoading}
-          onItemPress={handleDiscoverItemPress}
-          onEndReached={() => discoverHasMore && loadDiscoverFeed()}
-          refreshing={discoverLoading && discoverItems.length > 0}
-          onRefresh={() => {
-            loadDiscoverFeed(true);
-            loadSuggestions(true); // Force refresh suggestions too
-          }}
+        <DiscoverFeedV2
+          navigation={navigation}
+          onEventPress={handleDiscoverItemPress}
           ListHeaderComponent={
             suggestions.length > 0 ? (
               <View style={styles.suggestionsSection}>
                 {/* Header with See All */}
                 <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsTitle}>Based on your Interests</Text>
-                  <TouchableOpacity onPress={() => navigation.navigate('ExploreCommunities')}>
+                  <Text style={styles.suggestionsTitle}>
+                    Based on your Interests
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("ExploreCommunities")}
+                  >
                     <Text style={styles.seeAllLink}>See All</Text>
                   </TouchableOpacity>
                 </View>
-                
+
                 {/* Horizontal Scroll of Community Cards */}
                 <ScrollView
                   horizontal
@@ -779,15 +872,22 @@ export default function SearchScreen({ navigation }) {
                     <SuggestedCommunityCard
                       key={community.id}
                       community={community}
-                      onPress={(c) => navigation.navigate('CommunityPublicProfile', {
-                        communityId: c.id,
-                        viewerRole: 'member'
-                      })}
+                      onPress={(c) =>
+                        navigation.navigate("CommunityPublicProfile", {
+                          communityId: c.id,
+                          viewerRole: "member",
+                        })
+                      }
                       onJoin={(c) => {
                         // Remove from suggestions after joining
-                        setSuggestions(prev => prev.filter(s => s.id !== c.id));
+                        setSuggestions((prev) =>
+                          prev.filter((s) => s.id !== c.id)
+                        );
                         if (suggestionsCache.current) {
-                          suggestionsCache.current = suggestionsCache.current.filter(s => s.id !== c.id);
+                          suggestionsCache.current =
+                            suggestionsCache.current.filter(
+                              (s) => s.id !== c.id
+                            );
                         }
                       }}
                     />
@@ -814,16 +914,16 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1D1D1F',
+    fontWeight: "700",
+    color: "#1D1D1F",
   },
   searchContainer: {
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
   searchContainerFocused: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   backButton: {
@@ -833,7 +933,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     height: 50,
     gap: 12,
@@ -850,9 +950,9 @@ const styles = StyleSheet.create({
     gap: 12, // Default gap for items in the row
   },
   // NEW STYLE: Increased spacing between image and text block
-  profileRowInner: { 
-    flexDirection: "row", 
-    alignItems: "center", 
+  profileRowInner: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
     gap: 16, // Increased gap from 12 (default) to 16
   },
@@ -890,21 +990,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
     height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   filterTabActive: {
-    backgroundColor: '#6A0DAD',
+    backgroundColor: "#6A0DAD",
   },
   filterTabText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontWeight: "600",
+    color: "#8E8E93",
   },
   filterTabTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   typeBadge: {
     paddingHorizontal: 6,
@@ -912,31 +1012,31 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   typeBadgeMember: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
   },
   typeBadgeCommunity: {
-    backgroundColor: '#F3E5F5',
+    backgroundColor: "#F3E5F5",
   },
   typeBadgeSponsor: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: "#FFF3E0",
   },
   typeBadgeVenue: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: "#E8F5E9",
   },
   typeBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#1D1D1F',
+    fontWeight: "700",
+    color: "#1D1D1F",
   },
   // Event search result styles
   eventRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 12,
     marginHorizontal: 16,
     marginVertical: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -946,41 +1046,41 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 10,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   eventImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   eventDateBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 4,
     left: 4,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: "rgba(0,0,0,0.7)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   eventDateBadgeText: {
     fontSize: 9,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   eventInfo: {
     flex: 1,
     marginLeft: 12,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   eventTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1D1D1F',
+    fontWeight: "600",
+    color: "#1D1D1F",
     marginBottom: 4,
   },
   eventCommunityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
   eventCommunityAvatar: {
@@ -991,17 +1091,17 @@ const styles = StyleSheet.create({
   },
   eventCommunityName: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: "#8E8E93",
     flex: 1,
   },
   eventMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   eventMetaText: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: "#8E8E93",
   },
   // Suggestions section styles
   suggestionsSection: {
@@ -1009,20 +1109,20 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   suggestionsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 12,
   },
   suggestionsTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1D1D1F',
+    fontWeight: "600",
+    color: "#1D1D1F",
   },
   seeAllLink: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.primary,
   },
   suggestionsScroll: {

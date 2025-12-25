@@ -31,6 +31,7 @@ import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import DiscountCodesEditor from "../editors/DiscountCodesEditor";
 import PricingRulesEditor from "../editors/PricingRulesEditor";
+import CategorySelector from "../CategorySelector";
 
 // Draft storage utilities
 import {
@@ -397,6 +398,13 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             <PricingRulesEditor
               pricingRules={pricingRules}
               onChange={setPricingRules}
+            />
+
+            {/* Event Categories for Discover Feed */}
+            <CategorySelector
+              selectedCategories={categories}
+              onChange={setCategories}
+              maxCategories={3}
             />
           </ScrollView>
         );

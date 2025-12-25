@@ -10,50 +10,67 @@ const createEvent = async (req, res) => {
     const userType = req.user?.type;
 
     // Only communities can create events
-    if (!userId || userType !== 'community') {
-      return res.status(403).json({ error: "Only communities can create events" });
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only communities can create events" });
     }
 
     const {
       title,
       description,
       event_date,
-      location_url,  // Changed from 'location'
+      location_url, // Changed from 'location'
       max_attendees,
-      banner_carousel,  // Array of {url, cloudinary_public_id, order}
-      gallery,  // Array of {url, cloudinary_public_id, order}
+      banner_carousel, // Array of {url, cloudinary_public_id, order}
+      gallery, // Array of {url, cloudinary_public_id, order}
       event_type,
       virtual_link,
       venue_id,
-      highlights,  // Array of {icon_name, title, description}
-      featured_accounts,  // Array of {display_name, role, description, profile_photo_url, ...}
-      things_to_know,  // Array of {icon_name, label, preset_id}
-      ticket_price,  // Legacy: single ticket price (null = free)
-      ticket_types,   // Array of {name, description, base_price, total_quantity, ...}
+      highlights, // Array of {icon_name, title, description}
+      featured_accounts, // Array of {display_name, role, description, profile_photo_url, ...}
+      things_to_know, // Array of {icon_name, label, preset_id}
+      ticket_price, // Legacy: single ticket price (null = free)
+      ticket_types, // Array of {name, description, base_price, total_quantity, ...}
       discount_codes, // Array of {code, discount_type, discount_value, max_uses, ...}
-      pricing_rules   // Array of {name, rule_type, discount_type, discount_value, ...}
+      pricing_rules, // Array of {name, rule_type, discount_type, discount_value, ...}
     } = req.body;
 
     // Validation
     if (!title || !event_date) {
-      return res.status(400).json({ error: "Title and event date are required" });
+      return res
+        .status(400)
+        .json({ error: "Title and event date are required" });
     }
 
-    if (event_type === 'virtual' && !virtual_link) {
-      return res.status(400).json({ error: "Virtual link required for virtual events" });
+    if (event_type === "virtual" && !virtual_link) {
+      return res
+        .status(400)
+        .json({ error: "Virtual link required for virtual events" });
     }
 
-    if ((event_type === 'in-person' || event_type === 'hybrid') && !location_url) {
-      return res.status(400).json({ error: "Google Maps link required for in-person/hybrid events" });
+    if (
+      (event_type === "in-person" || event_type === "hybrid") &&
+      !location_url
+    ) {
+      return res.status(400).json({
+        error: "Google Maps link required for in-person/hybrid events",
+      });
     }
 
     // Validate Google Maps URL format
     if (location_url && !isValidGoogleMapsUrl(location_url)) {
-      return res.status(400).json({ error: "Invalid Google Maps URL. Please paste a valid link from Google Maps." });
+      return res.status(400).json({
+        error:
+          "Invalid Google Maps URL. Please paste a valid link from Google Maps.",
+      });
     }
 
     // Insert event (use first banner as banner_url for backward compatibility)
-    const banner_url = banner_carousel && banner_carousel.length > 0 ? banner_carousel[0].url : null;
+    const banner_url =
+      banner_carousel && banner_carousel.length > 0
+        ? banner_carousel[0].url
+        : null;
 
     const query = `
       INSERT INTO events (
@@ -71,23 +88,27 @@ const createEvent = async (req, res) => {
       description || null,
       event_date,
       event_date, // end_datetime (same as start for now)
-      location_url || null,  // Changed from location
+      location_url || null, // Changed from location
       max_attendees || null,
       banner_url,
-      event_type || 'in-person',
+      event_type || "in-person",
       virtual_link || null,
       venue_id || null,
       userId, // creator_id
       true, // is_published
-      ticket_price || null  // Ticket price
+      ticket_price || null, // Ticket price
     ];
 
     const result = await pool.query(query, values);
     const eventId = result.rows[0].id;
 
     // Save banner carousel images
-    if (banner_carousel && Array.isArray(banner_carousel) && banner_carousel.length > 0) {
-      const bannerInserts = banner_carousel.map((banner, index) => 
+    if (
+      banner_carousel &&
+      Array.isArray(banner_carousel) &&
+      banner_carousel.length > 0
+    ) {
+      const bannerInserts = banner_carousel.map((banner, index) =>
         pool.query(
           `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
           [eventId, banner.url, banner.cloudinary_public_id || null, index]
@@ -98,7 +119,7 @@ const createEvent = async (req, res) => {
 
     // Save gallery images
     if (gallery && Array.isArray(gallery) && gallery.length > 0) {
-      const galleryInserts = gallery.map((image, index) => 
+      const galleryInserts = gallery.map((image, index) =>
         pool.query(
           `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
           [eventId, image.url, image.cloudinary_public_id || null, index]
@@ -109,25 +130,35 @@ const createEvent = async (req, res) => {
 
     // Save highlights
     if (highlights && Array.isArray(highlights) && highlights.length > 0) {
-      const highlightInserts = highlights.map((highlight, index) => 
+      const highlightInserts = highlights.map((highlight, index) =>
         pool.query(
           `INSERT INTO event_highlights (event_id, icon_name, title, description, highlight_order) VALUES ($1, $2, $3, $4, $5)`,
-          [eventId, highlight.icon_name || 'star', highlight.title, highlight.description || null, index]
+          [
+            eventId,
+            highlight.icon_name || "star",
+            highlight.title,
+            highlight.description || null,
+            index,
+          ]
         )
       );
       await Promise.all(highlightInserts);
     }
 
     // Save featured accounts
-    if (featured_accounts && Array.isArray(featured_accounts) && featured_accounts.length > 0) {
-      const featuredInserts = featured_accounts.map((account, index) => 
+    if (
+      featured_accounts &&
+      Array.isArray(featured_accounts) &&
+      featured_accounts.length > 0
+    ) {
+      const featuredInserts = featured_accounts.map((account, index) =>
         pool.query(
           `INSERT INTO event_featured_accounts (
             event_id, linked_account_id, linked_account_type, display_name, 
             role, description, profile_photo_url, cloudinary_public_id, display_order
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
-            eventId, 
+            eventId,
             account.linked_account_id || null,
             account.linked_account_type || null,
             account.display_name,
@@ -135,7 +166,7 @@ const createEvent = async (req, res) => {
             account.description || null,
             account.profile_photo_url || null,
             account.cloudinary_public_id || null,
-            index
+            index,
           ]
         )
       );
@@ -143,19 +174,33 @@ const createEvent = async (req, res) => {
     }
 
     // Save things to know
-    if (things_to_know && Array.isArray(things_to_know) && things_to_know.length > 0) {
-      const thingsInserts = things_to_know.map((item, index) => 
+    if (
+      things_to_know &&
+      Array.isArray(things_to_know) &&
+      things_to_know.length > 0
+    ) {
+      const thingsInserts = things_to_know.map((item, index) =>
         pool.query(
           `INSERT INTO event_things_to_know (event_id, preset_id, icon_name, label, item_order) VALUES ($1, $2, $3, $4, $5)`,
-          [eventId, item.preset_id || null, item.icon_name || 'information-circle', item.label, index]
+          [
+            eventId,
+            item.preset_id || null,
+            item.icon_name || "information-circle",
+            item.label,
+            index,
+          ]
         )
       );
       await Promise.all(thingsInserts);
     }
 
     // Save ticket types (multi-tier pricing)
-    if (ticket_types && Array.isArray(ticket_types) && ticket_types.length > 0) {
-      const ticketInserts = ticket_types.map((ticket, index) => 
+    if (
+      ticket_types &&
+      Array.isArray(ticket_types) &&
+      ticket_types.length > 0
+    ) {
+      const ticketInserts = ticket_types.map((ticket, index) =>
         pool.query(
           `INSERT INTO ticket_types (
             event_id, name, description, base_price, total_quantity,
@@ -171,14 +216,20 @@ const createEvent = async (req, res) => {
             ticket.total_quantity || null,
             ticket.sale_start_at || null,
             ticket.sale_end_at || null,
-            ticket.visibility || 'public',
+            ticket.visibility || "public",
             ticket.access_code || null,
             ticket.min_per_order || 1,
             ticket.max_per_order || 10,
             ticket.max_per_user || null,
-            JSON.stringify(ticket.refund_policy || {allowed: true, deadline_hours_before: 24, percentage: 100}),
+            JSON.stringify(
+              ticket.refund_policy || {
+                allowed: true,
+                deadline_hours_before: 24,
+                percentage: 100,
+              }
+            ),
             index,
-            ticket.is_active !== false
+            ticket.is_active !== false,
           ]
         )
       );
@@ -186,8 +237,12 @@ const createEvent = async (req, res) => {
     }
 
     // Save discount codes
-    if (discount_codes && Array.isArray(discount_codes) && discount_codes.length > 0) {
-      const codeInserts = discount_codes.map((dc) => 
+    if (
+      discount_codes &&
+      Array.isArray(discount_codes) &&
+      discount_codes.length > 0
+    ) {
+      const codeInserts = discount_codes.map((dc) =>
         pool.query(
           `INSERT INTO discount_codes (
             event_id, code, code_normalized, discount_type, discount_value,
@@ -198,7 +253,7 @@ const createEvent = async (req, res) => {
             eventId,
             dc.code,
             dc.code.toUpperCase().trim(),
-            dc.discount_type || 'percentage',
+            dc.discount_type || "percentage",
             dc.discount_value,
             dc.max_uses || null,
             dc.max_uses_per_user || 1,
@@ -206,7 +261,7 @@ const createEvent = async (req, res) => {
             dc.valid_until || null,
             dc.min_cart_value || null,
             dc.applicable_ticket_ids || null,
-            dc.is_active !== false
+            dc.is_active !== false,
           ]
         )
       );
@@ -214,8 +269,12 @@ const createEvent = async (req, res) => {
     }
 
     // Save pricing rules (early bird, group discounts)
-    if (pricing_rules && Array.isArray(pricing_rules) && pricing_rules.length > 0) {
-      const ruleInserts = pricing_rules.map((rule) => 
+    if (
+      pricing_rules &&
+      Array.isArray(pricing_rules) &&
+      pricing_rules.length > 0
+    ) {
+      const ruleInserts = pricing_rules.map((rule) =>
         pool.query(
           `INSERT INTO pricing_rules (
             event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
@@ -226,26 +285,39 @@ const createEvent = async (req, res) => {
             rule.ticket_type_id || null,
             rule.name,
             rule.rule_type,
-            rule.discount_type || 'percentage',
+            rule.discount_type || "percentage",
             rule.discount_value,
             rule.quantity_threshold || null,
             rule.min_quantity || null,
             rule.valid_from || null,
             rule.valid_until || null,
             rule.priority || 100,
-            rule.is_active !== false
+            rule.is_active !== false,
           ]
         )
       );
       await Promise.all(ruleInserts);
     }
 
+    // Save discover categories (for Discover Feed)
+    const { categories } = req.body;
+    if (categories && Array.isArray(categories) && categories.length > 0) {
+      const categoryInserts = categories.map((categoryId) =>
+        pool.query(
+          `INSERT INTO event_discover_categories (event_id, category_id, is_featured) 
+           VALUES ($1, $2, false)
+           ON CONFLICT (event_id, category_id) DO NOTHING`,
+          [eventId, categoryId]
+        )
+      );
+      await Promise.all(categoryInserts);
+    }
+
     res.status(201).json({
       success: true,
       event: result.rows[0],
-      message: "Event created successfully"
+      message: "Event created successfully",
     });
-
   } catch (error) {
     console.error("Error creating event:", error);
     res.status(500).json({ error: "Failed to create event" });
@@ -257,10 +329,10 @@ const getCommunityEvents = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
-    if (!userId || userType !== 'community') {
+    if (!userId || userType !== "community") {
       return res.status(401).json({ error: "Authentication required" });
     }
-    
+
     // Get main events
     const eventsQuery = `
       SELECT 
@@ -289,52 +361,53 @@ const getCommunityEvents = async (req, res) => {
       GROUP BY e.id
       ORDER BY e.start_datetime DESC
     `;
-    
+
     const eventsResult = await pool.query(eventsQuery, [userId]);
     const events = eventsResult.rows;
 
     // For each event, fetch related data
-    const eventsWithDetails = await Promise.all(events.map(async (event) => {
-      const eventId = event.id;
+    const eventsWithDetails = await Promise.all(
+      events.map(async (event) => {
+        const eventId = event.id;
 
-      // Fetch gallery images
-      const galleryResult = await pool.query(
-        `SELECT id, image_url, cloudinary_public_id, image_order 
+        // Fetch gallery images
+        const galleryResult = await pool.query(
+          `SELECT id, image_url, cloudinary_public_id, image_order 
          FROM event_gallery 
          WHERE event_id = $1 
          ORDER BY image_order ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch banner carousel images
-      const bannerResult = await pool.query(
-        `SELECT id, image_url, cloudinary_public_id, image_order 
+        // Fetch banner carousel images
+        const bannerResult = await pool.query(
+          `SELECT id, image_url, cloudinary_public_id, image_order 
          FROM event_banners 
          WHERE event_id = $1 
          ORDER BY image_order ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch highlights
-      const highlightsResult = await pool.query(
-        `SELECT id, icon_name, title, description, highlight_order 
+        // Fetch highlights
+        const highlightsResult = await pool.query(
+          `SELECT id, icon_name, title, description, highlight_order 
          FROM event_highlights 
          WHERE event_id = $1 
          ORDER BY highlight_order ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch things to know
-      const thingsToKnowResult = await pool.query(
-        `SELECT id, preset_id, icon_name, label, item_order 
+        // Fetch things to know
+        const thingsToKnowResult = await pool.query(
+          `SELECT id, preset_id, icon_name, label, item_order 
          FROM event_things_to_know 
          WHERE event_id = $1 
          ORDER BY item_order ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch featured accounts with enriched data
-      const featuredAccountsQuery = `
+        // Fetch featured accounts with enriched data
+        const featuredAccountsQuery = `
         SELECT 
           fa.id,
           fa.linked_account_id,
@@ -375,84 +448,90 @@ const getCommunityEvents = async (req, res) => {
         WHERE fa.event_id = $1
         ORDER BY fa.display_order ASC
       `;
-      const featuredAccountsResult = await pool.query(featuredAccountsQuery, [eventId]);
+        const featuredAccountsResult = await pool.query(featuredAccountsQuery, [
+          eventId,
+        ]);
 
-      // Debug: Log what we're returning for this event
-      console.log(`[getCommunityEvents] Event ${event.id} (${event.title}):`, {
-        banner_count: bannerResult.rows.length,
-        gallery_count: galleryResult.rows.length,
-        highlights_count: highlightsResult.rows.length,
-        things_to_know_count: thingsToKnowResult.rows.length,
-        featured_accounts_count: featuredAccountsResult.rows.length,
-      });
+        // Debug: Log what we're returning for this event
+        console.log(
+          `[getCommunityEvents] Event ${event.id} (${event.title}):`,
+          {
+            banner_count: bannerResult.rows.length,
+            gallery_count: galleryResult.rows.length,
+            highlights_count: highlightsResult.rows.length,
+            things_to_know_count: thingsToKnowResult.rows.length,
+            featured_accounts_count: featuredAccountsResult.rows.length,
+          }
+        );
 
-      // Transform banner rows to match frontend expected format (url instead of image_url)
-      const bannerCarousel = bannerResult.rows.map(b => ({
-        id: b.id,
-        url: b.image_url,
-        image_url: b.image_url,
-        cloudinary_public_id: b.cloudinary_public_id,
-        order: b.image_order
-      }));
+        // Transform banner rows to match frontend expected format (url instead of image_url)
+        const bannerCarousel = bannerResult.rows.map((b) => ({
+          id: b.id,
+          url: b.image_url,
+          image_url: b.image_url,
+          cloudinary_public_id: b.cloudinary_public_id,
+          order: b.image_order,
+        }));
 
-      // Transform gallery rows to match frontend expected format
-      const gallery = galleryResult.rows.map(g => ({
-        id: g.id,
-        url: g.image_url,
-        image_url: g.image_url,
-        cloudinary_public_id: g.cloudinary_public_id,
-        order: g.image_order
-      }));
+        // Transform gallery rows to match frontend expected format
+        const gallery = galleryResult.rows.map((g) => ({
+          id: g.id,
+          url: g.image_url,
+          image_url: g.image_url,
+          cloudinary_public_id: g.cloudinary_public_id,
+          order: g.image_order,
+        }));
 
-      // Fetch ticket types
-      const ticketTypesResult = await pool.query(
-        `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
+        // Fetch ticket types
+        const ticketTypesResult = await pool.query(
+          `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
                 sale_start_at, sale_end_at, visibility, access_code,
                 min_per_order, max_per_order, max_per_user, refund_policy,
                 display_order, is_active
          FROM ticket_types 
          WHERE event_id = $1
          ORDER BY display_order ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch discount codes
-      const discountCodesResult = await pool.query(
-        `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
+        // Fetch discount codes
+        const discountCodesResult = await pool.query(
+          `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
                 max_uses_per_user, valid_from, valid_until, min_cart_value,
                 applicable_ticket_ids, is_active
          FROM discount_codes 
          WHERE event_id = $1
          ORDER BY created_at ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      // Fetch pricing rules
-      const pricingRulesResult = await pool.query(
-        `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
+        // Fetch pricing rules
+        const pricingRulesResult = await pool.query(
+          `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
                 quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
          FROM pricing_rules 
          WHERE event_id = $1
          ORDER BY priority ASC`,
-        [eventId]
-      );
+          [eventId]
+        );
 
-      return {
-        ...event,
-        banner_carousel: bannerCarousel,
-        gallery: gallery,
-        highlights: highlightsResult.rows,
-        things_to_know: thingsToKnowResult.rows,
-        featured_accounts: featuredAccountsResult.rows,
-        ticket_types: ticketTypesResult.rows,
-        discount_codes: discountCodesResult.rows,
-        pricing_rules: pricingRulesResult.rows
-      };
-    }));
-    
+        return {
+          ...event,
+          banner_carousel: bannerCarousel,
+          gallery: gallery,
+          highlights: highlightsResult.rows,
+          things_to_know: thingsToKnowResult.rows,
+          featured_accounts: featuredAccountsResult.rows,
+          ticket_types: ticketTypesResult.rows,
+          discount_codes: discountCodesResult.rows,
+          pricing_rules: pricingRulesResult.rows,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      events: eventsWithDetails
+      events: eventsWithDetails,
     });
   } catch (error) {
     console.error("Error getting community events:", error);
@@ -460,14 +539,13 @@ const getCommunityEvents = async (req, res) => {
   }
 };
 
-
 // Get events user is registered for (both past and upcoming)
 const getMyEvents = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -494,12 +572,11 @@ const getMyEvents = async (req, res) => {
     `;
 
     const result = await pool.query(query, [userId]);
-    
+
     res.json({
       success: true,
-      events: result.rows
+      events: result.rows,
     });
-
   } catch (error) {
     console.error("Error getting user events:", error);
     res.status(500).json({ error: "Failed to get events" });
@@ -513,18 +590,20 @@ const getEventAttendees = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
-      'SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2',
+      "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
       [eventId, userId]
     );
 
     if (registrationCheck.rows.length === 0) {
-      return res.status(403).json({ error: "You are not registered for this event" });
+      return res
+        .status(403)
+        .json({ error: "You are not registered for this event" });
     }
 
     // Get attendees with their photos and exclude the current user
@@ -560,31 +639,42 @@ const getEventAttendees = async (req, res) => {
     `;
 
     const result = await pool.query(query, [eventId, userId]);
-    
+
     // Calculate age for each member
-    const attendees = result.rows.map(attendee => {
+    const attendees = result.rows.map((attendee) => {
       const birthDate = new Date(attendee.dob);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
         age--;
       }
 
       return {
         ...attendee,
         age,
-        photos: attendee.photos.length > 0 ? attendee.photos : [
-          { id: 1, photo_url: attendee.profile_photo_url || 'https://via.placeholder.com/300', photo_order: 0 }
-        ]
+        photos:
+          attendee.photos.length > 0
+            ? attendee.photos
+            : [
+                {
+                  id: 1,
+                  photo_url:
+                    attendee.profile_photo_url ||
+                    "https://via.placeholder.com/300",
+                  photo_order: 0,
+                },
+              ],
       };
     });
 
     res.json({
       success: true,
-      attendees
+      attendees,
     });
-
   } catch (error) {
     console.error("Error getting event attendees:", error);
     res.status(500).json({ error: "Failed to get attendees" });
@@ -599,11 +689,15 @@ const recordSwipe = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (!swiped_id || !swipe_direction || !['left', 'right'].includes(swipe_direction)) {
+    if (
+      !swiped_id ||
+      !swipe_direction ||
+      !["left", "right"].includes(swipe_direction)
+    ) {
       return res.status(400).json({ error: "Invalid swipe data" });
     }
 
@@ -613,17 +707,19 @@ const recordSwipe = async (req, res) => {
 
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
-      'SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2',
+      "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
       [eventId, userId]
     );
 
     if (registrationCheck.rows.length === 0) {
-      return res.status(403).json({ error: "You are not registered for this event" });
+      return res
+        .status(403)
+        .json({ error: "You are not registered for this event" });
     }
 
     // Check if already swiped on this person
     const existingSwipe = await pool.query(
-      'SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3',
+      "SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3",
       [eventId, userId, swiped_id]
     );
 
@@ -633,7 +729,7 @@ const recordSwipe = async (req, res) => {
 
     // Record the swipe
     await pool.query(
-      'INSERT INTO event_swipes (event_id, swiper_id, swiped_id, swipe_direction) VALUES ($1, $2, $3, $4)',
+      "INSERT INTO event_swipes (event_id, swiper_id, swiped_id, swipe_direction) VALUES ($1, $2, $3, $4)",
       [eventId, userId, swiped_id, swipe_direction]
     );
 
@@ -641,19 +737,19 @@ const recordSwipe = async (req, res) => {
     let matchData = null;
 
     // If it's a right swipe, check for mutual like
-    if (swipe_direction === 'right') {
+    if (swipe_direction === "right") {
       const mutualSwipe = await pool.query(
-        'SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3 AND swipe_direction = $4',
-        [eventId, swiped_id, userId, 'right']
+        "SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3 AND swipe_direction = $4",
+        [eventId, swiped_id, userId, "right"]
       );
 
       if (mutualSwipe.rows.length > 0) {
         // It's a match! Create match record
         const member1Id = Math.min(userId, swiped_id);
         const member2Id = Math.max(userId, swiped_id);
-        
+
         await pool.query(
-          'INSERT INTO event_matches (event_id, member1_id, member2_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          "INSERT INTO event_matches (event_id, member1_id, member2_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
           [eventId, member1Id, member2Id]
         );
 
@@ -667,8 +763,11 @@ const recordSwipe = async (req, res) => {
           FROM members m1, members m2
           WHERE m1.id = $1 AND m2.id = $2
         `;
-        
-        const matchResult = await pool.query(matchQuery, [member1Id, member2Id]);
+
+        const matchResult = await pool.query(matchQuery, [
+          member1Id,
+          member2Id,
+        ]);
         matchData = matchResult.rows[0];
         isMatch = true;
       }
@@ -677,9 +776,8 @@ const recordSwipe = async (req, res) => {
     res.json({
       success: true,
       isMatch,
-      matchData
+      matchData,
     });
-
   } catch (error) {
     console.error("Error recording swipe:", error);
     res.status(500).json({ error: "Failed to record swipe" });
@@ -693,7 +791,7 @@ const getEventMatches = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -725,12 +823,11 @@ const getEventMatches = async (req, res) => {
     `;
 
     const result = await pool.query(query, [userId, eventId]);
-    
+
     res.json({
       success: true,
-      matches: result.rows
+      matches: result.rows,
     });
-
   } catch (error) {
     console.error("Error getting event matches:", error);
     res.status(500).json({ error: "Failed to get matches" });
@@ -745,7 +842,7 @@ const requestNextEvent = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -754,41 +851,46 @@ const requestNextEvent = async (req, res) => {
     }
 
     if (userId === requested_id) {
-      return res.status(400).json({ error: "Cannot request next event with yourself" });
+      return res
+        .status(400)
+        .json({ error: "Cannot request next event with yourself" });
     }
 
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
-      'SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2',
+      "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
       [eventId, userId]
     );
 
     if (registrationCheck.rows.length === 0) {
-      return res.status(403).json({ error: "You are not registered for this event" });
+      return res
+        .status(403)
+        .json({ error: "You are not registered for this event" });
     }
 
     // Check if already sent a request
     const existingRequest = await pool.query(
-      'SELECT id FROM next_event_requests WHERE current_event_id = $1 AND requester_id = $2 AND requested_id = $3',
+      "SELECT id FROM next_event_requests WHERE current_event_id = $1 AND requester_id = $2 AND requested_id = $3",
       [eventId, userId, requested_id]
     );
 
     if (existingRequest.rows.length > 0) {
-      return res.status(400).json({ error: "Request already sent to this member" });
+      return res
+        .status(400)
+        .json({ error: "Request already sent to this member" });
     }
 
     // Create the request
     const result = await pool.query(
-      'INSERT INTO next_event_requests (requester_id, requested_id, current_event_id, message) VALUES ($1, $2, $3, $4) RETURNING id',
+      "INSERT INTO next_event_requests (requester_id, requested_id, current_event_id, message) VALUES ($1, $2, $3, $4) RETURNING id",
       [userId, requested_id, eventId, message || null]
     );
 
     res.json({
       success: true,
       requestId: result.rows[0].id,
-      message: "Next event request sent successfully"
+      message: "Next event request sent successfully",
     });
-
   } catch (error) {
     console.error("Error sending next event request:", error);
     res.status(500).json({ error: "Failed to send request" });
@@ -860,42 +962,54 @@ const discoverEvents = async (req, res) => {
       SELECT * FROM event_scores
     `;
 
-    const result = await pool.query(query, [userId, userType, parseInt(limit), parseInt(offset)]);
+    const result = await pool.query(query, [
+      userId,
+      userType,
+      parseInt(limit),
+      parseInt(offset),
+    ]);
 
     // For each event, get banner carousel images
-    const eventsWithBanners = await Promise.all(result.rows.map(async (event) => {
-      const bannersResult = await pool.query(
-        `SELECT image_url, cloudinary_public_id, image_order 
+    const eventsWithBanners = await Promise.all(
+      result.rows.map(async (event) => {
+        const bannersResult = await pool.query(
+          `SELECT image_url, cloudinary_public_id, image_order 
          FROM event_banners 
          WHERE event_id = $1 
          ORDER BY image_order ASC 
          LIMIT 3`,
-        [event.id]
-      );
+          [event.id]
+        );
 
-      return {
-        ...event,
-        banner_carousel: bannersResult.rows,
-        // Format for display
-        formatted_date: new Date(event.event_date).toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric'
-        }),
-        formatted_time: new Date(event.event_date).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        })
-      };
-    }));
+        return {
+          ...event,
+          banner_carousel: bannersResult.rows,
+          // Format for display
+          formatted_date: new Date(event.event_date).toLocaleDateString(
+            "en-US",
+            {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            }
+          ),
+          formatted_time: new Date(event.event_date).toLocaleTimeString(
+            "en-US",
+            {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            }
+          ),
+        };
+      })
+    );
 
     res.json({
       success: true,
       events: eventsWithBanners,
-      hasMore: result.rows.length === parseInt(limit)
+      hasMore: result.rows.length === parseInt(limit),
     });
-
   } catch (error) {
     console.error("Error discovering events:", error);
     res.status(500).json({ error: "Failed to discover events" });
@@ -906,7 +1020,7 @@ const discoverEvents = async (req, res) => {
 const searchEvents = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { q, limit = 20, offset = 0, upcoming_only = 'true' } = req.query;
+    const { q, limit = 20, offset = 0, upcoming_only = "true" } = req.query;
 
     if (!userId) {
       return res.status(401).json({ error: "Authentication required" });
@@ -916,12 +1030,13 @@ const searchEvents = async (req, res) => {
       return res.json({
         success: true,
         events: [],
-        hasMore: false
+        hasMore: false,
       });
     }
 
     const searchTerm = `%${q.trim().toLowerCase()}%`;
-    const upcomingFilter = upcoming_only === 'true' ? 'AND e.start_datetime > NOW()' : '';
+    const upcomingFilter =
+      upcoming_only === "true" ? "AND e.start_datetime > NOW()" : "";
 
     const query = `
       SELECT 
@@ -961,34 +1076,41 @@ const searchEvents = async (req, res) => {
       LIMIT $2 OFFSET $3
     `;
 
-    console.log('[searchEvents] Query:', query);
-    console.log('[searchEvents] Params:', { searchTerm, limit: parseInt(limit), offset: parseInt(offset) });
+    console.log("[searchEvents] Query:", query);
+    console.log("[searchEvents] Params:", {
+      searchTerm,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
 
-    const result = await pool.query(query, [searchTerm, parseInt(limit), parseInt(offset)]);
-    
-    console.log('[searchEvents] Found', result.rows.length, 'events');
+    const result = await pool.query(query, [
+      searchTerm,
+      parseInt(limit),
+      parseInt(offset),
+    ]);
+
+    console.log("[searchEvents] Found", result.rows.length, "events");
 
     // Format events for display
-    const events = result.rows.map(event => ({
+    const events = result.rows.map((event) => ({
       ...event,
-      formatted_date: new Date(event.event_date).toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
+      formatted_date: new Date(event.event_date).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
       }),
-      formatted_time: new Date(event.event_date).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      })
+      formatted_time: new Date(event.event_date).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }),
     }));
 
     res.json({
       success: true,
       events,
-      hasMore: result.rows.length === parseInt(limit)
+      hasMore: result.rows.length === parseInt(limit),
     });
-
   } catch (error) {
     console.error("Error searching events:", error);
     res.status(500).json({ error: "Failed to search events" });
@@ -1006,18 +1128,22 @@ const updateEvent = async (req, res) => {
     const { eventId } = req.params;
 
     // Only communities can edit events
-    if (!userId || userType !== 'community') {
-      return res.status(403).json({ error: "Only communities can edit events" });
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only communities can edit events" });
     }
 
     // Verify event exists and belongs to this community
     const existingResult = await pool.query(
-      'SELECT * FROM events WHERE id = $1 AND creator_id = $2',
+      "SELECT * FROM events WHERE id = $1 AND creator_id = $2",
       [eventId, userId]
     );
 
     if (existingResult.rows.length === 0) {
-      return res.status(404).json({ error: "Event not found or you don't have permission to edit it" });
+      return res.status(404).json({
+        error: "Event not found or you don't have permission to edit it",
+      });
     }
 
     const existingEvent = existingResult.rows[0];
@@ -1040,9 +1166,10 @@ const updateEvent = async (req, res) => {
       highlights,
       featured_accounts,
       things_to_know,
-      ticket_types,  // Array of ticket type objects
+      ticket_types, // Array of ticket type objects
       discount_codes, // Array of discount code objects
-      pricing_rules   // Array of pricing rule objects
+      pricing_rules, // Array of pricing rule objects
+      categories, // Array of discover category IDs
     } = req.body;
 
     // Validate Google Maps URL if provided
@@ -1052,18 +1179,22 @@ const updateEvent = async (req, res) => {
 
     // Track which key fields changed (for notifications)
     const changedFields = [];
-    
+
     if (title && title !== existingEvent.title) {
-      changedFields.push('title');
+      changedFields.push("title");
     }
-    if (event_date && new Date(event_date).getTime() !== new Date(existingEvent.start_datetime).getTime()) {
-      changedFields.push('date');
+    if (
+      event_date &&
+      new Date(event_date).getTime() !==
+        new Date(existingEvent.start_datetime).getTime()
+    ) {
+      changedFields.push("date");
     }
     if (location_url && location_url !== existingEvent.location_url) {
-      changedFields.push('location');
+      changedFields.push("location");
     }
     if (event_type && event_type !== existingEvent.event_type) {
-      changedFields.push('event_type');
+      changedFields.push("event_type");
     }
 
     // Build dynamic update query
@@ -1128,16 +1259,23 @@ const updateEvent = async (req, res) => {
       values.push(banner_carousel[0].url);
     }
 
-    if (updates.length === 0 && !banner_carousel && !gallery && !highlights && !featured_accounts && !things_to_know) {
+    if (
+      updates.length === 0 &&
+      !banner_carousel &&
+      !gallery &&
+      !highlights &&
+      !featured_accounts &&
+      !things_to_know
+    ) {
       return res.status(400).json({ error: "No fields to update" });
     }
 
     // Add event ID as last parameter
     values.push(eventId);
-    
+
     const updateQuery = `
       UPDATE events 
-      SET ${updates.join(', ')}, updated_at = NOW()
+      SET ${updates.join(", ")}, updated_at = NOW()
       WHERE id = $${paramIndex}
       RETURNING *
     `;
@@ -1146,79 +1284,137 @@ const updateEvent = async (req, res) => {
 
     // Update banner carousel if provided
     if (banner_carousel && Array.isArray(banner_carousel)) {
-      console.log(`[updateEvent] Saving ${banner_carousel.length} banners for event ${eventId}`);
+      console.log(
+        `[updateEvent] Saving ${banner_carousel.length} banners for event ${eventId}`
+      );
       if (banner_carousel.length > 0) {
-        console.log(`[updateEvent] First banner:`, JSON.stringify(banner_carousel[0]));
+        console.log(
+          `[updateEvent] First banner:`,
+          JSON.stringify(banner_carousel[0])
+        );
       }
       // Delete existing banners
-      await pool.query('DELETE FROM event_banners WHERE event_id = $1', [eventId]);
-      
+      await pool.query("DELETE FROM event_banners WHERE event_id = $1", [
+        eventId,
+      ]);
+
       // Insert new banners
       if (banner_carousel.length > 0) {
         const bannerInserts = banner_carousel.map((banner, index) => {
           // Support multiple possible field names from frontend
           const imageUrl = banner.url || banner.image_url || banner.secure_url;
-          console.log(`[updateEvent] Banner ${index}: resolved URL = ${imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL'}`);
+          console.log(
+            `[updateEvent] Banner ${index}: resolved URL = ${
+              imageUrl ? imageUrl.substring(0, 50) + "..." : "NULL"
+            }`
+          );
           return pool.query(
             `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-            [eventId, imageUrl, banner.cloudinary_public_id || banner.public_id || null, index]
+            [
+              eventId,
+              imageUrl,
+              banner.cloudinary_public_id || banner.public_id || null,
+              index,
+            ]
           );
         });
         await Promise.all(bannerInserts);
-        console.log(`[updateEvent] Successfully saved ${banner_carousel.length} banners`);
+        console.log(
+          `[updateEvent] Successfully saved ${banner_carousel.length} banners`
+        );
       }
     }
 
     // Update gallery if provided
     if (gallery && Array.isArray(gallery)) {
-      console.log(`[updateEvent] Saving ${gallery.length} gallery images for event ${eventId}`);
+      console.log(
+        `[updateEvent] Saving ${gallery.length} gallery images for event ${eventId}`
+      );
       if (gallery.length > 0) {
-        console.log(`[updateEvent] First gallery image:`, JSON.stringify(gallery[0]));
+        console.log(
+          `[updateEvent] First gallery image:`,
+          JSON.stringify(gallery[0])
+        );
       }
       // Delete existing gallery
-      await pool.query('DELETE FROM event_gallery WHERE event_id = $1', [eventId]);
-      
+      await pool.query("DELETE FROM event_gallery WHERE event_id = $1", [
+        eventId,
+      ]);
+
       // Insert new gallery
       if (gallery.length > 0) {
         const galleryInserts = gallery.map((image, index) => {
           // Support multiple possible field names from frontend
           const imageUrl = image.url || image.image_url || image.secure_url;
-          console.log(`[updateEvent] Gallery ${index}: resolved URL = ${imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL'}`);
+          console.log(
+            `[updateEvent] Gallery ${index}: resolved URL = ${
+              imageUrl ? imageUrl.substring(0, 50) + "..." : "NULL"
+            }`
+          );
           return pool.query(
             `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-            [eventId, imageUrl, image.cloudinary_public_id || image.public_id || null, index]
+            [
+              eventId,
+              imageUrl,
+              image.cloudinary_public_id || image.public_id || null,
+              index,
+            ]
           );
         });
         await Promise.all(galleryInserts);
-        console.log(`[updateEvent] Successfully saved ${gallery.length} gallery images`);
+        console.log(
+          `[updateEvent] Successfully saved ${gallery.length} gallery images`
+        );
       }
     }
 
     // Update highlights if provided
     if (highlights && Array.isArray(highlights)) {
-      console.log(`[updateEvent] Saving ${highlights.length} highlights for event ${eventId}`);
-      await pool.query('DELETE FROM event_highlights WHERE event_id = $1', [eventId]);
+      console.log(
+        `[updateEvent] Saving ${highlights.length} highlights for event ${eventId}`
+      );
+      await pool.query("DELETE FROM event_highlights WHERE event_id = $1", [
+        eventId,
+      ]);
       if (highlights.length > 0) {
         const highlightInserts = highlights.map((h, index) =>
           pool.query(
             `INSERT INTO event_highlights (event_id, icon_name, title, description, highlight_order) VALUES ($1, $2, $3, $4, $5)`,
-            [eventId, h.icon_name || 'star', h.title, h.description || null, index]
+            [
+              eventId,
+              h.icon_name || "star",
+              h.title,
+              h.description || null,
+              index,
+            ]
           )
         );
         await Promise.all(highlightInserts);
-        console.log(`[updateEvent] Successfully saved ${highlights.length} highlights`);
+        console.log(
+          `[updateEvent] Successfully saved ${highlights.length} highlights`
+        );
       }
     }
 
     // Update things_to_know if provided
     if (things_to_know && Array.isArray(things_to_know)) {
-      console.log(`[updateEvent] Saving ${things_to_know.length} things_to_know for event ${eventId}`);
-      await pool.query('DELETE FROM event_things_to_know WHERE event_id = $1', [eventId]);
+      console.log(
+        `[updateEvent] Saving ${things_to_know.length} things_to_know for event ${eventId}`
+      );
+      await pool.query("DELETE FROM event_things_to_know WHERE event_id = $1", [
+        eventId,
+      ]);
       if (things_to_know.length > 0) {
         const thingsInserts = things_to_know.map((item, index) =>
           pool.query(
             `INSERT INTO event_things_to_know (event_id, icon_name, label, preset_id, item_order) VALUES ($1, $2, $3, $4, $5)`,
-            [eventId, item.icon_name || 'information-circle-outline', item.label, item.preset_id || null, index]
+            [
+              eventId,
+              item.icon_name || "information-circle-outline",
+              item.label,
+              item.preset_id || null,
+              index,
+            ]
           )
         );
         await Promise.all(thingsInserts);
@@ -1227,7 +1423,10 @@ const updateEvent = async (req, res) => {
 
     // Update featured_accounts if provided
     if (featured_accounts && Array.isArray(featured_accounts)) {
-      await pool.query('DELETE FROM event_featured_accounts WHERE event_id = $1', [eventId]);
+      await pool.query(
+        "DELETE FROM event_featured_accounts WHERE event_id = $1",
+        [eventId]
+      );
       if (featured_accounts.length > 0) {
         const accountInserts = featured_accounts.map((acc, index) =>
           pool.query(
@@ -1236,14 +1435,14 @@ const updateEvent = async (req, res) => {
               linked_account_type, linked_account_id, display_order
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
             [
-              eventId, 
-              acc.display_name || acc.account_name, 
-              acc.role, 
-              acc.description || null, 
+              eventId,
+              acc.display_name || acc.account_name,
+              acc.role,
+              acc.description || null,
               acc.profile_photo_url || acc.account_photo || null,
               acc.linked_account_type || null,
               acc.linked_account_id || null,
-              index
+              index,
             ]
           )
         );
@@ -1253,11 +1452,15 @@ const updateEvent = async (req, res) => {
 
     // Update ticket_types if provided
     if (ticket_types && Array.isArray(ticket_types)) {
-      console.log(`[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`);
-      
+      console.log(
+        `[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`
+      );
+
       // Delete existing ticket types
-      await pool.query('DELETE FROM ticket_types WHERE event_id = $1', [eventId]);
-      
+      await pool.query("DELETE FROM ticket_types WHERE event_id = $1", [
+        eventId,
+      ]);
+
       // Insert new ticket types
       if (ticket_types.length > 0) {
         const ticketInserts = ticket_types.map((ticket, index) =>
@@ -1276,28 +1479,40 @@ const updateEvent = async (req, res) => {
               ticket.total_quantity || null,
               ticket.sale_start_at || null,
               ticket.sale_end_at || null,
-              ticket.visibility || 'public',
+              ticket.visibility || "public",
               ticket.access_code || null,
               ticket.min_per_order || 1,
               ticket.max_per_order || 10,
               ticket.max_per_user || null,
-              JSON.stringify(ticket.refund_policy || {allowed: true, deadline_hours_before: 24, percentage: 100}),
+              JSON.stringify(
+                ticket.refund_policy || {
+                  allowed: true,
+                  deadline_hours_before: 24,
+                  percentage: 100,
+                }
+              ),
               index,
-              ticket.is_active !== false
+              ticket.is_active !== false,
             ]
           )
         );
         await Promise.all(ticketInserts);
-        console.log(`[updateEvent] Successfully saved ${ticket_types.length} ticket types`);
+        console.log(
+          `[updateEvent] Successfully saved ${ticket_types.length} ticket types`
+        );
       }
     }
 
     // Update discount_codes if provided
     if (discount_codes && Array.isArray(discount_codes)) {
-      console.log(`[updateEvent] Saving ${discount_codes.length} discount codes for event ${eventId}`);
-      
-      await pool.query('DELETE FROM discount_codes WHERE event_id = $1', [eventId]);
-      
+      console.log(
+        `[updateEvent] Saving ${discount_codes.length} discount codes for event ${eventId}`
+      );
+
+      await pool.query("DELETE FROM discount_codes WHERE event_id = $1", [
+        eventId,
+      ]);
+
       if (discount_codes.length > 0) {
         const codeInserts = discount_codes.map((dc) =>
           pool.query(
@@ -1310,7 +1525,7 @@ const updateEvent = async (req, res) => {
               eventId,
               dc.code,
               dc.code.toUpperCase().trim(),
-              dc.discount_type || 'percentage',
+              dc.discount_type || "percentage",
               dc.discount_value,
               dc.max_uses || null,
               dc.max_uses_per_user || 1,
@@ -1318,21 +1533,27 @@ const updateEvent = async (req, res) => {
               dc.valid_until || null,
               dc.min_cart_value || null,
               dc.applicable_ticket_ids || null,
-              dc.is_active !== false
+              dc.is_active !== false,
             ]
           )
         );
         await Promise.all(codeInserts);
-        console.log(`[updateEvent] Successfully saved ${discount_codes.length} discount codes`);
+        console.log(
+          `[updateEvent] Successfully saved ${discount_codes.length} discount codes`
+        );
       }
     }
 
     // Update pricing_rules if provided
     if (pricing_rules && Array.isArray(pricing_rules)) {
-      console.log(`[updateEvent] Saving ${pricing_rules.length} pricing rules for event ${eventId}`);
-      
-      await pool.query('DELETE FROM pricing_rules WHERE event_id = $1', [eventId]);
-      
+      console.log(
+        `[updateEvent] Saving ${pricing_rules.length} pricing rules for event ${eventId}`
+      );
+
+      await pool.query("DELETE FROM pricing_rules WHERE event_id = $1", [
+        eventId,
+      ]);
+
       if (pricing_rules.length > 0) {
         const ruleInserts = pricing_rules.map((rule) =>
           pool.query(
@@ -1345,19 +1566,50 @@ const updateEvent = async (req, res) => {
               rule.ticket_type_id || null,
               rule.name,
               rule.rule_type,
-              rule.discount_type || 'percentage',
+              rule.discount_type || "percentage",
               rule.discount_value,
               rule.quantity_threshold || null,
               rule.min_quantity || null,
               rule.valid_from || null,
               rule.valid_until || null,
               rule.priority || 100,
-              rule.is_active !== false
+              rule.is_active !== false,
             ]
           )
         );
         await Promise.all(ruleInserts);
-        console.log(`[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`);
+        console.log(
+          `[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`
+        );
+      }
+    }
+
+    // Update discover categories if provided
+    if (categories && Array.isArray(categories)) {
+      console.log(
+        `[updateEvent] Saving ${categories.length} discover categories for event ${eventId}`
+      );
+
+      // Delete existing category assignments
+      await pool.query(
+        "DELETE FROM event_discover_categories WHERE event_id = $1",
+        [eventId]
+      );
+
+      // Insert new category assignments
+      if (categories.length > 0) {
+        const categoryInserts = categories.map((categoryId) =>
+          pool.query(
+            `INSERT INTO event_discover_categories (event_id, category_id, is_featured) 
+             VALUES ($1, $2, false)
+             ON CONFLICT (event_id, category_id) DO NOTHING`,
+            [eventId, categoryId]
+          )
+        );
+        await Promise.all(categoryInserts);
+        console.log(
+          `[updateEvent] Successfully saved ${categories.length} discover categories`
+        );
       }
     }
 
@@ -1365,10 +1617,10 @@ const updateEvent = async (req, res) => {
     if (changedFields.length > 0) {
       // Get community name for notification
       const communityResult = await pool.query(
-        'SELECT name FROM communities WHERE id = $1',
+        "SELECT name FROM communities WHERE id = $1",
         [userId]
       );
-      const communityName = communityResult.rows[0]?.name || 'Community';
+      const communityName = communityResult.rows[0]?.name || "Community";
 
       // Get all registered attendees
       const attendeesResult = await pool.query(
@@ -1382,10 +1634,10 @@ const updateEvent = async (req, res) => {
         event_id: parseInt(eventId),
         event_title: title || existingEvent.title,
         changed_fields: changedFields,
-        community_name: communityName
+        community_name: communityName,
       });
 
-      const notificationPromises = attendeesResult.rows.map(attendee =>
+      const notificationPromises = attendeesResult.rows.map((attendee) =>
         pool.query(
           `INSERT INTO notifications (
             recipient_id, recipient_type, actor_id, actor_type, 
@@ -1393,29 +1645,37 @@ const updateEvent = async (req, res) => {
           ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
           [
             attendee.member_id,
-            'member',
+            "member",
             userId,
-            'community',
-            'event_updated',
-            notificationPayload
+            "community",
+            "event_updated",
+            notificationPayload,
           ]
         )
       );
 
       await Promise.all(notificationPromises);
-      
-      console.log(`[Event Update] Notified ${attendeesResult.rows.length} attendees about changes to event ${eventId}`);
+
+      console.log(
+        `[Event Update] Notified ${attendeesResult.rows.length} attendees about changes to event ${eventId}`
+      );
     }
 
     res.json({
       success: true,
       event: result.rows[0],
       changedFields,
-      notifiedAttendees: changedFields.length > 0 ? 
-        (await pool.query('SELECT COUNT(*) FROM event_registrations WHERE event_id = $1', [eventId])).rows[0].count : 0,
-      message: "Event updated successfully"
+      notifiedAttendees:
+        changedFields.length > 0
+          ? (
+              await pool.query(
+                "SELECT COUNT(*) FROM event_registrations WHERE event_id = $1",
+                [eventId]
+              )
+            ).rows[0].count
+          : 0,
+      message: "Event updated successfully",
     });
-
   } catch (error) {
     console.error("Error updating event:", error);
     res.status(500).json({ error: "Failed to update event" });
@@ -1444,9 +1704,9 @@ const getEventById = async (req, res) => {
       WHERE e.id = $1
       GROUP BY e.id, c.id
     `;
-    
+
     const eventResult = await pool.query(eventQuery, [eventId]);
-    
+
     if (eventResult.rows.length === 0) {
       return res.status(404).json({ error: "Event not found" });
     }
@@ -1546,20 +1806,20 @@ const getEventById = async (req, res) => {
     );
 
     // Transform banner and gallery data to include `url` field for frontend compatibility
-    const bannerCarousel = bannersResult.rows.map(b => ({
+    const bannerCarousel = bannersResult.rows.map((b) => ({
       id: b.id,
       url: b.image_url,
       image_url: b.image_url,
       cloudinary_public_id: b.cloudinary_public_id,
-      order: b.image_order
+      order: b.image_order,
     }));
 
-    const gallery = galleryResult.rows.map(g => ({
+    const gallery = galleryResult.rows.map((g) => ({
       id: g.id,
       url: g.image_url,
       image_url: g.image_url,
       cloudinary_public_id: g.cloudinary_public_id,
-      order: g.image_order
+      order: g.image_order,
     }));
 
     // Fetch discount codes
@@ -1608,9 +1868,8 @@ const getEventById = async (req, res) => {
         ticket_types: ticketTypesResult.rows,
         discount_codes: discountCodesResult.rows,
         pricing_rules: pricingRulesResult.rows,
-      }
+      },
     });
-
   } catch (error) {
     console.error("Error getting event:", error);
     res.status(500).json({ error: "Failed to get event" });
@@ -1628,6 +1887,5 @@ module.exports = {
   discoverEvents,
   searchEvents,
   updateEvent,
-  getEventById
+  getEventById,
 };
-
