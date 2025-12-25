@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/components/providers/auth-provider";
 
 const mainNavItems = [
   {
@@ -66,6 +67,13 @@ const secondaryNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    if (confirm("Are you sure you want to logout?")) {
+      logout();
+    }
+  };
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-background">
@@ -130,7 +138,8 @@ export function Sidebar() {
       <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />
           Logout

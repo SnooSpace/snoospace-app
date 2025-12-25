@@ -122,4 +122,17 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Pointer cursor for clickable elements */
+  button,
+  [role="button"],
+  a,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"],
+  select,
+  [data-clickable="true"],
+  .cursor-pointer {
+    cursor: pointer;
+  }
 }

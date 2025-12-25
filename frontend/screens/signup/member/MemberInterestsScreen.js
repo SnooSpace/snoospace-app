@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,12 +8,19 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import ProgressBar from "../../../components/Progressbar";
 import HapticsService from "../../../services/HapticsService";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
+import { getSignupInterests } from "../../../api/categories";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -47,27 +54,30 @@ const InterestChip = ({ label, isSelected, onPress, isDisabled }) => {
 };
 
 const InterestsScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name, gender, dob } = route.params || {};
+  const { email, accessToken, refreshToken, phone, name, gender, dob } =
+    route.params || {};
   const [selectedInterests, setSelectedInterests] = useState([]);
+  const [allInterests, setAllInterests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // All available interests as shown in the design
-  const allInterests = [
-    "Sports",
-    "Music",
-    "Technology",
-    "Travel",
-    "Food & Drink",
-    "Art & Culture",
-    "Fitness",
-    "Gaming",
-    "Movies",
-    "Books",
-    "Fashion",
-    "Photography",
-    "Outdoors",
-    "Volunteering",
-    "Networking",
-  ];
+  // Fetch interests from API on mount
+  useEffect(() => {
+    const loadInterests = async () => {
+      try {
+        const interests = await getSignupInterests();
+        // Extract labels from interest objects
+        const labels = interests.map((i) => i.label || i);
+        setAllInterests(labels);
+      } catch (error) {
+        console.error("Error loading interests:", error);
+        // Fallback to empty array - user will see "no interests available"
+        setAllInterests([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInterests();
+  }, []);
 
   const toggleInterest = (interest) => {
     HapticsService.triggerSelection();
@@ -137,21 +147,27 @@ const InterestsScreen = ({ navigation, route }) => {
 
           {/* Interest Chips Container */}
           <View style={styles.chipsContainer}>
-            {allInterests.map((interest) => {
-              const isSelected = selectedInterests.includes(interest);
-              const isDisabled =
-                !isSelected && selectedInterests.length >= MAX_SELECTIONS;
+            {loading ? (
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            ) : allInterests.length === 0 ? (
+              <Text style={styles.subtitle}>No interests available</Text>
+            ) : (
+              allInterests.map((interest) => {
+                const isSelected = selectedInterests.includes(interest);
+                const isDisabled =
+                  !isSelected && selectedInterests.length >= MAX_SELECTIONS;
 
-              return (
-                <InterestChip
-                  key={interest}
-                  label={interest}
-                  isSelected={isSelected}
-                  isDisabled={isDisabled}
-                  onPress={toggleInterest}
-                />
-              );
-            })}
+                return (
+                  <InterestChip
+                    key={interest}
+                    label={interest}
+                    isSelected={isSelected}
+                    isDisabled={isDisabled}
+                    onPress={toggleInterest}
+                  />
+                );
+              })
+            )}
           </View>
         </View>
       </ScrollView>
@@ -271,7 +287,7 @@ const styles = StyleSheet.create({
   },
   chipUnselected: {
     backgroundColor: COLORS.background,
-    borderColor: COLORS.textSecondary + "80", 
+    borderColor: COLORS.textSecondary + "80",
   },
   chipText: {
     fontSize: 16,

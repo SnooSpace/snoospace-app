@@ -38,135 +38,131 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import {
-  getCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  type Category,
+  getInterests,
+  createInterest,
+  updateInterest,
+  deleteInterest,
+  type Interest,
 } from "@/lib/api";
 
-export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+export default function InterestsPage() {
+  const [interests, setInterests] = useState<Interest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingInterest, setEditingInterest] = useState<Interest | null>(null);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
+    label: "",
     icon_name: "",
-    description: "",
+    user_type: "all",
   });
 
-  // Load categories on mount
+  // Load interests on mount
   useEffect(() => {
-    loadCategories();
+    loadInterests();
   }, []);
 
-  const loadCategories = async () => {
+  const loadInterests = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getCategories();
-      setCategories(data);
+      const data = await getInterests();
+      setInterests(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load categories"
-      );
+      setError(err instanceof Error ? err.message : "Failed to load interests");
     } finally {
       setLoading(false);
     }
   };
 
   const handleAdd = () => {
-    setEditingCategory(null);
-    setFormData({ name: "", slug: "", icon_name: "", description: "" });
+    setEditingInterest(null);
+    setFormData({ label: "", icon_name: "", user_type: "all" });
     setIsSheetOpen(true);
   };
 
-  const handleEdit = (category: Category) => {
-    setEditingCategory(category);
+  const handleEdit = (interest: Interest) => {
+    setEditingInterest(interest);
     setFormData({
-      name: category.name,
-      slug: category.slug,
-      icon_name: category.icon_name || "",
-      description: category.description || "",
+      label: interest.label,
+      icon_name: interest.icon_name || "",
+      user_type: interest.user_type || "all",
     });
     setIsSheetOpen(true);
   };
 
-  const handleToggleActive = async (category: Category) => {
+  const handleToggleActive = async (interest: Interest) => {
     try {
-      await updateCategory(category.id, { is_active: !category.is_active });
-      setCategories(
-        categories.map((cat) =>
-          cat.id === category.id ? { ...cat, is_active: !cat.is_active } : cat
+      await updateInterest(interest.id, { is_active: !interest.is_active });
+      setInterests(
+        interests.map((i) =>
+          i.id === interest.id ? { ...i, is_active: !i.is_active } : i
         )
       );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update category");
+      alert(err instanceof Error ? err.message : "Failed to update interest");
     }
   };
 
-  const handleDelete = async (category: Category) => {
-    if (!confirm(`Are you sure you want to delete "${category.name}"?`)) {
+  const handleDelete = async (interest: Interest) => {
+    if (!confirm(`Are you sure you want to delete "${interest.label}"?`)) {
       return;
     }
 
     try {
-      await deleteCategory(category.id);
-      setCategories(categories.filter((cat) => cat.id !== category.id));
+      await deleteInterest(interest.id);
+      setInterests(interests.filter((i) => i.id !== interest.id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete category");
+      alert(err instanceof Error ? err.message : "Failed to delete interest");
     }
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      alert("Name is required");
+    if (!formData.label.trim()) {
+      alert("Label is required");
       return;
     }
 
     setSaving(true);
     try {
-      if (editingCategory) {
+      if (editingInterest) {
         // Update existing
-        const updated = await updateCategory(editingCategory.id, {
-          name: formData.name.trim(),
-          slug: formData.slug.trim() || generateSlug(formData.name),
+        const updated = await updateInterest(editingInterest.id, {
+          label: formData.label.trim(),
           icon_name: formData.icon_name.trim() || null,
-          description: formData.description.trim() || null,
+          user_type: formData.user_type,
         });
-        setCategories(
-          categories.map((cat) =>
-            cat.id === editingCategory.id ? updated : cat
-          )
+        setInterests(
+          interests.map((i) => (i.id === editingInterest.id ? updated : i))
         );
       } else {
         // Create new
-        const created = await createCategory({
-          name: formData.name.trim(),
-          slug: formData.slug.trim() || undefined,
+        const created = await createInterest({
+          label: formData.label.trim(),
           icon_name: formData.icon_name.trim() || undefined,
-          description: formData.description.trim() || undefined,
-          display_order: categories.length + 1,
+          user_type: formData.user_type,
+          display_order: interests.length + 1,
         });
-        setCategories([...categories, created]);
+        setInterests([...interests, created]);
       }
       setIsSheetOpen(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save category");
+      alert(err instanceof Error ? err.message : "Failed to save interest");
     } finally {
       setSaving(false);
     }
   };
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
+  const getUserTypeLabel = (type: string) => {
+    switch (type) {
+      case "member":
+        return "Members Only";
+      case "community":
+        return "Communities Only";
+      default:
+        return "All Users";
+    }
   };
 
   if (loading) {
@@ -183,14 +179,14 @@ export default function CategoriesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Discover Categories
+            Signup Interests
           </h1>
           <p className="text-muted-foreground">
-            Manage categories that appear on the Discover feed
+            Manage interests that users can select during signup
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={loadCategories} disabled={loading}>
+          <Button variant="outline" onClick={loadInterests} disabled={loading}>
             <RefreshCw
               className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
             />
@@ -199,56 +195,36 @@ export default function CategoriesPage() {
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <Button onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Category
+              Add Interest
             </Button>
             <SheetContent>
               <SheetHeader>
                 <SheetTitle>
-                  {editingCategory ? "Edit Category" : "Add Category"}
+                  {editingInterest ? "Edit Interest" : "Add Interest"}
                 </SheetTitle>
                 <SheetDescription>
-                  {editingCategory
-                    ? "Update the category details below."
-                    : "Create a new discover category."}
+                  {editingInterest
+                    ? "Update the interest details below."
+                    : "Create a new signup interest."}
                 </SheetDescription>
               </SheetHeader>
               <div className="grid gap-4 py-6">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Name *</Label>
+                  <Label htmlFor="label">Label *</Label>
                   <Input
-                    id="name"
-                    placeholder="e.g., Music Events"
-                    value={formData.name}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        name: e.target.value,
-                        slug: editingCategory
-                          ? formData.slug
-                          : generateSlug(e.target.value),
-                      });
-                    }}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input
-                    id="slug"
-                    placeholder="music-events"
-                    value={formData.slug}
+                    id="label"
+                    placeholder="e.g., Technology"
+                    value={formData.label}
                     onChange={(e) =>
-                      setFormData({ ...formData, slug: e.target.value })
+                      setFormData({ ...formData, label: e.target.value })
                     }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    URL-friendly identifier. Auto-generated from name if empty.
-                  </p>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="icon">Icon Name (Ionicons)</Label>
                   <Input
                     id="icon"
-                    placeholder="musical-notes-outline"
+                    placeholder="laptop-outline"
                     value={formData.icon_name}
                     onChange={(e) =>
                       setFormData({ ...formData, icon_name: e.target.value })
@@ -259,15 +235,22 @@ export default function CategoriesPage() {
                   </p>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Input
-                    id="description"
-                    placeholder="Optional description..."
-                    value={formData.description}
+                  <Label htmlFor="user_type">User Type</Label>
+                  <select
+                    id="user_type"
+                    value={formData.user_type}
                     onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
+                      setFormData({ ...formData, user_type: e.target.value })
                     }
-                  />
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="all">All Users</option>
+                    <option value="member">Members Only</option>
+                    <option value="community">Communities Only</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Which user types will see this interest during signup
+                  </p>
                 </div>
               </div>
               <SheetFooter>
@@ -280,9 +263,9 @@ export default function CategoriesPage() {
                 </Button>
                 <Button
                   onClick={handleSave}
-                  disabled={!formData.name.trim() || saving}
+                  disabled={!formData.label.trim() || saving}
                 >
-                  {saving ? "Saving..." : editingCategory ? "Update" : "Create"}
+                  {saving ? "Saving..." : editingInterest ? "Update" : "Create"}
                 </Button>
               </SheetFooter>
             </SheetContent>
@@ -297,56 +280,52 @@ export default function CategoriesPage() {
           <Button
             variant="link"
             className="ml-2 text-destructive"
-            onClick={loadCategories}
+            onClick={loadInterests}
           >
             Retry
           </Button>
         </div>
       )}
 
-      {/* Categories Table */}
+      {/* Interests Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Categories</CardTitle>
+          <CardTitle>All Interests</CardTitle>
           <CardDescription>
-            {categories.filter((c) => c.is_active).length} active,{" "}
-            {categories.filter((c) => !c.is_active).length} inactive
+            {interests.filter((i) => i.is_active).length} active,{" "}
+            {interests.filter((i) => !i.is_active).length} inactive
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {categories.length === 0 ? (
+          {interests.length === 0 ? (
             <div className="flex h-32 items-center justify-center text-muted-foreground">
-              No categories yet. Create your first category!
+              No interests yet. Create your first interest!
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
+                  <TableHead>Label</TableHead>
                   <TableHead>Icon</TableHead>
-                  <TableHead>Events</TableHead>
+                  <TableHead>User Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map((category) => (
-                  <TableRow key={category.id}>
+                {interests.map((interest) => (
+                  <TableRow key={interest.id}>
                     <TableCell>
                       <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                     </TableCell>
                     <TableCell className="font-medium">
-                      {category.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {category.slug}
+                      {interest.label}
                     </TableCell>
                     <TableCell>
-                      {category.icon_name ? (
+                      {interest.icon_name ? (
                         <code className="rounded bg-muted px-2 py-1 text-xs">
-                          {category.icon_name}
+                          {interest.icon_name}
                         </code>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -354,14 +333,14 @@ export default function CategoriesPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {category.event_count || 0}
+                        {getUserTypeLabel(interest.user_type)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={category.is_active ? "default" : "secondary"}
+                        variant={interest.is_active ? "default" : "secondary"}
                       >
-                        {category.is_active ? "Active" : "Inactive"}
+                        {interest.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -369,10 +348,10 @@ export default function CategoriesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleActive(category)}
-                          title={category.is_active ? "Hide" : "Show"}
+                          onClick={() => handleToggleActive(interest)}
+                          title={interest.is_active ? "Hide" : "Show"}
                         >
-                          {category.is_active ? (
+                          {interest.is_active ? (
                             <EyeOff className="h-4 w-4" />
                           ) : (
                             <Eye className="h-4 w-4" />
@@ -381,14 +360,14 @@ export default function CategoriesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEdit(category)}
+                          onClick={() => handleEdit(interest)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(category)}
+                          onClick={() => handleDelete(interest)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />

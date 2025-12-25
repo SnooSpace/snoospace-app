@@ -24,7 +24,14 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { clearAuthSession, getAuthToken, logoutCurrentAccount, clearAllAccounts, getAllAccounts, getActiveAccount } from "../../../api/auth";
+import {
+  clearAuthSession,
+  getAuthToken,
+  logoutCurrentAccount,
+  clearAllAccounts,
+  getAllAccounts,
+  getActiveAccount,
+} from "../../../api/auth";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import {
@@ -40,9 +47,14 @@ import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModa
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
-import SkeletonProfileHeader from '../../../components/SkeletonProfileHeader';
-import SkeletonPostGrid from '../../../components/SkeletonPostGrid';
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
@@ -77,7 +89,10 @@ export default function MemberProfileScreen({ navigation }) {
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [logoutModalData, setLogoutModalData] = useState({ hasMultiple: false, currentAccount: null });
+  const [logoutModalData, setLogoutModalData] = useState({
+    hasMultiple: false,
+    currentAccount: null,
+  });
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -86,10 +101,17 @@ export default function MemberProfileScreen({ navigation }) {
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
-  const isAnyModalOpen = postModalVisible || showSettingsModal || showAccountSwitcher || showAddAccountModal || showLogoutModal || showDeleteModal || commentsModalState.visible;
+  const isAnyModalOpen =
+    postModalVisible ||
+    showSettingsModal ||
+    showAccountSwitcher ||
+    showAddAccountModal ||
+    showLogoutModal ||
+    showDeleteModal ||
+    commentsModalState.visible;
   const { counts: polledCounts, initializeCounts } = useProfileCountsPolling({
     userId: profile?.id,
-    userType: 'member',
+    userType: "member",
     interval: 5000, // 5 seconds
     enabled: !loading && !!profile?.id,
     paused: isAnyModalOpen,
@@ -123,16 +145,16 @@ export default function MemberProfileScreen({ navigation }) {
       const token = await getAuthToken();
       console.log(`[Profile] Token: ${token}`);
       if (!token) throw new Error("No auth token found");
-      
+
       // Use getActiveAccount instead of AsyncStorage to get the correct email
       const activeAccount = await getActiveAccount();
       if (!activeAccount || !activeAccount.email) {
         throw new Error("No active account found");
       }
-      
+
       const email = activeAccount.email;
       console.log("[Profile] Active account email:", email);
-      
+
       const userProfileResponse = await apiPost(
         "/auth/get-user-profile",
         { email },
@@ -314,16 +336,20 @@ export default function MemberProfileScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       const allAccounts = await getAllAccounts();
-      const loggedInAccounts = allAccounts.filter(acc => acc.isLoggedIn !== false);
-      const currentAccount = allAccounts.find(acc => String(acc.id) === String(profile?.id));
-      
+      const loggedInAccounts = allAccounts.filter(
+        (acc) => acc.isLoggedIn !== false
+      );
+      const currentAccount = allAccounts.find(
+        (acc) => String(acc.id) === String(profile?.id)
+      );
+
       setLogoutModalData({
         hasMultiple: loggedInAccounts.length > 1,
         currentAccount: currentAccount || profile,
       });
       setShowLogoutModal(true);
     } catch (error) {
-      console.error('Error preparing logout:', error);
+      console.error("Error preparing logout:", error);
       // Fallback to simple logout
       performLogout(true);
     }
@@ -337,17 +363,22 @@ export default function MemberProfileScreen({ navigation }) {
         rootNavigator = parent.getParent ? parent.getParent() : parent;
       }
     }
-    
+
     const routeMap = {
-      member: 'MemberHome',
-      community: 'CommunityHome',
-      sponsor: 'SponsorHome',
-      venue: 'VenueHome',
+      member: "MemberHome",
+      community: "CommunityHome",
+      sponsor: "SponsorHome",
+      venue: "VenueHome",
     };
-    
-    const routeName = routeMap[accountType] || 'Landing';
-    console.log('[MemberProfile] Navigating to:', routeName, 'for account type:', accountType);
-    
+
+    const routeName = routeMap[accountType] || "Landing";
+    console.log(
+      "[MemberProfile] Navigating to:",
+      routeName,
+      "for account type:",
+      accountType
+    );
+
     rootNavigator.dispatch(
       CommonActions.reset({
         index: 0,
@@ -364,7 +395,7 @@ export default function MemberProfileScreen({ navigation }) {
 
       if (logoutAll) {
         // Logout all accounts
-        console.log('[MemberProfile] Logging out all accounts');
+        console.log("[MemberProfile] Logging out all accounts");
         await clearAllAccounts();
         await AsyncStorage.multiRemove([
           "accessToken",
@@ -373,7 +404,7 @@ export default function MemberProfileScreen({ navigation }) {
           "auth_email",
           "pending_otp",
         ]);
-        
+
         // Navigate to landing
         let rootNavigator = navigation;
         if (navigation.getParent) {
@@ -382,7 +413,7 @@ export default function MemberProfileScreen({ navigation }) {
             rootNavigator = parent.getParent ? parent.getParent() : parent;
           }
         }
-        
+
         rootNavigator.dispatch(
           CommonActions.reset({
             index: 0,
@@ -391,11 +422,14 @@ export default function MemberProfileScreen({ navigation }) {
         );
       } else {
         // Logout current account only
-        console.log('[MemberProfile] Logging out current account');
-        const { switchToAccount, navigateToLanding } = await logoutCurrentAccount();
-        
+        console.log("[MemberProfile] Logging out current account");
+        const { switchToAccount, navigateToLanding } =
+          await logoutCurrentAccount();
+
         if (navigateToLanding) {
-          console.log('[MemberProfile] No other logged-in accounts, navigating to landing');
+          console.log(
+            "[MemberProfile] No other logged-in accounts, navigating to landing"
+          );
           // No other logged-in accounts
           let rootNavigator = navigation;
           if (navigation.getParent) {
@@ -404,7 +438,7 @@ export default function MemberProfileScreen({ navigation }) {
               rootNavigator = parent.getParent ? parent.getParent() : parent;
             }
           }
-          
+
           rootNavigator.dispatch(
             CommonActions.reset({
               index: 0,
@@ -412,7 +446,11 @@ export default function MemberProfileScreen({ navigation }) {
             })
           );
         } else if (switchToAccount) {
-          console.log('[MemberProfile] Switching to account:', switchToAccount.type, switchToAccount.username);
+          console.log(
+            "[MemberProfile] Switching to account:",
+            switchToAccount.type,
+            switchToAccount.username
+          );
           // Navigate to the appropriate screen for the account type
           navigateToAccountHome(switchToAccount.type);
         }
@@ -477,7 +515,7 @@ export default function MemberProfileScreen({ navigation }) {
     // Only show placeholders if there are NO posts (empty state)
     // Only show placeholders if there are NO posts (empty state)
     const data = posts;
-    
+
     return (
       <FlatList
         data={data}
@@ -534,8 +572,22 @@ export default function MemberProfileScreen({ navigation }) {
         }}
         scrollEnabled={false}
         ListEmptyComponent={
-          <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.textSecondary }}>No posts</Text>
+          <View
+            style={{
+              padding: 40,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "bold",
+                color: COLORS.textSecondary,
+              }}
+            >
+              No posts
+            </Text>
           </View>
         }
       />
@@ -1059,12 +1111,17 @@ export default function MemberProfileScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.usernameContainer}
           onPress={() => setShowAccountSwitcher(true)}
         >
           <Text style={styles.username}>@{profile.username}</Text>
-          <Ionicons name="chevron-down" size={16} color={TEXT_COLOR} style={{ marginLeft: 4 }} />
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={TEXT_COLOR}
+            style={{ marginLeft: 4 }}
+          />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}
@@ -1077,6 +1134,7 @@ export default function MemberProfileScreen({ navigation }) {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 30 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1177,7 +1235,9 @@ export default function MemberProfileScreen({ navigation }) {
                 });
               }}
             >
-              <Text style={styles.statNumber}>{polledCounts.followers || profile.follower_count}</Text>
+              <Text style={styles.statNumber}>
+                {polledCounts.followers || profile.follower_count}
+              </Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1190,7 +1250,9 @@ export default function MemberProfileScreen({ navigation }) {
                 });
               }}
             >
-              <Text style={styles.statNumber}>{polledCounts.following || profile.following_count}</Text>
+              <Text style={styles.statNumber}>
+                {polledCounts.following || profile.following_count}
+              </Text>
               <Text style={styles.statLabel}>Following</Text>
             </TouchableOpacity>
           </View>
@@ -1223,9 +1285,13 @@ export default function MemberProfileScreen({ navigation }) {
                 {profile.interests.length > 6 && showAllInterests ? (
                   <TouchableOpacity
                     onPress={() => setShowAllInterests(false)}
-                    style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
+                    style={[
+                      styles.chip,
+                      styles.chipGridItem,
+                      { backgroundColor: "#FF3B30", borderColor: "#FF3B30" },
+                    ]}
                   >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>
+                    <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
                       Collapse
                     </Text>
                   </TouchableOpacity>
@@ -1262,7 +1328,7 @@ export default function MemberProfileScreen({ navigation }) {
             <GradientButton
               title="Follow"
               onPress={handleFollow}
-              style={{ marginTop: 10, width: '100%' }}
+              style={{ marginTop: 10, width: "100%" }}
             />
           )}
         </View>
@@ -1324,15 +1390,20 @@ export default function MemberProfileScreen({ navigation }) {
         visible={showAccountSwitcher}
         onClose={() => setShowAccountSwitcher(false)}
         currentAccountId={profile?.id ? `member_${profile.id}` : undefined}
-        currentProfile={profile ? { ...profile, type: 'member' } : null}
+        currentProfile={profile ? { ...profile, type: "member" } : null}
         onAccountSwitch={(account) => {
           // Navigate to correct home screen based on account type
-          const routeName = account.type === 'member' ? 'MemberHome'
-            : account.type === 'community' ? 'CommunityHome'
-            : account.type === 'sponsor' ? 'SponsorHome'
-            : account.type === 'venue' ? 'VenueHome'
-            : 'Landing';
-          
+          const routeName =
+            account.type === "member"
+              ? "MemberHome"
+              : account.type === "community"
+              ? "CommunityHome"
+              : account.type === "sponsor"
+              ? "SponsorHome"
+              : account.type === "venue"
+              ? "VenueHome"
+              : "Landing";
+
           // Get the ROOT navigator (go up the parent chain)
           let rootNavigator = navigation;
           try {
@@ -1347,10 +1418,13 @@ export default function MemberProfileScreen({ navigation }) {
               }
             }
           } catch (error) {
-            console.warn('[AccountSwitch] Could not get root navigator:', error);
+            console.warn(
+              "[AccountSwitch] Could not get root navigator:",
+              error
+            );
           }
-          
-          console.log('[AccountSwitch] Resetting to:', routeName);
+
+          console.log("[AccountSwitch] Resetting to:", routeName);
           rootNavigator.reset({
             index: 0,
             routes: [{ name: routeName }],
@@ -1362,7 +1436,7 @@ export default function MemberProfileScreen({ navigation }) {
         onLoginRequired={(account) => {
           // Navigate to login with pre-filled email using root navigator
           setShowAccountSwitcher(false);
-          
+
           // Get root navigator to ensure we can navigate to Login
           let rootNavigator = navigation;
           if (navigation.getParent) {
@@ -1371,21 +1445,27 @@ export default function MemberProfileScreen({ navigation }) {
               rootNavigator = parent.getParent ? parent.getParent() : parent;
             }
           }
-          
-          console.log('[MemberProfile] Navigating to Login for logged-out account:', account.email);
-          
+
+          console.log(
+            "[MemberProfile] Navigating to Login for logged-out account:",
+            account.email
+          );
+
           // Navigate to Login screen
           try {
-            rootNavigator.navigate('Login', { 
+            rootNavigator.navigate("Login", {
               email: account.email,
               isAddingAccount: false,
             });
           } catch (error) {
-            console.error('[MemberProfile] Failed to navigate to Login:', error);
+            console.error(
+              "[MemberProfile] Failed to navigate to Login:",
+              error
+            );
             // Fallback: reset to Landing which has Login
             rootNavigator.reset({
               index: 0,
-              routes: [{ name: 'Landing' }],
+              routes: [{ name: "Landing" }],
             });
           }
         }}
@@ -1396,11 +1476,11 @@ export default function MemberProfileScreen({ navigation }) {
         onClose={() => setShowAddAccountModal(false)}
         onLoginExisting={() => {
           // Navigate to login with isAddingAccount flag
-          navigation.navigate('Login', { isAddingAccount: true });
+          navigation.navigate("Login", { isAddingAccount: true });
         }}
         onCreateNew={() => {
           // Navigate to signup landing
-          navigation.navigate('Landing');
+          navigation.navigate("Landing");
         }}
       />
 
@@ -1480,7 +1560,8 @@ export default function MemberProfileScreen({ navigation }) {
                   if (deleteInput.trim().toLowerCase() !== "delete") return;
                   setDeleting(true);
                   try {
-                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
+                    const { switchedToAccount, navigateToLanding } =
+                      await apiDeleteAccount();
                     await AsyncStorage.multiRemove([
                       "accessToken",
                       "userData",
@@ -1489,7 +1570,7 @@ export default function MemberProfileScreen({ navigation }) {
                       "pending_otp",
                     ]);
                     setShowDeleteModal(false);
-                    
+
                     // Get the root navigator
                     let rootNavigator = navigation;
                     if (navigation.getParent) {
@@ -1500,7 +1581,7 @@ export default function MemberProfileScreen({ navigation }) {
                           : parent;
                       }
                     }
-                    
+
                     if (navigateToLanding || !switchedToAccount) {
                       // No other accounts or explicitly told to go to landing
                       rootNavigator.dispatch(
@@ -1512,12 +1593,13 @@ export default function MemberProfileScreen({ navigation }) {
                     } else {
                       // Switch to other account
                       const routeMap = {
-                        member: 'MemberHome',
-                        community: 'CommunityHome',
-                        sponsor: 'SponsorHome',
-                        venue: 'VenueHome',
+                        member: "MemberHome",
+                        community: "CommunityHome",
+                        sponsor: "SponsorHome",
+                        venue: "VenueHome",
                       };
-                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
+                      const routeName =
+                        routeMap[switchedToAccount.type] || "Landing";
                       rootNavigator.dispatch(
                         CommonActions.reset({
                           index: 0,
@@ -1569,8 +1651,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   usernameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   username: {
     fontSize: 18,

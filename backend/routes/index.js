@@ -20,6 +20,7 @@ const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
 const DiscoverController = require("../controllers/discoverController");
 const CategoryController = require("../controllers/categoryController");
+const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
 
@@ -47,6 +48,59 @@ router.get("/db/health", async (req, res) => {
 // ============================================
 router.post("/admin/login", CategoryController.adminLogin);
 router.post("/admin/create", CategoryController.createAdmin); // TODO: Protect in production
+
+// ============================================
+// ADMIN CATEGORY MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/categories",
+  adminAuthMiddleware,
+  CategoryController.getAllCategoriesAdmin
+);
+router.post(
+  "/admin/categories",
+  adminAuthMiddleware,
+  CategoryController.createCategory
+);
+router.patch(
+  "/admin/categories/:categoryId",
+  adminAuthMiddleware,
+  CategoryController.updateCategory
+);
+router.delete(
+  "/admin/categories/:categoryId",
+  adminAuthMiddleware,
+  CategoryController.deleteCategory
+);
+router.post(
+  "/admin/categories/reorder",
+  adminAuthMiddleware,
+  CategoryController.reorderCategories
+);
+
+// ============================================
+// ADMIN INTEREST MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/interests",
+  adminAuthMiddleware,
+  CategoryController.getAllInterestsAdmin
+);
+router.post(
+  "/admin/interests",
+  adminAuthMiddleware,
+  CategoryController.createInterest
+);
+router.patch(
+  "/admin/interests/:interestId",
+  adminAuthMiddleware,
+  CategoryController.updateInterest
+);
+router.delete(
+  "/admin/interests/:interestId",
+  adminAuthMiddleware,
+  CategoryController.deleteInterest
+);
 
 // Auth (Legacy - will be deprecated)
 router.post(

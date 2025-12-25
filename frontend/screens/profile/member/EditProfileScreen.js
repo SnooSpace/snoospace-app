@@ -32,7 +32,6 @@ import { uploadImage } from "../../../api/cloudinary";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 
-
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 
@@ -127,6 +126,17 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const catalog = await fetchInterests();
       setInterestsCatalog(catalog || []);
+
+      // Filter out legacy interests that are no longer in the catalog
+      if (catalog && catalog.length > 0 && interests.length > 0) {
+        const catalogSet = new Set(catalog.map((i) => i.toLowerCase()));
+        const filteredInterests = interests.filter((interest) =>
+          catalogSet.has(interest.toLowerCase())
+        );
+        if (filteredInterests.length !== interests.length) {
+          setInterests(filteredInterests);
+        }
+      }
     } catch (error) {
       console.error("Error loading interests catalog:", error);
     }
@@ -247,8 +257,6 @@ export default function EditProfileScreen({ route, navigation }) {
     }
   };
 
-
-
   const handleSave = async () => {
     if (!hasChanges) return;
 
@@ -320,7 +328,11 @@ export default function EditProfileScreen({ route, navigation }) {
             loading={saving}
             style={[
               { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
-              (!hasChanges || saving) && { shadowOpacity: 0, elevation: 0, shadowColor: 'transparent' }
+              (!hasChanges || saving) && {
+                shadowOpacity: 0,
+                elevation: 0,
+                shadowColor: "transparent",
+              },
             ]}
           />
         </View>
@@ -464,7 +476,7 @@ export default function EditProfileScreen({ route, navigation }) {
               }}
               presets={interestsCatalog}
               allowCustom={true}
-              maxSelections={20}
+              maxSelections={Math.min(10, interestsCatalog.length) || 10}
               placeholder="Select interests or add custom"
               searchable={true}
               variant="gradient-pastel"
@@ -509,10 +521,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: TEXT_COLOR,
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
-    textAlign: 'center',
+    textAlign: "center",
     zIndex: -1,
   },
   // saveButton styles removed as GradientButton handles them
