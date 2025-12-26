@@ -33,9 +33,24 @@ import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
 import LikeStateManager from "../../../utils/LikeStateManager";
 
+import ThemeChip from "../../../components/ThemeChip";
+import GradientButton from "../../../components/GradientButton";
+import HapticsService from "../../../services/HapticsService";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
+
 const { width: screenWidth } = Dimensions.get("window");
-const GAP = 10;
-const ITEM_SIZE = (screenWidth - 40 - GAP * 2) / 3;
+const GAP = 2;
+const ITEM_SIZE = (screenWidth - GAP * 2) / 3;
+
+// Map legacy constants to new theme for backward compatibility
+const TEXT_COLOR = COLORS.textPrimary;
+const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+const PRIMARY_COLOR = COLORS.primary;
 
 import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
@@ -112,31 +127,34 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           is_liked: post.is_liked === true,
           isLiked: post.is_liked === true,
         }));
-        
-        console.log('[MemberPublicProfile] About to merge like states, posts count:', normalizedPosts.length);
+
+        console.log(
+          "[MemberPublicProfile] About to merge like states, posts count:",
+          normalizedPosts.length
+        );
         if (normalizedPosts.length > 0) {
           normalizedPosts.forEach((post, idx) => {
-            console.log(`[MemberPublicProfile] Post ${idx + 1} before merge:`, { 
+            console.log(`[MemberPublicProfile] Post ${idx + 1} before merge:`, {
               id: post.id,
               author: post.author_name,
-              is_liked: post.is_liked 
+              is_liked: post.is_liked,
             });
           });
         }
-        
+
         // Merge with cached like states to fix backend returning stale is_liked data
         const mergedPosts = LikeStateManager.mergeLikeStates(normalizedPosts);
-        
+
         if (mergedPosts.length > 0) {
           mergedPosts.forEach((post, idx) => {
-            console.log(`[MemberPublicProfile] Post ${idx + 1} after merge:`, { 
+            console.log(`[MemberPublicProfile] Post ${idx + 1} after merge:`, {
               id: post.id,
               author: post.author_name,
-              is_liked: post.is_liked 
+              is_liked: post.is_liked,
             });
           });
         }
-        
+
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
@@ -174,10 +192,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     const unsubscribe = EventBus.on("post-like-updated", (payload) => {
       if (!payload?.postId) return;
-      
+
       // Cache the like state to persist across component unmounts
       LikeStateManager.setLikeState(payload.postId, payload.isLiked);
-      
+
       setPosts((prev) =>
         prev.map((post) =>
           post.id === payload.postId
@@ -217,20 +235,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         return prevSelected;
       });
     });
-    return () => unsubscribe &&unsubscribe();
+    return () => unsubscribe && unsubscribe();
   }, []);
 
   const openPostModal = (post) => {
-    console.log('[MemberPublicProfile] openPostModal called with post:', { 
+    console.log("[MemberPublicProfile] openPostModal called with post:", {
       id: post.id,
       author: post.author_name,
-      is_liked: post.is_liked
+      is_liked: post.is_liked,
     });
     // Find the latest version of this post from the posts array
     const latestPost = posts.find((p) => p.id === post.id) || post;
-    console.log('[MemberPublicProfile] Latest post from state:', { 
+    console.log("[MemberPublicProfile] Latest post from state:", {
       id: latestPost.id,
-      is_liked: latestPost.is_liked 
+      is_liked: latestPost.is_liked,
     });
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = latestPost.is_liked === true;
@@ -239,9 +257,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       is_liked: normalizedIsLiked,
       isLiked: normalizedIsLiked,
     };
-    console.log('[MemberPublicProfile] Normalized post for modal:', { 
+    console.log("[MemberPublicProfile] Normalized post for modal:", {
       id: normalizedPost.id,
-      is_liked: normalizedPost.is_liked 
+      is_liked: normalizedPost.is_liked,
     });
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
@@ -289,10 +307,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         activeOpacity={0.9}
         style={{
           width: ITEM_SIZE,
-          height: ITEM_SIZE,
-          borderRadius: 8,
+          height: ITEM_SIZE * 1.35, // Increased height for portrait/taller look
+          // No borderRadius for edge-to-edge feel, or small radius? User didn't specify, but "starting from edge" usually means square sharp or very small radius.
+          // Let's keep small radius or remove it. "edge of the screen" implies full bleed. I will remove radius for a cleaner grid.
+          // Actually, let's keep it simple: width/height update.
+          // Removing marginRight as 'gap' in columnWrapper handles it.
+          marginBottom: 0,
+          borderRadius: 3,
           overflow: "hidden",
-          marginRight: isLastInRow ? 0 : GAP,
         }}
         onPress={() => item && openPostModal(item)}
         disabled={!item}
@@ -347,288 +369,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         </View>
       ) : (
         <>
-          <View style={styles.profileHeader}>
-            <Image
-              source={{
-                uri:
-                  profile?.profile_photo_url ||
-                  "https://via.placeholder.com/160",
-              }}
-              style={styles.avatarLarge}
-            />
-            <View style={styles.nameAndPronounsContainer}>
-              <Text style={styles.displayName}>
-                {profile?.full_name || "Member"}
-              </Text>
-              {Array.isArray(profile?.pronouns) &&
-              profile.pronouns.length > 0 ? (
-                <View style={styles.pronounsRowCentered}>
-                  <View
-                    key={`p-0`}
-                    style={[styles.chip, styles.pronounChipSmall]}
-                  >
-                    <Text style={styles.chipText}>
-                      {String(profile.pronouns[0]).replace(
-                        /^[{\"]+|[}\"]+$/g,
-                        ""
-                      )}
-                    </Text>
-                  </View>
-                  {profile.pronouns.length > 1 && !showAllPronouns ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAllPronouns(true)}
-                      style={[styles.chip, styles.pronounChipSmall]}
-                    >
-                      <Text style={styles.chipText}>
-                        +{profile.pronouns.length - 1}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {profile.pronouns.length > 1 && showAllPronouns ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAllPronouns(false)}
-                      style={[
-                        styles.chip,
-                        styles.pronounChipSmall,
-                        styles.chipRed,
-                      ]}
-                    >
-                      <Text style={[styles.chipText, styles.chipTextRed]}>
-                        -
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-            {Array.isArray(profile?.pronouns) &&
-            profile.pronouns.length > 1 &&
-            showAllPronouns ? (
-              <View style={styles.expandedPronounsRow}>
-                {profile.pronouns.slice(1).map((p, idx) => (
-                  <View
-                    key={`p-expanded-${idx}`}
-                    style={[styles.chip, styles.pronounChipSmall]}
-                  >
-                    <Text style={styles.chipText}>
-                      {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {!!profile?.bio && renderBio(profile.bio)}
-
-            <View style={styles.countsRowCenter}>
-              <View style={styles.countItem}>
-                <Text style={styles.countNumLg}>
-                  {profile?.posts_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Posts</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.countItem}
-                onPress={() => {
-                  // Navigate to Profile tab's stack for FollowersList (it only exists there)
-                  const root = navigation.getParent()?.getParent();
-                  if (root) {
-                    root.navigate("Profile", {
-                      screen: "FollowersList",
-                      params: { memberId, title: "Followers" },
-                    });
-                  } else {
-                    // Fallback: try same stack navigation
-                    navigation.navigate("FollowersList", {
-                      memberId,
-                      title: "Followers",
-                    });
-                  }
-                }}
-              >
-                <Text style={styles.countNumLg}>
-                  {profile?.followers_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Followers</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.countItem}
-                onPress={() => {
-                  // Navigate to Profile tab's stack for FollowingList (it only exists there)
-                  const root = navigation.getParent()?.getParent();
-                  if (root) {
-                    root.navigate("Profile", {
-                      screen: "FollowingList",
-                      params: { memberId, title: "Following" },
-                    });
-                  } else {
-                    // Fallback: try same stack navigation
-                    navigation.navigate("FollowingList", {
-                      memberId,
-                      title: "Following",
-                    });
-                  }
-                }}
-              >
-                <Text style={styles.countNumLg}>
-                  {profile?.following_count || 0}
-                </Text>
-                <Text style={styles.countLabel}>Following</Text>
-              </TouchableOpacity>
-            </View>
-            {/* Interests below stats */}
-            {Array.isArray(profile?.interests) &&
-            profile.interests.length > 0 ? (
-              <View style={styles.metaChipsSection}>
-                <View style={[styles.chipGridRow, { marginTop: 6 }]}>
-                  {(showAllInterests
-                    ? profile.interests
-                    : profile.interests.slice(0, 6)
-                  ).map((i, idx) => (
-                    <View
-                      key={`i-${idx}`}
-                      style={[styles.chip, styles.chipGridItem]}
-                    >
-                      <Text style={styles.chipText}>{String(i)}</Text>
-                    </View>
-                  ))}
-                  {profile.interests.length > 6 && !showAllInterests ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAllInterests(true)}
-                      style={[
-                        styles.chip,
-                        styles.chipBlue,
-                        styles.chipGridItem,
-                      ]}
-                    >
-                      <Text style={[styles.chipText, styles.chipTextBlue]}>
-                        See all
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {profile.interests.length > 6 && showAllInterests ? (
-                    <TouchableOpacity
-                      onPress={() => setShowAllInterests(false)}
-                      style={[
-                        styles.chip,
-                        styles.chipBlue,
-                        styles.chipGridItem,
-                      ]}
-                    >
-                      <Text style={[styles.chipText, styles.chipTextBlue]}>
-                        Collapse
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-
-            <View
-              style={{
-                marginTop: 12,
-                flexDirection: "row",
-                gap: 10,
-                width: "100%",
-              }}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.followCta,
-                  { flex: 1 },
-                  isFollowing ? styles.followingCta : styles.followPrimary,
-                ]}
-                onPress={async () => {
-                  const next = !isFollowing;
-                  setIsFollowing(next);
-                  try {
-                    if (next) {
-                      await followMember(memberId);
-                      // Optimistically increment target's followers count
-                      setProfile((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              followers_count: (prev.followers_count || 0) + 1,
-                            }
-                          : prev
-                      );
-                    } else {
-                      await unfollowMember(memberId);
-                      // Optimistically decrement target's followers count (not below 0)
-                      setProfile((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              followers_count: Math.max(
-                                0,
-                                (prev.followers_count || 0) - 1
-                              ),
-                            }
-                          : prev
-                      );
-                    }
-                    EventBus.emit("follow-updated", {
-                      memberId,
-                      isFollowing: next,
-                    });
-                  } catch (e) {
-                    setIsFollowing(!next);
-                    // Rollback followers count change on error
-                    setProfile((prev) => {
-                      if (!prev) return prev;
-                      const delta = next ? -1 : 1;
-                      return {
-                        ...prev,
-                        followers_count: Math.max(
-                          0,
-                          (prev.followers_count || 0) + delta
-                        ),
-                      };
-                    });
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles.followCtaText,
-                    isFollowing
-                      ? styles.followingCtaText
-                      : styles.followPrimaryText,
-                  ]}
-                >
-                  {isFollowing ? "Following" : "Follow"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.followCta, { flex: 1 }, styles.messageCta]}
-                onPress={() => {
-                  // Navigate to Chat screen via Home stack
-                  const root = navigation.getParent()?.getParent()?.getParent();
-                  if (root) {
-                    root.navigate("MemberHome", {
-                      screen: "Home",
-                      params: {
-                        screen: "Chat",
-                        params: { recipientId: memberId },
-                      },
-                    });
-                  } else {
-                    // Fallback: try to navigate through parent
-                    const parent = navigation.getParent();
-                    if (parent) {
-                      parent.navigate("Home", {
-                        screen: "Chat",
-                        params: { recipientId: memberId },
-                      });
-                    }
-                  }
-                }}
-              >
-                <Text style={styles.messageCtaText}>Message</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <FlatList
             data={posts}
             keyExtractor={(item, idx) => String(item?.id ?? idx)}
@@ -637,15 +377,305 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             columnWrapperStyle={{
               justifyContent: "flex-start",
               marginBottom: GAP,
+              gap: GAP, // Use gap property for cleaner spacing between columns
             }}
             contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingTop: 8,
-              paddingBottom: 40,
+              paddingHorizontal: 0, // Padding handled by internal sections
+              paddingTop: 0,
+              paddingBottom: 120,
               flexGrow: posts.length === 0 ? 1 : 0,
             }}
             onEndReachedThreshold={0.6}
             onEndReached={() => loadPosts(false)}
+            ListHeaderComponent={
+              <View style={styles.profileSection}>
+                <View style={styles.profileImageContainer}>
+                  <Image
+                    source={{
+                      uri:
+                        profile?.profile_photo_url ||
+                        "https://via.placeholder.com/160",
+                    }}
+                    style={styles.profileImage}
+                  />
+                </View>
+                <View style={styles.nameAndPronounsContainer}>
+                  <Text style={styles.profileName}>
+                    {profile?.full_name || "Member"}
+                  </Text>
+                  {Array.isArray(profile?.pronouns) &&
+                  profile.pronouns.length > 0 ? (
+                    <View style={styles.pronounsRowCentered}>
+                      <View
+                        key={`p-0`}
+                        style={[styles.chip, styles.pronounChipSmall]}
+                      >
+                        <Text style={styles.chipText}>
+                          {String(profile.pronouns[0]).replace(
+                            /^[{\"]+|[}\"]+$/g,
+                            ""
+                          )}
+                        </Text>
+                      </View>
+                      {profile.pronouns.length > 1 && !showAllPronouns ? (
+                        <TouchableOpacity
+                          onPress={() => setShowAllPronouns(true)}
+                          style={[styles.chip, styles.pronounChipSmall]}
+                        >
+                          <Text style={styles.chipText}>
+                            +{profile.pronouns.length - 1}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {profile.pronouns.length > 1 && showAllPronouns ? (
+                        <TouchableOpacity
+                          onPress={() => setShowAllPronouns(false)}
+                          style={[
+                            styles.chip,
+                            styles.pronounChipSmall,
+                            styles.chipRed,
+                          ]}
+                        >
+                          <Text style={[styles.chipText, styles.chipTextRed]}>
+                            -
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+                {Array.isArray(profile?.pronouns) &&
+                profile.pronouns.length > 1 &&
+                showAllPronouns ? (
+                  <View style={styles.expandedPronounsRow}>
+                    {profile.pronouns.slice(1).map((p, idx) => (
+                      <View
+                        key={`p-expanded-${idx}`}
+                        style={[styles.chip, styles.pronounChipSmall]}
+                      >
+                        <Text style={styles.chipText}>
+                          {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {!!profile?.bio && renderBio(profile.bio)}
+
+                <View style={styles.statsContainer}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>
+                      {profile?.posts_count || 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Posts</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => {
+                      // Navigate to Profile tab's stack for FollowersList (it only exists there)
+                      const root = navigation.getParent()?.getParent();
+                      if (root) {
+                        root.navigate("Profile", {
+                          screen: "FollowersList",
+                          params: { memberId, title: "Followers" },
+                        });
+                      } else {
+                        // Fallback: try same stack navigation
+                        navigation.navigate("FollowersList", {
+                          memberId,
+                          title: "Followers",
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.statNumber}>
+                      {profile?.followers_count || 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Followers</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => {
+                      // Navigate to Profile tab's stack for FollowingList (it only exists there)
+                      const root = navigation.getParent()?.getParent();
+                      if (root) {
+                        root.navigate("Profile", {
+                          screen: "FollowingList",
+                          params: { memberId, title: "Following" },
+                        });
+                      } else {
+                        // Fallback: try same stack navigation
+                        navigation.navigate("FollowingList", {
+                          memberId,
+                          title: "Following",
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.statNumber}>
+                      {profile?.following_count || 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Following</Text>
+                  </TouchableOpacity>
+                </View>
+                {/* Interests below stats */}
+                {Array.isArray(profile?.interests) &&
+                profile.interests.length > 0 ? (
+                  <View style={styles.metaChipsSection}>
+                    <View style={[styles.chipGridRow, { marginTop: 6 }]}>
+                      {(showAllInterests
+                        ? profile.interests
+                        : profile.interests.slice(0, 6)
+                      ).map((i, idx) => (
+                        <ThemeChip
+                          key={`i-${idx}`}
+                          label={String(i)}
+                          index={idx}
+                          style={styles.chipGridItem}
+                        />
+                      ))}
+                      {profile.interests.length > 6 && !showAllInterests ? (
+                        <TouchableOpacity
+                          onPress={() => setShowAllInterests(true)}
+                          style={[
+                            styles.chip,
+                            styles.chipBlue,
+                            styles.chipGridItem,
+                          ]}
+                        >
+                          <Text style={[styles.chipText, styles.chipTextBlue]}>
+                            See all
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {profile.interests.length > 6 && showAllInterests ? (
+                        <TouchableOpacity
+                          onPress={() => setShowAllInterests(false)}
+                          style={[
+                            styles.chip,
+                            styles.chipGridItem,
+                            {
+                              backgroundColor: "#FF3B30",
+                              borderColor: "#FF3B30",
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
+                            Collapse
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+
+                <View
+                  style={{
+                    marginTop: 12,
+                    flexDirection: "row",
+                    gap: 10,
+                    width: "100%",
+                  }}
+                >
+                  <GradientButton
+                    title={isFollowing ? "Following" : "Follow"}
+                    colors={
+                      isFollowing
+                        ? ["#E5E5EA", "#E5E5EA"] // Gray for following
+                        : ["#00C6FF", "#0072FF"] // Blue/Cyan Gradient
+                    }
+                    textStyle={
+                      isFollowing
+                        ? { color: "#1D1D1F" }
+                        : { color: "#FFFFFF", fontWeight: "bold" }
+                    }
+                    style={{ flex: 1 }}
+                    onPress={async () => {
+                      const next = !isFollowing;
+                      setIsFollowing(next);
+                      HapticsService.triggerImpactLight();
+                      try {
+                        if (next) {
+                          await followMember(memberId);
+                          // Optimistically increment target's followers count
+                          setProfile((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  followers_count:
+                                    (prev.followers_count || 0) + 1,
+                                }
+                              : prev
+                          );
+                        } else {
+                          await unfollowMember(memberId);
+                          // Optimistically decrement target's followers count (not below 0)
+                          setProfile((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  followers_count: Math.max(
+                                    0,
+                                    (prev.followers_count || 0) - 1
+                                  ),
+                                }
+                              : prev
+                          );
+                        }
+                        EventBus.emit("follow-updated", {
+                          memberId,
+                          isFollowing: next,
+                        });
+                      } catch (e) {
+                        setIsFollowing(!next);
+                        // Rollback followers count change on error
+                        setProfile((prev) => {
+                          if (!prev) return prev;
+                          const delta = next ? -1 : 1;
+                          return {
+                            ...prev,
+                            followers_count: Math.max(
+                              0,
+                              (prev.followers_count || 0) + delta
+                            ),
+                          };
+                        });
+                      }
+                    }}
+                  />
+                  <GradientButton
+                    title="Message"
+                    style={{ flex: 1 }}
+                    colors={["#1D1D1F", "#1D1D1F"]} // Black
+                    onPress={() => {
+                      // Navigate to Chat screen via Home stack
+                      const root = navigation
+                        .getParent()
+                        ?.getParent()
+                        ?.getParent();
+                      if (root) {
+                        root.navigate("MemberHome", {
+                          screen: "Home",
+                          params: {
+                            screen: "Chat",
+                            params: { recipientId: memberId },
+                          },
+                        });
+                      } else {
+                        // Fallback: try to navigate through parent
+                        const parent = navigation.getParent();
+                        if (parent) {
+                          parent.navigate("Home", {
+                            screen: "Chat",
+                            params: { recipientId: memberId },
+                          });
+                        }
+                      }
+                    }}
+                  />
+                </View>
+              </View>
+            }
             ListEmptyComponent={
               !loading && (
                 <View
@@ -656,7 +686,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     paddingTop: 40,
                   }}
                 >
-                  <Text style={{ color: "#8E8E93", fontWeight: 'bold' }}>No posts</Text>
+                  <Text style={{ color: "#8E8E93", fontWeight: "bold" }}>
+                    No posts
+                  </Text>
                 </View>
               )
             }
@@ -1158,7 +1190,10 @@ const postModalStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1172,18 +1207,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1D1D1F",
-  },
   profileHeader: {
     alignItems: "center",
     paddingTop: 8,
     paddingBottom: 8,
     paddingHorizontal: 20,
+  },
+  profileSection: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  profileImageContainer: {
+    marginBottom: 20,
+    ...SHADOWS.medium,
   },
   avatarLarge: {
     width: 120,
@@ -1191,16 +1228,31 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     backgroundColor: "#F2F2F7",
   },
-  displayName: {
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#F2F2F7",
+  },
+  profileName: {
     fontSize: 24,
-    fontWeight: "700",
-    color: "#1D1D1F",
+    fontWeight: "bold",
+    color: TEXT_COLOR,
     textAlign: "center",
   },
-  handleText: { fontSize: 14, color: "#8E8E93", marginTop: 4 },
+  displayName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: TEXT_COLOR,
+    textAlign: "center",
+  },
+  handleText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 4,
+  },
   nameAndPronounsContainer: {
     alignItems: "center",
-    marginTop: 12,
     marginBottom: 5,
     width: "100%",
   },
@@ -1225,14 +1277,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 14,
+    backgroundColor: "#F2F2F7",
   },
   bioLeft: {
     fontSize: 16,
-    color: "#6A0DAD",
+    color: PRIMARY_COLOR,
     marginBottom: 20,
     textAlign: "left",
     alignSelf: "flex-start",
     width: "100%",
+    lineHeight: 22,
   },
   metaChipsSection: {
     width: "100%",
@@ -1255,37 +1309,78 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chip: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    backgroundColor: "#F2F2F7",
   },
   chipGridItem: {
     width: (screenWidth - 40 - 8 * 3) / 4,
     alignItems: "center",
   },
-  chipFilled: {
-    backgroundColor: "#6A0DAD",
-    borderColor: "#6A0DAD",
+  chipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: PRIMARY_COLOR,
   },
-  chipText: { fontSize: 12, color: "#1D1D1F" },
-  chipBlue: { borderColor: "#007AFF" },
-  chipTextBlue: { color: "#007AFF" },
-  chipRed: { borderColor: "#FF3B30" },
-  chipTextRed: { color: "#FF3B30" },
-  chipTextFilled: { color: "#FFFFFF" },
+  chipBlue: {
+    backgroundColor: "#E1F0FF",
+  },
+  chipTextBlue: {
+    color: "#007AFF",
+    fontWeight: "600",
+  },
+  chipRed: {
+    backgroundColor: "#FFE5E5",
+  },
+  chipTextRed: {
+    color: "#FF3B30",
+    fontWeight: "600",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+    marginBottom: 20,
+    paddingHorizontal: 24,
+    marginTop: 14,
+  },
   countsRowCenter: {
     flexDirection: "row",
     justifyContent: "space-around",
     width: "100%",
+    marginBottom: 20,
     paddingHorizontal: 24,
     marginTop: 14,
   },
-  countItem: { alignItems: "center" },
-  countNumLg: { fontSize: 18, fontWeight: "700", color: "#1D1D1F" },
-  countLabel: { fontSize: 14, color: "#6A0DAD", marginTop: 2 },
+  statItem: {
+    alignItems: "center",
+  },
+  countItem: {
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: TEXT_COLOR,
+    marginBottom: 5,
+  },
+  countNumLg: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: TEXT_COLOR,
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    fontWeight: "500",
+  },
+  countLabel: {
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    fontWeight: "500",
+  },
   followCta: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -1293,10 +1388,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
   },
-  followPrimary: { backgroundColor: "#6A0DAD", borderColor: "#6A0DAD" },
-  followPrimaryText: { color: "#FFFFFF", fontWeight: "700" },
-  followingCta: { backgroundColor: "#FFFFFF", borderColor: "#E5E5EA" },
-  followingCtaText: { color: "#1D1D1F", fontWeight: "700" },
+  followPrimary: {
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
+  },
+  followPrimaryText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  followingCta: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E5E5EA",
+  },
+  followingCtaText: {
+    color: "#1D1D1F",
+    fontWeight: "700",
+  },
   messageCta: {
     backgroundColor: "#1D1D1F",
     borderColor: "#1D1D1F",

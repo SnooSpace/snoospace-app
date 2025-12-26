@@ -1042,21 +1042,22 @@ export default function CommunityProfileScreen({ navigation }) {
                 scrollEnabled={false}
                 columnWrapperStyle={{
                   justifyContent: "flex-start",
-                  marginBottom: 10,
+                  marginBottom: 2,
+                  gap: 2,
                 }}
                 renderItem={({ item, index }) => {
-                  const gap = 10;
-                  const itemSize = (screenWidth - 40 - gap * 2) / 3;
-                  const isLastInRow = (index + 1) % 3 === 0;
+                  const gap = 2; // Modern, tight gap
+                  const itemSize = (screenWidth - gap * 2) / 3;
 
                   return (
                     <TouchableOpacity
                       activeOpacity={0.8}
                       style={{
                         width: itemSize,
-                        height: itemSize,
-                        marginRight: isLastInRow ? 0 : gap,
-                        borderRadius: 8,
+                        height: itemSize * 1.35, // Portrait aspect ratio
+                        marginBottom: 0,
+                        marginRight: 0, // Handled by gap
+                        borderRadius: 3, // Subtle radius
                         overflow: "hidden",
                       }}
                       onPress={() => openPostModal(item)}
@@ -2137,7 +2138,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   postsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingTop: 8,
   },
   postsGrid: {

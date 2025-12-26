@@ -59,8 +59,8 @@ const formatPhoneNumber = (value) => {
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
 const AVATAR_SIZE = 120;
-const GAP = 10;
-const ITEM_SIZE = (screenWidth - 40 - GAP * 2) / 3;
+const GAP = 2;
+const ITEM_SIZE = (screenWidth - GAP * 2) / 3;
 
 export default function CommunityPublicProfileScreen({ route, navigation }) {
   const communityId = route?.params?.communityId;
@@ -390,8 +390,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           styles.gridItem,
           {
             width: ITEM_SIZE,
-            height: ITEM_SIZE,
-            marginRight: (index + 1) % 3 === 0 ? 0 : GAP,
+            height: ITEM_SIZE * 1.35, // Portrait aspect ratio
+            marginBottom: 0,
+            marginRight: 0, // Handled by gap
+            borderRadius: 3, // Subtle radius
+            overflow: "hidden", // Ensure image clips to radius
           },
         ]}
       >
@@ -761,6 +764,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               columnWrapperStyle={{
                 justifyContent: "flex-start",
                 marginBottom: GAP,
+                gap: GAP,
               }}
               renderItem={renderGridItem}
               scrollEnabled={false}
@@ -1481,12 +1485,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   gridItem: {
-    marginBottom: GAP,
+    marginBottom: 0,
   },
   gridImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 4,
+    borderRadius: 0,
   },
   gridPlaceholder: {
     backgroundColor: "#F2F2F7",
@@ -1510,7 +1514,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   postsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingTop: 8,
   },
   postsGrid: {

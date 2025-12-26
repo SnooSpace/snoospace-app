@@ -510,9 +510,9 @@ export default function MemberProfileScreen({ navigation }) {
   }
 
   const renderPostGrid = () => {
-    const gap = 10;
-    const itemSize = (screenWidth - 40 - gap * 2) / 3;
-    // Only show placeholders if there are NO posts (empty state)
+    // Edge-to-edge grid configuration
+    const gap = 2; // Modern, tight gap (Instagram style)
+    const itemSize = (screenWidth - gap * 2) / 3;
     // Only show placeholders if there are NO posts (empty state)
     const data = posts;
 
@@ -523,9 +523,13 @@ export default function MemberProfileScreen({ navigation }) {
           item && item.id ? String(item.id) : `ph-${index}`
         }
         numColumns={3}
-        columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap }}
+        // Use gap for cleaner spacing, remove marginBottom if gap covers it, but gap in columnWrapper handles horizontal spacing
+        columnWrapperStyle={{
+          justifyContent: "flex-start",
+          marginBottom: gap,
+          gap: gap,
+        }}
         renderItem={({ item, index }) => {
-          const isLastInRow = (index + 1) % 3 === 0;
           return (
             <TouchableOpacity
               activeOpacity={0.8}
@@ -533,8 +537,10 @@ export default function MemberProfileScreen({ navigation }) {
                 styles.postGridItem,
                 {
                   width: itemSize,
-                  height: itemSize,
-                  marginRight: isLastInRow ? 0 : gap,
+                  height: itemSize * 1.35, // Portrait aspect ratio
+                  // No margins needed as gap handles it
+                  marginBottom: 0,
+                  marginRight: 0,
                 },
               ]}
               onPress={() => item && openPostModal(item)}
@@ -1134,7 +1140,7 @@ export default function MemberProfileScreen({ navigation }) {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1819,16 +1825,16 @@ const styles = StyleSheet.create({
     // handled by GradientButton
   },
   postsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
   },
   postsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
-    width: screenWidth - 40,
+    width: screenWidth,
   },
   postGridItem: {
-    borderRadius: 8,
+    borderRadius: 3,
     overflow: "hidden",
   },
   postImage: {
