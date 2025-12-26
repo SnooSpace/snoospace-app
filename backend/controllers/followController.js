@@ -1,4 +1,8 @@
 const { createPool } = require("../config/db");
+const {
+  createFollowNotification,
+  deactivateFollowNotification,
+} = require("../services/notificationService");
 
 const pool = createPool();
 
@@ -14,11 +18,13 @@ const follow = async (req, res) => {
     }
 
     if (!followingId || !followingType) {
-      return res.status(400).json({ error: "Following ID and type are required" });
+      return res
+        .status(400)
+        .json({ error: "Following ID and type are required" });
     }
 
     // Validate following type
-    const validTypes = ['member', 'community', 'sponsor', 'venue'];
+    const validTypes = ["member", "community", "sponsor", "venue"];
     if (!validTypes.includes(followingType)) {
       return res.status(400).json({ error: "Invalid following type" });
     }
@@ -50,48 +56,62 @@ const follow = async (req, res) => {
       let actorName = null;
       let actorUsername = null;
       let actorAvatar = null;
-      
-      if (followerType === 'member') {
-        const r = await pool.query('SELECT name, username, profile_photo_url FROM members WHERE id = $1', [followerId]);
+
+      if (followerType === "member") {
+        const r = await pool.query(
+          "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+          [followerId]
+        );
         if (r.rows[0]) {
           actorName = r.rows[0].name || null;
           actorUsername = r.rows[0].username || null;
           actorAvatar = r.rows[0].profile_photo_url || null;
         }
-      } else if (followerType === 'community') {
-        const r = await pool.query('SELECT name, username, logo_url FROM communities WHERE id = $1', [followerId]);
+      } else if (followerType === "community") {
+        const r = await pool.query(
+          "SELECT name, username, logo_url FROM communities WHERE id = $1",
+          [followerId]
+        );
         if (r.rows[0]) {
           actorName = r.rows[0].name || null;
           actorUsername = r.rows[0].username || null;
           actorAvatar = r.rows[0].logo_url || null;
         }
-      } else if (followerType === 'sponsor') {
-        const r = await pool.query('SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1', [followerId]);
+      } else if (followerType === "sponsor") {
+        const r = await pool.query(
+          "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
+          [followerId]
+        );
         if (r.rows[0]) {
           actorName = r.rows[0].name || null;
           actorUsername = r.rows[0].username || null;
           actorAvatar = r.rows[0].logo_url || null;
         }
-      } else if (followerType === 'venue') {
-        const r = await pool.query('SELECT name, username FROM venues WHERE id = $1', [followerId]);
+      } else if (followerType === "venue") {
+        const r = await pool.query(
+          "SELECT name, username FROM venues WHERE id = $1",
+          [followerId]
+        );
         if (r.rows[0]) {
           actorName = r.rows[0].name || null;
           actorUsername = r.rows[0].username || null;
           actorAvatar = null; // venues don't have avatars
         }
       }
-      await pool.query(
-        `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [followingId, followingType, followerId, followerType, 'follow', JSON.stringify({ actorName, actorUsername, actorAvatar })]
-      );
+      // Use notification service with UPSERT to prevent duplicates
+      await createFollowNotification(pool, {
+        recipientId: followingId,
+        recipientType: followingType,
+        actorId: followerId,
+        actorType: followerType,
+        payload: { actorName, actorUsername, actorAvatar },
+      });
     } catch (e) {
       // Non-fatal: do not block follow if notification fails
-      console.error('Failed to create follow notification', e);
+      console.error("Failed to create follow notification", e);
     }
 
     res.json({ success: true, message: "Successfully followed" });
-
   } catch (error) {
     console.error("Error following:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -110,7 +130,9 @@ const unfollow = async (req, res) => {
     }
 
     if (!followingId || !followingType) {
-      return res.status(400).json({ error: "Following ID and type are required" });
+      return res
+        .status(400)
+        .json({ error: "Following ID and type are required" });
     }
 
     // Remove follow
@@ -123,8 +145,20 @@ const unfollow = async (req, res) => {
       return res.status(400).json({ error: "Not following this entity" });
     }
 
-    res.json({ success: true, message: "Successfully unfollowed" });
+    // Deactivate the follow notification (soft delete)
+    try {
+      await deactivateFollowNotification(pool, {
+        recipientId: followingId,
+        recipientType: followingType,
+        actorId: followerId,
+        actorType: followerType,
+      });
+    } catch (e) {
+      // Non-fatal: do not block unfollow if notification deactivation fails
+      console.error("Failed to deactivate follow notification", e);
+    }
 
+    res.json({ success: true, message: "Successfully unfollowed" });
   } catch (error) {
     console.error("Error unfollowing:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -171,7 +205,6 @@ const getFollowers = async (req, res) => {
 
     const result = await pool.query(query, [userId, userType, limit, offset]);
     res.json({ followers: result.rows });
-
   } catch (error) {
     console.error("Error getting followers:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -218,7 +251,6 @@ const getFollowing = async (req, res) => {
 
     const result = await pool.query(query, [userId, userType, limit, offset]);
     res.json({ following: result.rows });
-
   } catch (error) {
     console.error("Error getting following:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -237,7 +269,9 @@ const getFollowStatus = async (req, res) => {
     }
 
     if (!followingId || !followingType) {
-      return res.status(400).json({ error: "Following ID and type are required" });
+      return res
+        .status(400)
+        .json({ error: "Following ID and type are required" });
     }
 
     const result = await pool.query(
@@ -246,7 +280,6 @@ const getFollowStatus = async (req, res) => {
     );
 
     res.json({ isFollowing: result.rows.length > 0 });
-
   } catch (error) {
     console.error("Error checking follow status:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -272,14 +305,13 @@ const getFollowCounts = async (req, res) => {
 
     const [followersResult, followingResult] = await Promise.all([
       pool.query(followersQuery, [userId, userType]),
-      pool.query(followingQuery, [userId, userType])
+      pool.query(followingQuery, [userId, userType]),
     ]);
 
     res.json({
       followers_count: parseInt(followersResult.rows[0].count),
-      following_count: parseInt(followingResult.rows[0].count)
+      following_count: parseInt(followingResult.rows[0].count),
     });
-
   } catch (error) {
     console.error("Error getting follow counts:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -292,5 +324,5 @@ module.exports = {
   getFollowers,
   getFollowing,
   getFollowStatus,
-  getFollowCounts
+  getFollowCounts,
 };
