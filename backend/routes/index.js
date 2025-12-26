@@ -122,6 +122,16 @@ router.delete(
   CategoryController.deleteUser
 );
 
+// ============================================
+// ADMIN POST MANAGEMENT (Protected)
+// ============================================
+router.get("/admin/posts", adminAuthMiddleware, CategoryController.getAllPosts);
+router.get(
+  "/admin/posts/:userId/:userType",
+  adminAuthMiddleware,
+  CategoryController.getUserPostsAdmin
+);
+
 // Auth (Legacy - will be deprecated)
 router.post(
   "/auth/send-otp",

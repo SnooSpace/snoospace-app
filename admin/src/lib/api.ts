@@ -333,3 +333,61 @@ export async function getFollowing(
 ): Promise<{ following: FollowUser[] }> {
   return apiRequest(`/following/${userId}/${userType}`);
 }
+
+// ============================================
+// POSTS API
+// ============================================
+
+export interface Post {
+  id: number;
+  author_id: number;
+  author_type: "member" | "community" | "sponsor" | "venue";
+  caption: string | null;
+  image_urls: string[];
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+  author_name: string | null;
+  author_username: string | null;
+  author_photo_url: string | null;
+}
+
+export interface PostsResponse {
+  success: boolean;
+  posts: Post[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GetPostsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: "all" | "member" | "community";
+}
+
+// Get all posts with pagination and filters
+export async function getPosts(
+  params: GetPostsParams = {}
+): Promise<PostsResponse> {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page.toString());
+  if (params.limit) queryParams.set("limit", params.limit.toString());
+  if (params.search) queryParams.set("search", params.search);
+  if (params.type) queryParams.set("type", params.type);
+
+  const query = queryParams.toString();
+  return apiRequest(`/admin/posts${query ? `?${query}` : ""}`);
+}
+
+// Get posts by a specific user (admin endpoint)
+export async function getUserPosts(
+  userId: number,
+  userType: "member" | "community"
+): Promise<{ posts: Post[] }> {
+  return apiRequest(`/admin/posts/${userId}/${userType}`);
+}

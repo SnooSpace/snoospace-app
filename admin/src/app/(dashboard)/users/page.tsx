@@ -62,9 +62,11 @@ import {
   deleteUser,
   getFollowers,
   getFollowing,
+  getUserPosts,
   type User,
   type GetUsersParams,
   type FollowUser,
+  type Post,
 } from "@/lib/api";
 
 export default function UsersPage() {
@@ -82,6 +84,11 @@ export default function UsersPage() {
   >("followers");
   const [followList, setFollowList] = useState<FollowUser[]>([]);
   const [followLoading, setFollowLoading] = useState(false);
+
+  // User Posts Modal
+  const [postsModalOpen, setPostsModalOpen] = useState(false);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -159,6 +166,23 @@ export default function UsersPage() {
       console.error(`Error fetching ${type}:`, err);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  const handleShowUserPosts = async () => {
+    if (!selectedUser) return;
+
+    setPostsModalOpen(true);
+    setPostsLoading(true);
+    setUserPosts([]);
+
+    try {
+      const data = await getUserPosts(selectedUser.id, selectedUser.type);
+      setUserPosts(data.posts);
+    } catch (err) {
+      console.error("Error fetching user posts:", err);
+    } finally {
+      setPostsLoading(false);
     }
   };
 
@@ -712,12 +736,15 @@ export default function UsersPage() {
                         Following
                       </div>
                     </button>
-                    <div className="p-2">
+                    <button
+                      onClick={handleShowUserPosts}
+                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                    >
                       <div className="text-2xl font-bold">
                         {selectedUser.post_count || 0}
                       </div>
                       <div className="text-xs text-muted-foreground">Posts</div>
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -819,6 +846,60 @@ export default function UsersPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Posts Modal */}
+      <Dialog open={postsModalOpen} onOpenChange={setPostsModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedUser?.name}&apos;s Posts</DialogTitle>
+          </DialogHeader>
+          <div>
+            {postsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : userPosts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No posts yet
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {userPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="relative aspect-square bg-muted rounded-lg overflow-hidden group"
+                  >
+                    {post.image_urls && post.image_urls.length > 0 ? (
+                      <img
+                        src={post.image_urls[0]}
+                        alt={post.caption || "Post"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                        No image
+                      </div>
+                    )}
+                    {/* Hover overlay with stats */}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-sm">
+                      <div className="flex gap-3">
+                        <span>❤️ {post.like_count || 0}</span>
+                        <span>💬 {post.comment_count || 0}</span>
+                      </div>
+                    </div>
+                    {/* Multiple images badge */}
+                    {post.image_urls && post.image_urls.length > 1 && (
+                      <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                        +{post.image_urls.length - 1}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

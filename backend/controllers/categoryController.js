@@ -1116,6 +1116,184 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// =============================================
+// POST MANAGEMENT ENDPOINTS
+// =============================================
+
+/**
+ * Get all posts for admin with pagination and filters
+ */
+const getAllPosts = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = "", type = "all" } = req.query;
+    const offset = (page - 1) * parseInt(limit);
+    const searchPattern = `%${search}%`;
+
+    let query = `
+      SELECT 
+        p.id, p.author_id, p.author_type, p.caption, p.image_urls,
+        p.like_count, p.comment_count, p.created_at,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.name
+          WHEN p.author_type = 'community' THEN c.name
+          WHEN p.author_type = 'sponsor' THEN s.brand_name
+          WHEN p.author_type = 'venue' THEN v.name
+        END as author_name,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.username
+          WHEN p.author_type = 'community' THEN c.username
+          WHEN p.author_type = 'sponsor' THEN s.username
+          WHEN p.author_type = 'venue' THEN v.username
+        END as author_username,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.profile_photo_url
+          WHEN p.author_type = 'community' THEN c.logo_url
+          WHEN p.author_type = 'sponsor' THEN s.logo_url
+          WHEN p.author_type = 'venue' THEN NULL
+        END as author_photo_url
+      FROM posts p
+      LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
+      LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
+      LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
+      LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
+    `;
+
+    const params = [];
+    const conditions = [];
+
+    // Search filter
+    if (search && search.trim()) {
+      params.push(searchPattern);
+      conditions.push(`p.caption ILIKE $${params.length}`);
+    }
+
+    // Type filter
+    if (type && type !== "all") {
+      params.push(type);
+      conditions.push(`p.author_type = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
+    }
+
+    // Get total count
+    const countQuery = query.replace(
+      /SELECT[\s\S]*?FROM posts/,
+      "SELECT COUNT(*) as total FROM posts"
+    );
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    // Add pagination
+    query += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${
+      params.length + 2
+    }`;
+    params.push(parseInt(limit), offset);
+
+    const result = await pool.query(query, params);
+
+    // Parse JSON fields
+    const posts = result.rows.map((post) => ({
+      ...post,
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          if (typeof post.image_urls === "string") {
+            const parsed = JSON.parse(post.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          }
+          return Array.isArray(post.image_urls)
+            ? post.image_urls
+            : [post.image_urls];
+        } catch {
+          return post.image_urls ? [post.image_urls] : [];
+        }
+      })(),
+    }));
+
+    res.json({
+      success: true,
+      posts,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting all posts:", error);
+    res.status(500).json({ error: "Failed to get posts" });
+  }
+};
+
+/**
+ * Get posts for a specific user (admin version - no user auth required)
+ */
+const getUserPostsAdmin = async (req, res) => {
+  try {
+    const { userId, userType } = req.params;
+
+    const query = `
+      SELECT 
+        p.id, p.author_id, p.author_type, p.caption, p.image_urls,
+        p.like_count, p.comment_count, p.created_at,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.name
+          WHEN p.author_type = 'community' THEN c.name
+          WHEN p.author_type = 'sponsor' THEN s.brand_name
+          WHEN p.author_type = 'venue' THEN v.name
+        END as author_name,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.username
+          WHEN p.author_type = 'community' THEN c.username
+          WHEN p.author_type = 'sponsor' THEN s.username
+          WHEN p.author_type = 'venue' THEN v.username
+        END as author_username,
+        CASE 
+          WHEN p.author_type = 'member' THEN m.profile_photo_url
+          WHEN p.author_type = 'community' THEN c.logo_url
+          WHEN p.author_type = 'sponsor' THEN s.logo_url
+          WHEN p.author_type = 'venue' THEN NULL
+        END as author_photo_url
+      FROM posts p
+      LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
+      LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
+      LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
+      LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
+      WHERE p.author_id = $1 AND p.author_type = $2
+      ORDER BY p.created_at DESC
+    `;
+
+    const result = await pool.query(query, [userId, userType]);
+
+    // Parse JSON fields
+    const posts = result.rows.map((post) => ({
+      ...post,
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          if (typeof post.image_urls === "string") {
+            const parsed = JSON.parse(post.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          }
+          return Array.isArray(post.image_urls)
+            ? post.image_urls
+            : [post.image_urls];
+        } catch {
+          return post.image_urls ? [post.image_urls] : [];
+        }
+      })(),
+    }));
+
+    res.json({ posts });
+  } catch (error) {
+    console.error("Error getting user posts:", error);
+    res.status(500).json({ error: "Failed to get user posts" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -1148,4 +1326,8 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
+
+  // Post management endpoints
+  getAllPosts,
+  getUserPostsAdmin,
 };

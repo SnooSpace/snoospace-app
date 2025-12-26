@@ -14,6 +14,7 @@ import {
   LogOut,
   Tag,
   Heart,
+  FileImage,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +30,11 @@ const mainNavItems = [
     title: "Users",
     href: "/users",
     icon: Users,
+  },
+  {
+    title: "Posts",
+    href: "/posts",
+    icon: FileImage,
   },
   {
     title: "Categories",
