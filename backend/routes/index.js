@@ -152,6 +152,11 @@ router.delete(
   adminAuthMiddleware,
   CategoryController.deleteCommentAdmin
 );
+router.post(
+  "/admin/posts/cleanup-orphaned",
+  adminAuthMiddleware,
+  CategoryController.cleanupOrphanedPosts
+);
 
 // Auth (Legacy - will be deprecated)
 router.post(

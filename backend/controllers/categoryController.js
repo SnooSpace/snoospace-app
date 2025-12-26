@@ -1080,7 +1080,53 @@ const deleteUser = async (req, res) => {
     const table = type === "member" ? "members" : "communities";
 
     if (hard === "true") {
-      // Hard delete - actually remove the record
+      // Hard delete - cascade delete all related data
+      console.log(`[deleteUser] Hard deleting ${type} with id ${userId}`);
+
+      // 1. Delete user's post likes
+      await pool.query(
+        `DELETE FROM post_likes WHERE liker_id = $1 AND liker_type = $2`,
+        [userId, type]
+      );
+
+      // 2. Delete user's post comments
+      await pool.query(
+        `DELETE FROM post_comments WHERE commenter_id = $1 AND commenter_type = $2`,
+        [userId, type]
+      );
+
+      // 3. Delete likes on user's posts
+      await pool.query(
+        `DELETE FROM post_likes WHERE post_id IN (
+          SELECT id FROM posts WHERE author_id = $1 AND author_type = $2
+        )`,
+        [userId, type]
+      );
+
+      // 4. Delete comments on user's posts
+      await pool.query(
+        `DELETE FROM post_comments WHERE post_id IN (
+          SELECT id FROM posts WHERE author_id = $1 AND author_type = $2
+        )`,
+        [userId, type]
+      );
+
+      // 5. Delete user's posts
+      const postsResult = await pool.query(
+        `DELETE FROM posts WHERE author_id = $1 AND author_type = $2`,
+        [userId, type]
+      );
+      console.log(`[deleteUser] Deleted ${postsResult.rowCount} posts`);
+
+      // 6. Delete follows (both directions)
+      await pool.query(
+        `DELETE FROM follows WHERE 
+          (follower_id = $1 AND follower_type = $2) OR 
+          (following_id = $1 AND following_type = $2)`,
+        [userId, type]
+      );
+
+      // 7. Finally delete the user
       const result = await pool.query(
         `DELETE FROM ${table} WHERE id = $1 RETURNING id`,
         [userId]
@@ -1092,7 +1138,8 @@ const deleteUser = async (req, res) => {
 
       res.json({
         success: true,
-        message: "User permanently deleted",
+        message: "User and all related data permanently deleted",
+        deletedPosts: postsResult.rowCount,
       });
     } else {
       // Soft delete - just ban the user
@@ -1446,6 +1493,78 @@ const deleteCommentAdmin = async (req, res) => {
   }
 };
 
+/**
+ * Cleanup orphaned posts (posts from deleted users)
+ * This handles posts where the author no longer exists
+ */
+const cleanupOrphanedPosts = async (req, res) => {
+  try {
+    // Find orphaned posts (posts where author doesn't exist)
+    const orphanedQuery = `
+      SELECT p.id, p.author_id, p.author_type
+      FROM posts p
+      WHERE 
+        (p.author_type = 'member' AND NOT EXISTS (
+          SELECT 1 FROM members m WHERE m.id = p.author_id
+        ))
+        OR 
+        (p.author_type = 'community' AND NOT EXISTS (
+          SELECT 1 FROM communities c WHERE c.id = p.author_id
+        ))
+        OR 
+        (p.author_type = 'sponsor' AND NOT EXISTS (
+          SELECT 1 FROM sponsors s WHERE s.id = p.author_id
+        ))
+        OR 
+        (p.author_type = 'venue' AND NOT EXISTS (
+          SELECT 1 FROM venues v WHERE v.id = p.author_id
+        ))
+    `;
+
+    const orphaned = await pool.query(orphanedQuery);
+    const orphanCount = orphaned.rows.length;
+
+    if (orphanCount === 0) {
+      return res.json({
+        success: true,
+        message: "No orphaned posts found",
+        deletedCount: 0,
+      });
+    }
+
+    const orphanIds = orphaned.rows.map((p) => p.id);
+
+    // Delete likes on orphaned posts
+    await pool.query(`DELETE FROM post_likes WHERE post_id = ANY($1)`, [
+      orphanIds,
+    ]);
+
+    // Delete comments on orphaned posts
+    await pool.query(`DELETE FROM post_comments WHERE post_id = ANY($1)`, [
+      orphanIds,
+    ]);
+
+    // Delete the orphaned posts
+    const result = await pool.query(`DELETE FROM posts WHERE id = ANY($1)`, [
+      orphanIds,
+    ]);
+
+    console.log(
+      `[cleanupOrphanedPosts] Deleted ${result.rowCount} orphaned posts`
+    );
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${result.rowCount} orphaned posts`,
+      deletedCount: result.rowCount,
+      deletedIds: orphanIds,
+    });
+  } catch (error) {
+    console.error("Error cleaning up orphaned posts:", error);
+    res.status(500).json({ error: "Failed to cleanup orphaned posts" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -1486,4 +1605,5 @@ module.exports = {
   getPostLikesAdmin,
   getPostCommentsAdmin,
   deleteCommentAdmin,
+  cleanupOrphanedPosts,
 };
