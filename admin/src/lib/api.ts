@@ -391,3 +391,60 @@ export async function getUserPosts(
 ): Promise<{ posts: Post[] }> {
   return apiRequest(`/admin/posts/${userId}/${userType}`);
 }
+
+// Delete a post (admin)
+export async function deletePost(
+  postId: number
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/posts/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+// Post Like interface
+export interface PostLike {
+  id: number;
+  liker_id: number;
+  liker_type: string;
+  liker_name: string | null;
+  liker_username: string | null;
+  liker_photo_url: string | null;
+  created_at: string;
+}
+
+// Post Comment interface
+export interface PostComment {
+  id: number;
+  post_id: number;
+  commenter_id: number;
+  commenter_type: string;
+  commenter_name: string | null;
+  commenter_username: string | null;
+  commenter_photo_url: string | null;
+  comment_text: string;
+  parent_comment_id: number | null;
+  created_at: string;
+}
+
+// Get post likes (admin)
+export async function getPostLikes(
+  postId: number
+): Promise<{ likes: PostLike[] }> {
+  return apiRequest(`/admin/posts/${postId}/likes`);
+}
+
+// Get post comments (admin)
+export async function getPostComments(
+  postId: number
+): Promise<{ comments: PostComment[] }> {
+  return apiRequest(`/admin/posts/${postId}/comments`);
+}
+
+// Delete a comment (admin)
+export async function deleteComment(
+  commentId: number
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/comments/${commentId}`, {
+    method: "DELETE",
+  });
+}

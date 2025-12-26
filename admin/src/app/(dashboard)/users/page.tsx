@@ -16,6 +16,8 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Heart,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +58,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getUsers,
   updateUser,
@@ -63,10 +66,16 @@ import {
   getFollowers,
   getFollowing,
   getUserPosts,
+  deletePost,
+  getPostLikes,
+  getPostComments,
+  deleteComment,
   type User,
   type GetUsersParams,
   type FollowUser,
   type Post,
+  type PostLike,
+  type PostComment,
 } from "@/lib/api";
 
 export default function UsersPage() {
@@ -89,6 +98,15 @@ export default function UsersPage() {
   const [postsModalOpen, setPostsModalOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+
+  // Post Detail Modal (for viewing likes/comments)
+  const [postDetailOpen, setPostDetailOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [likes, setLikes] = useState<PostLike[]>([]);
+  const [comments, setComments] = useState<PostComment[]>([]);
+  const [likesLoading, setLikesLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
 
   // Filters
   const [search, setSearch] = useState("");
@@ -183,6 +201,81 @@ export default function UsersPage() {
       console.error("Error fetching user posts:", err);
     } finally {
       setPostsLoading(false);
+    }
+  };
+
+  const handleDeleteUserPost = async (postId: number) => {
+    if (!confirm("Are you sure you want to delete this post?")) {
+      return;
+    }
+    try {
+      await deletePost(postId);
+      // Remove from local state
+      setUserPosts((prev) => prev.filter((p) => p.id !== postId));
+      // Close detail dialog if deleting the currently viewed post
+      if (selectedPost?.id === postId) {
+        setPostDetailOpen(false);
+        setSelectedPost(null);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete post");
+    }
+  };
+
+  const handleViewPostDetail = (post: Post) => {
+    setSelectedPost(post);
+    setActiveTab("details");
+    setLikes([]);
+    setComments([]);
+    setPostDetailOpen(true);
+  };
+
+  const loadLikes = async (postId: number) => {
+    setLikesLoading(true);
+    try {
+      const data = await getPostLikes(postId);
+      setLikes(data.likes || []);
+    } catch (err) {
+      console.error("Error loading likes:", err);
+      setLikes([]);
+    } finally {
+      setLikesLoading(false);
+    }
+  };
+
+  const loadComments = async (postId: number) => {
+    setCommentsLoading(true);
+    try {
+      const data = await getPostComments(postId);
+      setComments(data.comments || []);
+    } catch (err) {
+      console.error("Error loading comments:", err);
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm("Are you sure you want to delete this comment?")) {
+      return;
+    }
+    try {
+      await deleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete comment");
+    }
+  };
+
+  const handlePostTabChange = (value: string) => {
+    setActiveTab(value);
+    if (selectedPost) {
+      if (value === "likes" && (!likes || likes.length === 0)) {
+        loadLikes(selectedPost.id);
+      } else if (value === "comments" && (!comments || comments.length === 0)) {
+        loadComments(selectedPost.id);
+      }
     }
   };
 
@@ -872,7 +965,8 @@ export default function UsersPage() {
                 {userPosts.map((post) => (
                   <div
                     key={post.id}
-                    className="relative aspect-square bg-muted rounded-lg overflow-hidden group"
+                    className="relative aspect-square bg-muted rounded-lg overflow-hidden group cursor-pointer"
+                    onClick={() => handleViewPostDetail(post)}
                   >
                     {post.image_urls && post.image_urls.length > 0 ? (
                       <img
@@ -887,9 +981,31 @@ export default function UsersPage() {
                     )}
                     {/* Hover overlay with stats */}
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-sm">
-                      <div className="flex gap-3">
+                      <div className="flex gap-3 mb-2">
                         <span>❤️ {post.like_count || 0}</span>
                         <span>💬 {post.comment_count || 0}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewPostDetail(post);
+                          }}
+                          className="bg-primary hover:bg-primary/80 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
+                        >
+                          <Eye className="h-3 w-3" />
+                          View
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteUserPost(post.id);
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
                       </div>
                     </div>
                     {/* Multiple images badge */}
@@ -903,6 +1019,167 @@ export default function UsersPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post Detail Modal (for viewing likes/comments) */}
+      <Dialog open={postDetailOpen} onOpenChange={setPostDetailOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Post Details</DialogTitle>
+          </DialogHeader>
+          {selectedPost && (
+            <Tabs value={activeTab} onValueChange={handlePostTabChange}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="likes">
+                  Likes ({selectedPost.like_count || 0})
+                </TabsTrigger>
+                <TabsTrigger value="comments">
+                  Comments ({selectedPost.comment_count || 0})
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Details Tab */}
+              <TabsContent value="details" className="space-y-4">
+                {selectedPost.image_urls &&
+                  selectedPost.image_urls.length > 0 && (
+                    <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+                      <img
+                        src={selectedPost.image_urls[0]}
+                        alt={selectedPost.caption || "Post"}
+                        className="w-full h-full object-cover"
+                      />
+                      {selectedPost.image_urls.length > 1 && (
+                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                          1 / {selectedPost.image_urls.length}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                {selectedPost.caption && (
+                  <p className="text-sm">{selectedPost.caption}</p>
+                )}
+                <div className="flex gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Heart className="h-4 w-4" />
+                    {selectedPost.like_count || 0} likes
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MessageCircle className="h-4 w-4" />
+                    {selectedPost.comment_count || 0} comments
+                  </span>
+                </div>
+                <div className="pt-4 border-t">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleDeleteUserPost(selectedPost.id)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Post
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Likes Tab */}
+              <TabsContent value="likes">
+                {likesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !likes || likes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No likes yet
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {likes.map((like) => (
+                      <div
+                        key={like.id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage
+                            src={like.liker_photo_url || undefined}
+                          />
+                          <AvatarFallback>
+                            {getInitials(like.liker_name || "?")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">
+                            {like.liker_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            @{like.liker_username}
+                          </div>
+                        </div>
+                        <Badge variant="secondary">{like.liker_type}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Comments Tab */}
+              <TabsContent value="comments">
+                {commentsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !comments || comments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No comments yet
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {comments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="p-3 rounded-lg bg-muted/30 border"
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage
+                              src={comment.commenter_photo_url || undefined}
+                            />
+                            <AvatarFallback>
+                              {getInitials(comment.commenter_name || "?")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">
+                                {comment.commenter_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                @{comment.commenter_username}
+                              </span>
+                            </div>
+                            <p className="text-sm mt-1">
+                              {comment.comment_text}
+                            </p>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {new Date(comment.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive h-8 w-8"
+                            onClick={() => handleDeleteComment(comment.id)}
+                            title="Delete comment"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </div>

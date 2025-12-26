@@ -126,10 +126,31 @@ router.delete(
 // ADMIN POST MANAGEMENT (Protected)
 // ============================================
 router.get("/admin/posts", adminAuthMiddleware, CategoryController.getAllPosts);
+// IMPORTANT: Specific routes must come BEFORE wildcard routes
+router.get(
+  "/admin/posts/:postId/likes",
+  adminAuthMiddleware,
+  CategoryController.getPostLikesAdmin
+);
+router.get(
+  "/admin/posts/:postId/comments",
+  adminAuthMiddleware,
+  CategoryController.getPostCommentsAdmin
+);
+router.delete(
+  "/admin/posts/:postId",
+  adminAuthMiddleware,
+  CategoryController.deletePostAdmin
+);
 router.get(
   "/admin/posts/:userId/:userType",
   adminAuthMiddleware,
   CategoryController.getUserPostsAdmin
+);
+router.delete(
+  "/admin/comments/:commentId",
+  adminAuthMiddleware,
+  CategoryController.deleteCommentAdmin
 );
 
 // Auth (Legacy - will be deprecated)

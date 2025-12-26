@@ -1294,6 +1294,158 @@ const getUserPostsAdmin = async (req, res) => {
   }
 };
 
+/**
+ * Delete a post (admin - can delete any post)
+ */
+const deletePostAdmin = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    // Check if post exists
+    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [
+      postId,
+    ]);
+
+    if (postCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // Delete post (CASCADE will handle related likes and comments)
+    await pool.query("DELETE FROM posts WHERE id = $1", [postId]);
+
+    res.json({ success: true, message: "Post deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting post:", error);
+    res.status(500).json({ error: "Failed to delete post" });
+  }
+};
+
+/**
+ * Get all likes for a post (admin)
+ */
+const getPostLikesAdmin = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const query = `
+      SELECT 
+        pl.id, pl.liker_id, pl.liker_type, pl.created_at,
+        CASE 
+          WHEN pl.liker_type = 'member' THEN m.name
+          WHEN pl.liker_type = 'community' THEN c.name
+          WHEN pl.liker_type = 'sponsor' THEN s.brand_name
+          WHEN pl.liker_type = 'venue' THEN v.name
+        END as liker_name,
+        CASE 
+          WHEN pl.liker_type = 'member' THEN m.username
+          WHEN pl.liker_type = 'community' THEN c.username
+          WHEN pl.liker_type = 'sponsor' THEN s.username
+          WHEN pl.liker_type = 'venue' THEN v.username
+        END as liker_username,
+        CASE 
+          WHEN pl.liker_type = 'member' THEN m.profile_photo_url
+          WHEN pl.liker_type = 'community' THEN c.logo_url
+          WHEN pl.liker_type = 'sponsor' THEN s.logo_url
+          WHEN pl.liker_type = 'venue' THEN NULL
+        END as liker_photo_url
+      FROM post_likes pl
+      LEFT JOIN members m ON pl.liker_type = 'member' AND pl.liker_id = m.id
+      LEFT JOIN communities c ON pl.liker_type = 'community' AND pl.liker_id = c.id
+      LEFT JOIN sponsors s ON pl.liker_type = 'sponsor' AND pl.liker_id = s.id
+      LEFT JOIN venues v ON pl.liker_type = 'venue' AND pl.liker_id = v.id
+      WHERE pl.post_id = $1
+      ORDER BY pl.created_at DESC
+    `;
+
+    const result = await pool.query(query, [postId]);
+    res.json({ likes: result.rows });
+  } catch (error) {
+    console.error("Error getting post likes:", error);
+    res.status(500).json({ error: "Failed to get post likes" });
+  }
+};
+
+/**
+ * Get all comments for a post (admin)
+ */
+const getPostCommentsAdmin = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const query = `
+      SELECT 
+        pc.id, pc.post_id, pc.commenter_id, pc.commenter_type, 
+        pc.comment_text, pc.parent_comment_id, pc.created_at,
+        CASE 
+          WHEN pc.commenter_type = 'member' THEN m.name
+          WHEN pc.commenter_type = 'community' THEN c.name
+          WHEN pc.commenter_type = 'sponsor' THEN s.brand_name
+          WHEN pc.commenter_type = 'venue' THEN v.name
+        END as commenter_name,
+        CASE 
+          WHEN pc.commenter_type = 'member' THEN m.username
+          WHEN pc.commenter_type = 'community' THEN c.username
+          WHEN pc.commenter_type = 'sponsor' THEN s.username
+          WHEN pc.commenter_type = 'venue' THEN v.username
+        END as commenter_username,
+        CASE 
+          WHEN pc.commenter_type = 'member' THEN m.profile_photo_url
+          WHEN pc.commenter_type = 'community' THEN c.logo_url
+          WHEN pc.commenter_type = 'sponsor' THEN s.logo_url
+          WHEN pc.commenter_type = 'venue' THEN NULL
+        END as commenter_photo_url
+      FROM post_comments pc
+      LEFT JOIN members m ON pc.commenter_type = 'member' AND pc.commenter_id = m.id
+      LEFT JOIN communities c ON pc.commenter_type = 'community' AND pc.commenter_id = c.id
+      LEFT JOIN sponsors s ON pc.commenter_type = 'sponsor' AND pc.commenter_id = s.id
+      LEFT JOIN venues v ON pc.commenter_type = 'venue' AND pc.commenter_id = v.id
+      WHERE pc.post_id = $1
+      ORDER BY pc.created_at ASC
+    `;
+
+    const result = await pool.query(query, [postId]);
+    res.json({ comments: result.rows });
+  } catch (error) {
+    console.error("Error getting post comments:", error);
+    res.status(500).json({ error: "Failed to get post comments" });
+  }
+};
+
+/**
+ * Delete a comment (admin)
+ */
+const deleteCommentAdmin = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    // Check if comment exists and get post_id for updating count
+    const commentCheck = await pool.query(
+      "SELECT id, post_id FROM post_comments WHERE id = $1",
+      [commentId]
+    );
+
+    if (commentCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const postId = commentCheck.rows[0].post_id;
+
+    // Delete comment (CASCADE will handle replies)
+    await pool.query("DELETE FROM post_comments WHERE id = $1", [commentId]);
+
+    // Update comment count on post
+    await pool.query(
+      "UPDATE posts SET comment_count = GREATEST(COALESCE(comment_count, 0) - 1, 0) WHERE id = $1",
+      [postId]
+    );
+
+    res.json({ success: true, message: "Comment deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting comment:", error);
+    res.status(500).json({ error: "Failed to delete comment" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -1330,4 +1482,8 @@ module.exports = {
   // Post management endpoints
   getAllPosts,
   getUserPostsAdmin,
+  deletePostAdmin,
+  getPostLikesAdmin,
+  getPostCommentsAdmin,
+  deleteCommentAdmin,
 };
