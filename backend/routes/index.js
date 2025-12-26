@@ -102,6 +102,26 @@ router.delete(
   CategoryController.deleteInterest
 );
 
+// ============================================
+// ADMIN USER MANAGEMENT (Protected)
+// ============================================
+router.get("/admin/users", adminAuthMiddleware, CategoryController.getAllUsers);
+router.get(
+  "/admin/users/:userId",
+  adminAuthMiddleware,
+  CategoryController.getUserById
+);
+router.patch(
+  "/admin/users/:userId",
+  adminAuthMiddleware,
+  CategoryController.updateUser
+);
+router.delete(
+  "/admin/users/:userId",
+  adminAuthMiddleware,
+  CategoryController.deleteUser
+);
+
 // Auth (Legacy - will be deprecated)
 router.post(
   "/auth/send-otp",

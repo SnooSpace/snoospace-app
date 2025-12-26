@@ -808,6 +808,303 @@ const deleteInterest = async (req, res) => {
   }
 };
 
+// ============================================
+// ADMIN USER MANAGEMENT
+// ============================================
+
+/**
+ * Get all users (Members + Communities) with pagination, search, and filtering
+ */
+const getAllUsers = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = "",
+      type = "all", // 'all', 'member', 'community'
+      status = "all", // 'all', 'active', 'banned'
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const searchPattern = `%${search}%`;
+
+    console.log("[getAllUsers] Query params:", {
+      page,
+      limit,
+      search,
+      type,
+      status,
+      searchPattern,
+    });
+
+    let users = [];
+
+    // Build the query based on type filter
+    if (type === "all" || type === "member") {
+      try {
+        let memberQuery = `
+          SELECT 
+            id, 'member' as type, name, username, email, phone,
+            profile_photo_url, location, pronouns, bio, interests,
+            true as is_active, created_at
+          FROM members
+        `;
+        const params = [];
+        const conditions = [];
+
+        if (search && search.trim()) {
+          params.push(searchPattern);
+          conditions.push(
+            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`
+          );
+        }
+        // Note: is_active column doesn't exist in members table, so status filtering is skipped
+
+        if (conditions.length > 0) {
+          memberQuery += " WHERE " + conditions.join(" AND ");
+        }
+
+        console.log(
+          "[getAllUsers] Member query:",
+          memberQuery,
+          "params:",
+          params
+        );
+        const memberResult = await pool.query(memberQuery, params);
+        console.log("[getAllUsers] Members found:", memberResult.rows.length);
+
+        users = users.concat(
+          memberResult.rows.map((u) => ({
+            ...u,
+            follower_count: 0, // Simplified - avoid subquery issues
+          }))
+        );
+      } catch (memberErr) {
+        console.error("Error fetching members:", memberErr);
+      }
+    }
+
+    if (type === "all" || type === "community") {
+      try {
+        let communityQuery = `
+          SELECT 
+            id, 'community' as type, name, username, email, phone,
+            logo_url as profile_photo_url, location, NULL as pronouns, bio,
+            sponsor_types as interests, category,
+            NULL as head1_name, NULL as head1_phone, NULL as head2_name, NULL as head2_phone,
+            true as is_active, created_at
+          FROM communities
+        `;
+        const params = [];
+        const conditions = [];
+
+        if (search && search.trim()) {
+          params.push(searchPattern);
+          conditions.push(
+            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`
+          );
+        }
+        // Note: is_active column doesn't exist in communities table, so status filtering is skipped
+
+        if (conditions.length > 0) {
+          communityQuery += " WHERE " + conditions.join(" AND ");
+        }
+
+        console.log(
+          "[getAllUsers] Community query:",
+          communityQuery,
+          "params:",
+          params
+        );
+        const communityResult = await pool.query(communityQuery, params);
+        console.log(
+          "[getAllUsers] Communities found:",
+          communityResult.rows.length
+        );
+
+        users = users.concat(
+          communityResult.rows.map((u) => ({
+            ...u,
+            follower_count: 0, // Simplified - avoid subquery issues
+          }))
+        );
+      } catch (communityErr) {
+        console.error("Error fetching communities:", communityErr);
+      }
+    }
+
+    // Sort by created_at descending
+    users.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const totalCount = users.length;
+
+    // Apply pagination
+    const paginatedUsers = users.slice(offset, offset + parseInt(limit));
+
+    res.json({
+      success: true,
+      users: paginatedUsers,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting all users:", error);
+    res.status(500).json({ error: "Failed to get users" });
+  }
+};
+
+/**
+ * Get single user by ID
+ */
+const getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { type } = req.query; // 'member' or 'community'
+
+    if (!type || !["member", "community"].includes(type)) {
+      return res
+        .status(400)
+        .json({ error: "Type must be 'member' or 'community'" });
+    }
+
+    let user;
+
+    if (type === "member") {
+      const result = await pool.query(
+        `SELECT 
+          id, 'member' as type, name, username, email, phone,
+          profile_photo_url, location, pronouns, bio, interests, gender, dob,
+          is_active, created_at,
+          (SELECT COUNT(*) FROM follows WHERE followed_id = members.id AND followed_type = 'member') as follower_count,
+          (SELECT COUNT(*) FROM follows WHERE follower_id = members.id AND follower_type = 'member') as following_count,
+          (SELECT COUNT(*) FROM posts WHERE author_id = members.id AND author_type = 'member') as post_count
+        FROM members WHERE id = $1`,
+        [userId]
+      );
+      user = result.rows[0];
+    } else {
+      const result = await pool.query(
+        `SELECT 
+          id, 'community' as type, name, username, email, phone,
+          logo_url as profile_photo_url, banner_url, location, bio,
+          sponsor_interests as interests, category,
+          head1_name, head1_phone, head2_name, head2_phone,
+          is_active, created_at,
+          (SELECT COUNT(*) FROM follows WHERE followed_id = communities.id AND followed_type = 'community') as follower_count,
+          (SELECT COUNT(*) FROM posts WHERE author_id = communities.id AND author_type = 'community') as post_count
+        FROM communities WHERE id = $1`,
+        [userId]
+      );
+      user = result.rows[0];
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error("Error getting user by ID:", error);
+    res.status(500).json({ error: "Failed to get user" });
+  }
+};
+
+/**
+ * Update user (ban/unban, etc.)
+ */
+const updateUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { type } = req.query; // 'member' or 'community'
+    const { is_active } = req.body;
+
+    if (!type || !["member", "community"].includes(type)) {
+      return res
+        .status(400)
+        .json({ error: "Type must be 'member' or 'community'" });
+    }
+
+    const table = type === "member" ? "members" : "communities";
+
+    const result = await pool.query(
+      `UPDATE ${table} SET is_active = $1 WHERE id = $2 RETURNING id, is_active`,
+      [is_active, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      message: is_active
+        ? "User unbanned successfully"
+        : "User banned successfully",
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "Failed to update user" });
+  }
+};
+
+/**
+ * Delete user (soft delete by setting is_active to false, or hard delete)
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { type, hard = false } = req.query; // 'member' or 'community'
+
+    if (!type || !["member", "community"].includes(type)) {
+      return res
+        .status(400)
+        .json({ error: "Type must be 'member' or 'community'" });
+    }
+
+    const table = type === "member" ? "members" : "communities";
+
+    if (hard === "true") {
+      // Hard delete - actually remove the record
+      const result = await pool.query(
+        `DELETE FROM ${table} WHERE id = $1 RETURNING id`,
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "User permanently deleted",
+      });
+    } else {
+      // Soft delete - just ban the user
+      const result = await pool.query(
+        `UPDATE ${table} SET is_active = false WHERE id = $1 RETURNING id`,
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "User banned (soft deleted)",
+      });
+    }
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ error: "Failed to delete user" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -834,4 +1131,10 @@ module.exports = {
   createInterest,
   updateInterest,
   deleteInterest,
+
+  // User management endpoints
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
 };

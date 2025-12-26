@@ -4,6 +4,7 @@
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+console.log("[API] API_URL:", API_URL, "env:", process.env.NEXT_PUBLIC_API_URL);
 
 // Get auth token from localStorage
 function getToken(): string | null {
@@ -189,6 +190,104 @@ export async function updateInterest(
 // Delete interest
 export async function deleteInterest(id: number): Promise<void> {
   await apiRequest(`/admin/interests/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============================================
+// USER API
+// ============================================
+
+export interface User {
+  id: number;
+  type: "member" | "community";
+  name: string;
+  username: string;
+  email: string;
+  phone: string | null;
+  profile_photo_url: string | null;
+  location: string | null;
+  pronouns: string[] | null;
+  bio: string | null;
+  interests: string[] | null;
+  category?: string | null;
+  head1_name?: string | null;
+  head1_phone?: string | null;
+  head2_name?: string | null;
+  head2_phone?: string | null;
+  is_active: boolean;
+  created_at: string;
+  follower_count: number;
+  following_count?: number;
+  post_count?: number;
+}
+
+export interface UsersResponse {
+  success: boolean;
+  users: User[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GetUsersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: "all" | "member" | "community";
+  status?: "all" | "active" | "banned";
+}
+
+// Get all users with pagination and filters
+export async function getUsers(
+  params: GetUsersParams = {}
+): Promise<UsersResponse> {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page.toString());
+  if (params.limit) queryParams.set("limit", params.limit.toString());
+  if (params.search) queryParams.set("search", params.search);
+  if (params.type) queryParams.set("type", params.type);
+  if (params.status) queryParams.set("status", params.status);
+
+  const queryString = queryParams.toString();
+  const endpoint = `/admin/users${queryString ? `?${queryString}` : ""}`;
+
+  return apiRequest<UsersResponse>(endpoint);
+}
+
+// Get single user by ID
+export async function getUserById(
+  id: number,
+  type: "member" | "community"
+): Promise<User> {
+  const data = await apiRequest<{ success: boolean; user: User }>(
+    `/admin/users/${id}?type=${type}`
+  );
+  return data.user;
+}
+
+// Update user (ban/unban)
+export async function updateUser(
+  id: number,
+  type: "member" | "community",
+  updates: { is_active: boolean }
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/users/${id}?type=${type}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+// Delete user
+export async function deleteUser(
+  id: number,
+  type: "member" | "community",
+  hard: boolean = false
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/users/${id}?type=${type}&hard=${hard}`, {
     method: "DELETE",
   });
 }
