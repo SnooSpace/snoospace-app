@@ -660,12 +660,25 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               gap: 10,
               width: "100%",
               paddingHorizontal: 20,
+              marginBottom: 25,
             }}
           >
-            {isFollowing ? (
-              <TouchableOpacity
-                style={[styles.followCta, styles.followingCta, { flex: 1 }]}
-                onPress={async () => {
+            <GradientButton
+              title={isFollowing ? "Following" : "Follow"}
+              colors={
+                isFollowing
+                  ? ["#E5E5EA", "#E5E5EA"] // Gray for following
+                  : ["#00C6FF", "#0072FF"] // Blue/Cyan Gradient
+              }
+              textStyle={
+                isFollowing
+                  ? { color: "#1D1D1F" }
+                  : { color: "#FFFFFF", fontWeight: "bold" }
+              }
+              style={{ flex: 1 }}
+              onPress={async () => {
+                if (isFollowing) {
+                  // Unfollow logic
                   try {
                     await unfollowCommunity(communityId);
                     setIsFollowing(false);
@@ -687,16 +700,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   } catch (e) {
                     console.error("Unfollow failed", e);
                   }
-                }}
-              >
-                <Text style={[styles.followCtaText, styles.followingCtaText]}>
-                  Following
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <GradientButton
-                title="Follow"
-                onPress={async () => {
+                } else {
+                  // Follow logic
                   try {
                     await followCommunity(communityId);
                     setIsFollowing(true);
@@ -715,12 +720,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   } catch (e) {
                     console.error("Follow failed", e);
                   }
-                }}
-                style={{ flex: 1 }}
-              />
-            )}
-            <TouchableOpacity
-              style={[styles.followCta, { flex: 1 }, styles.messageCta]}
+                }
+              }}
+            />
+            <GradientButton
+              title="Message"
+              colors={["#1D1D1F", "#1D1D1F"]} // Black
+              style={{ flex: 1 }}
               onPress={() => {
                 // Navigate to Chat screen via Home stack
                 const root = navigation.getParent()?.getParent()?.getParent();
@@ -749,9 +755,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   }
                 }
               }}
-            >
-              <Text style={styles.messageCtaText}>Message</Text>
-            </TouchableOpacity>
+            />
           </View>
         </View>
 
