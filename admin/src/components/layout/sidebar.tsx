@@ -15,6 +15,7 @@ import {
   Tag,
   Heart,
   FileImage,
+  Handshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -45,6 +46,11 @@ const mainNavItems = [
     title: "Interests",
     href: "/interests",
     icon: Heart,
+  },
+  {
+    title: "Sponsor Types",
+    href: "/sponsor-types",
+    icon: Handshake,
   },
   {
     title: "Events",

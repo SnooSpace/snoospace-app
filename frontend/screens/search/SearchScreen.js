@@ -20,6 +20,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
 import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
@@ -27,8 +28,7 @@ import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
 import EventBus from "../../utils/EventBus";
-import { getAuthToken, getAuthEmail } from "../../api/auth";
-import { apiPost } from "../../api/client";
+import { getActiveAccount } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS } from "../../constants/theme";
 import { DiscoverFeedV2 } from "../../components/discover";
@@ -240,30 +240,34 @@ export default function SearchScreen({ navigation }) {
     return () => clearTimeout(h);
   }, [query, activeFilter]); // Trigger search when filter changes
 
-  useEffect(() => {
-    // Load user ID on mount
-    const loadUserId = async () => {
-      try {
-        const token = await getAuthToken();
-        const email = await getAuthEmail();
-        if (token && email) {
-          const profileResponse = await apiPost(
-            "/auth/get-user-profile",
-            { email },
-            10000,
-            token
-          );
-          if (profileResponse?.profile?.id) {
-            setUserId(profileResponse.profile.id);
-            setUserType(profileResponse.role || "member");
+  // Load user ID from active account - refresh on focus to handle account switches
+  const loadUserId = useCallback(async () => {
+    try {
+      const activeAccount = await getActiveAccount();
+      if (activeAccount?.id) {
+        const newAccountId = `${activeAccount.type}_${activeAccount.id}`;
+        // Only update if userId changed (account switch)
+        setUserId((prevUserId) => {
+          if (prevUserId !== newAccountId) {
+            // Clear recents when switching accounts to prevent showing old account's data
+            setRecents([]);
+            return newAccountId;
           }
-        }
-      } catch (error) {
-        console.error("Error loading user ID:", error);
+          return prevUserId;
+        });
+        setUserType(activeAccount.type || "member");
       }
-    };
-    loadUserId();
+    } catch (error) {
+      console.error("Error loading user ID:", error);
+    }
   }, []);
+
+  // Refresh userId on screen focus to handle account switches
+  useFocusEffect(
+    useCallback(() => {
+      loadUserId();
+    }, [loadUserId])
+  );
 
   // Load discover feed and suggestions on mount
   useEffect(() => {

@@ -51,7 +51,10 @@ export const assignEventCategories = async (eventId, categoryIds) => {
  * @param {string} userType - 'member', 'sponsor', or 'all'
  */
 export const getSignupInterests = async (userType = "all") => {
-  return await apiGet(`/catalog/signup-interests?userType=${userType}`);
+  const response = await apiGet(
+    `/catalog/signup-interests?userType=${userType}`
+  );
+  return response.interests || [];
 };
 
 // ============================================

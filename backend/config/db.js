@@ -112,6 +112,37 @@ async function ensureTables(pool) {
         interest_id BIGINT REFERENCES interests(id) ON DELETE CASCADE,
         PRIMARY KEY (sponsor_id, interest_id)
       );
+
+      -- Signup interests for member/sponsor registration
+      CREATE TABLE IF NOT EXISTS signup_interests (
+        id BIGSERIAL PRIMARY KEY,
+        label TEXT UNIQUE NOT NULL,
+        icon_name TEXT,
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        user_type TEXT DEFAULT 'all', -- 'member', 'sponsor', or 'all'
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_signup_interests_active ON signup_interests(is_active, user_type, display_order);
+
+      -- Seed default signup interests for members
+      INSERT INTO signup_interests (label, display_order, is_active, user_type) VALUES
+        ('Sports', 1, true, 'all'),
+        ('Music', 2, true, 'all'),
+        ('Technology', 3, true, 'all'),
+        ('Travel', 4, true, 'all'),
+        ('Food & Drink', 5, true, 'all'),
+        ('Art & Culture', 6, true, 'all'),
+        ('Fitness', 7, true, 'all'),
+        ('Gaming', 8, true, 'all'),
+        ('Movies', 9, true, 'all'),
+        ('Books', 10, true, 'all'),
+        ('Fashion', 11, true, 'all'),
+        ('Photography', 12, true, 'all'),
+        ('Outdoors', 13, true, 'all'),
+        ('Volunteering', 14, true, 'all'),
+        ('Networking', 15, true, 'all')
+      ON CONFLICT (label) DO NOTHING;
       
       
       -- Posts table
@@ -778,6 +809,26 @@ async function ensureTables(pool) {
       );
       CREATE INDEX IF NOT EXISTS idx_member_location_history_member_id
         ON member_location_history (member_id, created_at DESC);
+
+      -- Sponsor types lookup table (admin-managed)
+      CREATE TABLE IF NOT EXISTS sponsor_types (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_sponsor_types_active ON sponsor_types(is_active, display_order);
+
+      -- Seed default sponsor types if table is empty
+      INSERT INTO sponsor_types (name, display_order, is_active) VALUES
+        ('Protein brands', 1, true),
+        ('Energy Drinks', 2, true),
+        ('Supplements', 3, true),
+        ('Apparel', 4, true),
+        ('Tech Gadgets', 5, true),
+        ('Local Businesses', 6, true)
+      ON CONFLICT (name) DO NOTHING;
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

@@ -1565,6 +1565,194 @@ const cleanupOrphanedPosts = async (req, res) => {
   }
 };
 
+// =============================================
+// SPONSOR TYPES MANAGEMENT
+// =============================================
+
+/**
+ * Get all active sponsor types (public endpoint for mobile)
+ */
+const getSponsorTypes = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, display_order 
+       FROM sponsor_types 
+       WHERE is_active = true 
+       ORDER BY display_order ASC, name ASC`
+    );
+    res.json({
+      success: true,
+      sponsorTypes: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting sponsor types:", error);
+    res.status(500).json({ error: "Failed to get sponsor types" });
+  }
+};
+
+/**
+ * Get all sponsor types for admin (including inactive)
+ */
+const getAllSponsorTypesAdmin = async (req, res) => {
+  try {
+    // Get sponsor types with usage count
+    const result = await pool.query(`
+      SELECT 
+        st.*,
+        (
+          SELECT COUNT(*) FROM communities c 
+          WHERE c.sponsor_types @> jsonb_build_array(st.name)
+        ) as usage_count
+      FROM sponsor_types st
+      ORDER BY st.display_order ASC, st.name ASC
+    `);
+    res.json({
+      success: true,
+      sponsorTypes: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting sponsor types (admin):", error);
+    res.status(500).json({ error: "Failed to get sponsor types" });
+  }
+};
+
+/**
+ * Create a new sponsor type
+ */
+const createSponsorType = async (req, res) => {
+  try {
+    const { name, display_order = 0, is_active = true } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    // Get max display_order if not provided
+    let order = display_order;
+    if (display_order === 0) {
+      const maxOrder = await pool.query(
+        "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM sponsor_types"
+      );
+      order = maxOrder.rows[0].next_order;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO sponsor_types (name, display_order, is_active) 
+       VALUES ($1, $2, $3) 
+       RETURNING *`,
+      [name.trim(), order, is_active]
+    );
+
+    res.json({
+      success: true,
+      sponsorType: result.rows[0],
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "Sponsor type already exists" });
+    }
+    console.error("Error creating sponsor type:", error);
+    res.status(500).json({ error: "Failed to create sponsor type" });
+  }
+};
+
+/**
+ * Update a sponsor type
+ */
+const updateSponsorType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, display_order, is_active } = req.body;
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name.trim());
+    }
+    if (display_order !== undefined) {
+      updates.push(`display_order = $${paramIndex++}`);
+      values.push(display_order);
+    }
+    if (is_active !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      values.push(is_active);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No updates provided" });
+    }
+
+    values.push(id);
+    const result = await pool.query(
+      `UPDATE sponsor_types SET ${updates.join(
+        ", "
+      )} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Sponsor type not found" });
+    }
+
+    res.json({
+      success: true,
+      sponsorType: result.rows[0],
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res
+        .status(400)
+        .json({ error: "Sponsor type name already exists" });
+    }
+    console.error("Error updating sponsor type:", error);
+    res.status(500).json({ error: "Failed to update sponsor type" });
+  }
+};
+
+/**
+ * Delete a sponsor type
+ */
+const deleteSponsorType = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if sponsor type is in use
+    const sponsorType = await pool.query(
+      "SELECT name FROM sponsor_types WHERE id = $1",
+      [id]
+    );
+
+    if (sponsorType.rows.length === 0) {
+      return res.status(404).json({ error: "Sponsor type not found" });
+    }
+
+    const typeName = sponsorType.rows[0].name;
+    const usageCheck = await pool.query(
+      `SELECT COUNT(*) FROM communities WHERE sponsor_types @> $1`,
+      [JSON.stringify([typeName])]
+    );
+
+    if (parseInt(usageCheck.rows[0].count) > 0) {
+      return res.status(400).json({
+        error: `Cannot delete: ${usageCheck.rows[0].count} communities are using this sponsor type. Deactivate it instead.`,
+      });
+    }
+
+    await pool.query("DELETE FROM sponsor_types WHERE id = $1", [id]);
+
+    res.json({
+      success: true,
+      message: "Sponsor type deleted",
+    });
+  } catch (error) {
+    console.error("Error deleting sponsor type:", error);
+    res.status(500).json({ error: "Failed to delete sponsor type" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -1606,4 +1794,11 @@ module.exports = {
   getPostCommentsAdmin,
   deleteCommentAdmin,
   cleanupOrphanedPosts,
+
+  // Sponsor types endpoints
+  getSponsorTypes,
+  getAllSponsorTypesAdmin,
+  createSponsorType,
+  updateSponsorType,
+  deleteSponsorType,
 };

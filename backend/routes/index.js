@@ -158,6 +158,29 @@ router.post(
   CategoryController.cleanupOrphanedPosts
 );
 
+// Sponsor Types routes
+router.get("/catalog/sponsor-types", CategoryController.getSponsorTypes); // Public endpoint for mobile
+router.get(
+  "/admin/sponsor-types",
+  adminAuthMiddleware,
+  CategoryController.getAllSponsorTypesAdmin
+);
+router.post(
+  "/admin/sponsor-types",
+  adminAuthMiddleware,
+  CategoryController.createSponsorType
+);
+router.put(
+  "/admin/sponsor-types/:id",
+  adminAuthMiddleware,
+  CategoryController.updateSponsorType
+);
+router.delete(
+  "/admin/sponsor-types/:id",
+  adminAuthMiddleware,
+  CategoryController.deleteSponsorType
+);
+
 // Auth (Legacy - will be deprecated)
 router.post(
   "/auth/send-otp",

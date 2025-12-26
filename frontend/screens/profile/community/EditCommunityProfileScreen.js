@@ -29,6 +29,7 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
+import { getSponsorTypes } from "../../../api/client";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
@@ -37,12 +38,12 @@ import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import HapticsService from "../../../services/HapticsService";
 
-// Map to new theme
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
-const SPONSOR_TYPES = [
+// Fallback sponsor types in case API fails
+const FALLBACK_SPONSOR_TYPES = [
   "Protein brands",
   "Energy Drinks",
   "Supplements",
@@ -137,6 +138,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       )}&background=5f27cd&color=FFFFFF&size=120&bold=true`
   );
   const allowLeaveRef = useRef(false);
+  const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
+    FALLBACK_SPONSOR_TYPES
+  );
+  const [sponsorTypesLoading, setSponsorTypesLoading] = useState(true);
 
   useEffect(() => {
     checkForChanges();
@@ -150,6 +155,22 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     email,
     location,
   ]);
+
+  // Fetch sponsor types from API
+  useEffect(() => {
+    const loadSponsorTypes = async () => {
+      try {
+        const types = await getSponsorTypes();
+        setAvailableSponsorTypes(types.map((t) => t.name));
+      } catch (error) {
+        console.error("Failed to load sponsor types:", error);
+        // Keep using fallback types
+      } finally {
+        setSponsorTypesLoading(false);
+      }
+    };
+    loadSponsorTypes();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -722,7 +743,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                   setSponsorTypes(selected.filter((s) => s !== "Open to All"));
                 }
               }}
-              presets={["Open to All", ...SPONSOR_TYPES]}
+              presets={["Open to All", ...availableSponsorTypes]}
               allowCustom={false}
               maxSelections={20}
               placeholder="Select sponsor types"

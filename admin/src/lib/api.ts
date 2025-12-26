@@ -448,3 +448,65 @@ export async function deleteComment(
     method: "DELETE",
   });
 }
+
+// ============================================
+// SPONSOR TYPES API
+// ============================================
+
+export interface SponsorType {
+  id: number;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  usage_count?: number;
+}
+
+// Get all sponsor types (admin - includes inactive and usage count)
+export async function getSponsorTypes(): Promise<SponsorType[]> {
+  const data = await apiRequest<{
+    success: boolean;
+    sponsorTypes: SponsorType[];
+  }>("/admin/sponsor-types");
+  return data.sponsorTypes;
+}
+
+// Create a new sponsor type
+export async function createSponsorType(sponsorType: {
+  name: string;
+  display_order?: number;
+  is_active?: boolean;
+}): Promise<SponsorType> {
+  const data = await apiRequest<{ success: boolean; sponsorType: SponsorType }>(
+    "/admin/sponsor-types",
+    {
+      method: "POST",
+      body: JSON.stringify(sponsorType),
+    }
+  );
+  return data.sponsorType;
+}
+
+// Update a sponsor type
+export async function updateSponsorType(
+  id: number,
+  updates: Partial<SponsorType>
+): Promise<SponsorType> {
+  const data = await apiRequest<{ success: boolean; sponsorType: SponsorType }>(
+    `/admin/sponsor-types/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    }
+  );
+  return data.sponsorType;
+}
+
+// Delete a sponsor type
+export async function deleteSponsorType(
+  id: number
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/sponsor-types/${id}`, {
+    method: "DELETE",
+  });
+}
