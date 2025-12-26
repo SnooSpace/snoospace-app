@@ -298,3 +298,38 @@ export async function deleteUser(
     method: "DELETE",
   });
 }
+
+// ============================================
+// FOLLOWERS/FOLLOWING API
+// ============================================
+
+export interface FollowUser {
+  id: number;
+  follower_id?: number;
+  follower_type?: string;
+  following_id?: number;
+  following_type?: string;
+  follower_name?: string;
+  follower_username?: string;
+  follower_photo_url?: string;
+  following_name?: string;
+  following_username?: string;
+  following_photo_url?: string;
+  created_at: string;
+}
+
+// Get followers list for a user
+export async function getFollowers(
+  userId: number,
+  userType: "member" | "community"
+): Promise<{ followers: FollowUser[] }> {
+  return apiRequest(`/followers/${userId}/${userType}`);
+}
+
+// Get following list for a user
+export async function getFollowing(
+  userId: number,
+  userType: "member" | "community"
+): Promise<{ following: FollowUser[] }> {
+  return apiRequest(`/following/${userId}/${userType}`);
+}

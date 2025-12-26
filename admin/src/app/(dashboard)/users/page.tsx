@@ -51,11 +51,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   getUsers,
   updateUser,
   deleteUser,
+  getFollowers,
+  getFollowing,
   type User,
   type GetUsersParams,
+  type FollowUser,
 } from "@/lib/api";
 
 export default function UsersPage() {
@@ -64,6 +73,15 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [expandedLocation, setExpandedLocation] = useState(false);
+
+  // Followers/Following Modal
+  const [followModalOpen, setFollowModalOpen] = useState(false);
+  const [followModalType, setFollowModalType] = useState<
+    "followers" | "following"
+  >("followers");
+  const [followList, setFollowList] = useState<FollowUser[]>([]);
+  const [followLoading, setFollowLoading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -117,7 +135,31 @@ export default function UsersPage() {
 
   const handleViewUser = (user: User) => {
     setSelectedUser(user);
+    setExpandedLocation(false);
     setIsSheetOpen(true);
+  };
+
+  const handleShowFollowList = async (type: "followers" | "following") => {
+    if (!selectedUser) return;
+
+    setFollowModalType(type);
+    setFollowModalOpen(true);
+    setFollowLoading(true);
+    setFollowList([]);
+
+    try {
+      if (type === "followers") {
+        const data = await getFollowers(selectedUser.id, selectedUser.type);
+        setFollowList(data.followers);
+      } else {
+        const data = await getFollowing(selectedUser.id, selectedUser.type);
+        setFollowList(data.following);
+      }
+    } catch (err) {
+      console.error(`Error fetching ${type}:`, err);
+    } finally {
+      setFollowLoading(false);
+    }
   };
 
   const handleToggleBan = async (user: User) => {
@@ -444,7 +486,7 @@ export default function UsersPage() {
 
       {/* User Details Sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent className="overflow-y-auto px-6 pb-8">
           {selectedUser && (
             <>
               <SheetHeader>
@@ -466,7 +508,7 @@ export default function UsersPage() {
                 </div>
               </SheetHeader>
 
-              <div className="mt-6 space-y-6">
+              <div className="mt-8 space-y-8">
                 {/* Status & Type */}
                 <div className="flex gap-2">
                   <Badge
@@ -508,9 +550,28 @@ export default function UsersPage() {
                       </div>
                     )}
                     {selectedUser.location && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        {formatLocation(selectedUser.location)}
+                      <div className="text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <span
+                              className={expandedLocation ? "" : "line-clamp-2"}
+                            >
+                              {formatLocation(selectedUser.location)}
+                            </span>
+                            {formatLocation(selectedUser.location).length >
+                              50 && (
+                              <button
+                                onClick={() =>
+                                  setExpandedLocation(!expandedLocation)
+                                }
+                                className="text-xs text-primary hover:underline mt-1 block"
+                              >
+                                {expandedLocation ? "Show less" : "Show more"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -629,23 +690,29 @@ export default function UsersPage() {
                 <div className="space-y-2">
                   <h4 className="font-semibold">Stats</h4>
                   <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
+                    <button
+                      onClick={() => handleShowFollowList("followers")}
+                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                    >
                       <div className="text-2xl font-bold">
                         {selectedUser.follower_count || 0}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Followers
                       </div>
-                    </div>
-                    <div>
+                    </button>
+                    <button
+                      onClick={() => handleShowFollowList("following")}
+                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                    >
                       <div className="text-2xl font-bold">
                         {selectedUser.following_count || 0}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Following
                       </div>
-                    </div>
-                    <div>
+                    </button>
+                    <div className="p-2">
                       <div className="text-2xl font-bold">
                         {selectedUser.post_count || 0}
                       </div>
@@ -678,6 +745,85 @@ export default function UsersPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Followers/Following Modal */}
+      <Dialog open={followModalOpen} onOpenChange={setFollowModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {followModalType === "followers" ? "Followers" : "Following"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {followLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : followList.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No {followModalType} yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {followList.map((item) => {
+                  const name =
+                    followModalType === "followers"
+                      ? item.follower_name
+                      : item.following_name;
+                  const username =
+                    followModalType === "followers"
+                      ? item.follower_username
+                      : item.following_username;
+                  const photoUrl =
+                    followModalType === "followers"
+                      ? item.follower_photo_url
+                      : item.following_photo_url;
+                  const type =
+                    followModalType === "followers"
+                      ? item.follower_type
+                      : item.following_type;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
+                    >
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={photoUrl || undefined} />
+                        <AvatarFallback>
+                          {name
+                            ?.split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">
+                          {name || "Unknown"}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          @{username || "unknown"}
+                        </div>
+                      </div>
+                      <Badge
+                        variant={type === "member" ? "default" : "secondary"}
+                      >
+                        {type === "member"
+                          ? "Member"
+                          : type === "community"
+                          ? "Community"
+                          : type}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
