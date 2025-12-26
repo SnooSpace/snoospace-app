@@ -205,6 +205,7 @@ export interface User {
   username: string;
   email: string;
   phone: string | null;
+  secondary_phone?: string | null;
   profile_photo_url: string | null;
   location: string | null;
   pronouns: string[] | null;
@@ -215,6 +216,12 @@ export interface User {
   head1_phone?: string | null;
   head2_name?: string | null;
   head2_phone?: string | null;
+  heads?: Array<{
+    name: string;
+    phone: string | null;
+    profile_pic_url: string | null;
+    is_primary: boolean;
+  }>;
   is_active: boolean;
   created_at: string;
   follower_count: number;

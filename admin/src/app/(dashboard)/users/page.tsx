@@ -9,7 +9,7 @@ import {
   Trash2,
   Users as UsersIcon,
   Building2,
-  User,
+  User as UserIcon,
   MapPin,
   Mail,
   Phone,
@@ -345,7 +345,7 @@ export default function UsersPage() {
                         }
                       >
                         {user.type === "member" ? (
-                          <User className="mr-1 h-3 w-3" />
+                          <UserIcon className="mr-1 h-3 w-3" />
                         ) : (
                           <Building2 className="mr-1 h-3 w-3" />
                         )}
@@ -494,7 +494,17 @@ export default function UsersPage() {
                     {selectedUser.phone && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Phone className="h-4 w-4" />
-                        {selectedUser.phone}
+                        <span>{selectedUser.phone}</span>
+                        {selectedUser.type === "community" && (
+                          <span className="text-xs">Primary</span>
+                        )}
+                      </div>
+                    )}
+                    {selectedUser.secondary_phone && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        <span>{selectedUser.secondary_phone}</span>
+                        <span className="text-xs">Secondary</span>
                       </div>
                     )}
                     {selectedUser.location && (
@@ -545,26 +555,50 @@ export default function UsersPage() {
                   </div>
                 )}
 
-                {/* Head Names (Communities only) */}
+                {/* Community Heads (Communities only) */}
                 {selectedUser.type === "community" &&
-                  (selectedUser.head1_name || selectedUser.head2_name) && (
+                  selectedUser.heads &&
+                  selectedUser.heads.length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="font-semibold">Heads / Organizers</h4>
-                      <div className="space-y-1 text-sm">
-                        {selectedUser.head1_name && (
-                          <div className="text-muted-foreground">
-                            {selectedUser.head1_name}
-                            {selectedUser.head1_phone &&
-                              ` • ${selectedUser.head1_phone}`}
+                      <h4 className="font-semibold">Community Heads</h4>
+                      <div className="space-y-3">
+                        {selectedUser.heads.map((head, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage
+                                src={head.profile_pic_url || undefined}
+                              />
+                              <AvatarFallback>
+                                {head.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">
+                                {head.name}
+                              </div>
+                              {head.phone && (
+                                <div className="text-xs text-muted-foreground">
+                                  {head.phone}
+                                </div>
+                              )}
+                            </div>
+                            <Badge
+                              variant={
+                                head.is_primary ? "default" : "secondary"
+                              }
+                            >
+                              {head.is_primary ? "Primary" : "Secondary"}
+                            </Badge>
                           </div>
-                        )}
-                        {selectedUser.head2_name && (
-                          <div className="text-muted-foreground">
-                            {selectedUser.head2_name}
-                            {selectedUser.head2_phone &&
-                              ` • ${selectedUser.head2_phone}`}
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   )}
@@ -603,16 +637,14 @@ export default function UsersPage() {
                         Followers
                       </div>
                     </div>
-                    {selectedUser.type === "member" && (
-                      <div>
-                        <div className="text-2xl font-bold">
-                          {selectedUser.following_count || 0}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Following
-                        </div>
+                    <div>
+                      <div className="text-2xl font-bold">
+                        {selectedUser.following_count || 0}
                       </div>
-                    )}
+                      <div className="text-xs text-muted-foreground">
+                        Following
+                      </div>
+                    </div>
                     <div>
                       <div className="text-2xl font-bold">
                         {selectedUser.post_count || 0}

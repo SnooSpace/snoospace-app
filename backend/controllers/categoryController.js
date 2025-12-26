@@ -844,10 +844,13 @@ const getAllUsers = async (req, res) => {
       try {
         let memberQuery = `
           SELECT 
-            id, 'member' as type, name, username, email, phone,
-            profile_photo_url, location, pronouns, bio, interests,
-            true as is_active, created_at
-          FROM members
+            m.id, 'member' as type, m.name, m.username, m.email, m.phone,
+            m.profile_photo_url, m.location, m.pronouns, m.bio, m.interests,
+            true as is_active, m.created_at,
+            (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
+            (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
+            (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count
+          FROM members m
         `;
         const params = [];
         const conditions = [];
@@ -855,7 +858,7 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`
+            `(m.name ILIKE $${params.length} OR m.username ILIKE $${params.length} OR m.email ILIKE $${params.length})`
           );
         }
         // Note: is_active column doesn't exist in members table, so status filtering is skipped
@@ -873,12 +876,7 @@ const getAllUsers = async (req, res) => {
         const memberResult = await pool.query(memberQuery, params);
         console.log("[getAllUsers] Members found:", memberResult.rows.length);
 
-        users = users.concat(
-          memberResult.rows.map((u) => ({
-            ...u,
-            follower_count: 0, // Simplified - avoid subquery issues
-          }))
-        );
+        users = users.concat(memberResult.rows);
       } catch (memberErr) {
         console.error("Error fetching members:", memberErr);
       }
@@ -888,12 +886,15 @@ const getAllUsers = async (req, res) => {
       try {
         let communityQuery = `
           SELECT 
-            id, 'community' as type, name, username, email, phone,
-            logo_url as profile_photo_url, location, NULL as pronouns, bio,
-            sponsor_types as interests, category,
-            NULL as head1_name, NULL as head1_phone, NULL as head2_name, NULL as head2_phone,
-            true as is_active, created_at
-          FROM communities
+            c.id, 'community' as type, c.name, c.username, c.email, c.phone,
+            c.secondary_phone,
+            c.logo_url as profile_photo_url, c.location, NULL as pronouns, c.bio,
+            c.sponsor_types as interests, c.category,
+            true as is_active, c.created_at,
+            (SELECT COUNT(*) FROM follows WHERE following_id = c.id AND following_type = 'community') as follower_count,
+            (SELECT COUNT(*) FROM follows WHERE follower_id = c.id AND follower_type = 'community') as following_count,
+            (SELECT COUNT(*) FROM posts WHERE author_id = c.id AND author_type = 'community') as post_count
+          FROM communities c
         `;
         const params = [];
         const conditions = [];
@@ -901,7 +902,7 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`
+            `(c.name ILIKE $${params.length} OR c.username ILIKE $${params.length} OR c.email ILIKE $${params.length})`
           );
         }
         // Note: is_active column doesn't exist in communities table, so status filtering is skipped
@@ -922,12 +923,22 @@ const getAllUsers = async (req, res) => {
           communityResult.rows.length
         );
 
-        users = users.concat(
-          communityResult.rows.map((u) => ({
-            ...u,
-            follower_count: 0, // Simplified - avoid subquery issues
-          }))
-        );
+        // Fetch community heads for each community
+        for (const community of communityResult.rows) {
+          try {
+            const headsResult = await pool.query(
+              `SELECT name, phone, profile_pic_url, is_primary FROM community_heads 
+               WHERE community_id = $1 ORDER BY is_primary DESC`,
+              [community.id]
+            );
+            community.heads = headsResult.rows;
+          } catch (headErr) {
+            console.error("Error fetching community heads:", headErr);
+            community.heads = [];
+          }
+        }
+
+        users = users.concat(communityResult.rows);
       } catch (communityErr) {
         console.error("Error fetching communities:", communityErr);
       }
