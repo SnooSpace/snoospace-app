@@ -263,6 +263,13 @@ export default function UsersPage() {
     try {
       await deleteComment(commentId);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
+      // Update the comment count in selectedPost
+      if (selectedPost) {
+        setSelectedPost({
+          ...selectedPost,
+          comment_count: Math.max(0, (selectedPost.comment_count || 0) - 1),
+        });
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete comment");
     }
