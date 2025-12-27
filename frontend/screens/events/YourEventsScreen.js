@@ -14,7 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { getInterestedEvents } from "../../api/events";
+import { getInterestedEvents, toggleEventInterest } from "../../api/events";
+import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import { COLORS } from "../../constants/theme";
 import { getGradientForName } from "../../utils/AvatarGenerator";
@@ -28,10 +29,13 @@ const LIGHT_TEXT_COLOR = "#8E8E93";
 const EventListCard = ({
   item,
   onPress,
+  onRemoveInterest,
   getLowestPrice,
   formatDateBadge,
   formatTime,
+  showRemoveButton,
 }) => {
+  const [isRemoving, setIsRemoving] = useState(false);
   const displayImage = item.banner_carousel?.[0]?.image_url || item.banner_url;
   const lowestPrice = getLowestPrice(item);
   const isCancelled = item.is_cancelled;
@@ -46,6 +50,16 @@ const EventListCard = ({
 
   const locationDisplay =
     item.event_type === "virtual" ? "Virtual Event" : locationName;
+
+  const handleRemove = async () => {
+    if (isRemoving) return;
+    setIsRemoving(true);
+    try {
+      await onRemoveInterest(item);
+    } finally {
+      setIsRemoving(false);
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -80,10 +94,26 @@ const EventListCard = ({
 
       {/* Right - Event Info */}
       <View style={cardStyles.eventInfo}>
-        {/* Title */}
-        <Text style={cardStyles.eventTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
+        {/* Title Row with Bookmark */}
+        <View style={cardStyles.titleRow}>
+          <Text style={cardStyles.eventTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          {showRemoveButton && (
+            <TouchableOpacity
+              style={cardStyles.bookmarkButton}
+              onPress={handleRemove}
+              disabled={isRemoving}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name="bookmark"
+                size={20}
+                color={isRemoving ? LIGHT_TEXT_COLOR : PRIMARY_COLOR}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Date & Time Row */}
         <View style={cardStyles.dateTimeRow}>
@@ -171,12 +201,22 @@ const cardStyles = StyleSheet.create({
     padding: 12,
     justifyContent: "space-between",
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   eventTitle: {
     fontSize: 15,
     fontWeight: "600",
     color: TEXT_COLOR,
-    marginBottom: 4,
     lineHeight: 20,
+    flex: 1,
+    marginRight: 8,
+  },
+  bookmarkButton: {
+    padding: 2,
   },
   dateTimeRow: {
     flexDirection: "row",
@@ -366,13 +406,41 @@ export default function YourEventsScreen({ navigation }) {
     });
   };
 
+  const handleRemoveInterest = async (item) => {
+    try {
+      HapticsService.triggerImpactLight();
+
+      // Optimistically remove from UI
+      setInterestedEvents((prev) => prev.filter((e) => e.id !== item.id));
+
+      const response = await toggleEventInterest(item.id);
+
+      if (!response?.success) {
+        // Revert if API failed - refresh the list
+        loadInterestedEvents();
+      } else {
+        // Notify other components
+        EventBus.emit("event-interest-updated", {
+          eventId: item.id,
+          isInterested: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error removing interest:", error);
+      // Revert on error
+      loadInterestedEvents();
+    }
+  };
+
   const renderEvent = ({ item }) => (
     <EventListCard
       item={item}
       onPress={handleEventPress}
+      onRemoveInterest={handleRemoveInterest}
       getLowestPrice={getLowestPrice}
       formatDateBadge={formatDateBadge}
       formatTime={formatTime}
+      showRemoveButton={activeTab === "Interested"}
     />
   );
 
