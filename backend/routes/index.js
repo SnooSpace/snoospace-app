@@ -617,6 +617,17 @@ router.get(
   authMiddleware,
   EventController.getCommunityEvents
 );
+// Event interest (bookmark) routes - must be before :eventId routes
+router.get(
+  "/events/interested",
+  authMiddleware,
+  EventController.getInterestedEvents
+);
+router.post(
+  "/events/:eventId/interest",
+  authMiddleware,
+  EventController.toggleEventInterest
+);
 router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
 router.delete("/events/:eventId", authMiddleware, EventController.deleteEvent);

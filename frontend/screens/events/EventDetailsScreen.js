@@ -15,11 +15,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getEventDetails } from "../../api/events";
+import { getEventDetails, toggleEventInterest } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS } from "../../constants/theme";
 import { useLocationName } from "../../utils/locationNameCache";
 import { getActiveAccount } from "../../api/auth";
+import HapticsService from "../../services/HapticsService";
+import EventBus from "../../utils/EventBus";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -45,6 +47,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showCreatorToast, setShowCreatorToast] = useState(false);
+  const [isInterested, setIsInterested] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -69,6 +73,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
       const response = await getEventDetails(id);
       if (response?.event) {
         setEvent(response.event);
+        setIsInterested(response.event.is_interested || false);
       } else {
         // If API fails but we have initialData, use it
         if (!initialData) {
@@ -193,6 +198,40 @@ const EventDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  // Handle bookmark/interest toggle
+  const handleBookmark = async () => {
+    if (bookmarkLoading || !event?.id) return;
+
+    try {
+      setBookmarkLoading(true);
+      HapticsService.triggerImpactLight();
+
+      // Optimistic update
+      const newState = !isInterested;
+      setIsInterested(newState);
+
+      const response = await toggleEventInterest(event.id);
+
+      if (response?.success) {
+        setIsInterested(response.is_interested);
+        // Notify other components (like YourEventsScreen) about the change
+        EventBus.emit("event-interest-updated", {
+          eventId: event.id,
+          isInterested: response.is_interested,
+        });
+      } else {
+        // Revert on failure
+        setIsInterested(!newState);
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+      // Revert on error
+      setIsInterested(!isInterested);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
   // Navigate to featured account's profile based on account type
   const handleFeaturedAccountPress = (account) => {
     if (!account.linked_account_id || !account.linked_account_type) return;
@@ -289,8 +328,16 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
             <View style={styles.headerRight}>
               {currentUser?.type === "member" && (
-                <TouchableOpacity style={styles.headerButton}>
-                  <Ionicons name="bookmark-outline" size={24} color="#FFFFFF" />
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={handleBookmark}
+                  disabled={bookmarkLoading}
+                >
+                  <Ionicons
+                    name={isInterested ? "bookmark" : "bookmark-outline"}
+                    size={24}
+                    color="#FFFFFF"
+                  />
                 </TouchableOpacity>
               )}
             </View>

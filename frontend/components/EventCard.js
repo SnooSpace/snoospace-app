@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, BORDER_RADIUS, SHADOWS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
 import { useLocationName } from "../utils/locationNameCache";
+import { toggleEventInterest } from "../api/events";
+import HapticsService from "../services/HapticsService";
+import EventBus from "../utils/EventBus";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -31,6 +34,11 @@ export default function EventCard({
   onInterestedPress,
   style,
 }) {
+  const [isInterested, setIsInterested] = useState(
+    event?.is_interested || false
+  );
+  const [interestLoading, setInterestLoading] = useState(false);
+
   if (!event) return null;
 
   const {
@@ -80,6 +88,43 @@ export default function EventCard({
   });
 
   const hasValidPhoto = community_logo && /^https?:\/\//.test(community_logo);
+
+  // Handle interested button press
+  const handleInterestedPress = async () => {
+    if (interestLoading) return;
+
+    try {
+      setInterestLoading(true);
+      HapticsService.triggerImpactLight();
+
+      // Optimistic update
+      const newState = !isInterested;
+      setIsInterested(newState);
+
+      const response = await toggleEventInterest(id);
+
+      if (response?.success) {
+        setIsInterested(response.is_interested);
+        // Notify other components about the change
+        EventBus.emit("event-interest-updated", {
+          eventId: id,
+          isInterested: response.is_interested,
+        });
+      } else {
+        // Revert on failure
+        setIsInterested(!newState);
+      }
+    } catch (error) {
+      console.error("Error toggling interest:", error);
+      // Revert on error
+      setIsInterested(isInterested);
+    } finally {
+      setInterestLoading(false);
+    }
+
+    // Also call parent callback if provided
+    onInterestedPress?.(event);
+  };
 
   return (
     <TouchableOpacity
@@ -213,17 +258,28 @@ export default function EventCard({
             </View>
 
             <TouchableOpacity
-              style={styles.interestedButton}
-              onPress={() => onInterestedPress?.(event)}
+              style={[
+                styles.interestedButton,
+                isInterested && styles.interestedButtonActive,
+              ]}
+              onPress={handleInterestedPress}
+              disabled={interestLoading}
             >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.interestedGradient}
-              >
-                <Text style={styles.interestedText}>Interested</Text>
-              </LinearGradient>
+              {isInterested ? (
+                <View style={styles.interestedActiveContent}>
+                  <Ionicons name="bookmark" size={16} color={COLORS.primary} />
+                  <Text style={styles.interestedActiveText}>Saved</Text>
+                </View>
+              ) : (
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.interestedGradient}
+                >
+                  <Text style={styles.interestedText}>Interested</Text>
+                </LinearGradient>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -374,6 +430,23 @@ const styles = StyleSheet.create({
   interestedButton: {
     borderRadius: BORDER_RADIUS.m,
     overflow: "hidden",
+  },
+  interestedButtonActive: {
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: "#F0E6FF",
+  },
+  interestedActiveContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  interestedActiveText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   interestedGradient: {
     paddingHorizontal: 16,

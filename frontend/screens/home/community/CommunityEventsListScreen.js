@@ -21,7 +21,7 @@ import {
 } from "../../../api/events";
 import ActionModal from "../../../components/modals/ActionModal";
 
-const PRIMARY_COLOR = COLORS.primary;
+const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 
@@ -367,7 +367,7 @@ export default function CommunityEventsListScreen({ navigation, route }) {
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "upcoming" && styles.activeTab]}
+          style={styles.tab}
           onPress={() => setActiveTab("upcoming")}
         >
           <Text
@@ -378,9 +378,17 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           >
             Upcoming
           </Text>
+          {activeTab === "upcoming" && (
+            <LinearGradient
+              colors={["#00C6FF", "#007AFF"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.activeTabIndicator}
+            />
+          )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "past" && styles.activeTab]}
+          style={styles.tab}
           onPress={() => setActiveTab("past")}
         >
           <Text
@@ -391,6 +399,14 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           >
             Past
           </Text>
+          {activeTab === "past" && (
+            <LinearGradient
+              colors={["#00C6FF", "#007AFF"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.activeTabIndicator}
+            />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -463,18 +479,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    paddingHorizontal: 16,
+    // Removed border bottom line per user request
   },
   tab: {
     flex: 1,
     paddingVertical: 14,
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    position: "relative",
   },
-  activeTab: {
-    borderBottomColor: PRIMARY_COLOR,
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    height: 3,
+    width: "80%",
+    borderRadius: 3,
   },
   tabText: {
     fontSize: 15,
@@ -556,7 +575,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: 14,
     fontWeight: "700",
-    color: PRIMARY_COLOR,
+    color: "#34C759", // Green shade for price
   },
   emptyContainer: {
     alignItems: "center",

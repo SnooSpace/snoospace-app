@@ -122,3 +122,22 @@ export async function cancelEvent(eventId) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPatch(`/events/${eventId}/cancel`, {}, 15000, token);
 }
+
+/**
+ * Toggle event interest (bookmark) status
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} { success: boolean, is_interested: boolean }
+ */
+export async function toggleEventInterest(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(`/events/${eventId}/interest`, {}, 15000, token);
+}
+
+/**
+ * Get events user has marked as interested
+ * @returns {Promise<Object>} List of interested events
+ */
+export async function getInterestedEvents() {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet("/events/interested", 15000, token);
+}

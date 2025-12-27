@@ -19,7 +19,7 @@ import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 
-const PRIMARY_COLOR = COLORS.primary;
+const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 
@@ -398,7 +398,7 @@ export default function CommunityDashboardScreen({ navigation }) {
             style={styles.editButton}
             onPress={() => handleEditEvent(item)}
           >
-            <Ionicons name="pencil" size={14} color={PRIMARY_COLOR} />
+            <Ionicons name="pencil" size={14} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
@@ -421,7 +421,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 50 }}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -432,33 +432,47 @@ export default function CommunityDashboardScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActions}>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={styles.actionButtonContainer}
               onPress={handleCreateEvent}
             >
               <LinearGradient
-                colors={COLORS.primaryGradient}
+                colors={["#FFFFFF", "#F0F8FF"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.actionIconContainer}
+                style={styles.cardGradient}
               >
-                <Ionicons name="calendar" size={32} color="#FFFFFF" />
+                <LinearGradient
+                  colors={["#00C6FF", "#007AFF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionIconContainer}
+                >
+                  <Ionicons name="calendar" size={32} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.actionButtonText}>Create Event</Text>
               </LinearGradient>
-              <Text style={styles.actionButtonText}>Create Event</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionButton}
+              style={styles.actionButtonContainer}
               onPress={handleCreatePost}
             >
               <LinearGradient
-                colors={COLORS.primaryGradient}
+                colors={["#FFFFFF", "#F0F8FF"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.actionIconContainer}
+                style={styles.cardGradient}
               >
-                <Ionicons name="add" size={32} color="#FFFFFF" />
+                <LinearGradient
+                  colors={["#00C6FF", "#007AFF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionIconContainer}
+                >
+                  <Ionicons name="add" size={32} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.actionButtonText}>Create Post</Text>
               </LinearGradient>
-              <Text style={styles.actionButtonText}>Create Post</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -467,22 +481,45 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Community Metrics</Text>
           <View style={styles.metricsContainer}>
-            <View style={styles.metricCard}>
-              <Ionicons name="people" size={32} color={PRIMARY_COLOR} />
-              <Text style={styles.metricNumber}>{metrics.totalMembers}</Text>
-              <Text style={styles.metricLabel}>Total Members</Text>
+            <View style={styles.metricCardContainer}>
+              <LinearGradient
+                colors={["#FFFFFF", "#F0F8FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
+              >
+                <Ionicons name="people" size={32} color={PRIMARY_COLOR} />
+                <Text style={styles.metricNumber}>{metrics.totalMembers}</Text>
+                <Text style={styles.metricLabel}>Total Members</Text>
+              </LinearGradient>
             </View>
 
-            <View style={styles.metricCard}>
-              <Ionicons name="calendar" size={32} color={PRIMARY_COLOR} />
-              <Text style={styles.metricNumber}>{metrics.eventsHosted}</Text>
-              <Text style={styles.metricLabel}>Events Hosted</Text>
+            <View style={styles.metricCardContainer}>
+              <LinearGradient
+                colors={["#FFFFFF", "#F0F8FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
+              >
+                <Ionicons name="calendar" size={32} color={PRIMARY_COLOR} />
+                <Text style={styles.metricNumber}>{metrics.eventsHosted}</Text>
+                <Text style={styles.metricLabel}>Events Hosted</Text>
+              </LinearGradient>
             </View>
 
-            <View style={styles.metricCard}>
-              <Ionicons name="handshake" size={32} color={PRIMARY_COLOR} />
-              <Text style={styles.metricNumber}>{metrics.collaborations}</Text>
-              <Text style={styles.metricLabel}>Collaborations</Text>
+            <View style={styles.metricCardContainer}>
+              <LinearGradient
+                colors={["#FFFFFF", "#F0F8FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
+              >
+                <Ionicons name="handshake" size={32} color={PRIMARY_COLOR} />
+                <Text style={styles.metricNumber}>
+                  {metrics.collaborations}
+                </Text>
+                <Text style={styles.metricLabel}>Collaborations</Text>
+              </LinearGradient>
             </View>
           </View>
         </View>
@@ -491,7 +528,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.section}>
           <View style={styles.tabsContainer}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === "upcoming" && styles.activeTab]}
+              style={styles.tab}
               onPress={() => setActiveTab("upcoming")}
             >
               <Text
@@ -502,9 +539,17 @@ export default function CommunityDashboardScreen({ navigation }) {
               >
                 Upcoming Events
               </Text>
+              {activeTab === "upcoming" && (
+                <LinearGradient
+                  colors={["#00C6FF", "#007AFF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.activeTabIndicator}
+                />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === "previous" && styles.activeTab]}
+              style={styles.tab}
               onPress={() => setActiveTab("previous")}
             >
               <Text
@@ -515,11 +560,21 @@ export default function CommunityDashboardScreen({ navigation }) {
               >
                 Previous Events
               </Text>
+              {activeTab === "previous" && (
+                <LinearGradient
+                  colors={["#00C6FF", "#007AFF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.activeTabIndicator}
+                />
+              )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.eventsHeader}>
-            <Text style={styles.longPressHint}>Long press to delete</Text>
+            <Text style={styles.longPressHint}>
+              *Long press to cancel or delete event
+            </Text>
             <TouchableOpacity onPress={handleViewAllEvents}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
@@ -625,14 +680,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 15,
   },
-  actionButton: {
+  actionButtonContainer: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
-    borderRadius: 12,
+    borderRadius: 16,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    backgroundColor: "#fff", // needed for shadow on iOS sometimes
+  },
+  cardGradient: {
     padding: 20,
+    borderRadius: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: "rgba(0, 122, 255, 0.1)",
+    width: "100%",
   },
   actionIconContainer: {
     width: 60,
@@ -641,6 +705,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
   },
   actionButtonText: {
     fontSize: 14,
@@ -652,13 +721,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 15,
   },
-  metricCard: {
+  metricCardContainer: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    ...SHADOWS.sm,
+    borderRadius: 16,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    backgroundColor: "#fff",
   },
   metricNumber: {
     fontSize: 24,
@@ -680,10 +751,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     alignItems: "center",
+    position: "relative",
   },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: PRIMARY_COLOR,
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    height: 3,
+    width: "80%",
+    borderRadius: 3,
   },
   tabText: {
     fontSize: 16,
@@ -709,25 +784,29 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   eventCard: {
-    width: 200,
+    width: 240, // Increased width for better presence
     marginRight: 15,
-    borderRadius: 16, // Softer radius
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E5E5EA", // Border for separation
-    ...SHADOWS.sm, // Theme shadow
+    borderColor: "rgba(0, 122, 255, 0.1)", // Subtle blue border
+    shadowColor: "#007AFF", // Blue tinted shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
     overflow: "hidden",
   },
   eventImage: {
     width: "100%",
-    height: 120,
+    height: 150, // Increased height
     backgroundColor: "#F8F5FF",
   },
   eventInfo: {
     padding: 12,
   },
   eventTitle: {
-    fontSize: 14,
+    fontSize: 15, // Slightly larger title
     fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 4,
@@ -748,9 +827,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   editButton: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: "#F8F5FF",
+    padding: 8,
+    borderRadius: 20, // Circular
+    backgroundColor: "#1D1D1F", // Solid Black
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   eventAttendees: {
     fontSize: 11,

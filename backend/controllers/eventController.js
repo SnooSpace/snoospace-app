@@ -968,6 +968,7 @@ const discoverEvents = async (req, res) => {
         LEFT JOIN followed_communities fc ON e.community_id = fc.following_id
         WHERE e.is_published = true
           AND e.start_datetime > NOW() -- Only future events
+          AND (e.is_cancelled = false OR e.is_cancelled IS NULL) -- Exclude cancelled events
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT $3 OFFSET $4
       )
@@ -1879,6 +1880,18 @@ const getEventById = async (req, res) => {
       categories_count: categories.length,
     });
 
+    // Check if current user has bookmarked this event (members only)
+    let isInterested = false;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (userId && userType === "member") {
+      const interestCheck = await pool.query(
+        "SELECT id FROM event_interests WHERE event_id = $1 AND member_id = $2",
+        [eventId, userId]
+      );
+      isInterested = interestCheck.rows.length > 0;
+    }
+
     res.json({
       success: true,
       event: {
@@ -1893,6 +1906,7 @@ const getEventById = async (req, res) => {
         discount_codes: discountCodesResult.rows,
         pricing_rules: pricingRulesResult.rows,
         categories: categories,
+        is_interested: isInterested,
       },
     });
   } catch (error) {
@@ -2193,6 +2207,126 @@ const cancelEvent = async (req, res) => {
   }
 };
 
+/**
+ * Toggle interest (bookmark) for an event
+ * POST /events/:eventId/interest
+ * Members only - toggles the interest status
+ */
+const toggleEventInterest = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    if (!userId || userType !== "member") {
+      return res
+        .status(403)
+        .json({ error: "Only members can bookmark events" });
+    }
+
+    // Check if interest already exists
+    const existingInterest = await pool.query(
+      "SELECT id FROM event_interests WHERE event_id = $1 AND member_id = $2",
+      [eventId, userId]
+    );
+
+    let isInterested;
+    if (existingInterest.rows.length > 0) {
+      // Remove interest
+      await pool.query(
+        "DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2",
+        [eventId, userId]
+      );
+      isInterested = false;
+    } else {
+      // Add interest
+      await pool.query(
+        "INSERT INTO event_interests (event_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [eventId, userId]
+      );
+      isInterested = true;
+    }
+
+    res.json({
+      success: true,
+      is_interested: isInterested,
+    });
+  } catch (error) {
+    console.error("Error toggling event interest:", error);
+    res.status(500).json({ error: "Failed to toggle interest" });
+  }
+};
+
+/**
+ * Get events user has marked as interested
+ * GET /events/interested
+ * Members only
+ */
+const getInterestedEvents = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res
+        .status(403)
+        .json({ error: "Only members can view interested events" });
+    }
+
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        e.start_datetime as event_date,
+        e.end_datetime,
+        e.location_url,
+        e.max_attendees,
+        e.banner_url,
+        e.event_type,
+        e.is_cancelled,
+        c.id as community_id,
+        c.name as community_name,
+        c.username as community_username,
+        c.logo_url as community_logo,
+        ei.created_at as interested_at
+      FROM event_interests ei
+      INNER JOIN events e ON ei.event_id = e.id
+      INNER JOIN communities c ON e.community_id = c.id
+      WHERE ei.member_id = $1
+        AND e.is_published = true
+        AND (e.is_cancelled = false OR e.is_cancelled IS NULL)
+      ORDER BY e.start_datetime ASC
+    `;
+
+    const result = await pool.query(query, [userId]);
+
+    // Format events for display
+    const events = result.rows.map((event) => ({
+      ...event,
+      formatted_date: new Date(event.event_date).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+      formatted_time: new Date(event.event_date).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      is_past: new Date(event.event_date) < new Date(),
+    }));
+
+    res.json({
+      success: true,
+      events,
+    });
+  } catch (error) {
+    console.error("Error getting interested events:", error);
+    res.status(500).json({ error: "Failed to get interested events" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -2207,4 +2341,6 @@ module.exports = {
   getEventById,
   deleteEvent,
   cancelEvent,
+  toggleEventInterest,
+  getInterestedEvents,
 };
