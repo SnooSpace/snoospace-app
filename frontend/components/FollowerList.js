@@ -50,9 +50,14 @@ export default function FollowerList({
     }
     (async () => {
       try {
-        const id = await resolveMyId();
-        if (isMounted && id) {
-          setMyId(id);
+        const result = await resolveMyId();
+        if (isMounted && result) {
+          // Support both formats: simple ID or { id, type } object
+          if (typeof result === "object" && result.id) {
+            setMyId(result);
+          } else {
+            setMyId({ id: result, type: "member" });
+          }
         }
       } catch (error) {
         console.warn("[FollowerList] resolveMyId failed", error);
@@ -124,9 +129,9 @@ export default function FollowerList({
       }
     };
 
-    EventBus.on('follow-updated', handleFollowUpdate);
+    EventBus.on("follow-updated", handleFollowUpdate);
     return () => {
-      EventBus.off('follow-updated', handleFollowUpdate);
+      EventBus.off("follow-updated", handleFollowUpdate);
     };
   }, []);
 
@@ -138,7 +143,7 @@ export default function FollowerList({
   );
 
   const handleToggleFollow = useCallback(
-    async (id, isFollowing, entityType = 'member') => {
+    async (id, isFollowing, entityType = "member") => {
       if (!onToggleFollow) return;
       setItems((prev) =>
         prev.map((item) =>
@@ -162,7 +167,7 @@ export default function FollowerList({
       <View style={styles.row}>
         <TouchableOpacity
           style={styles.userInfo}
-          onPress={() => onItemPress && onItemPress(item, myId)}
+          onPress={() => onItemPress && onItemPress(item, myId?.id)}
         >
           <Image
             source={{ uri: item.avatarUrl || placeholderImage }}
@@ -179,28 +184,41 @@ export default function FollowerList({
             )}
           </View>
         </TouchableOpacity>
-        {item.id !== myId && onToggleFollow && (
-          <TouchableOpacity
-            style={[
-              styles.followBtn,
-              item.isFollowing
-                ? styles.followingBtn
-                : styles.followBtnPrimary(primaryColor),
-            ]}
-            onPress={() => handleToggleFollow(item.id, !!item.isFollowing, item.type || 'member')}
-          >
-            <Text
+        {/* Hide follow button if this item is the current user (comparing both ID and type) */}
+        {!(
+          myId &&
+          String(myId.id) === String(item.id) &&
+          (myId.type || "member").toLowerCase() ===
+            (item.type || "member").toLowerCase()
+        ) &&
+          onToggleFollow && (
+            <TouchableOpacity
               style={[
-                styles.followText,
+                styles.followBtn,
                 item.isFollowing
-                  ? styles.followingText
-                  : styles.followTextPrimary,
+                  ? styles.followingBtn
+                  : styles.followBtnPrimary(primaryColor),
               ]}
+              onPress={() =>
+                handleToggleFollow(
+                  item.id,
+                  !!item.isFollowing,
+                  item.type || "member"
+                )
+              }
             >
-              {item.isFollowing ? "Following" : "Follow"}
-            </Text>
-          </TouchableOpacity>
-        )}
+              <Text
+                style={[
+                  styles.followText,
+                  item.isFollowing
+                    ? styles.followingText
+                    : styles.followTextPrimary,
+                ]}
+              >
+                {item.isFollowing ? "Following" : "Follow"}
+              </Text>
+            </TouchableOpacity>
+          )}
       </View>
     ),
     [

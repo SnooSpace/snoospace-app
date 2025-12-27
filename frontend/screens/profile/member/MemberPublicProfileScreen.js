@@ -472,20 +472,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   <TouchableOpacity
                     style={styles.statItem}
                     onPress={() => {
-                      // Navigate to Profile tab's stack for FollowersList (it only exists there)
-                      const root = navigation.getParent()?.getParent();
-                      if (root) {
-                        root.navigate("Profile", {
-                          screen: "FollowersList",
-                          params: { memberId, title: "Followers" },
-                        });
-                      } else {
-                        // Fallback: try same stack navigation
-                        navigation.navigate("FollowersList", {
-                          memberId,
-                          title: "Followers",
-                        });
-                      }
+                      navigation.push("FollowersList", {
+                        memberId,
+                        title: "Followers",
+                      });
                     }}
                   >
                     <Text style={styles.statNumber}>
@@ -496,20 +486,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   <TouchableOpacity
                     style={styles.statItem}
                     onPress={() => {
-                      // Navigate to Profile tab's stack for FollowingList (it only exists there)
-                      const root = navigation.getParent()?.getParent();
-                      if (root) {
-                        root.navigate("Profile", {
-                          screen: "FollowingList",
-                          params: { memberId, title: "Following" },
-                        });
-                      } else {
-                        // Fallback: try same stack navigation
-                        navigation.navigate("FollowingList", {
-                          memberId,
-                          title: "Following",
-                        });
-                      }
+                      navigation.push("FollowingList", {
+                        memberId,
+                        title: "Following",
+                      });
                     }}
                   >
                     <Text style={styles.statNumber}>

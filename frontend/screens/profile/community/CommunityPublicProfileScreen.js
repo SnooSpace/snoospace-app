@@ -542,7 +542,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             <TouchableOpacity
               style={styles.statItem}
               onPress={() => {
-                navigation.navigate("CommunityFollowersList", {
+                navigation.push("CommunityFollowersList", {
                   communityId,
                   title: "Followers",
                 });
@@ -554,7 +554,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             <TouchableOpacity
               style={styles.statItem}
               onPress={() => {
-                navigation.navigate("CommunityFollowingList", {
+                navigation.push("CommunityFollowingList", {
                   communityId,
                   title: "Following",
                 });

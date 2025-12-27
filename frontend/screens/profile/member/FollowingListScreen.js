@@ -1,14 +1,18 @@
-import React, { useCallback } from 'react';
-import { getMemberFollowing, followMember, unfollowMember } from '../../../api/members';
-import { getAuthToken } from '../../../api/auth';
-import { apiGet } from '../../../api/client';
-import FollowerList from '../../../components/FollowerList';
+import React, { useCallback } from "react";
+import {
+  getMemberFollowing,
+  followMember,
+  unfollowMember,
+} from "../../../api/members";
+import { getAuthToken } from "../../../api/auth";
+import { apiGet } from "../../../api/client";
+import FollowerList from "../../../components/FollowerList";
 
-const PRIMARY_COLOR = '#6A0DAD';
+const PRIMARY_COLOR = "#6A0DAD";
 
 export default function FollowingListScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
-  const title = route?.params?.title || 'Following';
+  const title = route?.params?.title || "Following";
 
   const fetchFollowingPage = useCallback(
     async ({ offset, limit }) => {
@@ -19,7 +23,7 @@ export default function FollowingListScreen({ route, navigation }) {
         name: entry.following_name || entry.full_name || entry.name,
         username: entry.following_username || entry.username,
         avatarUrl: entry.following_photo_url || entry.profile_photo_url,
-        type: entry.following_type || 'member', // Add type field
+        type: entry.following_type || "member", // Add type field
         isFollowing: true,
       }));
       return {
@@ -31,9 +35,15 @@ export default function FollowingListScreen({ route, navigation }) {
   );
 
   const resolveMyId = useCallback(async () => {
-    const token = await getAuthToken();
-    const me = await apiGet('/me', 8000, token);
-    return me?.member?.id || null;
+    const { getActiveAccount } = await import("../../../api/auth");
+    const activeAccount = await getActiveAccount();
+    if (activeAccount) {
+      return {
+        id: activeAccount.id,
+        type: activeAccount.type || "member",
+      };
+    }
+    return null;
   }, []);
 
   const handleToggleFollow = useCallback(async (id, isFollowing) => {
@@ -46,22 +56,36 @@ export default function FollowingListScreen({ route, navigation }) {
 
   const handleItemPress = useCallback(
     (item, myId) => {
-      const entityType = item.type || 'member';
-      
-      // Check if it's the current user's own profile (only for members)
-      if (entityType === 'member' && item.id === myId) {
+      const entityType = (item.type || "member").toLowerCase();
+
+      // Check if it's the current user's own profile (works for both members and communities)
+      // Use String() and toLowerCase() to ensure reliable comparison regardless of type
+      const currentId =
+        typeof myId === "object" ? String(myId?.id) : String(myId);
+      const currentType =
+        (typeof myId === "object" ? myId?.type : "member")?.toLowerCase() ||
+        "member";
+      const itemId = String(item.id);
+
+      if (itemId === currentId && entityType === currentType) {
         const root = navigation.getParent()?.getParent();
-        if (root) {
-          root.navigate('MemberHome', { tab: 'Profile' });
+        if (entityType === "community") {
+          if (root) {
+            root.navigate("Profile");
+          }
+        } else {
+          if (root) {
+            root.navigate("MemberHome", { screen: "Profile" });
+          }
         }
         return;
       }
-      
+
       // Navigate based on entity type
-      if (entityType === 'community') {
-        navigation.navigate('CommunityPublicProfile', { communityId: item.id });
+      if (entityType === "community") {
+        navigation.navigate("CommunityPublicProfile", { communityId: item.id });
       } else {
-        navigation.navigate('MemberPublicProfile', { memberId: item.id });
+        navigation.navigate("MemberPublicProfile", { memberId: item.id });
       }
     },
     [navigation]
