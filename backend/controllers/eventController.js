@@ -2289,7 +2289,12 @@ const getInterestedEvents = async (req, res) => {
         c.name as community_name,
         c.username as community_username,
         c.logo_url as community_logo,
-        ei.created_at as interested_at
+        ei.created_at as interested_at,
+        (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0) as min_price,
+        COALESCE(
+          (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status = 'registered'),
+          0
+        ) as attendee_count
       FROM event_interests ei
       INNER JOIN events e ON ei.event_id = e.id
       INNER JOIN communities c ON e.community_id = c.id
@@ -2301,9 +2306,29 @@ const getInterestedEvents = async (req, res) => {
 
     const result = await pool.query(query, [userId]);
 
+    // Fetch banners for each event
+    const eventIds = result.rows.map((e) => e.id);
+    let bannersMap = {};
+    if (eventIds.length > 0) {
+      const bannersResult = await pool.query(
+        `SELECT event_id, image_url, image_order 
+         FROM event_banners 
+         WHERE event_id = ANY($1) 
+         ORDER BY event_id, image_order ASC`,
+        [eventIds]
+      );
+      bannersResult.rows.forEach((banner) => {
+        if (!bannersMap[banner.event_id]) {
+          bannersMap[banner.event_id] = [];
+        }
+        bannersMap[banner.event_id].push({ image_url: banner.image_url });
+      });
+    }
+
     // Format events for display
     const events = result.rows.map((event) => ({
       ...event,
+      banner_carousel: bannersMap[event.id] || [],
       formatted_date: new Date(event.event_date).toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",

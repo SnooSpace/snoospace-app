@@ -15,29 +15,207 @@ import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getInterestedEvents } from "../../api/events";
-import { openMapsNavigation } from "../../utils/openMapsNavigation";
 import EventBus from "../../utils/EventBus";
 import { COLORS } from "../../constants/theme";
 import { getGradientForName } from "../../utils/AvatarGenerator";
+import { useLocationName } from "../../utils/locationNameCache";
 
 const PRIMARY_COLOR = "#007AFF"; // Vibrant Blue
 const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
-const PRICE_COLOR = "#16A34A"; // Green for price
 
-// Helper function to extract place name from Google Maps URL
-const getLocationNameFromUrl = (url) => {
-  try {
-    // Google Maps URLs have format: /place/Location+Name/data=...
-    const match = url.match(/\/place\/([^\/]+)/);
-    if (match) {
-      return decodeURIComponent(match[1].replace(/\+/g, " "));
+// Separate component for event card to use hooks for location resolution
+const EventListCard = ({
+  item,
+  onPress,
+  getLowestPrice,
+  formatDateBadge,
+  formatTime,
+}) => {
+  const displayImage = item.banner_carousel?.[0]?.image_url || item.banner_url;
+  const lowestPrice = getLowestPrice(item);
+  const isCancelled = item.is_cancelled;
+
+  // Use the hook to resolve location name from Google Maps URL (handles shortened URLs)
+  const locationName = useLocationName(
+    item.event_type !== "virtual" ? item.location_url : null,
+    {
+      fallback: item.location_name || item.venue_name || "In-person",
     }
-    return "View Location";
-  } catch {
-    return "View Location";
-  }
+  );
+
+  const locationDisplay =
+    item.event_type === "virtual" ? "Virtual Event" : locationName;
+
+  return (
+    <TouchableOpacity
+      style={cardStyles.eventCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.9}
+    >
+      {/* Left - Banner Image */}
+      <View style={cardStyles.eventImageContainer}>
+        {displayImage ? (
+          <Image
+            source={{ uri: displayImage }}
+            style={cardStyles.eventImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={getGradientForName(item.title || "Event")}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={cardStyles.eventImage}
+          />
+        )}
+
+        {/* Cancelled Overlay */}
+        {isCancelled && (
+          <View style={cardStyles.cancelledOverlay}>
+            <Text style={cardStyles.cancelledText}>CANCELLED</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Right - Event Info */}
+      <View style={cardStyles.eventInfo}>
+        {/* Title */}
+        <Text style={cardStyles.eventTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        {/* Date & Time Row */}
+        <View style={cardStyles.dateTimeRow}>
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={LIGHT_TEXT_COLOR}
+          />
+          <Text style={cardStyles.dateTimeText}>
+            {formatDateBadge(item.event_date)} • {formatTime(item.event_date)}
+          </Text>
+        </View>
+
+        {/* Location Row */}
+        <View style={cardStyles.eventMeta}>
+          <Ionicons
+            name={
+              item.event_type === "virtual"
+                ? "videocam-outline"
+                : "location-outline"
+            }
+            size={14}
+            color={LIGHT_TEXT_COLOR}
+          />
+          <Text style={cardStyles.eventMetaText} numberOfLines={1}>
+            {locationDisplay}
+          </Text>
+        </View>
+
+        {/* Bottom Row: Price only */}
+        <View style={cardStyles.eventBottomRow}>
+          <View />
+          {lowestPrice ? (
+            <Text style={cardStyles.priceText}>₹{lowestPrice} onwards</Text>
+          ) : (
+            <Text style={cardStyles.freeText}>Free</Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 };
+
+// Card styles
+const cardStyles = StyleSheet.create({
+  eventCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  eventImageContainer: {
+    width: 130,
+    height: 120,
+    position: "relative",
+  },
+  eventImage: {
+    width: "100%",
+    height: "100%",
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  cancelledOverlay: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  cancelledText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  eventInfo: {
+    flex: 1,
+    padding: 12,
+    justifyContent: "space-between",
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  dateTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 4,
+  },
+  dateTimeText: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+  },
+  eventMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 8,
+    flex: 1,
+  },
+  eventMetaText: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    flex: 1,
+  },
+  eventBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  priceText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#16A34A",
+  },
+  freeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#16A34A",
+  },
+});
 
 export default function YourEventsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState("Going");
@@ -128,28 +306,7 @@ export default function YourEventsScreen({ navigation }) {
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${
-      months[date.getMonth()]
-    } ${date.getDate()}, ${date.getFullYear()}`;
-  };
-
-  // Format date for badge: "30 Dec"
+  // Format date for display: "30 Dec"
   const formatDateBadge = (dateString) => {
     const date = new Date(dateString);
     const day = date.getDate();
@@ -181,13 +338,13 @@ export default function YourEventsScreen({ navigation }) {
         return Math.min(...prices);
       }
     }
+    // Fallback to min_price on the event itself
+    if (item.min_price && parseFloat(item.min_price) > 0) {
+      return parseFloat(item.min_price);
+    }
     // Fallback to base_price on the event itself
     if (item.base_price && parseFloat(item.base_price) > 0) {
       return parseFloat(item.base_price);
-    }
-    // Check min_price field
-    if (item.min_price && parseFloat(item.min_price) > 0) {
-      return parseFloat(item.min_price);
     }
     return null;
   };
@@ -202,29 +359,6 @@ export default function YourEventsScreen({ navigation }) {
     });
   };
 
-  // Get location name from URL or location fields
-  const getLocationDisplay = (item) => {
-    if (item.event_type === "virtual") {
-      return "Virtual Event";
-    }
-    // Try to use location_name directly if available
-    if (item.location_name) {
-      return item.location_name;
-    }
-    // Try to extract from location_url
-    if (item.location_url) {
-      const extracted = getLocationNameFromUrl(item.location_url);
-      if (extracted !== "View Location") {
-        return extracted;
-      }
-    }
-    // Fallback to venue name or "In-person"
-    if (item.venue_name) {
-      return item.venue_name;
-    }
-    return "In-person";
-  };
-
   const handleEventPress = (item) => {
     navigation.navigate("EventDetails", {
       eventId: item.id,
@@ -232,92 +366,15 @@ export default function YourEventsScreen({ navigation }) {
     });
   };
 
-  const renderEvent = ({ item }) => {
-    const displayImage =
-      item.banner_carousel?.[0]?.image_url || item.banner_url;
-    const lowestPrice = getLowestPrice(item);
-    const isCancelled = item.is_cancelled;
-    const locationDisplay = getLocationDisplay(item);
-
-    return (
-      <TouchableOpacity
-        style={styles.eventCard}
-        onPress={() => handleEventPress(item)}
-        activeOpacity={0.9}
-      >
-        {/* Left - Banner Image */}
-        <View style={styles.eventImageContainer}>
-          {displayImage ? (
-            <Image
-              source={{ uri: displayImage }}
-              style={styles.eventImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <LinearGradient
-              colors={getGradientForName(item.title || "Event")}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.eventImage}
-            />
-          )}
-
-          {/* Cancelled Overlay */}
-          {isCancelled && (
-            <View style={styles.cancelledOverlay}>
-              <Text style={styles.cancelledText}>CANCELLED</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Right - Event Info */}
-        <View style={styles.eventInfo}>
-          {/* Title */}
-          <Text style={styles.eventTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-
-          {/* Date & Time Row */}
-          <View style={styles.dateTimeRow}>
-            <Ionicons
-              name="calendar-outline"
-              size={14}
-              color={LIGHT_TEXT_COLOR}
-            />
-            <Text style={styles.dateTimeText}>
-              {formatDateBadge(item.event_date)} • {formatTime(item.event_date)}
-            </Text>
-          </View>
-
-          {/* Location Row */}
-          <View style={styles.eventMeta}>
-            <Ionicons
-              name={
-                item.event_type === "virtual"
-                  ? "videocam-outline"
-                  : "location-outline"
-              }
-              size={14}
-              color={LIGHT_TEXT_COLOR}
-            />
-            <Text style={styles.eventMetaText} numberOfLines={1}>
-              {locationDisplay}
-            </Text>
-          </View>
-
-          {/* Bottom Row: Price only */}
-          <View style={styles.eventBottomRow}>
-            <View />
-            {lowestPrice ? (
-              <Text style={styles.priceText}>₹{lowestPrice} onwards</Text>
-            ) : (
-              <Text style={styles.freeText}>Free</Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderEvent = ({ item }) => (
+    <EventListCard
+      item={item}
+      onPress={handleEventPress}
+      getLowestPrice={getLowestPrice}
+      formatDateBadge={formatDateBadge}
+      formatTime={formatTime}
+    />
+  );
 
   const filteredEvents = getFilteredEvents();
 
@@ -462,96 +519,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
     textAlign: "center",
-  },
-  // New Card Styles
-  eventCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  eventImageContainer: {
-    width: 130,
-    height: 120,
-    position: "relative",
-  },
-  eventImage: {
-    width: "100%",
-    height: "100%",
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-  },
-  cancelledOverlay: {
-    position: "absolute",
-    bottom: 8,
-    left: 8,
-    backgroundColor: "#EF4444",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  cancelledText: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  eventInfo: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "space-between",
-  },
-  eventTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  dateTimeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 4,
-  },
-  dateTimeText: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-  },
-  eventMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 8,
-    flex: 1,
-  },
-  eventMetaText: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    flex: 1,
-  },
-  eventBottomRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  attendeeText: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-  },
-  priceText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#16A34A",
-  },
-  freeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#16A34A",
   },
 });
