@@ -12,7 +12,7 @@ import DiscoverEventCard from "./DiscoverEventCard";
 import { COLORS, BORDER_RADIUS } from "../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.75;
+const CARD_WIDTH = SCREEN_WIDTH * 0.78; // Matches DiscoverEventCard width
 const CARD_GAP = 12;
 
 /**
@@ -66,6 +66,7 @@ export default function CategoryCarousel({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        style={styles.scrollView}
         decelerationRate="fast"
         snapToInterval={CARD_WIDTH + CARD_GAP}
         snapToAlignment="start"
@@ -95,6 +96,7 @@ export default function CategoryCarousel({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 24,
+    paddingBottom: 5, // Prevents shadow from being clipped
   },
   header: {
     flexDirection: "row",
@@ -126,8 +128,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.primary,
   },
+  scrollView: {
+    overflow: "visible", // Prevents shadow clipping
+  },
   scrollContent: {
     paddingLeft: 16,
+    paddingBottom: 8, // Space for shadow
   },
   cardWrapper: {
     marginRight: CARD_GAP,

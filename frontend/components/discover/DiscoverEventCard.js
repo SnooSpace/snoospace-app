@@ -10,18 +10,26 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { useLocationName } from "../../utils/locationNameCache";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.75; // 75% of screen width
-const CARD_HEIGHT = CARD_WIDTH * 1.25; // 5:4 aspect ratio (taller cards)
+const CARD_WIDTH = SCREEN_WIDTH * 0.78; // Slightly wider cards
+const IMAGE_HEIGHT = 280; // Taller image section
 
 /**
  * DiscoverEventCard - Event card for the category carousels
- * Matches the reference design with:
- * - Full image background
- * - Date badge (top-left)
- * - Bookmark icon (top-right)
- * - Event details at bottom (title, venue, price)
+ *
+ * Redesigned layout:
+ * ┌─────────────────────────┐
+ * │                         │
+ * │       EVENT IMAGE       │  ← Clean image, no overlays
+ * │                         │
+ * └─────────────────────────┘
+ * │ Date                 🔖 │
+ * │ Title (Bold)            │
+ * │ Location                │
+ * │ ₹XXX onwards            │
+ * └─────────────────────────┘
  */
 export default function DiscoverEventCard({
   event,
@@ -29,7 +37,6 @@ export default function DiscoverEventCard({
   onBookmark,
   isBookmarked = false,
   width = CARD_WIDTH,
-  height = CARD_HEIGHT,
 }) {
   const {
     id,
@@ -45,93 +52,90 @@ export default function DiscoverEventCard({
   } = event;
 
   // Format price display
-  const priceDisplay = ticket_price ? `₹${ticket_price}` : "Free";
+  const getPriceDisplay = () => {
+    if (!ticket_price || ticket_price === 0) return "Free";
+    return `₹${ticket_price} onwards`;
+  };
 
-  // Parse venue from location_url or use community name
-  const venueName = community_name || "Venue TBD";
+  // Get location name from Google Maps URL (handles shortened URLs)
+  const locationName = useLocationName(location_url, {
+    fallback: community_name || "Location TBD",
+  });
 
   return (
     <TouchableOpacity
-      style={[styles.card, { width, height }]}
+      style={[styles.card, { width }]}
       onPress={() => onPress?.(event)}
-      activeOpacity={0.9}
+      activeOpacity={0.95}
     >
-      {/* Background Image */}
-      {banner_url ? (
-        <Image
-          source={{ uri: banner_url }}
-          style={styles.backgroundImage}
-          resizeMode="cover"
-        />
-      ) : (
-        <LinearGradient
-          colors={COLORS.primaryGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.backgroundImage}
-        />
-      )}
-
-      {/* Dark overlay for better text readability */}
-      <LinearGradient
-        colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.7)"]}
-        style={styles.overlay}
-      />
-
-      {/* Top Row - Date Badge & Bookmark */}
-      <View style={styles.topRow}>
-        {/* Date Badge */}
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateText}>{formatted_date || "Date TBD"}</Text>
-        </View>
-
-        {/* Bookmark Button */}
-        <TouchableOpacity
-          style={styles.bookmarkButton}
-          onPress={() => onBookmark?.(event)}
-          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-        >
-          <Ionicons
-            name={isBookmarked ? "bookmark" : "bookmark-outline"}
-            size={22}
-            color="#FFFFFF"
+      {/* Image Section - Clean, no overlays */}
+      <View style={styles.imageContainer}>
+        {banner_url ? (
+          <Image
+            source={{ uri: banner_url }}
+            style={styles.image}
+            resizeMode="cover"
           />
-        </TouchableOpacity>
+        ) : (
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.imagePlaceholder}
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={48}
+              color="rgba(255,255,255,0.7)"
+            />
+          </LinearGradient>
+        )}
       </View>
 
-      {/* Bottom Content */}
-      <View style={styles.bottomContent}>
-        {/* Event Title */}
+      {/* Info Section - Below Image */}
+      <View style={styles.infoSection}>
+        {/* Date Row with Bookmark */}
+        <View style={styles.dateRow}>
+          <View style={styles.dateBadge}>
+            <Text style={styles.dateText}>{formatted_date || "Date TBD"}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.bookmarkButton}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onBookmark?.(event);
+            }}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
+            <Ionicons
+              name={isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={22}
+              color={isBookmarked ? COLORS.primary : "#8E8E93"}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Title */}
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
 
-        {/* Venue */}
-        <View style={styles.venueRow}>
-          {community_logo ? (
-            <Image
-              source={{ uri: community_logo }}
-              style={styles.communityLogo}
-            />
-          ) : (
-            <View style={[styles.communityLogo, styles.logoPlaceholder]}>
-              <Text style={styles.logoPlaceholderText}>
-                {community_name?.charAt(0) || "E"}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.venueText} numberOfLines={1}>
-            {venueName}
+        {/* Location */}
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={14} color="#8E8E93" />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {locationName}
           </Text>
         </View>
 
         {/* Price Row */}
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>{priceDisplay}</Text>
+          <Text style={styles.priceText}>{getPriceDisplay()}</Text>
           {attendee_count > 0 && (
             <View style={styles.attendeeBadge}>
-              <Ionicons name="people-outline" size={12} color="#FFFFFF" />
-              <Text style={styles.attendeeText}>{attendee_count}</Text>
+              <Ionicons name="people-outline" size={12} color="#8E8E93" />
+              <Text style={styles.attendeeText}>{attendee_count} going</Text>
             </View>
           )}
         </View>
@@ -142,93 +146,68 @@ export default function DiscoverEventCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#1A1A1A",
-    ...SHADOWS.medium,
+    backgroundColor: "#FFFFFF",
+    ...SHADOWS.md,
   },
-  backgroundImage: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  // Image Section
+  imageContainer: {
+    height: IMAGE_HEIGHT,
+    width: "100%",
+    backgroundColor: "#F0F0F0",
+  },
+  image: {
     width: "100%",
     height: "100%",
   },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: 12,
-  },
-  dateBadge: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.md,
-    backdropFilter: "blur(8px)",
-  },
-  dateText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
-  bookmarkButton: {
-    backgroundColor: "rgba(0,0,0,0.4)",
-    padding: 8,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  bottomContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 14,
-    paddingTop: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
-    lineHeight: 22,
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  venueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  communityLogo: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 8,
-  },
-  logoPlaceholder: {
-    backgroundColor: COLORS.primary,
+  imagePlaceholder: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
   },
-  logoPlaceholderText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
+  // Info Section
+  infoSection: {
+    padding: 14,
+    backgroundColor: "#FFFFFF",
   },
-  venueText: {
+  dateRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dateBadge: {
+    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  dateText: {
+    color: "#1C1C1E",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  bookmarkButton: {
+    padding: 4,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 4,
+  },
+  locationText: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
+    color: "#8E8E93",
     flex: 1,
   },
   priceRow: {
@@ -237,22 +216,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   priceText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1C1C1E",
   },
   attendeeBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
   },
   attendeeText: {
     fontSize: 12,
-    color: "#FFFFFF",
-    fontWeight: "500",
+    color: "#8E8E93",
   },
 });

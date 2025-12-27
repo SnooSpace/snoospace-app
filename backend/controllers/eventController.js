@@ -352,6 +352,7 @@ const getCommunityEvents = async (req, res) => {
         e.virtual_link,
         e.has_featured_accounts,
         e.is_editable,
+        e.is_cancelled,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
         (e.start_datetime < NOW()) as is_past,
         e.created_at
@@ -515,6 +516,16 @@ const getCommunityEvents = async (req, res) => {
           [eventId]
         );
 
+        // Fetch categories (discover categories assigned to this event)
+        const categoriesResult = await pool.query(
+          `SELECT dc.id, dc.name, dc.slug, dc.icon_name, edc.is_featured, edc.display_order
+           FROM event_discover_categories edc
+           INNER JOIN discover_categories dc ON edc.category_id = dc.id
+           WHERE edc.event_id = $1
+           ORDER BY edc.display_order ASC`,
+          [eventId]
+        );
+
         return {
           ...event,
           banner_carousel: bannerCarousel,
@@ -525,6 +536,7 @@ const getCommunityEvents = async (req, res) => {
           ticket_types: ticketTypesResult.rows,
           discount_codes: discountCodesResult.rows,
           pricing_rules: pricingRulesResult.rows,
+          categories: categoriesResult.rows,
         };
       })
     );
@@ -1876,6 +1888,298 @@ const getEventById = async (req, res) => {
   }
 };
 
+/**
+ * Delete an event permanently
+ * Only the community that created the event can delete it
+ * If event has registered attendees, only allow deletion after event date has passed
+ */
+const deleteEvent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    // Only communities can delete events
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only communities can delete events" });
+    }
+
+    // Verify event exists and belongs to this community
+    const eventResult = await pool.query(
+      `SELECT e.id, e.title, e.start_datetime, e.end_datetime, e.creator_id,
+              (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id) as attendee_count
+       FROM events e
+       WHERE e.id = $1`,
+      [eventId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventResult.rows[0];
+
+    // Check ownership - ensure both are compared as integers
+    const creatorId = parseInt(event.creator_id);
+    const requestUserId = parseInt(userId);
+
+    console.log(
+      `[deleteEvent] Checking ownership: creator_id=${creatorId}, userId=${requestUserId}, userType=${userType}`
+    );
+
+    if (creatorId !== requestUserId) {
+      console.log(
+        `[deleteEvent] Permission denied: creator_id (${creatorId}) !== userId (${requestUserId})`
+      );
+      return res.status(403).json({
+        error: "You don't have permission to delete this event",
+      });
+    }
+
+    // If event has registered attendees, only allow deletion after event date has passed
+    const now = new Date();
+    const eventEndDate = new Date(event.end_datetime || event.start_datetime);
+    const hasAttendees = parseInt(event.attendee_count) > 0;
+
+    if (hasAttendees && eventEndDate > now) {
+      return res.status(400).json({
+        error:
+          "Cannot delete an upcoming event with registered attendees. Please cancel the event instead, or wait until after the event date has passed.",
+        attendee_count: parseInt(event.attendee_count),
+        event_end_datetime: event.end_datetime,
+      });
+    }
+
+    // Get Cloudinary public IDs for cleanup (optional - don't fail if not present)
+    let cloudinaryIds = [];
+    try {
+      const bannersResult = await pool.query(
+        "SELECT cloudinary_public_id FROM event_banners WHERE event_id = $1 AND cloudinary_public_id IS NOT NULL",
+        [eventId]
+      );
+      const galleryResult = await pool.query(
+        "SELECT cloudinary_public_id FROM event_gallery WHERE event_id = $1 AND cloudinary_public_id IS NOT NULL",
+        [eventId]
+      );
+      cloudinaryIds = [
+        ...bannersResult.rows.map((r) => r.cloudinary_public_id),
+        ...galleryResult.rows.map((r) => r.cloudinary_public_id),
+      ];
+    } catch (err) {
+      console.warn(
+        "[deleteEvent] Could not fetch Cloudinary IDs for cleanup:",
+        err.message
+      );
+    }
+
+    // Delete all related data (order matters for foreign key constraints)
+    // Not using transaction so that missing tables don't abort the entire operation
+    const deleteQueries = [
+      "DELETE FROM event_registrations WHERE event_id = $1",
+      "DELETE FROM event_swipes WHERE event_id = $1",
+      "DELETE FROM event_matches WHERE event_id = $1",
+      "DELETE FROM next_event_requests WHERE current_event_id = $1",
+      "DELETE FROM pricing_rules WHERE event_id = $1",
+      "DELETE FROM discount_codes WHERE event_id = $1",
+      "DELETE FROM ticket_types WHERE event_id = $1",
+      "DELETE FROM event_categories WHERE event_id = $1",
+      "DELETE FROM event_discover_categories WHERE event_id = $1",
+      "DELETE FROM event_highlights WHERE event_id = $1",
+      "DELETE FROM event_things_to_know WHERE event_id = $1",
+      "DELETE FROM event_featured_accounts WHERE event_id = $1",
+      "DELETE FROM event_gallery WHERE event_id = $1",
+      "DELETE FROM event_banners WHERE event_id = $1",
+    ];
+
+    for (const query of deleteQueries) {
+      try {
+        await pool.query(query, [eventId]);
+      } catch (err) {
+        // Table may not exist, continue
+        console.warn(
+          `[deleteEvent] Query failed (non-critical): ${query} - ${err.message}`
+        );
+      }
+    }
+
+    // Delete the event itself
+    await pool.query("DELETE FROM events WHERE id = $1", [eventId]);
+
+    // TODO: Clean up Cloudinary images in background (non-blocking)
+    if (cloudinaryIds.length > 0) {
+      console.log(
+        `[deleteEvent] Would delete ${cloudinaryIds.length} Cloudinary images (cleanup not implemented)`
+      );
+    }
+
+    console.log(
+      `[deleteEvent] Event "${event.title}" (ID: ${eventId}) deleted by community ${userId}`
+    );
+
+    res.json({
+      success: true,
+      message: `Event "${event.title}" has been permanently deleted`,
+      eventId: parseInt(eventId),
+    });
+  } catch (error) {
+    console.error("Error deleting event:", error);
+    res.status(500).json({ error: "Failed to delete event" });
+  }
+};
+
+/**
+ * Cancel an event (soft delete)
+ * Sets is_cancelled = true and notifies all registered attendees
+ * Only the community that created the event can cancel it
+ */
+const cancelEvent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    // Only communities can cancel events
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only communities can cancel events" });
+    }
+
+    // Verify event exists, belongs to this community, and is not already cancelled
+    const eventResult = await pool.query(
+      `SELECT e.id, e.title, e.start_datetime, e.end_datetime, e.is_cancelled, e.creator_id,
+              c.name as community_name, c.logo_url as community_logo
+       FROM events e
+       LEFT JOIN communities c ON e.creator_id = c.id
+       WHERE e.id = $1`,
+      [eventId]
+    );
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventResult.rows[0];
+
+    // Check ownership - ensure both are compared as integers
+    const creatorId = parseInt(event.creator_id);
+    const requestUserId = parseInt(userId);
+
+    if (creatorId !== requestUserId) {
+      return res.status(403).json({
+        error: "You don't have permission to cancel this event",
+      });
+    }
+
+    // Check if already cancelled
+    if (event.is_cancelled) {
+      return res.status(400).json({ error: "Event is already cancelled" });
+    }
+
+    // Check if event is in the past
+    const now = new Date();
+    const eventEndDate = new Date(event.end_datetime || event.start_datetime);
+    if (eventEndDate < now) {
+      return res.status(400).json({ error: "Cannot cancel a past event" });
+    }
+
+    // Update event to cancelled
+    await pool.query(
+      `UPDATE events SET is_cancelled = true, updated_at = NOW() WHERE id = $1`,
+      [eventId]
+    );
+
+    // Get all registered attendees
+    const attendeesResult = await pool.query(
+      `SELECT er.member_id, m.name as member_name
+       FROM event_registrations er
+       JOIN members m ON er.member_id = m.id
+       WHERE er.event_id = $1 AND er.registration_status = 'registered'`,
+      [eventId]
+    );
+
+    const attendees = attendeesResult.rows;
+    console.log(
+      `[cancelEvent] Notifying ${attendees.length} attendees about cancellation of event ${eventId}`
+    );
+
+    // Create in-app notifications for all attendees
+    const notificationPayload = JSON.stringify({
+      event_id: parseInt(eventId),
+      event_title: event.title,
+      community_name: event.community_name,
+      community_logo: event.community_logo,
+      event_date: event.start_datetime,
+    });
+
+    const notificationPromises = attendees.map((attendee) =>
+      pool.query(
+        `INSERT INTO notifications (
+          recipient_id, recipient_type, actor_id, actor_type, 
+          type, payload, is_read, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
+        [
+          attendee.member_id,
+          "member",
+          userId,
+          "community",
+          "event_cancelled",
+          notificationPayload,
+        ]
+      )
+    );
+
+    await Promise.all(notificationPromises);
+
+    // Send push notifications to attendees (if push tokens exist)
+    try {
+      const pushTokensResult = await pool.query(
+        `SELECT pt.expo_push_token, er.member_id
+         FROM push_tokens pt
+         JOIN event_registrations er ON pt.user_id = er.member_id AND pt.user_type = 'member'
+         WHERE er.event_id = $1 AND er.registration_status = 'registered' AND pt.is_active = true`,
+        [eventId]
+      );
+
+      if (pushTokensResult.rows.length > 0) {
+        // Log for now - actual push implementation would use Expo Push API
+        console.log(
+          `[cancelEvent] Would send ${pushTokensResult.rows.length} push notifications`
+        );
+        // TODO: Implement actual Expo push notification sending
+        // const messages = pushTokensResult.rows.map(row => ({
+        //   to: row.expo_push_token,
+        //   sound: 'default',
+        //   title: 'Event Cancelled',
+        //   body: `${event.community_name} has cancelled "${event.title}"`,
+        //   data: { eventId, type: 'event_cancelled' },
+        // }));
+      }
+    } catch (pushError) {
+      console.warn(
+        "[cancelEvent] Push notification query failed (non-critical):",
+        pushError.message
+      );
+    }
+
+    console.log(
+      `[cancelEvent] Event "${event.title}" (ID: ${eventId}) cancelled by community ${userId}`
+    );
+
+    res.json({
+      success: true,
+      message: `Event "${event.title}" has been cancelled`,
+      eventId: parseInt(eventId),
+      notified_attendees: attendees.length,
+    });
+  } catch (error) {
+    console.error("Error cancelling event:", error);
+    res.status(500).json({ error: "Failed to cancel event" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -1888,4 +2192,6 @@ module.exports = {
   searchEvents,
   updateEvent,
   getEventById,
+  deleteEvent,
+  cancelEvent,
 };

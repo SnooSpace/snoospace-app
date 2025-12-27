@@ -1,4 +1,4 @@
-import { apiPost, apiGet } from './client';
+import { apiPost, apiGet } from "./client";
 
 /**
  * Create a new event
@@ -6,8 +6,8 @@ import { apiPost, apiGet } from './client';
  * @returns {Promise<Object>} Created event
  */
 export async function createEvent(eventData) {
-  const token = await (await import('./auth')).getAuthToken();
-  return apiPost('/events', eventData, 15000, token);
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost("/events", eventData, 15000, token);
 }
 
 /**
@@ -15,8 +15,8 @@ export async function createEvent(eventData) {
  * @returns {Promise<Object>} List of community events
  */
 export async function getCommunityEvents() {
-  const token = await (await import('./auth')).getAuthToken();
-  return apiGet('/events/community', 15000, token);
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet("/events/community", 15000, token);
 }
 
 /**
@@ -24,8 +24,8 @@ export async function getCommunityEvents() {
  * @returns {Promise<Object>} List of events
  */
 export async function getMyEvents() {
-  const token = await (await import('./auth')).getAuthToken();
-  return apiGet('/events/my-events', 15000, token);
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet("/events/my-events", 15000, token);
 }
 
 /**
@@ -34,7 +34,7 @@ export async function getMyEvents() {
  * @returns {Promise<Object>} Event details
  */
 export async function getEventDetails(eventId) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/events/${eventId}`, 15000, token);
 }
 
@@ -44,7 +44,7 @@ export async function getEventDetails(eventId) {
  * @returns {Promise<Object>} List of attendees
  */
 export async function getEventAttendees(eventId) {
-  const token = await (await import('./auth')).getAuthToken();
+  const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/events/${eventId}/attendees`, 15000, token);
 }
 
@@ -57,8 +57,12 @@ export async function getEventAttendees(eventId) {
  */
 export async function discoverEvents(options = {}) {
   const { limit = 10, offset = 0 } = options;
-  const token = await (await import('./auth')).getAuthToken();
-  return apiGet(`/events/discover?limit=${limit}&offset=${offset}`, 15000, token);
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(
+    `/events/discover?limit=${limit}&offset=${offset}`,
+    15000,
+    token
+  );
 }
 
 /**
@@ -72,9 +76,15 @@ export async function discoverEvents(options = {}) {
  */
 export async function searchEvents(query, options = {}) {
   const { limit = 20, offset = 0, upcomingOnly = true } = options;
-  const token = await (await import('./auth')).getAuthToken();
-  const upcoming = upcomingOnly ? 'true' : 'false';
-  return apiGet(`/events/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}&upcoming_only=${upcoming}`, 15000, token);
+  const token = await (await import("./auth")).getAuthToken();
+  const upcoming = upcomingOnly ? "true" : "false";
+  return apiGet(
+    `/events/search?q=${encodeURIComponent(
+      query
+    )}&limit=${limit}&offset=${offset}&upcoming_only=${upcoming}`,
+    15000,
+    token
+  );
 }
 
 /**
@@ -84,7 +94,31 @@ export async function searchEvents(query, options = {}) {
  * @returns {Promise<Object>} Updated event with notification info
  */
 export async function updateEvent(eventId, eventData) {
-  const { apiPatch } = await import('./client');
-  const token = await (await import('./auth')).getAuthToken();
+  const { apiPatch } = await import("./client");
+  const token = await (await import("./auth")).getAuthToken();
   return apiPatch(`/events/${eventId}`, eventData, 15000, token);
+}
+
+/**
+ * Delete an event permanently (community owner only)
+ * Note: Cannot delete upcoming events with registered attendees
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} Delete confirmation
+ */
+export async function deleteEvent(eventId) {
+  const { apiDelete } = await import("./client");
+  const token = await (await import("./auth")).getAuthToken();
+  return apiDelete(`/events/${eventId}`, null, 15000, token);
+}
+
+/**
+ * Cancel an event (soft delete - community owner only)
+ * Attendees will be notified via push and in-app notifications
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} Cancelled event details with notification count
+ */
+export async function cancelEvent(eventId) {
+  const { apiPatch } = await import("./client");
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPatch(`/events/${eventId}/cancel`, {}, 15000, token);
 }

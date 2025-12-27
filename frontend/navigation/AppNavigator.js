@@ -19,6 +19,7 @@ import CreatePostScreen from "../components/CreatePostScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
+import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
@@ -85,6 +86,11 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="Checkout"
         component={CheckoutScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CategoryEvents"
+        component={CategoryEventsScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

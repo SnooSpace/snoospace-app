@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Modal,
   View,
@@ -46,6 +46,9 @@ export default function EditEventModal({
   const [loading, setLoading] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+
+  // Scroll ref for auto-scrolling when category dropdown opens
+  const scrollViewRef = useRef(null);
 
   // Step 1: Basic Info
   const [title, setTitle] = useState("");
@@ -117,7 +120,9 @@ export default function EditEventModal({
       setTicketTypes(eventData.ticket_types || []);
       setDiscountCodes(eventData.discount_codes || []);
       setPricingRules(eventData.pricing_rules || []);
-      setCategories(eventData.categories || []);
+      // Transform categories from objects (with id, name, etc.) to array of IDs
+      const categoryIds = (eventData.categories || []).map((c) => c.id);
+      setCategories(categoryIds);
       setCurrentStep(1);
 
       // Store initial snapshot for change detection
@@ -143,7 +148,7 @@ export default function EditEventModal({
         ticketTypes: JSON.stringify(eventData.ticket_types || []),
         discountCodes: JSON.stringify(eventData.discount_codes || []),
         pricingRules: JSON.stringify(eventData.pricing_rules || []),
-        categories: JSON.stringify(eventData.categories || []),
+        categories: JSON.stringify(categoryIds),
       });
     }
   }, [eventData, visible]);
@@ -289,6 +294,7 @@ export default function EditEventModal({
       case 1:
         return (
           <ScrollView
+            ref={scrollViewRef}
             style={styles.stepContent}
             contentContainerStyle={styles.scrollContent}
           >
@@ -435,6 +441,12 @@ export default function EditEventModal({
               selectedCategories={categories}
               onChange={setCategories}
               maxCategories={3}
+              onExpand={() => {
+                // Auto-scroll down when dropdown opens so it's visible
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
             />
           </ScrollView>
         );
@@ -567,7 +579,7 @@ export default function EditEventModal({
         <StepIndicator
           currentStep={currentStep}
           totalSteps={7}
-          stepLabels={stepLabels}
+          hideProgressText
         />
 
         {renderStep()}

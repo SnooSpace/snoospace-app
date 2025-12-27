@@ -11,7 +11,7 @@ const getDiscoverFeed = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
-    const { limit = 30, offset = 0, type = 'all' } = req.query;
+    const { limit = 30, offset = 0, type = "all" } = req.query;
 
     if (!userId) {
       return res.status(401).json({ error: "Authentication required" });
@@ -22,7 +22,7 @@ const getDiscoverFeed = async (req, res) => {
     const parsedOffset = parseInt(offset);
 
     // Fetch posts (from everyone, not just followed)
-    if (type === 'all' || type === 'posts') {
+    if (type === "all" || type === "posts") {
       const postsQuery = `
         SELECT 
           p.id,
@@ -60,13 +60,18 @@ const getDiscoverFeed = async (req, res) => {
         LIMIT $3 OFFSET $4
       `;
 
-      const postsResult = await pool.query(postsQuery, [userId, userType, parsedLimit, parsedOffset]);
-      
+      const postsResult = await pool.query(postsQuery, [
+        userId,
+        userType,
+        parsedLimit,
+        parsedOffset,
+      ]);
+
       // Transform posts for grid display
-      postsResult.rows.forEach(post => {
+      postsResult.rows.forEach((post) => {
         items.push({
           id: post.id,
-          item_type: 'post',
+          item_type: "post",
           thumbnail_url: post.image_urls?.[0] || null,
           image_urls: post.image_urls,
           caption: post.caption,
@@ -80,13 +85,13 @@ const getDiscoverFeed = async (req, res) => {
           created_at: post.created_at,
           score: post.score,
           // Grid layout: posts take 1 column
-          grid_span: 1
+          grid_span: 1,
         });
       });
     }
 
     // Fetch upcoming events
-    if (type === 'all' || type === 'events') {
+    if (type === "all" || type === "events") {
       const eventsQuery = `
         SELECT 
           e.id,
@@ -96,7 +101,7 @@ const getDiscoverFeed = async (req, res) => {
           e.start_datetime as event_date,
           e.location_url,
           e.event_type,
-          c.id as community_id,
+          COALESCE(e.community_id, e.creator_id) as community_id,
           c.name as community_name,
           c.username as community_username,
           c.logo_url as community_logo,
@@ -108,8 +113,9 @@ const getDiscoverFeed = async (req, res) => {
           -- Events get higher base score to appear in feed
           50 + (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 3) as score
         FROM events e
-        INNER JOIN communities c ON e.community_id = c.id
-        WHERE e.is_published = true
+        INNER JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
+        WHERE (e.is_published = true OR e.is_published IS NULL)
+          AND e.is_cancelled IS NOT TRUE
           AND e.start_datetime > NOW()
         ORDER BY e.start_datetime ASC
         LIMIT $1 OFFSET $2
@@ -117,26 +123,35 @@ const getDiscoverFeed = async (req, res) => {
 
       // Fetch fewer events than posts (1:3 ratio)
       const eventLimit = Math.max(5, Math.floor(parsedLimit / 3));
-      const eventsResult = await pool.query(eventsQuery, [eventLimit, Math.floor(parsedOffset / 3)]);
-      
-      eventsResult.rows.forEach(event => {
+      const eventsResult = await pool.query(eventsQuery, [
+        eventLimit,
+        Math.floor(parsedOffset / 3),
+      ]);
+
+      eventsResult.rows.forEach((event) => {
         items.push({
           id: event.id,
-          item_type: 'event',
+          item_type: "event",
           thumbnail_url: event.banner_url,
           title: event.title,
           description: event.description,
           event_date: event.event_date,
-          formatted_date: new Date(event.event_date).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
-          }),
-          formatted_time: new Date(event.event_date).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          }),
+          formatted_date: new Date(event.event_date).toLocaleDateString(
+            "en-US",
+            {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            }
+          ),
+          formatted_time: new Date(event.event_date).toLocaleTimeString(
+            "en-US",
+            {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            }
+          ),
           location_url: event.location_url,
           event_type: event.event_type,
           community_id: event.community_id,
@@ -146,7 +161,7 @@ const getDiscoverFeed = async (req, res) => {
           attendee_count: parseInt(event.attendee_count),
           score: event.score,
           // Events take 2 columns in grid (stand out)
-          grid_span: 2
+          grid_span: 2,
         });
       });
     }
@@ -156,9 +171,9 @@ const getDiscoverFeed = async (req, res) => {
 
     // Interleave events with posts (insert event after every ~5-6 posts)
     const interleavedItems = [];
-    const events = items.filter(i => i.item_type === 'event');
-    const posts = items.filter(i => i.item_type === 'post');
-    
+    const events = items.filter((i) => i.item_type === "event");
+    const posts = items.filter((i) => i.item_type === "post");
+
     let eventIndex = 0;
     posts.forEach((post, index) => {
       interleavedItems.push(post);
@@ -177,9 +192,8 @@ const getDiscoverFeed = async (req, res) => {
     res.json({
       success: true,
       items: interleavedItems,
-      hasMore: posts.length === parsedLimit
+      hasMore: posts.length === parsedLimit,
     });
-
   } catch (error) {
     console.error("Error getting discover feed:", error);
     res.status(500).json({ error: "Failed to get discover feed" });
@@ -202,18 +216,18 @@ const getSuggestedCommunities = async (req, res) => {
     }
 
     // Only members see suggestions (communities don't need to join other communities)
-    if (userType !== 'member') {
+    if (userType !== "member") {
       return res.json({ success: true, suggestions: [] });
     }
 
     // Get user's interests
     const interestsResult = await pool.query(
-      'SELECT interests FROM members WHERE id = $1',
+      "SELECT interests FROM members WHERE id = $1",
       [userId]
     );
-    
+
     const userInterests = interestsResult.rows[0]?.interests || [];
-    
+
     // If no interests, return popular communities
     let suggestionsQuery;
     let queryParams;
@@ -277,7 +291,7 @@ const getSuggestedCommunities = async (req, res) => {
 
     const result = await pool.query(suggestionsQuery, queryParams);
 
-    const suggestions = result.rows.map(community => ({
+    const suggestions = result.rows.map((community) => ({
       id: community.id,
       name: community.name,
       username: community.username,
@@ -285,15 +299,14 @@ const getSuggestedCommunities = async (req, res) => {
       category: community.category,
       bio: community.bio,
       follower_count: community.follower_count,
-      is_following: false // Always false since we exclude followed
+      is_following: false, // Always false since we exclude followed
     }));
 
     res.json({
       success: true,
       suggestions,
-      hasMore: result.rows.length === parseInt(limit)
+      hasMore: result.rows.length === parseInt(limit),
     });
-
   } catch (error) {
     console.error("Error getting suggested communities:", error);
     res.status(500).json({ error: "Failed to get suggestions" });
@@ -302,5 +315,5 @@ const getSuggestedCommunities = async (req, res) => {
 
 module.exports = {
   getDiscoverFeed,
-  getSuggestedCommunities
+  getSuggestedCommunities,
 };

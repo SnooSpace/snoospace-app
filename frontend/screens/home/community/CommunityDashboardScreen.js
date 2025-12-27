@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { mockData } from "../../../data/mockData";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
+import ActionModal from "../../../components/modals/ActionModal";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 
 const PRIMARY_COLOR = COLORS.primary;
@@ -34,6 +36,13 @@ export default function CommunityDashboardScreen({ navigation }) {
   });
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [previousEvents, setPreviousEvents] = useState([]);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [modalConfig, setModalConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    actions: [],
+  });
 
   useEffect(() => {
     loadDashboard();
@@ -122,20 +131,257 @@ export default function CommunityDashboardScreen({ navigation }) {
     loadDashboard();
   };
 
+  const handleEventLongPress = (event) => {
+    const canDelete =
+      event.is_past || event.is_cancelled || event.current_attendees === 0;
+    const canCancel = !event.is_past && !event.is_cancelled;
+
+    const actions = [];
+
+    // Can cancel upcoming events that aren't already cancelled
+    if (canCancel) {
+      actions.push({
+        text: "Cancel Event",
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => confirmCancelEvent(event), 300);
+        },
+        style: "destructive",
+      });
+    }
+
+    // Delete option
+    actions.push({
+      text: canDelete ? "Delete Event" : "Delete (after event ends)",
+      onPress: () => {
+        setModalConfig((prev) => ({ ...prev, visible: false }));
+        setTimeout(() => {
+          canDelete ? confirmDeleteEvent(event) : showDeleteRestriction(event);
+        }, 300);
+      },
+      style: canDelete ? "destructive" : "default",
+    });
+
+    // Cancel button (dismiss modal)
+    actions.push({
+      text: "Cancel",
+      style: "cancel",
+      onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+    });
+
+    setModalConfig({
+      visible: true,
+      title: event.title,
+      message: "Choose an action",
+      actions: actions,
+    });
+  };
+
+  const confirmCancelEvent = (event) => {
+    setModalConfig({
+      visible: true,
+      title: "Cancel Event",
+      message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
+      actions: [
+        {
+          text: "Yes, Cancel Event",
+          style: "destructive",
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            handleCancelEvent(event);
+          },
+        },
+        {
+          text: "No",
+          style: "cancel",
+          onPress: () =>
+            setModalConfig((prev) => ({ ...prev, visible: false })),
+        },
+      ],
+    });
+  };
+
+  const confirmDeleteEvent = (event) => {
+    setModalConfig({
+      visible: true,
+      title: "Delete Event",
+      message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
+      actions: [
+        {
+          text: "Yes, Delete",
+          style: "destructive",
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            handleDeleteEvent(event);
+          },
+        },
+        {
+          text: "No",
+          style: "cancel",
+          onPress: () =>
+            setModalConfig((prev) => ({ ...prev, visible: false })),
+        },
+      ],
+    });
+  };
+
+  const showDeleteRestriction = (event) => {
+    setModalConfig({
+      visible: true,
+      title: "Cannot Delete Yet",
+      message: `This event has ${event.current_attendees} registered attendees. You can only delete it after the event date has passed.`,
+      actions: [
+        {
+          text: "OK",
+          style: "cancel",
+          onPress: () =>
+            setModalConfig((prev) => ({ ...prev, visible: false })),
+        },
+      ],
+    });
+  };
+
+  const handleCancelEvent = async (event) => {
+    try {
+      setActionLoading(event.id);
+      const { cancelEvent } = await import("../../../api/events");
+      const result = await cancelEvent(event.id);
+
+      // Update local state to mark as cancelled
+      const updateEvents = (events) =>
+        events.map((e) =>
+          e.id === event.id ? { ...e, is_cancelled: true } : e
+        );
+      setUpcomingEvents(updateEvents);
+      setPreviousEvents(updateEvents);
+
+      setTimeout(() => {
+        setModalConfig({
+          visible: true,
+          title: "Event Cancelled",
+          message: `"${event.title}" has been cancelled. ${
+            result.notified_attendees || 0
+          } attendees have been notified.`,
+          actions: [
+            {
+              text: "OK",
+              style: "cancel",
+              onPress: () =>
+                setModalConfig((prev) => ({ ...prev, visible: false })),
+            },
+          ],
+        });
+      }, 100);
+    } catch (error) {
+      console.error("Error cancelling event:", error);
+      setTimeout(() => {
+        setModalConfig({
+          visible: true,
+          title: "Error",
+          message: error.message || "Failed to cancel event",
+          actions: [
+            {
+              text: "OK",
+              style: "cancel",
+              onPress: () =>
+                setModalConfig((prev) => ({ ...prev, visible: false })),
+            },
+          ],
+        });
+      }, 100);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteEvent = async (event) => {
+    try {
+      setActionLoading(event.id);
+      const { deleteEvent } = await import("../../../api/events");
+      await deleteEvent(event.id);
+
+      // Remove from local state
+      setUpcomingEvents((prev) => prev.filter((e) => e.id !== event.id));
+      setPreviousEvents((prev) => prev.filter((e) => e.id !== event.id));
+
+      setTimeout(() => {
+        setModalConfig({
+          visible: true,
+          title: "Event Deleted",
+          message: `"${event.title}" has been permanently deleted.`,
+          actions: [
+            {
+              text: "OK",
+              style: "cancel",
+              onPress: () =>
+                setModalConfig((prev) => ({ ...prev, visible: false })),
+            },
+          ],
+        });
+      }, 100);
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      setTimeout(() => {
+        setModalConfig({
+          visible: true,
+          title: "Error",
+          message: error.message || "Failed to delete event",
+          actions: [
+            {
+              text: "OK",
+              style: "cancel",
+              onPress: () =>
+                setModalConfig((prev) => ({ ...prev, visible: false })),
+            },
+          ],
+        });
+      }, 100);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const renderEventCard = ({ item }) => (
-    <View style={styles.eventCard}>
-      <TouchableOpacity onPress={() => handleViewEvent(item)}>
-        <Image
-          source={{
-            uri:
-              item.banner_url ||
-              "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
-          }}
-          style={styles.eventImage}
-        />
+    <View
+      style={[styles.eventCard, item.is_cancelled && styles.cancelledEventCard]}
+    >
+      <TouchableOpacity
+        onPress={() => handleViewEvent(item)}
+        onLongPress={() => handleEventLongPress(item)}
+        delayLongPress={400}
+        disabled={actionLoading === item.id}
+      >
+        <View style={styles.imageContainer}>
+          <Image
+            source={{
+              uri:
+                item.banner_url ||
+                "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
+            }}
+            style={[
+              styles.eventImage,
+              (actionLoading === item.id || item.is_cancelled) && {
+                opacity: 0.5,
+              },
+            ]}
+          />
+          {item.is_cancelled && (
+            <View style={styles.cancelledBadge}>
+              <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
+            </View>
+          )}
+          {actionLoading === item.id && (
+            <View style={styles.cardLoadingOverlay}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
       <View style={styles.eventInfo}>
-        <Text style={styles.eventTitle} numberOfLines={1}>
+        <Text
+          style={[styles.eventTitle, item.is_cancelled && styles.cancelledText]}
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
         <Text style={styles.eventDate}>
@@ -273,6 +519,7 @@ export default function CommunityDashboardScreen({ navigation }) {
           </View>
 
           <View style={styles.eventsHeader}>
+            <Text style={styles.longPressHint}>Long press to delete</Text>
             <TouchableOpacity onPress={handleViewAllEvents}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
@@ -317,6 +564,14 @@ export default function CommunityDashboardScreen({ navigation }) {
         }}
         onEventUpdated={handleEventUpdated}
         eventData={selectedEvent}
+      />
+
+      <ActionModal
+        visible={modalConfig.visible}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        actions={modalConfig.actions}
+        onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
       />
     </SafeAreaView>
   );
@@ -420,8 +675,6 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: "row",
     marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
   },
   tab: {
     flex: 1,
@@ -443,7 +696,7 @@ const styles = StyleSheet.create({
   },
   eventsHeader: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 15,
   },
@@ -511,5 +764,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
     marginTop: 10,
+  },
+  longPressHint: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    fontStyle: "italic",
+  },
+  cardLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageContainer: {
+    position: "relative",
+  },
+  cancelledEventCard: {
+    opacity: 0.8,
+  },
+  cancelledBadge: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  cancelledBadgeText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 14,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    backgroundColor: "#FF3B30",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  cancelledText: {
+    textDecorationLine: "line-through",
+    color: "#999999",
   },
 });

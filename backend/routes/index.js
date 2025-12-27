@@ -426,6 +426,11 @@ router.get(
   authMiddleware,
   CategoryController.getCategoryById
 );
+router.get(
+  "/discover/categories/:categoryId/events",
+  authMiddleware,
+  CategoryController.getEventsByCategory
+);
 
 // Event Categories
 router.get(
@@ -614,6 +619,12 @@ router.get(
 );
 router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
+router.delete("/events/:eventId", authMiddleware, EventController.deleteEvent);
+router.patch(
+  "/events/:eventId/cancel",
+  authMiddleware,
+  EventController.cancelEvent
+);
 
 // Upload (Cloudinary)
 router.post(

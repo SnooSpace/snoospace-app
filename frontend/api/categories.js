@@ -30,6 +30,18 @@ export const getCategoryById = async (categoryId, options = {}) => {
 };
 
 /**
+ * Get all events for a specific category (for "See All" page)
+ * @param {number} categoryId - Category ID
+ * @param {Object} options - Query options
+ */
+export const getEventsByCategory = async (categoryId, options = {}) => {
+  const { limit = 50, offset = 0 } = options;
+  return await apiGet(
+    `/discover/categories/${categoryId}/events?limit=${limit}&offset=${offset}`
+  );
+};
+
+/**
  * Get categories assigned to an event
  * @param {number} eventId - Event ID
  */

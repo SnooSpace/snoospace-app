@@ -305,7 +305,7 @@ const getDiscoverFeedV2 = async (req, res) => {
             e.start_datetime as event_date,
             e.location_url,
             e.banner_url,
-            e.ticket_price,
+            COALESCE(e.ticket_price, (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id)) as ticket_price,
             e.event_type,
             c.id as community_id,
             c.name as community_name,
@@ -316,11 +316,12 @@ const getDiscoverFeedV2 = async (req, res) => {
             TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
           FROM events e
           INNER JOIN event_discover_categories edc ON e.id = edc.event_id
-          INNER JOIN communities c ON e.community_id = c.id
+          INNER JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
           LEFT JOIN event_registrations er ON e.id = er.event_id
           WHERE edc.category_id = $1
             AND e.start_datetime >= NOW()
-            AND e.is_published = true
+            AND (e.is_published = true OR e.is_published IS NULL)
+            AND e.is_cancelled IS NOT TRUE
           GROUP BY e.id, c.id, edc.is_featured, edc.display_order
           ORDER BY edc.is_featured DESC, edc.display_order ASC, e.start_datetime ASC
           LIMIT 10
@@ -347,6 +348,77 @@ const getDiscoverFeedV2 = async (req, res) => {
   } catch (error) {
     console.error("Error getting discover feed V2:", error);
     res.status(500).json({ error: "Failed to get discover feed" });
+  }
+};
+
+/**
+ * Get all events for a specific category (for "See All" page)
+ */
+const getEventsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+    const parsedLimit = parseInt(limit);
+    const parsedOffset = parseInt(offset);
+
+    // Get category info
+    const categoryQuery = await pool.query(
+      `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
+      [categoryId]
+    );
+
+    if (categoryQuery.rows.length === 0) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    const category = categoryQuery.rows[0];
+
+    // Get events for this category
+    const eventsQuery = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        e.start_datetime as event_date,
+        e.location_url,
+        e.banner_url,
+        COALESCE(e.ticket_price, (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id)) as ticket_price,
+        e.event_type,
+        COALESCE(e.community_id, e.creator_id) as community_id,
+        c.name as community_name,
+        c.logo_url as community_logo,
+        edc.is_featured,
+        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+        TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
+        TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
+      FROM events e
+      INNER JOIN event_discover_categories edc ON e.id = edc.event_id
+      INNER JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
+      LEFT JOIN event_registrations er ON e.id = er.event_id
+      WHERE edc.category_id = $1
+        AND e.start_datetime >= NOW()
+        AND (e.is_published = true OR e.is_published IS NULL)
+        AND e.is_cancelled IS NOT TRUE
+      GROUP BY e.id, c.id, edc.is_featured, edc.display_order
+      ORDER BY edc.is_featured DESC, e.start_datetime ASC
+      LIMIT $2 OFFSET $3
+    `;
+
+    const eventsResult = await pool.query(eventsQuery, [
+      categoryId,
+      parsedLimit,
+      parsedOffset,
+    ]);
+
+    res.json({
+      success: true,
+      category,
+      events: eventsResult.rows,
+      hasMore: eventsResult.rows.length === parsedLimit,
+    });
+  } catch (error) {
+    console.error("Error getting events by category:", error);
+    res.status(500).json({ error: "Failed to get category events" });
   }
 };
 
@@ -1978,7 +2050,7 @@ const getEventByIdAdmin = async (req, res) => {
 };
 
 /**
- * Delete an event (admin)
+ * Delete an event (admin) - comprehensive cleanup of all related data
  */
 const deleteEventAdmin = async (req, res) => {
   try {
@@ -1995,14 +2067,34 @@ const deleteEventAdmin = async (req, res) => {
 
     const eventTitle = eventCheck.rows[0].title;
 
-    // Delete related data first
-    await pool.query("DELETE FROM event_registrations WHERE event_id = $1", [
-      eventId,
-    ]);
-    await pool.query("DELETE FROM event_categories WHERE event_id = $1", [
-      eventId,
-    ]);
-    await pool.query("DELETE FROM event_swipes WHERE event_id = $1", [eventId]);
+    // Delete all related data (order matters for foreign key constraints)
+    const deleteQueries = [
+      "DELETE FROM event_registrations WHERE event_id = $1",
+      "DELETE FROM event_swipes WHERE event_id = $1",
+      "DELETE FROM event_matches WHERE event_id = $1",
+      "DELETE FROM next_event_requests WHERE current_event_id = $1",
+      "DELETE FROM pricing_rules WHERE event_id = $1",
+      "DELETE FROM discount_codes WHERE event_id = $1",
+      "DELETE FROM ticket_types WHERE event_id = $1",
+      "DELETE FROM event_categories WHERE event_id = $1",
+      "DELETE FROM event_discover_categories WHERE event_id = $1",
+      "DELETE FROM event_highlights WHERE event_id = $1",
+      "DELETE FROM event_things_to_know WHERE event_id = $1",
+      "DELETE FROM event_featured_accounts WHERE event_id = $1",
+      "DELETE FROM event_gallery WHERE event_id = $1",
+      "DELETE FROM event_banners WHERE event_id = $1",
+    ];
+
+    for (const query of deleteQueries) {
+      try {
+        await pool.query(query, [eventId]);
+      } catch (err) {
+        // Table may not exist - continue
+        console.warn(
+          `[deleteEventAdmin] Query failed (non-critical): ${query}`
+        );
+      }
+    }
 
     // Delete the event
     await pool.query("DELETE FROM events WHERE id = $1", [eventId]);
@@ -2056,6 +2148,7 @@ module.exports = {
   getAllCategoriesAdmin,
   getCategoryById,
   getDiscoverFeedV2,
+  getEventsByCategory,
   createCategory,
   updateCategory,
   deleteCategory,
