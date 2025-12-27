@@ -1753,6 +1753,299 @@ const deleteSponsorType = async (req, res) => {
   }
 };
 
+// =============================================
+// ADMIN EVENT MANAGEMENT
+// =============================================
+
+/**
+ * Get event stats for admin dashboard
+ */
+const getEventStatsAdmin = async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE start_datetime > $1 AND (is_cancelled IS NULL OR is_cancelled = false)) as upcoming,
+        COUNT(*) FILTER (WHERE start_datetime <= $1 AND end_datetime >= $1 AND (is_cancelled IS NULL OR is_cancelled = false)) as ongoing,
+        COUNT(*) FILTER (WHERE end_datetime < $1 AND (is_cancelled IS NULL OR is_cancelled = false)) as completed,
+        COUNT(*) FILTER (WHERE is_cancelled = true) as cancelled
+      FROM events
+    `;
+
+    const result = await pool.query(statsQuery, [now]);
+    const stats = result.rows[0];
+
+    res.json({
+      success: true,
+      stats: {
+        total: parseInt(stats.total) || 0,
+        upcoming: parseInt(stats.upcoming) || 0,
+        ongoing: parseInt(stats.ongoing) || 0,
+        completed: parseInt(stats.completed) || 0,
+        cancelled: parseInt(stats.cancelled) || 0,
+      },
+    });
+  } catch (error) {
+    console.error("Error getting event stats:", error);
+    res.status(500).json({ error: "Failed to get event stats" });
+  }
+};
+
+/**
+ * Get all events for admin with pagination, search, and filtering
+ */
+const getAllEventsAdmin = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 15,
+      search = "",
+      status = "all",
+      communityId = null,
+    } = req.query;
+
+    const offset = (page - 1) * parseInt(limit);
+    const now = new Date().toISOString();
+    const params = [];
+    const conditions = [];
+
+    // Build base query
+    let query = `
+      SELECT 
+        e.id, e.title, e.description, e.banner_url,
+        e.start_datetime, e.end_datetime, e.location_url,
+        e.is_cancelled, e.created_at,
+        e.creator_id as community_id,
+        c.name as community_name, c.username as community_username, c.logo_url as community_logo_url,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id) as attendee_count,
+        CASE 
+          WHEN e.is_cancelled = true THEN 'cancelled'
+          WHEN e.start_datetime > $1 THEN 'upcoming'
+          WHEN e.start_datetime <= $1 AND e.end_datetime >= $1 THEN 'ongoing'
+          ELSE 'completed'
+        END as status
+      FROM events e
+      LEFT JOIN communities c ON e.creator_id = c.id
+    `;
+
+    params.push(now);
+    // Ensure $1 is always used in the WHERE clause so count query doesn't fail
+    conditions.push(`($1::text IS NOT NULL)`);
+
+    // Search filter
+    if (search && search.trim()) {
+      params.push(`%${search}%`);
+      conditions.push(`e.title ILIKE $${params.length}`);
+    }
+
+    // Community filter
+    if (communityId) {
+      params.push(communityId);
+      conditions.push(`e.creator_id = $${params.length}`);
+    }
+
+    // Status filter
+    if (status && status !== "all") {
+      switch (status) {
+        case "upcoming":
+          conditions.push(
+            `e.start_datetime > $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+          );
+          break;
+        case "ongoing":
+          conditions.push(
+            `e.start_datetime <= $1 AND e.end_datetime >= $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+          );
+          break;
+        case "completed":
+          conditions.push(
+            `e.end_datetime < $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+          );
+          break;
+        case "cancelled":
+          conditions.push(`e.is_cancelled = true`);
+          break;
+      }
+    }
+
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
+    }
+
+    // Get total count
+    const countQuery = query.replace(
+      /SELECT[\s\S]*?FROM events/,
+      "SELECT COUNT(*) as total FROM events"
+    );
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    // Add sorting and pagination
+    query += ` ORDER BY e.start_datetime DESC LIMIT $${
+      params.length + 1
+    } OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), offset);
+
+    const result = await pool.query(query, params);
+
+    // Parse ticket_types JSON
+    const events = result.rows.map((event) => ({
+      ...event,
+      ticket_types: (() => {
+        try {
+          if (!event.ticket_types) return [];
+          if (typeof event.ticket_types === "string") {
+            return JSON.parse(event.ticket_types);
+          }
+          return event.ticket_types;
+        } catch {
+          return [];
+        }
+      })(),
+    }));
+
+    res.json({
+      success: true,
+      events,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting all events:", error);
+    res.status(500).json({ error: "Failed to get events" });
+  }
+};
+
+/**
+ * Get single event by ID for admin
+ */
+const getEventByIdAdmin = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const now = new Date().toISOString();
+
+    const query = `
+      SELECT 
+        e.*,
+        c.name as community_name, c.username as community_username, c.logo_url as community_logo_url,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id) as attendee_count,
+        CASE 
+          WHEN e.is_cancelled = true THEN 'cancelled'
+          WHEN e.start_datetime > $1 THEN 'upcoming'
+          WHEN e.start_datetime <= $1 AND e.end_datetime >= $1 THEN 'ongoing'
+          ELSE 'completed'
+        END as status,
+        (SELECT COALESCE(json_agg(t.* ORDER BY t.base_price ASC), '[]') FROM ticket_types t WHERE t.event_id = e.id) as ticket_types,
+        (SELECT COALESCE(json_agg(g.* ORDER BY g.image_order ASC), '[]') FROM event_gallery g WHERE g.event_id = e.id) as gallery_images,
+        (SELECT COALESCE(json_agg(h.* ORDER BY h.highlight_order ASC), '[]') FROM event_highlights h WHERE h.event_id = e.id) as highlights,
+        (SELECT COALESCE(json_agg(k.* ORDER BY k.item_order ASC), '[]') FROM event_things_to_know k WHERE k.event_id = e.id) as things_to_know,
+        (SELECT COALESCE(json_agg(f.* ORDER BY f.display_order ASC), '[]') FROM event_featured_accounts f WHERE f.event_id = e.id) as featured_accounts,
+        (SELECT COALESCE(json_agg(b.* ORDER BY b.image_order ASC), '[]') FROM event_banners b WHERE b.event_id = e.id) as banners
+      FROM events e
+      LEFT JOIN communities c ON e.creator_id = c.id
+      WHERE e.id = $2
+    `;
+
+    const result = await pool.query(query, [now, eventId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = result.rows[0];
+
+    // Ensure all array fields are valid arrays (pg driver handles json parsing)
+    if (!event.ticket_types) event.ticket_types = [];
+    if (!event.gallery_images) event.gallery_images = [];
+    if (!event.highlights) event.highlights = [];
+    if (!event.things_to_know) event.things_to_know = [];
+    if (!event.featured_accounts) event.featured_accounts = [];
+    if (!event.banners) event.banners = [];
+
+    // Use banners for legacy banner_url support if needed, or keep banner_url from events table
+
+    res.json({ success: true, event });
+  } catch (error) {
+    console.error("Error getting event by ID:", error);
+    res.status(500).json({ error: "Failed to get event" });
+  }
+};
+
+/**
+ * Delete an event (admin)
+ */
+const deleteEventAdmin = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Check if event exists
+    const eventCheck = await pool.query(
+      "SELECT id, title FROM events WHERE id = $1",
+      [eventId]
+    );
+    if (eventCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const eventTitle = eventCheck.rows[0].title;
+
+    // Delete related data first
+    await pool.query("DELETE FROM event_registrations WHERE event_id = $1", [
+      eventId,
+    ]);
+    await pool.query("DELETE FROM event_categories WHERE event_id = $1", [
+      eventId,
+    ]);
+    await pool.query("DELETE FROM event_swipes WHERE event_id = $1", [eventId]);
+
+    // Delete the event
+    await pool.query("DELETE FROM events WHERE id = $1", [eventId]);
+
+    res.json({
+      success: true,
+      message: `Event "${eventTitle}" deleted successfully`,
+    });
+  } catch (error) {
+    console.error("Error deleting event:", error);
+    res.status(500).json({ error: "Failed to delete event" });
+  }
+};
+
+/**
+ * Cancel an event (soft cancel - sets is_cancelled flag)
+ */
+const cancelEventAdmin = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const result = await pool.query(
+      `UPDATE events SET is_cancelled = true, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING id, title, is_cancelled`,
+      [eventId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Event "${result.rows[0].title}" has been cancelled`,
+      event: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error cancelling event:", error);
+    res.status(500).json({ error: "Failed to cancel event" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -1801,4 +2094,11 @@ module.exports = {
   createSponsorType,
   updateSponsorType,
   deleteSponsorType,
+
+  // Admin event management
+  getEventStatsAdmin,
+  getAllEventsAdmin,
+  getEventByIdAdmin,
+  deleteEventAdmin,
+  cancelEventAdmin,
 };

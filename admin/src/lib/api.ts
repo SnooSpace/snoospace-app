@@ -510,3 +510,137 @@ export async function deleteSponsorType(
     method: "DELETE",
   });
 }
+
+// ============================================
+// EVENTS API
+// ============================================
+
+export interface TicketType {
+  id: number;
+  name: string;
+  description: string | null;
+  base_price: string | number;
+  total_quantity: number | null;
+}
+
+export interface Highlight {
+  icon_name: string;
+  title: string;
+  description: string | null;
+}
+
+export interface ThingToKnow {
+  icon_name: string;
+  label: string;
+}
+
+export interface FeaturedAccount {
+  display_name: string;
+  role: string | null;
+  profile_photo_url: string | null;
+}
+
+export interface Banner {
+  image_url: string;
+}
+
+export interface Event {
+  id: number;
+  title: string;
+  description: string | null;
+  banner_url: string | null;
+  start_datetime: string;
+  end_datetime: string;
+  location_url: string | null;
+  is_cancelled: boolean;
+  created_at: string;
+  community_id: number;
+  community_name: string;
+  community_username: string;
+  community_logo_url: string | null;
+  attendee_count: number;
+  status: "upcoming" | "ongoing" | "completed" | "cancelled";
+  gallery_images: { image_url: string }[];
+  highlights: Highlight[];
+  things_to_know: ThingToKnow[];
+  featured_accounts: FeaturedAccount[];
+  ticket_types: TicketType[];
+  banners: Banner[];
+}
+
+export interface EventStats {
+  total: number;
+  upcoming: number;
+  ongoing: number;
+  completed: number;
+  cancelled: number;
+}
+
+export interface EventsResponse {
+  success: boolean;
+  events: Event[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GetEventsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "all" | "upcoming" | "ongoing" | "completed" | "cancelled";
+  communityId?: number;
+}
+
+// Get event stats for dashboard
+export async function getEventStats(): Promise<EventStats> {
+  const data = await apiRequest<{ success: boolean; stats: EventStats }>(
+    "/admin/events/stats"
+  );
+  return data.stats;
+}
+
+// Get all events with pagination and filters
+export async function getEvents(
+  params: GetEventsParams = {}
+): Promise<EventsResponse> {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page.toString());
+  if (params.limit) queryParams.set("limit", params.limit.toString());
+  if (params.search) queryParams.set("search", params.search);
+  if (params.status) queryParams.set("status", params.status);
+  if (params.communityId)
+    queryParams.set("communityId", params.communityId.toString());
+
+  const query = queryParams.toString();
+  return apiRequest(`/admin/events${query ? `?${query}` : ""}`);
+}
+
+// Get single event by ID
+export async function getEventById(id: number): Promise<Event> {
+  const data = await apiRequest<{ success: boolean; event: Event }>(
+    `/admin/events/${id}`
+  );
+  return data.event;
+}
+
+// Delete an event
+export async function deleteEvent(
+  id: number
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/admin/events/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// Cancel an event
+export async function cancelEvent(
+  id: number
+): Promise<{ success: boolean; message: string; event: Event }> {
+  return apiRequest(`/admin/events/${id}/cancel`, {
+    method: "PATCH",
+  });
+}

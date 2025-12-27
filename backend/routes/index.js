@@ -181,6 +181,35 @@ router.delete(
   CategoryController.deleteSponsorType
 );
 
+// ============================================
+// ADMIN EVENT MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/events/stats",
+  adminAuthMiddleware,
+  CategoryController.getEventStatsAdmin
+);
+router.get(
+  "/admin/events",
+  adminAuthMiddleware,
+  CategoryController.getAllEventsAdmin
+);
+router.get(
+  "/admin/events/:eventId",
+  adminAuthMiddleware,
+  CategoryController.getEventByIdAdmin
+);
+router.delete(
+  "/admin/events/:eventId",
+  adminAuthMiddleware,
+  CategoryController.deleteEventAdmin
+);
+router.patch(
+  "/admin/events/:eventId/cancel",
+  adminAuthMiddleware,
+  CategoryController.cancelEventAdmin
+);
+
 // Auth (Legacy - will be deprecated)
 router.post(
   "/auth/send-otp",
