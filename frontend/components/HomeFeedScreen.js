@@ -415,8 +415,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const handleInterestedPress = (event) => {
-    HapticsService.triggerImpactLight();
-    Alert.alert("Interested!", `You've marked interest in "${event.title}"`);
+    // EventCard already handles the API toggle and UI state
+    // No additional feedback needed here
   };
 
   const handleScroll = Animated.event(

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -35,9 +35,37 @@ export default function EventCard({
   style,
 }) {
   const [isInterested, setIsInterested] = useState(
-    event?.is_interested || false
+    Boolean(event?.is_interested)
   );
   const [interestLoading, setInterestLoading] = useState(false);
+
+  // Ref to track if we're the source of an EventBus event (prevent self-listening)
+  const isEmittingRef = useRef(false);
+
+  // Listen for interest updates from other components (e.g., EventDetailsScreen)
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const unsubscribe = EventBus.on("event-interest-updated", (payload) => {
+      // Skip if we emitted this event ourselves
+      if (isEmittingRef.current) return;
+
+      if (payload?.eventId === event.id) {
+        setIsInterested(Boolean(payload.isInterested));
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [event?.id]);
+
+  // Also update if the event prop changes (e.g., on screen focus refresh)
+  useEffect(() => {
+    if (event?.is_interested !== undefined) {
+      setIsInterested(Boolean(event.is_interested));
+    }
+  }, [event?.is_interested]);
 
   if (!event) return null;
 
@@ -104,12 +132,19 @@ export default function EventCard({
       const response = await toggleEventInterest(id);
 
       if (response?.success) {
-        setIsInterested(response.is_interested);
-        // Notify other components about the change
+        const newInterestState = Boolean(response.is_interested);
+        setIsInterested(newInterestState);
+
+        // Mark that we're emitting to prevent self-listening
+        isEmittingRef.current = true;
         EventBus.emit("event-interest-updated", {
           eventId: id,
-          isInterested: response.is_interested,
+          isInterested: newInterestState,
         });
+        // Reset flag after a tick to allow future external events
+        setTimeout(() => {
+          isEmittingRef.current = false;
+        }, 0);
       } else {
         // Revert on failure
         setIsInterested(!newState);
@@ -258,14 +293,15 @@ export default function EventCard({
             </View>
 
             <TouchableOpacity
+              key={`interest-btn-${isInterested}`}
               style={[
                 styles.interestedButton,
-                isInterested && styles.interestedButtonActive,
+                isInterested === true && styles.interestedButtonActive,
               ]}
               onPress={handleInterestedPress}
               disabled={interestLoading}
             >
-              {isInterested ? (
+              {isInterested === true ? (
                 <View style={styles.interestedActiveContent}>
                   <Ionicons name="bookmark" size={16} color={COLORS.primary} />
                   <Text style={styles.interestedActiveText}>Saved</Text>
@@ -430,6 +466,8 @@ const styles = StyleSheet.create({
   interestedButton: {
     borderRadius: BORDER_RADIUS.m,
     overflow: "hidden",
+    minWidth: 100,
+    minHeight: 36,
   },
   interestedButtonActive: {
     borderWidth: 1,
