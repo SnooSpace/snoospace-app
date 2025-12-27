@@ -202,15 +202,27 @@ export default function YourEventsScreen({ navigation }) {
     });
   };
 
-  // Get location name from URL
+  // Get location name from URL or location fields
   const getLocationDisplay = (item) => {
     if (item.event_type === "virtual") {
       return "Virtual Event";
     }
-    if (item.location_url) {
-      return getLocationNameFromUrl(item.location_url);
+    // Try to use location_name directly if available
+    if (item.location_name) {
+      return item.location_name;
     }
-    return "Location TBD";
+    // Try to extract from location_url
+    if (item.location_url) {
+      const extracted = getLocationNameFromUrl(item.location_url);
+      if (extracted !== "View Location") {
+        return extracted;
+      }
+    }
+    // Fallback to venue name or "In-person"
+    if (item.venue_name) {
+      return item.venue_name;
+    }
+    return "In-person";
   };
 
   const handleEventPress = (item) => {
@@ -293,12 +305,9 @@ export default function YourEventsScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* Bottom Row: Attendees + Price */}
+          {/* Bottom Row: Price only */}
           <View style={styles.eventBottomRow}>
-            <Text style={styles.attendeeText}>
-              {item.attendee_count || 0} attendees
-            </Text>
-
+            <View />
             {lowestPrice ? (
               <Text style={styles.priceText}>₹{lowestPrice} onwards</Text>
             ) : (
@@ -319,10 +328,12 @@ export default function YourEventsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Events</Text>
-      </View>
+    <View style={styles.outerContainer}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Your Events</Text>
+        </View>
+      </SafeAreaView>
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -387,11 +398,18 @@ export default function YourEventsScreen({ navigation }) {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: "#F5F5F5", // Gray for content area
+  },
+  safeArea: {
+    backgroundColor: "#FFFFFF", // White for status bar area
+  },
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
