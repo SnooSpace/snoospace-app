@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getEventDetails } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS } from "../../constants/theme";
+import { useLocationName } from "../../utils/locationNameCache";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -90,18 +91,21 @@ const EventDetailsScreen = ({ route, navigation }) => {
     const startDay = start.toLocaleDateString("en-IN", dayOptions);
     const startTime = start.toLocaleTimeString("en-IN", timeOptions);
 
-    if (end && end.toDateString() !== start.toDateString()) {
+    // Don't show end time if it's the same as start time or not provided
+    if (!end || start.getTime() === end.getTime()) {
+      return `${startDay}, ${startTime}`;
+    }
+
+    // Different days
+    if (end.toDateString() !== start.toDateString()) {
       const endDay = end.toLocaleDateString("en-IN", dayOptions);
       const endTime = end.toLocaleTimeString("en-IN", timeOptions);
       return `${startDay}, ${startTime} - ${endDay}, ${endTime}`;
     }
 
-    if (end) {
-      const endTime = end.toLocaleTimeString("en-IN", timeOptions);
-      return `${startDay}, ${startTime} - ${endTime}`;
-    }
-
-    return `${startDay}, ${startTime}`;
+    // Same day, different time
+    const endTime = end.toLocaleTimeString("en-IN", timeOptions);
+    return `${startDay}, ${startTime} - ${endTime}`;
   };
 
   const formatGatesTime = (gatesTime) => {
@@ -114,26 +118,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
     });
   };
 
-  // Parse venue name from Google Maps URL
-  const parseVenueName = (url) => {
-    if (!url) return null;
-    try {
-      // Try to extract place name from various Google Maps URL formats
-      // Format: /place/Place+Name/ or /search/Place+Name/
-      const placeMatch = url.match(/\/place\/([^/@]+)/);
-      if (placeMatch) {
-        return decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
-      }
-      // Format: q=Place+Name
-      const qMatch = url.match(/[?&]q=([^&]+)/);
-      if (qMatch) {
-        return decodeURIComponent(qMatch[1].replace(/\+/g, " "));
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  };
+  // Get location name from Google Maps URL (handles shortened URLs)
+  const locationName = useLocationName(event?.location_url, {
+    fallback: event?.venue_name || "View Location",
+  });
 
   const handleOpenLocation = () => {
     if (event?.location_url) {
@@ -286,12 +274,6 @@ const EventDetailsScreen = ({ route, navigation }) => {
             />
           )}
 
-          {/* Gradient Overlay */}
-          <LinearGradient
-            colors={["transparent", "rgba(249,250,251,0.9)", BACKGROUND_COLOR]}
-            style={styles.bannerGradient}
-          />
-
           {/* Banner Dots */}
           {banners.length > 1 && (
             <View style={styles.dotsContainer}>
@@ -351,9 +333,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoTitle} numberOfLines={2}>
-                  {event.venue_name ||
-                    parseVenueName(event.location_url) ||
-                    "View Location"}
+                  {locationName}
                 </Text>
                 <Text style={styles.infoSubtitle}>Tap to open in Maps</Text>
               </View>
@@ -706,6 +686,9 @@ const styles = StyleSheet.create({
   bannerContainer: {
     height: BANNER_HEIGHT,
     position: "relative",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: "hidden",
   },
   bannerImage: {
     width: SCREEN_WIDTH,
@@ -737,7 +720,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 20,
-    marginTop: -40,
+    marginTop: 16,
   },
   categoriesContainer: {
     marginBottom: 12,

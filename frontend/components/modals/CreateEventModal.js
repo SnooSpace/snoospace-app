@@ -76,7 +76,9 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   // UI States
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
+  const [hasEndTime, setHasEndTime] = useState(false);
   const [draftExists, setDraftExists] = useState(false);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
@@ -89,6 +91,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setTitle("");
     setEventDate(new Date());
     setEndDate(new Date());
+    setHasEndTime(false);
     setGatesOpenTime(null);
     setHasGates(false);
     setEventType("in-person");
@@ -108,7 +111,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const getCurrentFormData = () => ({
     title,
     eventDate: eventDate.toISOString(),
-    endDate: endDate.toISOString(),
+    endDate: hasEndTime ? endDate.toISOString() : null,
+    hasEndTime,
     gatesOpenTime: gatesOpenTime ? gatesOpenTime.toISOString() : null,
     hasGates,
     eventType,
@@ -144,6 +148,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
       if (draft) {
         setTitle(draft.data.title || "");
         setEventDate(new Date(draft.data.eventDate));
+        if (draft.data.hasEndTime && draft.data.endDate) {
+          setEndDate(new Date(draft.data.endDate));
+          setHasEndTime(true);
+        } else {
+          setHasEndTime(false);
+        }
         setHasGates(draft.data.hasGates || false);
         setEventType(draft.data.eventType || "in-person");
         setLocationUrl(draft.data.locationUrl || "");
@@ -252,7 +262,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     try {
       const response = await createEvent({
         ...getCurrentFormData(),
-        event_date: eventDate.toISOString(),
+        start_datetime: eventDate.toISOString(),
+        end_datetime: hasEndTime ? endDate.toISOString() : null,
       });
       if (response?.event) {
         Alert.alert("Success", "Event created successfully!", [
@@ -310,7 +321,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Time *</Text>
+                <Text style={styles.label}>Start Time *</Text>
                 <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => setShowTimePicker(true)}
@@ -330,6 +341,53 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               </View>
             </View>
 
+            {/* End Time - Optional */}
+            <View
+              style={{ flexDirection: "row", gap: 10, alignItems: "flex-end" }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>End Time (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={hasEndTime ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+                  />
+                  <Text
+                    style={[
+                      styles.dateButtonText,
+                      !hasEndTime && { color: LIGHT_TEXT_COLOR },
+                    ]}
+                  >
+                    {hasEndTime
+                      ? endDate.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Not set"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {hasEndTime && (
+                <TouchableOpacity
+                  style={{ paddingBottom: 12 }}
+                  onPress={() => {
+                    setHasEndTime(false);
+                    setEndDate(new Date(eventDate));
+                  }}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={24}
+                    color={LIGHT_TEXT_COLOR}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
             {(showDatePicker || showTimePicker) && (
               <DateTimePicker
                 value={eventDate}
@@ -338,6 +396,28 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   setShowDatePicker(false);
                   setShowTimePicker(false);
                   if (date) setEventDate(date);
+                }}
+              />
+            )}
+
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={hasEndTime ? endDate : eventDate}
+                mode="time"
+                onChange={(e, date) => {
+                  setShowEndTimePicker(false);
+                  if (date) {
+                    // Copy the start date but with the selected end time
+                    const newEndDate = new Date(eventDate);
+                    newEndDate.setHours(
+                      date.getHours(),
+                      date.getMinutes(),
+                      0,
+                      0
+                    );
+                    setEndDate(newEndDate);
+                    setHasEndTime(true);
+                  }
                 }}
               />
             )}
