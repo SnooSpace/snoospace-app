@@ -19,6 +19,7 @@ import { getEventDetails } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS } from "../../constants/theme";
 import { useLocationName } from "../../utils/locationNameCache";
+import { getActiveAccount } from "../../api/auth";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -42,8 +43,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [error, setError] = useState(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showCreatorToast, setShowCreatorToast] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Always load full event details from API
@@ -54,6 +59,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
       setLoading(false);
       setError("No event ID provided");
     }
+    // Load current user
+    getActiveAccount().then(setCurrentUser).catch(console.error);
   }, [eventId, initialData?.id]);
 
   const loadEventDetails = async (id) => {
@@ -137,7 +144,46 @@ const EventDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  // Check if current user is the event creator
+  const isEventCreator =
+    currentUser?.type === "community" &&
+    parseInt(currentUser?.id) === parseInt(event?.creator_id);
+
+  // Show toast message for creators trying to book
+  const showCreatorMessage = () => {
+    setShowCreatorToast(true);
+    toastOpacity.setValue(0);
+    toastTranslateY.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(toastTranslateY, {
+        toValue: -20,
+        duration: 5000,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Fade out after 4 seconds
+    setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start(() => setShowCreatorToast(false));
+    }, 4000);
+  };
+
   const handleRegister = () => {
+    // Block creators from booking their own events
+    if (isEventCreator) {
+      showCreatorMessage();
+      return;
+    }
     // Navigate to ticket selection if there are ticket types
     if (event?.ticket_types?.length > 0) {
       navigation.navigate("TicketSelection", { event });
@@ -218,26 +264,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar
-        barStyle="dark-content"
+        barStyle="light-content"
         translucent
         backgroundColor="transparent"
       />
-
-      {/* Floating Header */}
-      <View style={[styles.floatingHeader, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="bookmark-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -246,6 +276,25 @@ const EventDetailsScreen = ({ route, navigation }) => {
       >
         {/* Banner Section */}
         <View style={styles.bannerContainer}>
+          {/* Floating Header - Now scrolls with banner */}
+          <View
+            style={[styles.floatingHeader, { paddingTop: insets.top + 10 }]}
+          >
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.headerRight}>
+              {currentUser?.type === "member" && (
+                <TouchableOpacity style={styles.headerButton}>
+                  <Ionicons name="bookmark-outline" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           {banners.length > 0 ? (
             <ScrollView
               horizontal
@@ -550,9 +599,6 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       <Text style={styles.headName} numberOfLines={1}>
                         {head.name}
                       </Text>
-                      {head.is_primary && (
-                        <Text style={styles.headRole}>Primary</Text>
-                      )}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -582,6 +628,23 @@ const EventDetailsScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
+      {/* Creator Toast - floating message */}
+      {showCreatorToast && (
+        <Animated.View
+          style={[
+            styles.creatorToast,
+            {
+              opacity: toastOpacity,
+              transform: [{ translateY: toastTranslateY }],
+            },
+          ]}
+        >
+          <Text style={styles.creatorToastText}>
+            The creator of the event can't book their own events tickets
+          </Text>
+        </Animated.View>
+      )}
+
       {/* Sticky Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
         <View style={styles.priceContainer}>
@@ -610,11 +673,17 @@ const EventDetailsScreen = ({ route, navigation }) => {
           })()}
         </View>
         <TouchableOpacity
-          style={styles.registerButtonWrapper}
+          style={[
+            styles.registerButtonWrapper,
+            isEventCreator && styles.registerButtonDisabled,
+          ]}
           onPress={handleRegister}
+          activeOpacity={isEventCreator ? 1 : 0.8}
         >
           <LinearGradient
-            colors={COLORS.primaryGradient}
+            colors={
+              isEventCreator ? ["#9CA3AF", "#9CA3AF"] : COLORS.primaryGradient
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.registerButtonGradient}
@@ -661,7 +730,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
+    zIndex: 100,
+    elevation: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -723,18 +793,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   categoriesContainer: {
-    marginBottom: 12,
+    marginBottom: 16,
+    flexDirection: "row",
   },
   categoryPill: {
-    backgroundColor: PRIMARY_COLOR,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    backgroundColor: "#3A3A3C",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 10,
   },
   categoryText: {
-    color: "#FFFFFF",
-    fontSize: 12,
+    color: "#E5E5E7",
+    fontSize: 13,
     fontWeight: "600",
   },
   title: {
@@ -996,6 +1067,9 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     overflow: "hidden",
   },
+  registerButtonDisabled: {
+    opacity: 0.7,
+  },
   registerButtonGradient: {
     paddingHorizontal: 32,
     paddingVertical: 14,
@@ -1105,6 +1179,25 @@ const styles = StyleSheet.create({
     color: "#34C759",
     fontSize: 13,
     fontWeight: "500",
+  },
+  creatorToast: {
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: "center",
+    zIndex: 200,
+    elevation: 20,
+  },
+  creatorToastText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
 

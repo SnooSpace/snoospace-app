@@ -399,10 +399,10 @@ export default function SearchScreen({ navigation }) {
       <TouchableOpacity
         style={styles.eventRow}
         onPress={() => {
-          // Navigate to event details (placeholder for now)
-          navigation.navigate("CommunityPublicProfile", {
-            communityId: item.community_id,
-            viewerRole: "member",
+          // Navigate to event details
+          navigation.navigate("EventDetails", {
+            eventId: item.id,
+            eventData: item,
           });
         }}
         activeOpacity={0.7}
@@ -657,14 +657,11 @@ export default function SearchScreen({ navigation }) {
 
   // Handle discover feed event card press
   const handleDiscoverItemPress = (event) => {
-    // Navigate to EventDetails screen if it exists
-    // Otherwise, navigate to the community profile with events tab
+    // Navigate to EventDetails screen
     if (event.id) {
-      navigation.navigate("CommunityPublicProfile", {
-        communityId: event.community_id,
-        viewerRole: "member",
-        initialTab: "events",
-        highlightEventId: event.id,
+      navigation.navigate("EventDetails", {
+        eventId: event.id,
+        eventData: event,
       });
     }
   };

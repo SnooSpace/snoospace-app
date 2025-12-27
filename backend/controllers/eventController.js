@@ -1855,6 +1855,17 @@ const getEventById = async (req, res) => {
       [eventId]
     );
 
+    // Fetch discover categories
+    const categoriesResult = await pool.query(
+      `SELECT dc.name 
+       FROM event_discover_categories edc
+       JOIN discover_categories dc ON edc.category_id = dc.id
+       WHERE edc.event_id = $1
+       ORDER BY dc.name ASC`,
+      [eventId]
+    );
+    const categories = categoriesResult.rows.map((c) => c.name);
+
     console.log(`[getEventById] Event ${eventId}:`, {
       banner_count: bannerCarousel.length,
       gallery_count: gallery.length,
@@ -1865,6 +1876,7 @@ const getEventById = async (req, res) => {
       ticket_types_count: ticketTypesResult.rows.length,
       discount_codes_count: discountCodesResult.rows.length,
       pricing_rules_count: pricingRulesResult.rows.length,
+      categories_count: categories.length,
     });
 
     res.json({
@@ -1880,6 +1892,7 @@ const getEventById = async (req, res) => {
         ticket_types: ticketTypesResult.rows,
         discount_codes: discountCodesResult.rows,
         pricing_rules: pricingRulesResult.rows,
+        categories: categories,
       },
     });
   } catch (error) {
