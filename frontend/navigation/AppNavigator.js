@@ -21,6 +21,7 @@ import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
+import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 
 const Stack = createStackNavigator();
 
@@ -95,6 +96,24 @@ export default function AppNavigator({ initialRouteName }) {
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CropScreen"
+        component={CropScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="BatchCropScreen"
+        component={BatchCropScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
       />
     </Stack.Navigator>
   );

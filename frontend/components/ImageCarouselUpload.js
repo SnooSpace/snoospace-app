@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,78 +8,124 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
-import { uploadEventBanner } from '../api/upload';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { uploadEventBanner } from "../api/upload";
 
-import { COLORS } from '../constants/theme';
+import { COLORS } from "../constants/theme";
 
 // Local constants removed in favor of theme constants
 
 /**
  * ImageCarouselUpload - Upload and manage carousel images (1-5 images)
- * Features: drag to reorder, delete, set primary, preview
+ * Features: multi-select, batch crop, drag to reorder, delete, set primary, preview
+ * Uses 1:1 square crop for event banners
  */
 const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
   const [uploading, setUploading] = useState(false);
+  const navigation = useNavigation();
+  const resolveRef = useRef(null);
 
-  const pickImage = async () => {
-    if (images.length >= maxImages) {
-      Alert.alert('Limit Reached', `You can upload up to ${maxImages} images.`);
+  const pickImages = async () => {
+    const remainingSlots = maxImages - images.length;
+
+    if (remainingSlots <= 0) {
+      Alert.alert("Limit Reached", `You can upload up to ${maxImages} images.`);
       return;
     }
 
     try {
+      // Request permission
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please grant access to your photo library."
+        );
+        return;
+      }
+
+      // Multi-select images
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
+        allowsMultipleSelection: true,
+        quality: 1,
+        selectionLimit: Math.min(remainingSlots, 5),
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setUploading(true);
-        
-        // Upload to Cloudinary
-        const uploadResult = await uploadEventBanner(result.assets[0].uri);
+      if (result.canceled || result.assets.length === 0) return;
 
-        if (uploadResult?.url) {
-          const newImage = {
-            url: uploadResult.url,
-            cloudinary_public_id: uploadResult.public_id,
-            order: images.length,
-          };
-          
-          onChange([...images, newImage]);
-        }
-      }
+      // Get image URIs
+      const imageUris = result.assets.map((asset) => asset.uri);
+
+      // Navigate to BatchCropScreen for 1:1 crop (no aspect toggle)
+      const croppedResults = await new Promise((resolve) => {
+        resolveRef.current = resolve;
+
+        navigation.navigate("BatchCropScreen", {
+          imageUris: imageUris,
+          defaultPreset: "banner_square", // 1:1 fixed, no aspect toggle
+          onComplete: (results) => {
+            if (resolveRef.current) {
+              resolveRef.current(results);
+              resolveRef.current = null;
+            }
+          },
+          onCancel: () => {
+            if (resolveRef.current) {
+              resolveRef.current(null);
+              resolveRef.current = null;
+            }
+          },
+        });
+      });
+
+      // User cancelled cropping
+      if (!croppedResults || croppedResults.length === 0) return;
+
+      setUploading(true);
+
+      // Upload all cropped images
+      const uploadPromises = croppedResults.map(async (cropResult, index) => {
+        const uploadResult = await uploadEventBanner(cropResult.uri);
+        return {
+          url: uploadResult.url,
+          cloudinary_public_id: uploadResult.public_id,
+          order: images.length + index,
+          crop_metadata: cropResult.metadata,
+        };
+      });
+
+      const newImages = await Promise.all(uploadPromises);
+      onChange([...images, ...newImages]);
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to upload image. Please try again.');
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to upload images. Please try again.");
     } finally {
       setUploading(false);
     }
   };
 
   const removeImage = (index) => {
-    Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            const newImages = images.filter((_, i) => i !== index);
-            // Update orders
-            const reorderedImages = newImages.map((img, i) => ({ ...img, order: i }));
-            onChange(reorderedImages);
-          },
+    Alert.alert("Remove Image", "Are you sure you want to remove this image?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          const newImages = images.filter((_, i) => i !== index);
+          // Update orders
+          const reorderedImages = newImages.map((img, i) => ({
+            ...img,
+            order: i,
+          }));
+          onChange(reorderedImages);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const setPrimaryImage = (index) => {
@@ -88,7 +134,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
     const newImages = [...images];
     const [primaryImage] = newImages.splice(index, 1);
     newImages.unshift(primaryImage);
-    
+
     // Update orders
     const reorderedImages = newImages.map((img, i) => ({ ...img, order: i }));
     onChange(reorderedImages);
@@ -111,7 +157,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
         {images.map((image, index) => (
           <View key={index} style={styles.imageWrapper}>
             <Image source={{ uri: image.url }} style={styles.image} />
-            
+
             {/* Primary badge */}
             {index === 0 && (
               <View style={styles.primaryBadge}>
@@ -134,7 +180,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
                   <Ionicons name="star" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
               )}
-              
+
               <TouchableOpacity
                 style={[styles.actionButton, styles.deleteButton]}
                 onPress={() => removeImage(index)}
@@ -149,15 +195,19 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
         {images.length < maxImages && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={pickImage}
+            onPress={pickImages}
             disabled={uploading}
           >
             {uploading ? (
               <ActivityIndicator color={COLORS.primary} />
             ) : (
               <>
-                <Ionicons name="add-circle-outline" size={40} color={COLORS.primary} />
-                <Text style={styles.addText}>Add Image</Text>
+                <Ionicons
+                  name="add-circle-outline"
+                  size={40}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.addText}>Add Images</Text>
               </>
             )}
           </TouchableOpacity>
@@ -166,7 +216,8 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
 
       {images.length === 0 && (
         <Text style={styles.emptyText}>
-          Add up to {maxImages} banner images. First image will be the primary banner.
+          Add up to {maxImages} banner images. First image will be the primary
+          banner.
         </Text>
       )}
     </View>
@@ -182,7 +233,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
     marginBottom: 4,
   },
@@ -195,16 +246,16 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     marginRight: 15,
-    position: 'relative',
+    position: "relative",
   },
   image: {
-    width: 200,
+    width: 120,
     height: 120,
     borderRadius: 12,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   primaryBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
     backgroundColor: COLORS.primary,
@@ -213,65 +264,65 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   primaryText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   orderBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     width: 24,
     height: 24,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   orderText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   actions: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 8,
     right: 8,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   actionButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   setPrimaryButton: {
     backgroundColor: COLORS.primary,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: "#FF3B30",
   },
   addButton: {
-    width: 200,
+    width: 120,
     height: 120,
     borderRadius: 12,
     borderWidth: 2,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderColor: COLORS.textSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
   },
   addText: {
     marginTop: 8,
     fontSize: 14,
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   emptyText: {
-    textAlign: 'center',
+    textAlign: "center",
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 10,

@@ -26,6 +26,7 @@ export default function CategorySelector({
   selectedCategories = [],
   onChange,
   maxCategories = 3,
+  onExpand,
 }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +139,13 @@ export default function CategorySelector({
       {/* Category Selector Button */}
       <TouchableOpacity
         style={styles.selectorButton}
-        onPress={() => setExpanded(!expanded)}
+        onPress={() => {
+          const newExpanded = !expanded;
+          setExpanded(newExpanded);
+          if (newExpanded && onExpand) {
+            onExpand();
+          }
+        }}
       >
         <Ionicons name="pricetags-outline" size={20} color={COLORS.primary} />
         <Text style={styles.selectorButtonText}>

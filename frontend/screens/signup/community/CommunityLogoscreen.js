@@ -12,16 +12,17 @@ import {
   Alert,
   ActivityIndicator, // 👈 Imported ActivityIndicator for the spinner
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; 
-import {
-  launchImageLibraryAsync,
-  requestMediaLibraryPermissionsAsync,
-  MediaTypeOptions,
-} from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
+import { useCrop } from "../../../components/MediaCrop";
 import ProgressBar from "../../../components/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CIRCLE_SIZE = 180;
 
@@ -33,29 +34,16 @@ const CommunityLogoScreen = ({ navigation, route }) => {
   const [imageUri, setImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(false); // 👈 New state for loading
 
+  // Instagram-style crop hook for logo
+  const { pickAndCrop } = useCrop();
+
   const handleAddPhoto = async () => {
     try {
-      // Request permission to access media library
-      const permissionResult = await requestMediaLibraryPermissionsAsync();
+      // Use Instagram-style crop for 1:1 avatar/logo
+      const result = await pickAndCrop("avatar");
 
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          "Permission Required",
-          "Permission to access camera roll is required!"
-        );
-        return;
-      }
-
-      // Launch image picker
-      const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1], // Square aspect ratio for profile picture
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setImageUri(result.assets[0].uri);
+      if (result) {
+        setImageUri(result.uri);
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -72,23 +60,25 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       );
       return;
     }
-    
+
     setIsLoading(true); // 👈 Start loading
     try {
       const secureUrl = await uploadImage(imageUri, () => {});
-      
+
       // Navigate on success
-      navigation.navigate("CommunityBio", { 
-        email, 
-        accessToken, 
+      navigation.navigate("CommunityBio", {
+        email,
+        accessToken,
         refreshToken,
-        name, 
-        logo_url: secureUrl
+        name,
+        logo_url: secureUrl,
       });
-      
     } catch (e) {
-      console.error('Image upload failed:', e);
-      Alert.alert('Upload failed', e?.message || 'Unable to upload logo. Please try again.');
+      console.error("Image upload failed:", e);
+      Alert.alert(
+        "Upload failed",
+        e?.message || "Unable to upload logo. Please try again."
+      );
     } finally {
       setIsLoading(false); // 👈 Stop loading regardless of success/failure
     }
@@ -158,7 +148,10 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
@@ -193,21 +186,21 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
   },
-  
+
   // Adjusted header structure for consistency
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
     paddingTop: 15,
     paddingBottom: 10,
     paddingHorizontal: 20,
   },
   backButton: {
     padding: 10,
-    marginLeft: -10, 
+    marginLeft: -10,
   },
-  
+
   // Consistent Progress Container Styles
   progressContainer: {
     marginBottom: 40,
@@ -229,9 +222,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: COLORS.textPrimary,
-    marginBottom: 50, 
+    marginBottom: 50,
   },
-  
+
   // --- Photo Upload Area Styles ---
   photoUploadArea: {
     width: CIRCLE_SIZE,
@@ -245,9 +238,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: COLORS.primary + "80", 
+    borderColor: COLORS.primary + "80",
     borderStyle: "dashed",
-    backgroundColor: COLORS.primary + "10", 
+    backgroundColor: COLORS.primary + "10",
     alignItems: "center",
     justifyContent: "center",
   },

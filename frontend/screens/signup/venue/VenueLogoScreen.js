@@ -12,16 +12,17 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
-import {
-  launchImageLibraryAsync,
-  requestMediaLibraryPermissionsAsync,
-  MediaTypeOptions,
-} from "expo-image-picker";
+import { useCrop } from "../../../components/MediaCrop";
 import ProgressBar from "../../../components/Progressbar";
 
 // --- Design Constants ---
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
@@ -32,35 +33,18 @@ const VenueLogoScreen = ({ navigation, route }) => {
   const { email, accessToken, name, phone } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
 
+  // Instagram-style crop hook for logo
+  const { pickAndCrop } = useCrop();
+
   const handleAddPhoto = async () => {
     console.log("handleAddPhoto called"); // Debug log
     try {
-      console.log("Requesting permissions..."); // Debug log
-      // Request permission to access media library
-      const permissionResult = await requestMediaLibraryPermissionsAsync();
-      console.log("Permission result:", permissionResult); // Debug log
+      // Use Instagram-style crop for 1:1 logo
+      const result = await pickAndCrop("avatar");
 
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          "Permission Required",
-          "Permission to access camera roll is required!"
-        );
-        return;
-      }
-
-      console.log("Launching image picker..."); // Debug log
-      // Launch image picker
-      const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1], // Square aspect ratio for profile picture
-        quality: 0.8,
-      });
-
-      console.log("Image picker result:", result); // Debug log
-      if (!result.canceled && result.assets[0]) {
-        setImageUri(result.assets[0].uri);
-        console.log("Image selected:", result.assets[0].uri); // Debug log
+      if (result) {
+        setImageUri(result.uri);
+        console.log("Image selected:", result.uri); // Debug log
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -79,15 +63,18 @@ const VenueLogoScreen = ({ navigation, route }) => {
     }
     try {
       const secureUrl = await uploadImage(imageUri);
-      navigation.navigate("VenueBio", { 
-        email, 
-        accessToken, 
-        name, 
+      navigation.navigate("VenueBio", {
+        email,
+        accessToken,
+        name,
         phone,
-        logo_url: secureUrl
+        logo_url: secureUrl,
       });
     } catch (e) {
-      Alert.alert('Upload failed', e?.message || 'Unable to upload logo. Please try again.');
+      Alert.alert(
+        "Upload failed",
+        e?.message || "Unable to upload logo. Please try again."
+      );
     }
   };
 
@@ -160,7 +147,10 @@ const VenueLogoScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
         >
@@ -301,8 +291,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 15,
-    marginLeft: -15, 
-  }
+    marginLeft: -15,
+  },
 });
 
 export default VenueLogoScreen;

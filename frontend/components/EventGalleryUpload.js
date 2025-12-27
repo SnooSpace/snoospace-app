@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,52 +8,99 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
-import { uploadEventGallery } from '../api/upload';
-import { COLORS } from '../constants/theme';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { uploadEventGallery } from "../api/upload";
+import { COLORS } from "../constants/theme";
 
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const TEXT_COLOR = "#1C1C1E";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 /**
  * EventGalleryUpload - Upload and manage additional event gallery images (0-20 images)
- * Features: grid view, delete, reorder
+ * Features: grid view, delete, reorder, Instagram-style crop for each image
  */
 const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
   const [uploading, setUploading] = useState(false);
+  const navigation = useNavigation();
+  const resolveRef = useRef(null);
 
   const pickImages = async () => {
     const remainingSlots = maxImages - images.length;
-    
+
     if (remainingSlots <= 0) {
-      Alert.alert('Limit Reached', `You can upload up to ${maxImages} gallery images.`);
+      Alert.alert(
+        "Limit Reached",
+        `You can upload up to ${maxImages} gallery images.`
+      );
       return;
     }
 
     try {
+      // Request permission
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please grant access to your photo library."
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
-        quality: 0.8,
+        quality: 1,
         selectionLimit: Math.min(remainingSlots, 10), // Max 10 at a time
       });
 
       if (!result.canceled && result.assets.length > 0) {
+        // Get image URIs directly - no slow normalization needed
+        const imageUris = result.assets.map((asset) => asset.uri);
+
+        // Navigate to BatchCropScreen with selected images
+        const croppedResults = await new Promise((resolve) => {
+          resolveRef.current = resolve;
+
+          navigation.navigate("BatchCropScreen", {
+            imageUris: imageUris,
+            defaultPreset: "feed_portrait", // 4:5 default
+            onComplete: (results) => {
+              if (resolveRef.current) {
+                resolveRef.current(results);
+                resolveRef.current = null;
+              }
+            },
+            onCancel: () => {
+              if (resolveRef.current) {
+                resolveRef.current(null);
+                resolveRef.current = null;
+              }
+            },
+          });
+        });
+
+        // User cancelled cropping
+        if (!croppedResults || croppedResults.length === 0) {
+          return;
+        }
+
         setUploading(true);
 
         try {
-          // Upload all selected images to Cloudinary
-          const imageUris = result.assets.map(asset => asset.uri);
+          // Upload all cropped images to Cloudinary
+          const imageUris = croppedResults.map((r) => r.uri);
           const uploadResults = await uploadEventGallery(imageUris);
 
-          // uploadEventGallery now returns array directly from Cloudinary
           if (uploadResults && Array.isArray(uploadResults)) {
             const newImages = uploadResults.map((img, index) => ({
               url: img.url,
               cloudinary_public_id: img.public_id,
               order: images.length + index,
+              crop_metadata: croppedResults[index]?.metadata,
             }));
 
             onChange([...images, ...newImages]);
@@ -61,41 +108,40 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
 
           setUploading(false);
         } catch (uploadError) {
-          console.error('Error uploading gallery images:', uploadError);
-          Alert.alert('Error', 'Failed to upload images. Please try again.');
+          console.error("Error uploading gallery images:", uploadError);
+          Alert.alert("Error", "Failed to upload images. Please try again.");
           setUploading(false);
         }
       }
     } catch (error) {
-      console.error('Error picking images:', error);
-      Alert.alert('Error', 'Failed to pick images. Please try again.');
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to pick images. Please try again.");
     }
   };
 
   const removeImage = (index) => {
-    Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            const newImages = images.filter((_, i) => i !== index);
-            // Update orders
-            const reorderedImages = newImages.map((img, i) => ({ ...img, order: i }));
-            onChange(reorderedImages);
-          },
+    Alert.alert("Remove Image", "Are you sure you want to remove this image?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          const newImages = images.filter((_, i) => i !== index);
+          // Update orders
+          const reorderedImages = newImages.map((img, i) => ({
+            ...img,
+            order: i,
+          }));
+          onChange(reorderedImages);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderGalleryItem = ({ item, index }) => (
     <View style={styles.galleryItem}>
       <Image source={{ uri: item.url }} style={styles.galleryImage} />
-      
+
       {/* Order badge */}
       <View style={styles.orderBadge}>
         <Text style={styles.orderText}>{index + 1}</Text>
@@ -143,7 +189,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
           <>
             <Ionicons name="images-outline" size={32} color={COLORS.primary} />
             <Text style={styles.addButtonText}>
-              {images.length === 0 ? 'Add Gallery Images' : 'Add More Images'}
+              {images.length === 0 ? "Add Gallery Images" : "Add More Images"}
             </Text>
             <Text style={styles.addButtonSubtext}>
               {maxImages - images.length} slots remaining
@@ -154,7 +200,8 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
 
       {images.length === 0 && (
         <Text style={styles.emptyText}>
-          Gallery images help showcase your event. You can add up to {maxImages} photos.
+          Gallery images help showcase your event. You can add up to {maxImages}{" "}
+          photos.
         </Text>
       )}
     </View>
@@ -170,7 +217,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 4,
   },
@@ -180,57 +227,57 @@ const styles = StyleSheet.create({
   },
   row: {
     marginBottom: 10,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   galleryItem: {
-    width: '31%',
+    width: "31%",
     aspectRatio: 1,
-    marginRight: '3.5%',
-    position: 'relative',
+    marginRight: "3.5%",
+    position: "relative",
     marginBottom: 10,
   },
   galleryImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 8,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   orderBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 6,
     left: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     width: 20,
     height: 20,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   orderText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   deleteButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 4,
     right: 4,
   },
   addButton: {
     borderWidth: 2,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderColor: LIGHT_TEXT_COLOR,
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F5F5",
     marginTop: 10,
   },
   addButtonText: {
     marginTop: 10,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.primary,
   },
   addButtonSubtext: {
@@ -239,7 +286,7 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
   },
   emptyText: {
-    textAlign: 'center',
+    textAlign: "center",
     color: LIGHT_TEXT_COLOR,
     fontSize: 12,
     marginTop: 15,

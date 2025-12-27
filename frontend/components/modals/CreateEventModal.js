@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -81,15 +81,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
 
-  const stepLabels = [
-    "Basic Info",
-    "Media",
-    "Description",
-    "Highlights",
-    "Featured",
-    "Know",
-    "Review",
-  ];
+  // Scroll ref for auto-scrolling when category dropdown opens
+  const scrollViewRef = useRef(null);
 
   const resetForm = () => {
     setCurrentStep(1);
@@ -230,6 +223,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         Alert.alert("Required", "Add at least one ticket type");
         return false;
       }
+      if (categories.length === 0) {
+        Alert.alert("Required", "Select at least one category");
+        return false;
+      }
     }
     if (step === 2 && bannerCarousel.length === 0) {
       Alert.alert("Required", "Add a banner image");
@@ -281,6 +278,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
       case 1:
         return (
           <ScrollView
+            ref={scrollViewRef}
             style={styles.stepContent}
             contentContainerStyle={styles.scrollContent}
           >
@@ -404,7 +402,13 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             <CategorySelector
               selectedCategories={categories}
               onChange={setCategories}
-              maxCategories={3}
+              maxCategories={4}
+              onExpand={() => {
+                // Auto-scroll down when dropdown opens so it's visible
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
             />
           </ScrollView>
         );
@@ -497,11 +501,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           <View style={{ width: 28 }} />
         </View>
 
-        <StepIndicator
-          currentStep={currentStep}
-          totalSteps={7}
-          stepLabels={stepLabels}
-        />
+        <StepIndicator currentStep={currentStep} totalSteps={7} />
 
         {renderStep()}
 
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "600", color: TEXT_COLOR },
   stepContent: { flex: 1, padding: 20 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { paddingBottom: 40 },
   stepTitle: {
     fontSize: 24,
     fontWeight: "700",

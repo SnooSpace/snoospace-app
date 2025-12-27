@@ -23,11 +23,7 @@ import {
   fetchInterests,
 } from "../../../api/members";
 import HapticsService from "../../../services/HapticsService";
-import {
-  launchImageLibraryAsync,
-  requestMediaLibraryPermissionsAsync,
-  MediaTypeOptions,
-} from "expo-image-picker";
+import { useCrop } from "../../../components/MediaCrop";
 import { uploadImage } from "../../../api/cloudinary";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
@@ -218,26 +214,17 @@ export default function EditProfileScreen({ route, navigation }) {
     }
   };
 
+  // Instagram-style crop hook for avatar
+  const { pickAndCrop } = useCrop();
+
   const handleChangePhoto = async () => {
     try {
-      const permissionResult = await requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert(
-          "Permission Required",
-          "Permission to access photos is required."
-        );
-        return;
-      }
-      const picker = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.85,
-      });
-      if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+      // Use Instagram-style crop for 1:1 avatar
+      const result = await pickAndCrop("avatar");
+      if (!result) return; // User cancelled
+
       setUploadingPhoto(true);
-      const uri = picker.assets[0].uri;
-      const secureUrl = await uploadImage(uri);
+      const secureUrl = await uploadImage(result.uri);
       const token = await getAuthToken();
       await (
         await import("../../../api/client")
@@ -249,7 +236,6 @@ export default function EditProfileScreen({ route, navigation }) {
       );
       setPhotoUrl(secureUrl);
       Alert.alert("Updated", "Profile photo updated");
-      // Trigger parent refresh by marking changes (no-op field) or simply navigate back after save
     } catch (e) {
       Alert.alert("Update failed", e?.message || "Could not update photo");
     } finally {

@@ -13,14 +13,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
-import {
-  launchImageLibraryAsync,
-  requestMediaLibraryPermissionsAsync,
-  MediaTypeOptions,
-} from "expo-image-picker";
+import { useCrop } from "../../../components/MediaCrop";
 import ProgressBar from "../../../components/Progressbar";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 // Removed local constants in favor of theme constants
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
@@ -28,40 +29,32 @@ import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name, gender, dob, interests, location } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    phone,
+    name,
+    gender,
+    dob,
+    interests,
+    location,
+  } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  // Instagram-style crop hook for avatar
+  const { pickAndCrop } = useCrop();
 
   const handleAddPhoto = async () => {
     console.log("handleAddPhoto called"); // Debug log
     try {
-      console.log("Requesting permissions..."); // Debug log
-      // Request permission to access media library
-      const permissionResult = await requestMediaLibraryPermissionsAsync();
-      console.log("Permission result:", permissionResult); // Debug log
+      // Use Instagram-style crop for 1:1 avatar
+      const result = await pickAndCrop("avatar");
 
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          "Permission Required",
-          "Permission to access camera roll is required!"
-        );
-        return;
-      }
-
-      console.log("Launching image picker..."); // Debug log
-      // Launch image picker
-      const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1], // Square aspect ratio for profile picture
-        quality: 0.8,
-      });
-
-      console.log("Image picker result:", result); // Debug log
-      if (!result.canceled && result.assets[0]) {
-        setImageUri(result.assets[0].uri);
-        console.log("Image selected:", result.assets[0].uri); // Debug log
+      if (result) {
+        setImageUri(result.uri);
+        console.log("Image selected:", result.uri); // Debug log
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -80,19 +73,19 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
       // DON'T create the member record here - pass all data to username screen
       // Record will be created when username is set (final step)
-      navigation.navigate("MemberUsername", { 
-        userData: { 
-          name, 
-          email, 
-          phone, 
-          dob, 
-          gender, 
-          location, 
+      navigation.navigate("MemberUsername", {
+        userData: {
+          name,
+          email,
+          phone,
+          dob,
+          gender,
+          location,
           interests,
-          profile_photo_url: profileUrl || null
-        }, 
+          profile_photo_url: profileUrl || null,
+        },
         accessToken,
-        refreshToken
+        refreshToken,
       });
     } catch (e) {
       alert(e.message || "Failed to upload image");
@@ -174,7 +167,10 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
@@ -187,7 +183,11 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           >
             {uploading ? (
               <View style={styles.buttonLoadingContainer}>
-                <ActivityIndicator size="small" color={COLORS.textInverted} style={styles.buttonSpinner} />
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.textInverted}
+                  style={styles.buttonSpinner}
+                />
                 <Text style={styles.buttonText}>Uploading...</Text>
               </View>
             ) : (
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: COLORS.primary + "80", 
+    borderColor: COLORS.primary + "80",
     borderStyle: "dashed",
     backgroundColor: COLORS.primary + "10",
     alignItems: "center",
@@ -344,8 +344,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 15,
-    marginLeft: -15, 
-  }
+    marginLeft: -15,
+  },
 });
 
 export default ProfilePictureScreen;
