@@ -603,7 +603,10 @@ export default function CommunityDashboardScreen({ navigation }) {
               *Long press event cards to view tickets sold, cancel events or
               delete events options
             </Text>
-            <TouchableOpacity onPress={handleViewAllEvents}>
+            <TouchableOpacity
+              onPress={handleViewAllEvents}
+              style={{ alignSelf: "flex-end" }}
+            >
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -798,15 +801,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   eventsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "flex-start",
     marginBottom: 15,
+    gap: 10,
+  },
+  longPressHint: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    fontStyle: "italic",
+    lineHeight: 18,
   },
   viewAllText: {
     fontSize: 14,
     fontWeight: "600",
     color: PRIMARY_COLOR,
+    alignSelf: "flex-end",
   },
   eventsList: {
     paddingRight: 20,
@@ -877,11 +887,7 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
     marginTop: 10,
   },
-  longPressHint: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    fontStyle: "italic",
-  },
+
   cardLoadingOverlay: {
     position: "absolute",
     top: 0,

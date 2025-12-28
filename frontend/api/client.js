@@ -108,7 +108,22 @@ async function tryRefreshAndRetry(doRequest) {
         console.log("[tryRefreshAndRetry] V2 refresh successful");
       } catch (v2Error) {
         console.log("[tryRefreshAndRetry] V2 refresh failed:", v2Error.message);
-        needV1Fallback = true;
+
+        // CRITICAL FIX: Do NOT fallback to V1 for V2 tokens!
+        // V1 fallback would return a 32-char token that corrupts the V2 session
+        // Instead, mark account as logged out and throw
+        console.error(
+          "[tryRefreshAndRetry] V2 token refresh failed - marking account for re-auth"
+        );
+        if (accountId) {
+          const accountManager = await import("../utils/accountManager");
+          await accountManager.markAccountLoggedOut(
+            accountId,
+            `V2 refresh failed: ${v2Error.message}`,
+            "client.js:tryRefreshAndRetry:V2Failed"
+          );
+        }
+        throw new Error("Unauthorized");
       }
     }
 

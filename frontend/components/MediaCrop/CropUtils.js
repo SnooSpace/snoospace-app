@@ -119,9 +119,11 @@ export const calculateInitialScale = ({
  * @param {number} params.imageHeight - Original image height
  * @param {number} params.frameWidth - Crop frame width
  * @param {number} params.frameHeight - Crop frame height
- * @param {number} params.scale - Current scale
- * @param {number} params.translateX - Current X translation
- * @param {number} params.translateY - Current Y translation
+ * @param {number} params.scale - Effective scale (displayScale * userZoom)
+ * @param {number} params.translateX - Current X translation (in screen pixels)
+ * @param {number} params.translateY - Current Y translation (in screen pixels)
+ * @param {number} params.displayWidth - Display width (image scaled to fill frame)
+ * @param {number} params.displayHeight - Display height (image scaled to fill frame)
  * @returns {Object} { originX, originY, width, height } in original image coordinates
  */
 export const calculateCropRegion = ({
@@ -132,34 +134,41 @@ export const calculateCropRegion = ({
   scale,
   translateX,
   translateY,
+  displayWidth,
+  displayHeight,
 }) => {
-  // The visible region in the frame, converted back to original image space
-  // The frame is centered on the scaled image, offset by translate values
+  // The scale passed is the effective scale (displayScale * userZoom)
+  // translateX/Y are in screen-pixel space relative to displayed image
 
-  // Scaled image dimensions
-  const scaledWidth = imageWidth * scale;
-  const scaledHeight = imageHeight * scale;
+  // Calculate userZoom from effectiveScale and displayScale
+  const displayScale = displayWidth / imageWidth;
+  const userZoom = scale / displayScale;
 
-  // Center of the scaled image relative to frame center
-  // translateX/Y moves the image, so negative translate means image moved left/up
-  const centerOffsetX = scaledWidth / 2 - translateX;
-  const centerOffsetY = scaledHeight / 2 - translateY;
+  // The actual displayed size at the time of interaction
+  const actualDisplayedWidth = displayWidth * userZoom;
+  const actualDisplayedHeight = displayHeight * userZoom;
 
-  // Visible frame region in scaled image coordinates
-  const frameLeftInScaled = centerOffsetX - frameWidth / 2;
-  const frameTopInScaled = centerOffsetY - frameHeight / 2;
+  // Center of the displayed image relative to frame center
+  // translateX/Y moves the image (negative = moved left/up)
+  const centerOffsetX = actualDisplayedWidth / 2 - translateX;
+  const centerOffsetY = actualDisplayedHeight / 2 - translateY;
+
+  // Visible frame region in displayed image coordinates
+  const frameLeftInDisplayed = centerOffsetX - frameWidth / 2;
+  const frameTopInDisplayed = centerOffsetY - frameHeight / 2;
 
   // Convert to original image coordinates
-  const originX = frameLeftInScaled / scale;
-  const originY = frameTopInScaled / scale;
+  // Scale factor from displayed to original = 1 / scale
+  const originX = frameLeftInDisplayed / scale;
+  const originY = frameTopInDisplayed / scale;
   const cropWidth = frameWidth / scale;
   const cropHeight = frameHeight / scale;
 
   return {
     originX: Math.max(0, originX),
     originY: Math.max(0, originY),
-    width: Math.min(cropWidth, imageWidth - originX),
-    height: Math.min(cropHeight, imageHeight - originY),
+    width: Math.min(cropWidth, imageWidth - Math.max(0, originX)),
+    height: Math.min(cropHeight, imageHeight - Math.max(0, originY)),
   };
 };
 

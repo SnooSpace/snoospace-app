@@ -153,6 +153,8 @@ const CropScreen = ({ route, navigation }) => {
         scale: effectiveScale,
         translateX: cropData.translateX,
         translateY: cropData.translateY,
+        displayWidth: cropData.displayWidth,
+        displayHeight: cropData.displayHeight,
       });
 
       // Apply crop using expo-image-manipulator

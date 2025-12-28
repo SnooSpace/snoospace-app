@@ -11,9 +11,30 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { useNavigation } from "@react-navigation/native";
 import { uploadMultipleImages } from "../api/cloudinary";
 import { useCrop } from "./MediaCrop";
+
+/**
+ * Normalize image orientation by processing through ImageManipulator.
+ * This ensures EXIF orientation is applied to the pixel data so that
+ * crop coordinates in CropView match what ImageManipulator will crop.
+ */
+const normalizeImageOrientation = async (uri) => {
+  try {
+    // Process the image with no actions - this applies EXIF orientation to pixels
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [], // No actions - just normalize orientation
+      { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return result.uri;
+  } catch (error) {
+    console.warn("[normalizeImageOrientation] Failed:", error);
+    return uri; // Fall back to original URI
+  }
+};
 
 const { width } = Dimensions.get("window");
 
@@ -75,8 +96,18 @@ const ImageUploader = ({
 
       if (result.canceled || result.assets.length === 0) return;
 
-      // Get image URIs
-      const imageUris = result.assets.map((asset) => asset.uri);
+      // Get image URIs and normalize orientation
+      // This ensures EXIF orientation is baked into pixels so crop coordinates match
+      const rawImageUris = result.assets.map((asset) => asset.uri);
+      const imageUris = await Promise.all(
+        rawImageUris.map((uri) => normalizeImageOrientation(uri))
+      );
+
+      console.log(
+        "[ImageUploader] Normalized",
+        imageUris.length,
+        "images for crop"
+      );
 
       // Navigate to BatchCropScreen for cropping
       const croppedResults = await new Promise((resolve) => {
@@ -223,13 +254,16 @@ const ImageUploader = ({
     return (
       <View style={styles.imageGrid}>
         {images.map((imageUri, index) => (
-          <View key={index} style={styles.imageContainer}>
+          <View key={`${index}-${imageUri}`} style={styles.imageContainer}>
             <TouchableOpacity
               onPress={() => handleEditImage(index)}
               activeOpacity={enableCrop ? 0.7 : 1}
               disabled={!enableCrop}
             >
-              <Image source={{ uri: imageUri }} style={styles.image} />
+              <Image
+                source={{ uri: imageUri, cache: "reload" }}
+                style={styles.image}
+              />
               {enableCrop && (
                 <View style={styles.editHint}>
                   <Ionicons name="crop" size={14} color="#fff" />

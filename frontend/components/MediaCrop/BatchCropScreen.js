@@ -129,6 +129,27 @@ const BatchCropScreen = ({ route, navigation }) => {
       const initialScale = cropData.displayWidth / cropData.imageWidth || 1;
       const effectiveScale = initialScale * cropData.scale;
 
+      console.log(
+        "[DEBUG Crop] cropData:",
+        JSON.stringify({
+          imageWidth: cropData.imageWidth,
+          imageHeight: cropData.imageHeight,
+          displayWidth: cropData.displayWidth,
+          displayHeight: cropData.displayHeight,
+          frameWidth: cropData.frameWidth,
+          frameHeight: cropData.frameHeight,
+          scale: cropData.scale,
+          translateX: cropData.translateX,
+          translateY: cropData.translateY,
+        })
+      );
+      console.log(
+        "[DEBUG Crop] initialScale:",
+        initialScale,
+        "effectiveScale:",
+        effectiveScale
+      );
+
       const cropRegion = calculateCropRegion({
         imageWidth: cropData.imageWidth,
         imageHeight: cropData.imageHeight,
@@ -137,7 +158,11 @@ const BatchCropScreen = ({ route, navigation }) => {
         scale: effectiveScale,
         translateX: cropData.translateX,
         translateY: cropData.translateY,
+        displayWidth: cropData.displayWidth,
+        displayHeight: cropData.displayHeight,
       });
+
+      console.log("[DEBUG Crop] cropRegion:", JSON.stringify(cropRegion));
 
       const result = await ImageManipulator.manipulateAsync(
         currentImageUri,
@@ -158,6 +183,15 @@ const BatchCropScreen = ({ route, navigation }) => {
           compress: 0.85,
           format: ImageManipulator.SaveFormat.JPEG,
         }
+      );
+
+      console.log(
+        "[DEBUG Crop] ImageManipulator result:",
+        JSON.stringify({
+          width: result.width,
+          height: result.height,
+          uri: result.uri,
+        })
       );
 
       // Mark as cropped with the result
@@ -215,6 +249,14 @@ const BatchCropScreen = ({ route, navigation }) => {
       for (let i = 0; i < imageUris.length; i++) {
         // If already cropped, use existing result
         if (croppedImages[i]) {
+          console.log(
+            "[DEBUG Done] Using pre-cropped image:",
+            JSON.stringify({
+              index: i,
+              width: croppedImages[i].width,
+              height: croppedImages[i].height,
+            })
+          );
           results.push(croppedImages[i]);
           continue;
         }
@@ -256,6 +298,8 @@ const BatchCropScreen = ({ route, navigation }) => {
           scale: effectiveScale,
           translateX: savedCropData.translateX,
           translateY: savedCropData.translateY,
+          displayWidth: savedCropData.displayWidth,
+          displayHeight: savedCropData.displayHeight,
         });
 
         const result = await ImageManipulator.manipulateAsync(
@@ -388,23 +432,14 @@ const BatchCropScreen = ({ route, navigation }) => {
               </Text>
             </TouchableOpacity>
           )}
-
-          {/* Crop Current Button */}
-          <TouchableOpacity
-            style={styles.cropCurrentButton}
-            onPress={handleCropCurrent}
-          >
-            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.cropCurrentText}>Confirm Crop</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Bottom Controls with Thumbnail Strip */}
         <SafeAreaView edges={["bottom"]} style={styles.bottomControls}>
-          {/* Progress indicator */}
+          {/* Tool buttons */}
           <View style={styles.progressRow}>
             <Text style={styles.progressText}>
-              {croppedCount}/{imageUris.length} cropped
+              {currentIndex + 1}/{imageUris.length}
             </Text>
             <TouchableOpacity
               style={[styles.toolButton, showGrid && styles.toolButtonActive]}
