@@ -257,8 +257,11 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     validateStep(currentStep) && setCurrentStep(currentStep + 1);
   const handleBack = () => setCurrentStep(currentStep - 1);
 
+  const [creationError, setCreationError] = useState(null);
+
   const handleCreate = async () => {
     setCreating(true);
+    setCreationError(null);
     try {
       const response = await createEvent({
         ...getCurrentFormData(),
@@ -278,7 +281,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         ]);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to create event");
+      console.error(error);
+      setCreationError(
+        "Don't worry, we've saved your progress. Please try again."
+      );
     } finally {
       setCreating(false);
     }
@@ -586,6 +592,29 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         {renderStep()}
 
         <View style={styles.footer}>
+          {creationError && (
+            <View
+              style={{
+                position: "absolute",
+                bottom: 80,
+                left: 20,
+                right: 20,
+                backgroundColor: "#FEF2F2",
+                padding: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#FECACA",
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+              <Text style={{ marginLeft: 8, color: "#DC2626", flex: 1 }}>
+                {creationError}
+              </Text>
+            </View>
+          )}
+
           {currentStep > 1 && (
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />

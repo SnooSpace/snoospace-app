@@ -187,3 +187,14 @@ export async function getMyTicket(eventId) {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/events/${eventId}/my-ticket`, 15000, token);
 }
+
+/**
+ * Verify ticket QR code (for community scanning)
+ * @param {string|number} eventId - Event ID
+ * @param {string} qrData - The QR code data string
+ * @returns {Promise<Object>} { success: boolean, verified: boolean, attendee: Object }
+ */
+export async function verifyTicket(eventId, qrData) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(`/events/${eventId}/verify-ticket`, { qrData }, 15000, token);
+}

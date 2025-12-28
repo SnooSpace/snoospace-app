@@ -1,9 +1,14 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, StyleSheet, Platform, Dimensions } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 
 // Import stack navigators
 import HomeStackNavigator from "./HomeStackNavigator";
@@ -19,6 +24,28 @@ import { COLORS } from "../constants/theme"; // Use COLORS theme
 
 // Local constants removed in favor of theme constants
 const { width } = Dimensions.get("window");
+
+const TabIcon = ({ name, focused, color }) => {
+  const scale = useSharedValue(focused ? 1.2 : 1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(scale.value, { damping: 10 }) }],
+  }));
+
+  useEffect(() => {
+    scale.value = focused ? 1.2 : 1;
+  }, [focused]);
+
+  return (
+    <Animated.View
+      style={[
+        { alignItems: "center", justifyContent: "center", top: 10 },
+        animatedStyle,
+      ]}
+    >
+      <Ionicons name={name} size={24} color={color} />
+    </Animated.View>
+  );
+};
 
 const BottomTabNavigator = ({ navigation, route }) => {
   // Handle programmatic tab switching via route params
@@ -47,24 +74,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
             iconName = focused ? "person" : "person-outline";
           }
 
-          return (
-            <View
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                top: 10,
-                ...(focused && {
-                  shadowColor: "#00C6FF",
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 10,
-                }),
-              }}
-            >
-              <Ionicons name={iconName} size={24} color={color} />
-            </View>
-          );
+          return <TabIcon name={iconName} focused={focused} color={color} />;
         },
         tabBarShowLabel: false,
         tabBarActiveTintColor: "#00C6FF",

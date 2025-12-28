@@ -301,6 +301,9 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMPTZ;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Unique index on QR code hash
       CREATE UNIQUE INDEX IF NOT EXISTS idx_event_registrations_qr 

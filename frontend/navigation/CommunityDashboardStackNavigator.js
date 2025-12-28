@@ -5,6 +5,7 @@ import CommunityEventsListScreen from "../screens/home/community/CommunityEvents
 import EventAttendeesScreen from "../screens/events/EventAttendeesScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
+import QRScannerScreen from "../screens/events/QRScannerScreen";
 
 const Stack = createStackNavigator();
 
@@ -25,6 +26,7 @@ export default function CommunityDashboardStackNavigator() {
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
       />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
     </Stack.Navigator>
   );
 }

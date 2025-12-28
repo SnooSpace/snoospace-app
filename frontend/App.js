@@ -4,11 +4,20 @@ import { View } from "react-native";
 import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppNavigator from "./navigation/AppNavigator";
-import { getAuthToken, getAuthEmail, getPendingOtp, clearPendingOtp } from "./api/auth";
+import {
+  getAuthToken,
+  getAuthEmail,
+  getPendingOtp,
+  clearPendingOtp,
+} from "./api/auth";
 import { apiPost } from "./api/client";
-import { NotificationsProvider, useNotifications } from "./context/NotificationsContext";
+import {
+  NotificationsProvider,
+  useNotifications,
+} from "./context/NotificationsContext";
 import NotificationBanner from "./components/NotificationBanner";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
+import { AuthStateProvider } from "./contexts/AuthStateContext";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -16,18 +25,18 @@ function AppContent() {
   const removeAppStateListenerRef = React.useRef(null);
 
   const handleBannerPress = () => {
-    if (currentBanner?.type === 'follow' && currentBanner?.actor_id) {
+    if (currentBanner?.type === "follow" && currentBanner?.actor_id) {
       // Navigate through nested structure: MemberHome -> MemberStack -> MemberPublicProfile
       navigationRef.current?.dispatch(
         CommonActions.navigate({
-          name: 'MemberHome',
+          name: "MemberHome",
           params: {
-            screen: 'MemberStack',
+            screen: "MemberStack",
             params: {
-              screen: 'MemberPublicProfile',
-              params: { memberId: currentBanner.actor_id }
-            }
-          }
+              screen: "MemberPublicProfile",
+              params: { memberId: currentBanner.actor_id },
+            },
+          },
         })
       );
     }
@@ -36,7 +45,7 @@ function AppContent() {
   return (
     <>
       <NavigationContainer ref={navigationRef}>
-        <AppNavigator initialRouteName={'AuthGate'} />
+        <AppNavigator initialRouteName={"AuthGate"} />
       </NavigationContainer>
       <NotificationBanner
         notification={currentBanner}
@@ -50,12 +59,14 @@ function AppContent() {
 export default function App() {
   // Auto-refresh tokens when app comes to foreground
   useTokenRefresh();
-  
+
   return (
     <SafeAreaProvider>
-      <NotificationsProvider>
-        <AppContent />
-      </NotificationsProvider>
+      <AuthStateProvider>
+        <NotificationsProvider>
+          <AppContent />
+        </NotificationsProvider>
+      </AuthStateProvider>
     </SafeAreaProvider>
   );
 }

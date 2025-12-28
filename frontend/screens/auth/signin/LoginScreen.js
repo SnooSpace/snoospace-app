@@ -13,7 +13,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import * as Haptics from "expo-haptics";
+import Animated, { ZoomIn } from "react-native-reanimated";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // Removed local constants in favor of theme constants
 
@@ -21,6 +28,7 @@ const LoginScreen = ({ navigation, route }) => {
   const { email: preFilledEmail, isAddingAccount } = route.params || {};
   const [email, setEmail] = useState(preFilledEmail || "");
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
@@ -37,30 +45,38 @@ const LoginScreen = ({ navigation, route }) => {
       // Start login flow (sends OTP only if account exists)
       // Increased timeout to 15000ms to handle slower email delivery
       await apiPost("/auth/login/start", { email }, 15000);
-      await setPendingOtp('login', email, 600);
-      navigation.navigate("LoginOtp", { email, isAddingAccount });
+      await setPendingOtp("login", email, 600);
+
+      setLoading(false);
+      setIsSuccess(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setTimeout(() => {
+        navigation.navigate("LoginOtp", { email, isAddingAccount });
+        setIsSuccess(false);
+      }, 1000);
     } catch (e) {
       console.error("Login error:", e);
       // Even if request times out but email was sent successfully, navigate to OTP
       // Check if the error is specifically a timeout
       if (e.message && e.message.includes("timed out")) {
         Alert.alert(
-          "Request Timeout", 
+          "Request Timeout",
           "The request took longer than expected. If you received the code in your email, you can enter it on the next screen.",
           [
             {
               text: "Enter Code Anyway",
               onPress: () => {
-                setPendingOtp('login', email, 600);
+                setPendingOtp("login", email, 600);
                 navigation.navigate("LoginOtp", { email });
-              }
+              },
             },
             {
               text: "Try Again",
               onPress: () => {
                 setError("Please try again.");
-              }
-            }
+              },
+            },
           ]
         );
       } else {
@@ -91,10 +107,7 @@ const LoginScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused,
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             placeholder="Enter your email"
             placeholderTextColor={COLORS.textSecondary}
             value={email}
@@ -110,19 +123,30 @@ const LoginScreen = ({ navigation, route }) => {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
+          style={[
+            styles.buttonContainer,
+            (loading || isSuccess) && styles.buttonDisabled,
+          ]}
           onPress={handleLogin}
-          disabled={loading}
+          disabled={loading || isSuccess}
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={COLORS.primaryGradient}
+            colors={isSuccess ? ["#34C759", "#2FB350"] : COLORS.primaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.button}
           >
             {loading ? (
               <ActivityIndicator color={COLORS.textInverted} />
+            ) : isSuccess ? (
+              <Animated.View entering={ZoomIn}>
+                <Ionicons
+                  name="checkmark"
+                  size={24}
+                  color={COLORS.textInverted}
+                />
+              </Animated.View>
             ) : (
               <Text style={styles.buttonText}>Send Login Code</Text>
             )}

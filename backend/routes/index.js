@@ -649,6 +649,11 @@ router.get(
   authMiddleware,
   EventController.getMyTicket
 );
+router.post(
+  "/events/:eventId/verify-ticket",
+  authMiddleware,
+  EventController.verifyTicket
+);
 router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
 router.delete("/events/:eventId", authMiddleware, EventController.deleteEvent);

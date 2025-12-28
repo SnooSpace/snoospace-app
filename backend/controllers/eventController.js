@@ -2966,6 +2966,176 @@ const getMyTicket = async (req, res) => {
   }
 };
 
+/**
+ * Verify ticket QR code and mark as attended
+ * POST /events/:eventId/verify-ticket
+ * Community staff only
+ *
+ * QR Format: SNOO-E{eventId}-R{registrationId}-{hash}
+ */
+const verifyTicket = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const { qrData } = req.body;
+
+    // Only community accounts can verify tickets
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only event organizers can verify tickets" });
+    }
+
+    if (!qrData) {
+      return res.status(400).json({ error: "QR code data required" });
+    }
+
+    // Parse QR code: SNOO-E{eventId}-R{registrationId}-{hash}
+    const qrPattern = /^SNOO-E(\d+)-R(\d+)-(.+)$/;
+    const match = qrData.match(qrPattern);
+
+    if (!match) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid QR code format",
+      });
+    }
+
+    const [, qrEventId, registrationId, qrHash] = match;
+
+    // Verify event matches
+    if (parseInt(qrEventId) !== parseInt(eventId)) {
+      return res.status(400).json({
+        success: false,
+        error: "This ticket is for a different event",
+      });
+    }
+
+    // Verify community owns this event
+    const eventCheck = await pool.query(
+      "SELECT id, title, community_id FROM events WHERE id = $1",
+      [eventId]
+    );
+
+    if (eventCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    if (eventCheck.rows[0].community_id !== userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only verify tickets for your own events" });
+    }
+
+    // Get registration with member info
+    const regQuery = `
+      SELECT 
+        er.id,
+        er.member_id,
+        er.registration_status,
+        er.qr_code_hash,
+        er.total_amount,
+        er.checked_in_at,
+        er.created_at as registered_at,
+        m.name as member_name,
+        m.profile_photo_url as member_photo
+      FROM event_registrations er
+      JOIN members m ON er.member_id = m.id
+      WHERE er.id = $1 AND er.event_id = $2
+    `;
+
+    const regResult = await pool.query(regQuery, [registrationId, eventId]);
+
+    if (regResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Registration not found",
+      });
+    }
+
+    const registration = regResult.rows[0];
+
+    // Verify hash matches
+    if (registration.qr_code_hash !== qrHash) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid QR code - verification failed",
+      });
+    }
+
+    // Check if already attended
+    if (registration.registration_status === "attended") {
+      const checkedInTime = registration.checked_in_at
+        ? new Date(registration.checked_in_at).toLocaleTimeString("en-IN", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : "earlier";
+
+      return res.status(400).json({
+        success: false,
+        error: `Already checked in at ${checkedInTime}`,
+        alreadyCheckedIn: true,
+        attendee: {
+          memberName: registration.member_name,
+          memberPhoto: registration.member_photo,
+        },
+      });
+    }
+
+    // Check if cancelled
+    if (
+      registration.registration_status === "cancelled" ||
+      registration.registration_status === "refunded"
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "This ticket was cancelled",
+      });
+    }
+
+    // Get ticket summary
+    const ticketsResult = await pool.query(
+      `SELECT ticket_name, quantity FROM registration_tickets WHERE registration_id = $1`,
+      [registrationId]
+    );
+
+    const ticketSummary =
+      ticketsResult.rows
+        .map((t) => `${t.quantity}x ${t.ticket_name}`)
+        .join(", ") || "1x General Admission";
+
+    // Mark as attended
+    await pool.query(
+      `UPDATE event_registrations 
+       SET registration_status = 'attended', 
+           checked_in_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [registrationId]
+    );
+
+    res.json({
+      success: true,
+      verified: true,
+      attendee: {
+        registrationId: registration.id,
+        memberName: registration.member_name,
+        memberPhoto: registration.member_photo,
+        ticketSummary,
+        registeredAt: registration.registered_at,
+        totalAmount: parseFloat(registration.total_amount) || 0,
+        status: "attended",
+      },
+    });
+  } catch (error) {
+    console.error("Error verifying ticket:", error);
+    res.status(500).json({ error: "Failed to verify ticket" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -2986,4 +3156,5 @@ module.exports = {
   registerForEvent,
   cancelRegistration,
   getMyTicket,
+  verifyTicket,
 };

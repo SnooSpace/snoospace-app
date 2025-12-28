@@ -72,9 +72,10 @@ async function tryRefreshAndRetry(doRequest) {
       // Mark account as logged out to prevent infinite retry loops
       if (accountId) {
         const accountManager = await import("../utils/accountManager");
-        await accountManager.updateAccount(accountId, { isLoggedIn: false });
-        console.log(
-          "[tryRefreshAndRetry] Marked account as logged out due to invalid refresh token"
+        await accountManager.markAccountLoggedOut(
+          accountId,
+          `Refresh token too short (${refreshToken.length} chars) - likely corrupted`,
+          "client.js:tryRefreshAndRetry"
         );
       }
 
@@ -141,9 +142,11 @@ async function tryRefreshAndRetry(doRequest) {
           );
           if (accountId) {
             const accountManager = await import("../utils/accountManager");
-            await accountManager.updateAccount(accountId, {
-              isLoggedIn: false,
-            });
+            await accountManager.markAccountLoggedOut(
+              accountId,
+              `V1 refresh failed: ${data?.error || "Invalid/expired token"}`,
+              "client.js:tryRefreshAndRetry:V1Fallback"
+            );
           }
         }
 

@@ -22,6 +22,7 @@ import { COLORS } from "../../constants/theme";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
 import { registerForEvent } from "../../api/events";
 import EventBus from "../../utils/EventBus";
+import CelebrationModal from "../../components/CelebrationModal";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -42,6 +43,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   useEffect(() => {
     if (timeLeft <= 0 || isConfirmed) return;
@@ -177,11 +179,8 @@ export default function CheckoutScreen({ route, navigation }) {
           isInterested: false,
         });
 
-        Alert.alert(
-          "🎉 Booking Confirmed!",
-          `Your tickets for "${event.title}" have been booked successfully.\n\nCheck your email for confirmation with QR code.`,
-          [{ text: "Done", onPress: () => navigation.popToTop() }]
-        );
+        // PEAK MOMENT
+        setShowCelebration(true);
       } else {
         throw new Error(response.error || "Booking failed");
       }
@@ -196,8 +195,19 @@ export default function CheckoutScreen({ route, navigation }) {
     }
   };
 
+  const handleCelebrationClose = () => {
+    setShowCelebration(false);
+    navigation.popToTop();
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <CelebrationModal
+        visible={showCelebration}
+        onClose={handleCelebrationClose}
+        type="booking"
+        data={{ title: event?.title || "Event" }}
+      />
       <StatusBar barStyle="dark-content" />
 
       {/* Header */}

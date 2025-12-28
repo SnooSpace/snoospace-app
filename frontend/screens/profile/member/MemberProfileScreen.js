@@ -59,6 +59,8 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
+import { useAuthState } from "../../../contexts/AuthStateContext";
+import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -1058,32 +1060,34 @@ export default function MemberProfileScreen({ navigation }) {
 
   if (error) {
     console.log("[Profile] rendering: error banner", error);
+
+    // Check if it's an auth-related error
+    const isAuthError =
+      error.includes("auth token") ||
+      error.includes("No active account") ||
+      error.includes("Unauthorized");
+
+    if (isAuthError) {
+      // Show skeleton with unexpected logout banner for auth errors
+      return (
+        <SafeAreaView style={styles.container}>
+          <ScrollView scrollEnabled={false}>
+            <SkeletonProfileHeader type="member" />
+            <SkeletonPostGrid />
+          </ScrollView>
+          <UnexpectedLogoutBanner />
+        </SafeAreaView>
+      );
+    }
+
+    // Non-auth errors - show retry
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          {error === "No auth token found" ? (
-            <TouchableOpacity
-              onPress={async () => {
-                await clearAuthSession();
-                await AsyncStorage.multiRemove([
-                  "accessToken",
-                  "userData",
-                  "auth_token",
-                  "auth_email",
-                  "pending_otp",
-                ]);
-                navigation.reset({ index: 0, routes: [{ name: "Landing" }] });
-              }}
-              style={styles.retryButton}
-            >
-              <Text style={styles.retryButtonText}>Login</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={loadProfile} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity onPress={loadProfile} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );

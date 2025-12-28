@@ -150,6 +150,21 @@ export default function CommunityDashboardScreen({ navigation }) {
       style: "default",
     });
 
+    // Scan Tickets option (only for upcoming non-cancelled events)
+    if (!event.is_past && !event.is_cancelled) {
+      actions.push({
+        text: "Scan Tickets",
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            navigation.navigate("QRScanner", { event });
+          }, 300);
+        },
+        style: "default",
+        icon: "qr-code-outline",
+      });
+    }
+
     // Can cancel upcoming events that aren't already cancelled
     if (canCancel) {
       actions.push({
@@ -585,7 +600,8 @@ export default function CommunityDashboardScreen({ navigation }) {
 
           <View style={styles.eventsHeader}>
             <Text style={styles.longPressHint}>
-              *Long press event cards to view tickets sold, cancel events or delete events options
+              *Long press event cards to view tickets sold, cancel events or
+              delete events options
             </Text>
             <TouchableOpacity onPress={handleViewAllEvents}>
               <Text style={styles.viewAllText}>View All</Text>

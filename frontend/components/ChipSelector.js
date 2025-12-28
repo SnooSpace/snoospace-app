@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { COLORS, BORDER_RADIUS } from "../constants/theme";
 
@@ -261,14 +262,17 @@ export default function ChipSelector({
                   : item.label || item.name || item;
               const isSelected = selected.includes(value);
               return (
-                <View key={index}>
+                <Animated.View
+                  key={index}
+                  entering={FadeInDown.delay(index * 30).springify()}
+                >
                   {renderChip(
                     value,
                     isSelected,
                     () => handleToggle(item),
                     false
                   )}
-                </View>
+                </Animated.View>
               );
             })}
           </View>
