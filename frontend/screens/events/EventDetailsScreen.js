@@ -48,6 +48,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [showCreatorToast, setShowCreatorToast] = useState(false);
   const [isInterested, setIsInterested] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -74,6 +75,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
       if (response?.event) {
         setEvent(response.event);
         setIsInterested(response.event.is_interested || false);
+        setIsRegistered(response.event.is_registered || false);
       } else {
         // If API fails but we have initialData, use it
         if (!initialData) {
@@ -184,6 +186,14 @@ const EventDetailsScreen = ({ route, navigation }) => {
   };
 
   const handleRegister = () => {
+    // If already registered, go directly to ticket view
+    if (isRegistered) {
+      navigation.navigate("YourEvents", {
+        screen: "TicketView",
+        params: { eventId: event?.id },
+      });
+      return;
+    }
     // Block creators from booking their own events
     if (isEventCreator) {
       showCreatorMessage();
@@ -695,29 +705,37 @@ const EventDetailsScreen = ({ route, navigation }) => {
       {/* Sticky Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
         <View style={styles.priceContainer}>
-          {(() => {
-            // Calculate lowest price from ticket_types
-            const hasTicketTypes = event.ticket_types?.length > 0;
-            const lowestPrice = hasTicketTypes
-              ? Math.min(
-                  ...event.ticket_types.map(
-                    (t) => parseFloat(t.base_price) || 0
+          {isRegistered ? (
+            <Text style={[styles.priceText, { color: "#16A34A" }]}>
+              ✓ Registered
+            </Text>
+          ) : (
+            (() => {
+              // Calculate lowest price from ticket_types
+              const hasTicketTypes = event.ticket_types?.length > 0;
+              const lowestPrice = hasTicketTypes
+                ? Math.min(
+                    ...event.ticket_types.map(
+                      (t) => parseFloat(t.base_price) || 0
+                    )
                   )
-                )
-              : event.ticket_price
-              ? parseFloat(event.ticket_price)
-              : 0;
-            const isFree = lowestPrice === 0;
+                : event.ticket_price
+                ? parseFloat(event.ticket_price)
+                : 0;
+              const isFree = lowestPrice === 0;
 
-            return (
-              <>
-                <Text style={styles.priceText}>
-                  {isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")}`}
-                </Text>
-                {!isFree && <Text style={styles.priceSubtext}>onwards</Text>}
-              </>
-            );
-          })()}
+              return (
+                <>
+                  <Text style={styles.priceText}>
+                    {isFree
+                      ? "Free"
+                      : `₹${lowestPrice.toLocaleString("en-IN")}`}
+                  </Text>
+                  {!isFree && <Text style={styles.priceSubtext}>onwards</Text>}
+                </>
+              );
+            })()
+          )}
         </View>
         <TouchableOpacity
           style={[
@@ -736,7 +754,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
             style={styles.registerButtonGradient}
           >
             <Text style={styles.registerButtonText}>
-              {event.ticket_types?.length > 0 || event.ticket_price
+              {isRegistered
+                ? "View Your Ticket"
+                : event.ticket_types?.length > 0 || event.ticket_price
                 ? "Book tickets"
                 : "Register"}
             </Text>

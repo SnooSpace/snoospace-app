@@ -138,6 +138,18 @@ export default function CommunityDashboardScreen({ navigation }) {
 
     const actions = [];
 
+    // View Attendees option (always available)
+    actions.push({
+      text: `View Attendees (${event.current_attendees || 0})`,
+      onPress: () => {
+        setModalConfig((prev) => ({ ...prev, visible: false }));
+        setTimeout(() => {
+          navigation.navigate("EventAttendees", { event });
+        }, 300);
+      },
+      style: "default",
+    });
+
     // Can cancel upcoming events that aren't already cancelled
     if (canCancel) {
       actions.push({
@@ -573,7 +585,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 
           <View style={styles.eventsHeader}>
             <Text style={styles.longPressHint}>
-              *Long press to cancel or delete event
+              *Long press event cards to view tickets sold, cancel events or delete events options
             </Text>
             <TouchableOpacity onPress={handleViewAllEvents}>
               <Text style={styles.viewAllText}>View All</Text>

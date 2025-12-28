@@ -67,6 +67,9 @@ export default function EventCard({
     }
   }, [event?.is_interested]);
 
+  // Check if user is registered for this event
+  const isRegistered = Boolean(event?.is_registered);
+
   if (!event) return null;
 
   const {
@@ -292,31 +295,42 @@ export default function EventCard({
               </Text>
             </View>
 
-            <TouchableOpacity
-              key={`interest-btn-${isInterested}`}
-              style={[
-                styles.interestedButton,
-                isInterested === true && styles.interestedButtonActive,
-              ]}
-              onPress={handleInterestedPress}
-              disabled={interestLoading}
-            >
-              {isInterested === true ? (
-                <View style={styles.interestedActiveContent}>
-                  <Ionicons name="bookmark" size={16} color={COLORS.primary} />
-                  <Text style={styles.interestedActiveText}>Saved</Text>
-                </View>
-              ) : (
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.interestedGradient}
-                >
-                  <Text style={styles.interestedText}>Interested</Text>
-                </LinearGradient>
-              )}
-            </TouchableOpacity>
+            {isRegistered ? (
+              <View style={[styles.interestedButton, styles.goingButton]}>
+                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                <Text style={styles.goingText}>You are going</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                key={`interest-btn-${isInterested}`}
+                style={[
+                  styles.interestedButton,
+                  isInterested === true && styles.interestedButtonActive,
+                ]}
+                onPress={handleInterestedPress}
+                disabled={interestLoading}
+              >
+                {isInterested === true ? (
+                  <View style={styles.interestedActiveContent}>
+                    <Ionicons
+                      name="bookmark"
+                      size={16}
+                      color={COLORS.primary}
+                    />
+                    <Text style={styles.interestedActiveText}>Saved</Text>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.interestedGradient}
+                  >
+                    <Text style={styles.interestedText}>Interested</Text>
+                  </LinearGradient>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -494,5 +508,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  goingButton: {
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#16A34A",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  goingText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#16A34A",
   },
 });

@@ -39,13 +39,24 @@ export async function getEventDetails(eventId) {
 }
 
 /**
- * Get attendees for an event
+ * Get attendees for an event (for matching feature)
  * @param {string|number} eventId - Event ID
  * @returns {Promise<Object>} List of attendees
  */
 export async function getEventAttendees(eventId) {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/events/${eventId}/attendees`, 15000, token);
+}
+
+/**
+ * Get event registrations with ticket details (for community owners)
+ * Returns attendees with gender, age, username, and tickets purchased
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} { success: boolean, eventTitle: string, attendees: Array }
+ */
+export async function getEventRegistrations(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/events/${eventId}/registrations`, 15000, token);
 }
 
 /**
@@ -140,4 +151,39 @@ export async function toggleEventInterest(eventId) {
 export async function getInterestedEvents() {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet("/events/interested", 15000, token);
+}
+
+/**
+ * Register for an event (book tickets)
+ * @param {string|number} eventId - Event ID
+ * @param {Object} bookingData - Booking details
+ * @param {Array} bookingData.tickets - [{ticketTypeId, quantity, unitPrice, ticketName}]
+ * @param {string} bookingData.promoCode - Applied promo code (optional)
+ * @param {number} bookingData.totalAmount - Total amount
+ * @param {number} bookingData.discountAmount - Discount applied
+ * @returns {Promise<Object>} { success: boolean, registrationId: number, qrCodeHash: string }
+ */
+export async function registerForEvent(eventId, bookingData) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(`/events/${eventId}/register`, bookingData, 15000, token);
+}
+
+/**
+ * Cancel event registration
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} { success: boolean, refundAmount: number, message: string }
+ */
+export async function cancelEventRegistration(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(`/events/${eventId}/cancel-registration`, {}, 15000, token);
+}
+
+/**
+ * Get user's ticket for an event (for QR code display)
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} { success: boolean, ticket: Object }
+ */
+export async function getMyTicket(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/events/${eventId}/my-ticket`, 15000, token);
 }

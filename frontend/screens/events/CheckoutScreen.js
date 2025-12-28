@@ -13,12 +13,15 @@ import {
   TextInput,
   Alert,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
+import { registerForEvent } from "../../api/events";
+import EventBus from "../../utils/EventBus";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -38,6 +41,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const [promoCode, setPromoCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (timeLeft <= 0 || isConfirmed) return;
@@ -138,18 +142,58 @@ export default function CheckoutScreen({ route, navigation }) {
   const bookingFee = 0; // As requested, 0 for now
   const finalAmount = totalAmount - discountAmount + bookingFee;
 
-  const handleConfirmBooking = () => {
-    setIsConfirmed(true);
-    Alert.alert(
-      "🎉 Booking Confirmed!",
-      `Your tickets for "${event.title}" have been booked successfully.\n\nYou will receive a confirmation email shortly.`,
-      [
-        {
-          text: "Done",
-          onPress: () => navigation.popToTop(),
-        },
-      ]
-    );
+  const handleConfirmBooking = async () => {
+    if (isConfirmed || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const bookingData = {
+        tickets: cartItems.map((item) => ({
+          ticketTypeId: item.ticket.id,
+          quantity: item.quantity,
+          unitPrice: calculateEffectivePrice(item.ticket, event.pricing_rules)
+            .effectivePrice,
+          ticketName: item.ticket.name,
+        })),
+        promoCode: appliedDiscount?.code || null,
+        totalAmount: finalAmount,
+        discountAmount: discountAmount,
+      };
+
+      const response = await registerForEvent(event.id, bookingData);
+
+      if (response.success) {
+        setIsConfirmed(true);
+
+        // Update other screens via EventBus
+        EventBus.emit("event-registration-updated", {
+          eventId: event.id,
+          isRegistered: true,
+        });
+
+        // Remove from interested list
+        EventBus.emit("event-interest-updated", {
+          eventId: event.id,
+          isInterested: false,
+        });
+
+        Alert.alert(
+          "🎉 Booking Confirmed!",
+          `Your tickets for "${event.title}" have been booked successfully.\n\nCheck your email for confirmation with QR code.`,
+          [{ text: "Done", onPress: () => navigation.popToTop() }]
+        );
+      } else {
+        throw new Error(response.error || "Booking failed");
+      }
+    } catch (error) {
+      console.error("Booking error:", error);
+      Alert.alert(
+        "Booking Failed",
+        error.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -202,8 +246,8 @@ export default function CheckoutScreen({ route, navigation }) {
 
           <View style={styles.eventMeta}>
             <Text style={styles.eventMetaText}>
-              {formatDate(event.event_date)} |{" "}
-              {formatTimeOnly(event.event_date)}
+              {formatDate(event.start_datetime || event.event_date)} |{" "}
+              {formatTimeOnly(event.start_datetime || event.event_date)}
             </Text>
           </View>
 
@@ -362,7 +406,7 @@ export default function CheckoutScreen({ route, navigation }) {
         <TouchableOpacity
           style={styles.confirmButtonWrapper}
           onPress={handleConfirmBooking}
-          disabled={isConfirmed}
+          disabled={isConfirmed || isLoading}
         >
           <LinearGradient
             colors={
@@ -372,9 +416,13 @@ export default function CheckoutScreen({ route, navigation }) {
             end={{ x: 1, y: 0 }}
             style={styles.confirmButtonGradient}
           >
-            <Text style={styles.confirmButtonText}>
-              {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking ›"}
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.confirmButtonText}>
+                {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}
+              </Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>

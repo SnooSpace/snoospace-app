@@ -8,7 +8,7 @@ import { BlurView } from "expo-blur";
 // Import Community screens
 import CommunityHomeStackNavigator from "./CommunityHomeStackNavigator";
 import CommunitySearchStackNavigator from "./CommunitySearchStackNavigator";
-import CommunityDashboardScreen from "../screens/home/community/CommunityDashboardScreen";
+import CommunityDashboardStackNavigator from "./CommunityDashboardStackNavigator";
 import CommunityRequestsScreen from "../screens/home/community/CommunityRequestsScreen";
 import CommunityProfileStackNavigator from "./CommunityProfileStackNavigator";
 
@@ -153,7 +153,7 @@ const CommunityBottomTabNavigator = () => {
       />
       <Tab.Screen
         name="Dashboard"
-        component={CommunityDashboardScreen}
+        component={CommunityDashboardStackNavigator}
         options={{ tabBarLabel: "Dashboard" }}
       />
       <Tab.Screen

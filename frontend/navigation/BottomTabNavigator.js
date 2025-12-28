@@ -11,7 +11,7 @@ import SearchStackNavigator from "./SearchStackNavigator";
 import ProfileStackNavigator from "./ProfileStackNavigator";
 // Import screens
 import MatchingScreen from "../screens/matching/MatchingScreen";
-import YourEventsScreen from "../screens/events/YourEventsScreen";
+import EventsStackNavigator from "./EventsStackNavigator";
 
 const Tab = createBottomTabNavigator();
 
@@ -164,7 +164,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
       />
       <Tab.Screen
         name="YourEvents"
-        component={YourEventsScreen}
+        component={EventsStackNavigator}
         options={{ tabBarLabel: "Your Events" }}
       />
       <Tab.Screen

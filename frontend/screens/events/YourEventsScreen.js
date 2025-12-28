@@ -324,7 +324,7 @@ export default function YourEventsScreen({ navigation }) {
     switch (activeTab) {
       case "Going":
         return events.filter((e) => {
-          const eventDate = new Date(e.event_date);
+          const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             (e.registration_status === "registered" && eventDate >= now) ||
             (e.registration_status === "attended" && eventDate >= now)
@@ -335,7 +335,7 @@ export default function YourEventsScreen({ navigation }) {
         return interestedEvents.filter((e) => !e.is_past);
       case "Past":
         return events.filter((e) => {
-          const eventDate = new Date(e.event_date);
+          const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             e.is_past ||
             (eventDate < now && e.registration_status === "attended")
@@ -400,10 +400,17 @@ export default function YourEventsScreen({ navigation }) {
   };
 
   const handleEventPress = (item) => {
-    navigation.navigate("EventDetails", {
-      eventId: item.id,
-      eventData: item,
-    });
+    // For Going tab events (registered), go directly to ticket view
+    if (activeTab === "Going" && item.registration_status === "registered") {
+      navigation.navigate("TicketView", { eventId: item.id });
+    } else {
+      // For Interested/Past, go to event details
+      navigation.navigate("EventDetails", {
+        eventId: item.id,
+        eventData: item,
+        isRegistered: activeTab === "Going" || activeTab === "Past",
+      });
+    }
   };
 
   const handleRemoveInterest = async (item) => {

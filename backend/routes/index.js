@@ -628,6 +628,27 @@ router.post(
   authMiddleware,
   EventController.toggleEventInterest
 );
+// Event registration routes
+router.post(
+  "/events/:eventId/register",
+  authMiddleware,
+  EventController.registerForEvent
+);
+router.post(
+  "/events/:eventId/cancel-registration",
+  authMiddleware,
+  EventController.cancelRegistration
+);
+router.get(
+  "/events/:eventId/registrations",
+  authMiddleware,
+  EventController.getEventAttendeesForCommunity
+);
+router.get(
+  "/events/:eventId/my-ticket",
+  authMiddleware,
+  EventController.getMyTicket
+);
 router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
 router.delete("/events/:eventId", authMiddleware, EventController.deleteEvent);

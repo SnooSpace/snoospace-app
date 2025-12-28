@@ -267,10 +267,58 @@ async function ensureTables(pool) {
         id BIGSERIAL PRIMARY KEY,
         event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
         member_id BIGINT REFERENCES members(id) ON DELETE CASCADE,
-        registration_status TEXT DEFAULT 'registered', -- registered, attended, cancelled
+        registration_status TEXT DEFAULT 'registered', -- registered, attended, cancelled, refunded
+        total_amount DECIMAL(10,2) DEFAULT 0,
+        promo_code TEXT,
+        discount_amount DECIMAL(10,2) DEFAULT 0,
+        qr_code_hash TEXT,
+        cancelled_at TIMESTAMPTZ,
+        refund_amount DECIMAL(10,2),
         created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(event_id, member_id)
       );
+      
+      -- Add new columns to event_registrations if they don't exist
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS total_amount DECIMAL(10,2) DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS promo_code TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(10,2) DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS qr_code_hash TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2);
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Unique index on QR code hash
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_event_registrations_qr 
+        ON event_registrations(qr_code_hash) WHERE qr_code_hash IS NOT NULL;
+      
+      -- Registration tickets table (for multi-ticket orders)
+      CREATE TABLE IF NOT EXISTS registration_tickets (
+        id BIGSERIAL PRIMARY KEY,
+        registration_id BIGINT REFERENCES event_registrations(id) ON DELETE CASCADE,
+        ticket_type_id BIGINT REFERENCES ticket_types(id) ON DELETE SET NULL,
+        ticket_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        unit_price DECIMAL(10,2) NOT NULL,
+        total_price DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_registration_tickets_registration ON registration_tickets(registration_id);
+
       
       -- Ticket types for events (multi-tier pricing)
       CREATE TABLE IF NOT EXISTS ticket_types (

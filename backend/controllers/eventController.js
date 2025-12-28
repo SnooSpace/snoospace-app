@@ -1,5 +1,11 @@
 const { createPool } = require("../config/db");
 const { isValidGoogleMapsUrl } = require("../utils/googleMapsValidation");
+const crypto = require("crypto");
+const notificationService = require("../services/notificationService");
+const {
+  sendBookingConfirmationEmail,
+  sendCancellationEmail,
+} = require("../services/emailService");
 
 const pool = createPool();
 
@@ -566,28 +572,66 @@ const getMyEvents = async (req, res) => {
         e.id,
         e.title,
         e.description,
-        e.event_date,
+        COALESCE(e.start_datetime, e.event_date) as event_date,
+        e.start_datetime,
+        e.end_datetime,
         e.location_url,
         e.max_attendees,
-        e.is_past,
+        e.banner_url,
+        CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END as is_past,
+        c.id as community_id,
         c.name as community_name,
+        c.logo_url as community_logo,
         v.name as venue_name,
         er.registration_status,
-        COUNT(DISTINCT er2.member_id) as attendee_count
+        er.created_at as registration_date,
+        (SELECT COUNT(*) FROM event_registrations er3 
+         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended')) as attendee_count
       FROM events e
       LEFT JOIN communities c ON e.community_id = c.id
       LEFT JOIN venues v ON e.venue_id = v.id
-      INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1
-      LEFT JOIN event_registrations er2 ON e.id = er2.event_id AND er2.registration_status = 'attended'
-      GROUP BY e.id, e.title, e.description, e.event_date, e.location_url, e.max_attendees, e.is_past, c.name, v.name, er.registration_status
-      ORDER BY e.event_date DESC
+      INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1 
+        AND er.registration_status IN ('registered', 'attended')
+      ORDER BY COALESCE(e.start_datetime, e.event_date) DESC
     `;
 
     const result = await pool.query(query, [userId]);
 
+    // Get banners and tickets for each event
+    const eventsWithDetails = await Promise.all(
+      result.rows.map(async (event) => {
+        // Get banner images
+        const bannersResult = await pool.query(
+          `SELECT image_url, image_order 
+           FROM event_banners 
+           WHERE event_id = $1 
+           ORDER BY image_order ASC 
+           LIMIT 3`,
+          [event.id]
+        );
+
+        // Get ticket types with prices
+        const ticketsResult = await pool.query(
+          `SELECT id, name, base_price FROM ticket_types 
+           WHERE event_id = $1 AND is_active = true 
+           ORDER BY base_price ASC`,
+          [event.id]
+        );
+
+        return {
+          ...event,
+          banner_carousel: bannersResult.rows.map((b) => ({
+            url: b.image_url,
+            order: b.image_order,
+          })),
+          ticket_types: ticketsResult.rows,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      events: result.rows,
+      events: eventsWithDetails,
     });
   } catch (error) {
     console.error("Error getting user events:", error);
@@ -689,6 +733,89 @@ const getEventAttendees = async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting event attendees:", error);
+    res.status(500).json({ error: "Failed to get attendees" });
+  }
+};
+
+/**
+ * Get event attendees for community owners
+ * GET /events/:eventId/registrations
+ * Community owners can view all registered attendees with ticket info
+ */
+const getEventAttendeesForCommunity = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    // Allow both community owners and members (for admin purposes)
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify event exists and get community_id
+    const eventCheck = await pool.query(
+      "SELECT id, community_id, title FROM events WHERE id = $1",
+      [eventId]
+    );
+
+    if (eventCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventCheck.rows[0];
+
+    // Only the community that owns the event can view attendees
+    if (
+      userType === "community" &&
+      parseInt(userId) !== parseInt(event.community_id)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "You can only view attendees for your own events" });
+    }
+
+    // Get all registered attendees with their ticket info
+    const query = `
+      SELECT 
+        m.id,
+        m.name,
+        m.username,
+        m.profile_photo_url,
+        m.gender,
+        EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::INTEGER as age,
+        er.registration_status,
+        er.created_at as registered_at,
+        er.total_amount,
+        er.qr_code_hash,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'ticketName', rt.ticket_name,
+              'quantity', rt.quantity,
+              'unitPrice', rt.unit_price
+            )
+          ) FILTER (WHERE rt.id IS NOT NULL),
+          '[]'
+        ) as tickets
+      FROM event_registrations er
+      JOIN members m ON er.member_id = m.id
+      LEFT JOIN registration_tickets rt ON er.id = rt.registration_id
+      WHERE er.event_id = $1 AND er.registration_status IN ('registered', 'attended')
+      GROUP BY m.id, m.name, m.username, m.profile_photo_url, m.gender, m.dob, 
+               er.registration_status, er.created_at, er.total_amount, er.qr_code_hash
+      ORDER BY er.created_at DESC
+    `;
+
+    const result = await pool.query(query, [eventId]);
+
+    res.json({
+      success: true,
+      eventTitle: event.title,
+      attendees: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting event attendees for community:", error);
     res.status(500).json({ error: "Failed to get attendees" });
   }
 };
@@ -959,6 +1086,16 @@ const discoverEvents = async (req, res) => {
             0
           ) as attendee_count,
           CASE WHEN fc.following_id IS NOT NULL THEN 1 ELSE 0 END as is_following_community,
+          -- Check if user is interested in this event
+          CASE WHEN EXISTS (
+            SELECT 1 FROM event_interests ei 
+            WHERE ei.event_id = e.id AND ei.member_id = $1 AND $2 = 'member'
+          ) THEN true ELSE false END as is_interested,
+          -- Check if user is registered for this event
+          CASE WHEN EXISTS (
+            SELECT 1 FROM event_registrations er2 
+            WHERE er2.event_id = e.id AND er2.member_id = $1 AND er2.registration_status = 'registered' AND $2 = 'member'
+          ) THEN true ELSE false END as is_registered,
           -- Score: following bonus + recency + popularity
           (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
           (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int + -- Newer is better
@@ -1882,6 +2019,7 @@ const getEventById = async (req, res) => {
 
     // Check if current user has bookmarked this event (members only)
     let isInterested = false;
+    let isRegistered = false;
     const userId = req.user?.id;
     const userType = req.user?.type;
     if (userId && userType === "member") {
@@ -1890,6 +2028,13 @@ const getEventById = async (req, res) => {
         [eventId, userId]
       );
       isInterested = interestCheck.rows.length > 0;
+
+      // Check if user is registered for this event
+      const registrationCheck = await pool.query(
+        "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended')",
+        [eventId, userId]
+      );
+      isRegistered = registrationCheck.rows.length > 0;
     }
 
     res.json({
@@ -1907,6 +2052,7 @@ const getEventById = async (req, res) => {
         pricing_rules: pricingRulesResult.rows,
         categories: categories,
         is_interested: isInterested,
+        is_registered: isRegistered,
       },
     });
   } catch (error) {
@@ -2352,11 +2498,480 @@ const getInterestedEvents = async (req, res) => {
   }
 };
 
+/**
+ * Register for an event (book tickets)
+ * POST /events/:eventId/register
+ * Members only
+ *
+ * @body {Array} tickets - [{ticketTypeId, quantity, unitPrice, ticketName}]
+ * @body {string} promoCode - Optional promo code
+ * @body {number} totalAmount - Total amount paid
+ * @body {number} discountAmount - Discount applied
+ */
+const registerForEvent = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const { tickets, promoCode, totalAmount, discountAmount } = req.body;
+
+    // 1. Validate user is a member
+    if (!userId || userType !== "member") {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "Only members can register for events" });
+    }
+
+    // 2. Validate tickets array
+    if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "No tickets selected" });
+    }
+
+    // 3. Get event details for validation
+    const eventResult = await client.query(
+      `SELECT e.*, c.name as community_name, e.location_url
+       FROM events e 
+       JOIN communities c ON e.community_id = c.id 
+       WHERE e.id = $1`,
+      [eventId]
+    );
+    if (eventResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const event = eventResult.rows[0];
+
+    // 4. Check event hasn't passed (use start_datetime if available, fallback to event_date)
+    const eventStartDate = event.start_datetime || event.event_date;
+    if (new Date(eventStartDate) < new Date()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Cannot register for past events" });
+    }
+
+    // 5. Check if already registered
+    const existingReg = await client.query(
+      `SELECT id FROM event_registrations 
+       WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+      [eventId, userId]
+    );
+    if (existingReg.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: "Already registered for this event" });
+    }
+
+    // 6. Get member info for gender validation
+    const memberResult = await client.query(
+      "SELECT name, email, gender FROM members WHERE id = $1",
+      [userId]
+    );
+    const member = memberResult.rows[0];
+
+    // 7. Validate each ticket type
+    for (const item of tickets) {
+      const ticketResult = await client.query(
+        `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2 AND is_active = true`,
+        [item.ticketTypeId, eventId]
+      );
+      if (ticketResult.rows.length === 0) {
+        throw new Error(`Invalid ticket type: ${item.ticketTypeId}`);
+      }
+      const ticket = ticketResult.rows[0];
+
+      // Check availability
+      if (
+        ticket.total_quantity &&
+        ticket.sold_count + item.quantity > ticket.total_quantity
+      ) {
+        throw new Error(`Sold out: ${ticket.name}`);
+      }
+
+      // Check sale window
+      const now = new Date();
+      if (ticket.sale_start_at && new Date(ticket.sale_start_at) > now) {
+        throw new Error(`${ticket.name} sales haven't started yet`);
+      }
+      if (ticket.sale_end_at && new Date(ticket.sale_end_at) < now) {
+        throw new Error(`${ticket.name} sales have ended`);
+      }
+
+      // Check min/max per order
+      if (ticket.min_per_order && item.quantity < ticket.min_per_order) {
+        throw new Error(
+          `Minimum ${ticket.min_per_order} tickets required for ${ticket.name}`
+        );
+      }
+      if (ticket.max_per_order && item.quantity > ticket.max_per_order) {
+        throw new Error(
+          `Maximum ${ticket.max_per_order} tickets allowed for ${ticket.name}`
+        );
+      }
+
+      // Check gender restriction (only if explicitly set and not 'all')
+      if (
+        ticket.gender_restriction &&
+        ticket.gender_restriction !== "all" &&
+        member.gender &&
+        ticket.gender_restriction !== member.gender
+      ) {
+        throw new Error(
+          `${ticket.name} is only available for ${ticket.gender_restriction}`
+        );
+      }
+
+      // Check max_per_user (total across all registrations)
+      if (ticket.max_per_user) {
+        const existingCount = await client.query(
+          `SELECT COALESCE(SUM(rt.quantity), 0) as total
+           FROM registration_tickets rt
+           JOIN event_registrations er ON rt.registration_id = er.id
+           WHERE er.member_id = $1 AND rt.ticket_type_id = $2 AND er.registration_status != 'cancelled'`,
+          [userId, item.ticketTypeId]
+        );
+        if (
+          parseInt(existingCount.rows[0].total) + item.quantity >
+          ticket.max_per_user
+        ) {
+          throw new Error(
+            `You can only purchase ${ticket.max_per_user} tickets of type "${ticket.name}"`
+          );
+        }
+      }
+    }
+
+    // 8. Generate unique QR code hash
+    const qrCodeHash = crypto.randomBytes(16).toString("hex").toUpperCase();
+
+    // 9. Create registration
+    const regResult = await client.query(
+      `INSERT INTO event_registrations 
+        (event_id, member_id, registration_status, total_amount, promo_code, discount_amount, qr_code_hash)
+       VALUES ($1, $2, 'registered', $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        eventId,
+        userId,
+        totalAmount || 0,
+        promoCode || null,
+        discountAmount || 0,
+        qrCodeHash,
+      ]
+    );
+    const registrationId = regResult.rows[0].id;
+
+    // 10. Insert ticket line items & update sold counts
+    for (const item of tickets) {
+      const ticketInfo = await client.query(
+        "SELECT name, base_price FROM ticket_types WHERE id = $1",
+        [item.ticketTypeId]
+      );
+      const ticket = ticketInfo.rows[0];
+
+      await client.query(
+        `INSERT INTO registration_tickets (registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          registrationId,
+          item.ticketTypeId,
+          item.ticketName || ticket.name,
+          item.quantity,
+          item.unitPrice,
+          item.quantity * item.unitPrice,
+        ]
+      );
+
+      await client.query(
+        "UPDATE ticket_types SET sold_count = sold_count + $1 WHERE id = $2",
+        [item.quantity, item.ticketTypeId]
+      );
+    }
+
+    // 11. Remove from bookmarks (event_interests) if bookmarked
+    await client.query(
+      "DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2",
+      [eventId, userId]
+    );
+
+    // 12. Create notification for community
+    try {
+      await notificationService.createSimpleNotification(client, {
+        recipientId: event.community_id,
+        recipientType: "community",
+        actorId: userId,
+        actorType: "member",
+        type: "event_registration",
+        payload: {
+          eventId: parseInt(eventId),
+          eventTitle: event.title,
+          ticketCount: tickets.reduce((sum, t) => sum + t.quantity, 0),
+        },
+      });
+    } catch (notifError) {
+      console.error("Failed to create notification:", notifError);
+      // Don't fail registration if notification fails
+    }
+
+    await client.query("COMMIT");
+
+    // 13. Send confirmation email (async, don't block response)
+    sendBookingConfirmationEmail({
+      to: member.email,
+      memberName: member.name,
+      eventTitle: event.title,
+      eventDate: event.event_date,
+      eventLocation: event.location_url || null,
+      tickets: tickets.map((t) => ({
+        ticketName: t.ticketName,
+        quantity: t.quantity,
+        unitPrice: t.unitPrice,
+      })),
+      qrCodeHash: qrCodeHash,
+      totalAmount: totalAmount || 0,
+    }).catch((err) => console.error("Email send failed:", err));
+
+    res.json({
+      success: true,
+      registrationId,
+      qrCodeHash,
+      message: "Registration successful",
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error registering for event:", error);
+    res.status(500).json({ error: error.message || "Failed to register" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Cancel event registration
+ * POST /events/:eventId/cancel-registration
+ * Members only - cancels their own registration
+ */
+const cancelRegistration = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    // 1. Validate user is a member
+    if (!userId || userType !== "member") {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "Only members can cancel registrations" });
+    }
+
+    // 2. Get registration with event details
+    const regResult = await client.query(
+      `SELECT er.*, e.event_date, e.title as event_title
+       FROM event_registrations er
+       JOIN events e ON er.event_id = e.id
+       WHERE er.event_id = $1 AND er.member_id = $2 AND er.registration_status = 'registered'`,
+      [eventId, userId]
+    );
+
+    if (regResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Registration not found" });
+    }
+    const registration = regResult.rows[0];
+
+    // 3. Get tickets and calculate refund based on policy
+    const ticketsResult = await client.query(
+      `SELECT rt.*, tt.refund_policy
+       FROM registration_tickets rt
+       JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       WHERE rt.registration_id = $1`,
+      [registration.id]
+    );
+
+    const hoursUntilEvent =
+      (new Date(registration.event_date) - new Date()) / (1000 * 60 * 60);
+    let refundAmount = 0;
+
+    for (const ticket of ticketsResult.rows) {
+      const policy = ticket.refund_policy || {
+        allowed: true,
+        deadline_hours_before: 24,
+        percentage: 100,
+      };
+
+      if (policy.allowed && hoursUntilEvent >= policy.deadline_hours_before) {
+        refundAmount += (ticket.total_price * policy.percentage) / 100;
+      }
+    }
+
+    // 4. Update registration status
+    await client.query(
+      `UPDATE event_registrations 
+       SET registration_status = 'cancelled', cancelled_at = NOW(), refund_amount = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [refundAmount, registration.id]
+    );
+
+    // 5. Restore ticket sold counts
+    for (const ticket of ticketsResult.rows) {
+      await client.query(
+        "UPDATE ticket_types SET sold_count = GREATEST(0, sold_count - $1) WHERE id = $2",
+        [ticket.quantity, ticket.ticket_type_id]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    // 6. Send cancellation email (async)
+    const memberResult = await pool.query(
+      "SELECT name, email FROM members WHERE id = $1",
+      [userId]
+    );
+    const member = memberResult.rows[0];
+
+    sendCancellationEmail({
+      to: member.email,
+      memberName: member.name,
+      eventTitle: registration.event_title,
+      refundAmount: refundAmount,
+    }).catch((err) => console.error("Cancellation email failed:", err));
+
+    res.json({
+      success: true,
+      refundAmount,
+      message:
+        refundAmount > 0
+          ? `Cancelled. Refund of ₹${refundAmount.toLocaleString(
+              "en-IN"
+            )} will be processed.`
+          : "Cancelled. No refund applicable based on policy.",
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error cancelling registration:", error);
+    res.status(500).json({ error: "Failed to cancel registration" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get user's ticket for an event
+ * GET /events/:eventId/my-ticket
+ * Returns complete ticket data for QR display and verification
+ */
+const getMyTicket = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get registration with event and community details
+    const query = `
+      SELECT 
+        er.id as registration_id,
+        er.qr_code_hash,
+        er.total_amount,
+        er.discount_amount,
+        er.promo_code,
+        er.registration_status,
+        er.created_at as registered_at,
+        er.cancelled_at,
+        er.refund_amount,
+        e.id as event_id,
+        e.title as event_title,
+        COALESCE(e.start_datetime, e.event_date) as event_date,
+        e.end_datetime,
+        e.location_url,
+        e.event_type,
+        e.virtual_link,
+        c.id as community_id,
+        c.name as community_name,
+        c.logo_url as community_logo,
+        m.name as member_name
+      FROM event_registrations er
+      JOIN events e ON er.event_id = e.id
+      JOIN communities c ON e.community_id = c.id
+      JOIN members m ON er.member_id = m.id
+      WHERE er.event_id = $1 AND er.member_id = $2
+    `;
+
+    const result = await pool.query(query, [eventId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    const registration = result.rows[0];
+
+    // Get ticket breakdown
+    const ticketsResult = await pool.query(
+      `SELECT ticket_name, quantity, unit_price, total_price
+       FROM registration_tickets
+       WHERE registration_id = $1
+       ORDER BY ticket_name`,
+      [registration.registration_id]
+    );
+
+    // Generate QR code data string
+    const qrCodeData = `SNOO-E${eventId}-R${registration.registration_id}-${registration.qr_code_hash}`;
+
+    res.json({
+      success: true,
+      ticket: {
+        registrationId: registration.registration_id,
+        qrCodeData,
+        qrCodeHash: registration.qr_code_hash,
+        eventId: registration.event_id,
+        eventTitle: registration.event_title,
+        eventDate: registration.event_date,
+        endDate: registration.end_datetime,
+        locationUrl: registration.location_url,
+        eventType: registration.event_type,
+        virtualLink: registration.virtual_link,
+        communityId: registration.community_id,
+        communityName: registration.community_name,
+        communityLogo: registration.community_logo,
+        memberName: registration.member_name,
+        registeredAt: registration.registered_at,
+        totalAmount: parseFloat(registration.total_amount) || 0,
+        discountAmount: parseFloat(registration.discount_amount) || 0,
+        promoCode: registration.promo_code,
+        status: registration.registration_status,
+        cancelledAt: registration.cancelled_at,
+        refundAmount: parseFloat(registration.refund_amount) || 0,
+        tickets: ticketsResult.rows.map((t) => ({
+          name: t.ticket_name,
+          quantity: t.quantity,
+          unitPrice: parseFloat(t.unit_price),
+          totalPrice: parseFloat(t.total_price),
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting ticket:", error);
+    res.status(500).json({ error: "Failed to get ticket" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
   getMyEvents,
   getEventAttendees,
+  getEventAttendeesForCommunity,
   recordSwipe,
   getEventMatches,
   requestNextEvent,
@@ -2368,4 +2983,7 @@ module.exports = {
   cancelEvent,
   toggleEventInterest,
   getInterestedEvents,
+  registerForEvent,
+  cancelRegistration,
+  getMyTicket,
 };
