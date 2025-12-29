@@ -12,7 +12,6 @@ export default function EventsStackNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="YourEventsList" component={YourEventsScreen} />
       <Stack.Screen name="TicketView" component={TicketViewScreen} />
-      <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
     </Stack.Navigator>
   );
 }

@@ -28,7 +28,6 @@ export default function CommunitySearchStackNavigator() {
       />
       <Stack.Screen name="SponsorProfile" component={SponsorProfileScreen} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
-      <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen

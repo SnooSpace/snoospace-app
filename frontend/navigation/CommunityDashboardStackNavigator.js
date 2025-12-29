@@ -20,7 +20,6 @@ export default function CommunityDashboardStackNavigator() {
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
       />
-      <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
       <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
       <Stack.Screen
         name="MemberPublicProfile"
