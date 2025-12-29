@@ -141,7 +141,11 @@ export async function addAccount(accountData) {
       isLoggedIn: accountData.isLoggedIn,
     });
 
-    const accounts = await getAllAccounts();
+    // CRITICAL FIX: Read raw JSON to preserve other accounts' encrypted tokens
+    // Previously we called getAllAccounts() which DECRYPTS all tokens, then saved
+    // them back as plaintext - corrupting other accounts' tokens!
+    const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
+    const accounts = accountsJson ? JSON.parse(accountsJson) : [];
     const accountId = String(accountData.id); // Always convert to string
     const accountType = accountData.type || "unknown";
     const compositeId = `${accountType}_${accountId}`;
@@ -341,7 +345,11 @@ export async function logoutCurrentAccount() {
  */
 export async function removeAccount(accountId) {
   try {
-    const accounts = await getAllAccounts();
+    // CRITICAL FIX: Read raw JSON to preserve other accounts' encrypted tokens
+    const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
+    if (!accountsJson) return false;
+    const accounts = JSON.parse(accountsJson);
+
     const accountIdStr = String(accountId);
     const activeAccount = await getActiveAccount();
 
@@ -356,6 +364,7 @@ export async function removeAccount(accountId) {
       );
     }
 
+    // Filter using raw account data (comparing IDs without decryption)
     const updatedAccounts = accounts.filter(
       (acc) => String(acc.id) !== accountIdStr
     );

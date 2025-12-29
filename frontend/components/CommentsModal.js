@@ -307,7 +307,10 @@ const CommentsModal = ({
 
       if (result?.comment) {
         let currentProfile = userProfile;
-        if (!currentProfile || (!currentProfile.profile_photo_url && !currentProfile.logo_url)) {
+        if (
+          !currentProfile ||
+          (!currentProfile.profile_photo_url && !currentProfile.logo_url)
+        ) {
           try {
             const email = await getAuthEmail();
             const profileResponse = await apiPost(
@@ -329,7 +332,10 @@ const CommentsModal = ({
           ...result.comment,
           commenter_name: currentProfile?.name || "User",
           commenter_username: currentProfile?.username || "",
-          commenter_photo_url: currentProfile?.profile_photo_url || currentProfile?.logo_url || null,
+          commenter_photo_url:
+            currentProfile?.profile_photo_url ||
+            currentProfile?.logo_url ||
+            null,
           like_count: 0,
           is_liked: false,
         };
@@ -339,7 +345,7 @@ const CommentsModal = ({
         setTaggedEntities([]);
         setShowTagSearch(false);
         setAtPosition(-1);
-          const newCount = comments.length + 1;
+        const newCount = comments.length + 1;
         if (onCommentCountChange) {
           onCommentCountChange(newCount);
         }
@@ -473,24 +479,22 @@ const CommentsModal = ({
     };
 
     // Determine placeholder color based on commenter type
-    const isCommunity = item.commenter_type === 'community';
-    const placeholderBg = isCommunity ? '5f27cd' : '6A0DAD';
-    
+    const isCommunity = item.commenter_type === "community";
+    const placeholderBg = isCommunity ? "5f27cd" : "6A0DAD";
+
     // Get photo URL - backend maps both member profile_photo_url and community logo_url to commenter_photo_url
     // Use same approach as PostCard: check if URL exists, otherwise use placeholder
-    const photoUri = item.commenter_photo_url && item.commenter_photo_url.trim() !== ''
-      ? item.commenter_photo_url
-      : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          item.commenter_name || "User"
-        )}&background=${placeholderBg}&color=FFFFFF`;
+    const photoUri =
+      item.commenter_photo_url && item.commenter_photo_url.trim() !== ""
+        ? item.commenter_photo_url
+        : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            item.commenter_name || "User"
+          )}&background=${placeholderBg}&color=FFFFFF`;
 
     return (
       <View style={styles.commentItem}>
         <TouchableOpacity onPress={handleProfilePress}>
-          <Image
-            source={{ uri: photoUri }}
-            style={styles.commentAvatar}
-          />
+          <Image source={{ uri: photoUri }} style={styles.commentAvatar} />
         </TouchableOpacity>
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
@@ -563,8 +567,9 @@ const CommentsModal = ({
                     part.entity &&
                     part.entity.id === currentUserId;
                   return (
-                    <TouchableOpacity
+                    <Text
                       key={idx}
+                      style={styles.taggedUsername}
                       onPress={() => {
                         if (
                           navigation &&
@@ -611,8 +616,8 @@ const CommentsModal = ({
                         }
                       }}
                     >
-                      <Text style={styles.taggedUsername}>{part.content}</Text>
-                    </TouchableOpacity>
+                      {part.content}
+                    </Text>
                   );
                 }
                 return <Text key={idx}>{part.content}</Text>;
@@ -646,9 +651,9 @@ const CommentsModal = ({
   };
 
   const content = (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={embedded ? styles.embeddedContainer : styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={0}
     >
       <View style={styles.modalContent}>
@@ -685,22 +690,27 @@ const CommentsModal = ({
         <View
           style={[
             styles.inputContainer,
-            keyboardVisible && Platform.OS === "android" && {
-              bottom: keyboardHeight + 20,
-            },
+            keyboardVisible &&
+              Platform.OS === "android" && {
+                bottom: keyboardHeight + 20,
+              },
           ]}
         >
           <View style={styles.inputRow}>
             <Image
               source={{
                 uri:
-                  (userProfile?.profile_photo_url && /^https?:\/\//.test(userProfile.profile_photo_url)) ||
-                  (userProfile?.logo_url && /^https?:\/\//.test(userProfile.logo_url))
-                    ? (userProfile.profile_photo_url || userProfile.logo_url)
+                  (userProfile?.profile_photo_url &&
+                    /^https?:\/\//.test(userProfile.profile_photo_url)) ||
+                  (userProfile?.logo_url &&
+                    /^https?:\/\//.test(userProfile.logo_url))
+                    ? userProfile.profile_photo_url || userProfile.logo_url
                     : userProfile?.name
                     ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
                         userProfile.name
-                      )}&background=${userProfile?.logo_url ? '5f27cd' : '6A0DAD'}&color=FFFFFF&size=32`
+                      )}&background=${
+                        userProfile?.logo_url ? "5f27cd" : "6A0DAD"
+                      }&color=FFFFFF&size=32`
                     : `https://ui-avatars.com/api/?name=User&background=6A0DAD&color=FFFFFF&size=32`,
               }}
               style={styles.inputAvatar}

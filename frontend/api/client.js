@@ -39,6 +39,16 @@ export function getAccountSwitchGeneration() {
   return accountSwitchGeneration;
 }
 
+/**
+ * REFRESH THUNDERING HERD GUARD
+ *
+ * Map of active refresh promises keyed by account ID.
+ * This ensures that multiple simultaneous 401s from the same account
+ * only trigger ONE actual refresh request. Subsequent requests wait for
+ * the same promise and then reuse the updated token.
+ */
+const refreshingPromises = new Map();
+
 function withTimeout(promise, ms = 15000) {
   return Promise.race([
     promise,
@@ -59,7 +69,11 @@ function buildError(res, data) {
   return err;
 }
 
-async function tryRefreshAndRetry(doRequest, requestGeneration = null) {
+async function tryRefreshAndRetry(
+  doRequest,
+  requestGeneration = null,
+  failedToken = null
+) {
   try {
     // CRITICAL: Capture generation at the START of refresh attempt
     // This detects if user switched accounts while refresh was in progress
@@ -92,6 +106,50 @@ async function tryRefreshAndRetry(doRequest, requestGeneration = null) {
     const activeAccount = await authModule.getActiveAccount();
     const accountId = activeAccount?.id;
     const accountType = activeAccount?.type;
+
+    // --- CONCURRENCY PROTECTION (THUNDERING HERD) ---
+    // 1. TOKEN FRESHNESS CHECK:
+    // Check if the token in storage is ALREADY different from the one that failed.
+    // This happens if a parallel request already completed its refresh.
+    if (
+      failedToken &&
+      activeAccount?.authToken &&
+      activeAccount.authToken !== failedToken
+    ) {
+      console.log(
+        "[tryRefreshAndRetry] ✨ Token already updated by another request. Retrying immediately."
+      );
+      return doRequest(activeAccount.authToken);
+    }
+
+    // 2. REFRESH LOCKING:
+    // If a refresh is already in progress for this account, wait for it.
+    if (accountId && refreshingPromises.has(accountId)) {
+      console.log(
+        `[tryRefreshAndRetry] ⏳ Waiting for parallel refresh for account: ${accountId}`
+      );
+      await refreshingPromises.get(accountId);
+
+      // After waiting, get the newest token and retry
+      const updatedAccount = await authModule.getActiveAccount();
+      if (updatedAccount?.authToken) {
+        console.log(
+          "[tryRefreshAndRetry] ✨ Parallel refresh finished. Retrying with new token."
+        );
+        return doRequest(updatedAccount.authToken);
+      }
+      throw new Error("Unauthorized");
+    }
+
+    // 3. START REFRESH WITH LOCK:
+    let refreshPromiseResolve;
+    const refreshPromise = new Promise((resolve) => {
+      refreshPromiseResolve = resolve;
+    });
+
+    if (accountId) {
+      refreshingPromises.set(accountId, refreshPromise);
+    }
 
     console.log("[tryRefreshAndRetry] Captured account context:", {
       accountId,
@@ -306,6 +364,14 @@ async function tryRefreshAndRetry(doRequest, requestGeneration = null) {
       );
     }
     throw new Error("Unauthorized");
+  } finally {
+    // Release the lock
+    if (accountId) {
+      refreshingPromises.delete(accountId);
+    }
+    if (typeof refreshPromiseResolve === "function") {
+      refreshPromiseResolve();
+    }
   }
 }
 
@@ -346,7 +412,8 @@ export async function apiPost(path, body, timeoutMs, token) {
     }
     return tryRefreshAndRetry(
       (newToken) => apiPost(path, body, timeoutMs, newToken),
-      requestGeneration
+      requestGeneration,
+      token
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -380,7 +447,8 @@ export async function apiGet(path, timeoutMs, token) {
     }
     return tryRefreshAndRetry(
       (newToken) => apiGet(path, timeoutMs, newToken),
-      requestGeneration
+      requestGeneration,
+      token
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -418,7 +486,8 @@ export async function apiPatch(path, body, timeoutMs, token) {
     }
     return tryRefreshAndRetry(
       (newToken) => apiPatch(path, body, timeoutMs, newToken),
-      requestGeneration
+      requestGeneration,
+      token
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -455,7 +524,8 @@ export async function apiDelete(path, body, timeoutMs, token) {
     }
     return tryRefreshAndRetry(
       (newToken) => apiDelete(path, body, timeoutMs, newToken),
-      requestGeneration
+      requestGeneration,
+      token
     );
   }
   const data = await res.json().catch(() => ({}));
