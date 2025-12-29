@@ -2137,6 +2137,24 @@ const deleteEvent = async (req, res) => {
       });
     }
 
+    // Fetch interested users BEFORE deletion (for notifications)
+    let interestedUserIds = [];
+    try {
+      const interestedUsersResult = await pool.query(
+        "SELECT member_id FROM event_interests WHERE event_id = $1",
+        [eventId]
+      );
+      interestedUserIds = interestedUsersResult.rows.map((r) => r.member_id);
+      console.log(
+        `[deleteEvent] Found ${interestedUserIds.length} interested users for event ${eventId}`
+      );
+    } catch (err) {
+      console.warn(
+        "[deleteEvent] Could not fetch interested users:",
+        err.message
+      );
+    }
+
     // Get Cloudinary public IDs for cleanup (optional - don't fail if not present)
     let cloudinaryIds = [];
     try {
@@ -2176,6 +2194,7 @@ const deleteEvent = async (req, res) => {
       "DELETE FROM event_featured_accounts WHERE event_id = $1",
       "DELETE FROM event_gallery WHERE event_id = $1",
       "DELETE FROM event_banners WHERE event_id = $1",
+      "DELETE FROM event_interests WHERE event_id = $1",
     ];
 
     for (const query of deleteQueries) {
@@ -2203,10 +2222,38 @@ const deleteEvent = async (req, res) => {
       `[deleteEvent] Event "${event.title}" (ID: ${eventId}) deleted by community ${userId}`
     );
 
+    // Notify interested users that the event was deleted
+    if (interestedUserIds.length > 0) {
+      console.log(
+        `[deleteEvent] Sending notifications to ${interestedUserIds.length} interested users`
+      );
+      for (const memberId of interestedUserIds) {
+        try {
+          await notificationService.createSimpleNotification(pool, {
+            recipientId: memberId,
+            recipientType: "member",
+            actorId: userId,
+            actorType: "community",
+            type: "event_deleted",
+            payload: {
+              eventId: parseInt(eventId),
+              eventTitle: event.title,
+            },
+          });
+        } catch (notifError) {
+          console.warn(
+            `[deleteEvent] Failed to notify member ${memberId}:`,
+            notifError.message
+          );
+        }
+      }
+    }
+
     res.json({
       success: true,
       message: `Event "${event.title}" has been permanently deleted`,
       eventId: parseInt(eventId),
+      notifiedUsers: interestedUserIds.length,
     });
   } catch (error) {
     console.error("Error deleting event:", error);

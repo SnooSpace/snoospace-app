@@ -91,7 +91,9 @@ export default function CommunityEventsListScreen({ navigation, route }) {
 
     // Can delete past events, or upcoming events without attendees, or cancelled events
     const canDelete =
-      event.is_past || event.is_cancelled || event.current_attendees === 0;
+      event.is_past ||
+      event.is_cancelled ||
+      parseInt(event.current_attendees || 0, 10) === 0;
     options.push({
       text: canDelete ? "Delete Event" : "Delete (after event ends)",
       onPress: () => {

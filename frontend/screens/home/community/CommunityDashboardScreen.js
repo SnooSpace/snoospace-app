@@ -133,7 +133,9 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   const handleEventLongPress = (event) => {
     const canDelete =
-      event.is_past || event.is_cancelled || event.current_attendees === 0;
+      event.is_past ||
+      event.is_cancelled ||
+      parseInt(event.current_attendees || 0, 10) === 0;
     const canCancel = !event.is_past && !event.is_cancelled;
 
     const actions = [];
@@ -600,8 +602,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 
           <View style={styles.eventsHeader}>
             <Text style={styles.longPressHint}>
-              *Long press event cards to view tickets sold, cancel events or
-              delete events options
+              *Long press event cards to view more options
             </Text>
             <TouchableOpacity
               onPress={handleViewAllEvents}
