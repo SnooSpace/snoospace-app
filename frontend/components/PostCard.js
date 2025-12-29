@@ -354,10 +354,10 @@ const styles = StyleSheet.create({
     // Container for horizontal scrolling images
   },
   imageWrapper: {
-    width: width, // Full screen width
-    marginLeft: -SPACING.m, // Negative margin to extend to card edge
+    width: width - 2 * SPACING.m, // Card width
     // aspectRatio set dynamically per image from post.aspect_ratios
-    backgroundColor: COLORS.surface, // Match card background
+    backgroundColor: COLORS.surface,
+    overflow: "hidden",
   },
   postImage: {
     width: "100%",

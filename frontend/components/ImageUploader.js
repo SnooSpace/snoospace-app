@@ -352,38 +352,58 @@ const ImageUploader = ({
 
     return (
       <View style={styles.imageGrid}>
-        {images.map((imageUri, index) => (
-          <View key={`${index}-${imageUri}`} style={styles.imageContainer}>
-            <TouchableOpacity
-              onPress={() => handleEditImage(index)}
-              activeOpacity={enableCrop ? 0.7 : 1}
-              disabled={!enableCrop}
+        {images.map((imageUri, index) => {
+          const ar = aspectRatios[index];
+          // aspectRatio decimal: width/height. If ar is [4,5], ratio is 0.8
+          const ratio = Array.isArray(ar)
+            ? ar[0] / ar[1]
+            : typeof ar === "number"
+            ? ar
+            : 1;
+          const thumbWidth = (width - 60) / 2;
+          const thumbHeight = thumbWidth / ratio;
+
+          return (
+            <View
+              key={`${index}-${imageUri}`}
+              style={[
+                styles.imageContainer,
+                { width: thumbWidth, height: thumbHeight },
+              ]}
             >
-              <Image
-                source={{ uri: imageUri, cache: "reload" }}
-                style={styles.image}
-              />
-              {enableCrop && (
-                <View style={styles.editHint}>
-                  <Ionicons name="crop" size={14} color="#fff" />
+              <TouchableOpacity
+                onPress={() => handleEditImage(index)}
+                activeOpacity={enableCrop ? 0.7 : 1}
+                disabled={!enableCrop}
+                style={styles.imageTouch}
+              >
+                <Image
+                  source={{ uri: imageUri, cache: "reload" }}
+                  style={styles.image}
+                  resizeMode="cover"
+                />
+                {enableCrop && (
+                  <View style={styles.editHint}>
+                    <Ionicons name="crop" size={14} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
+              {typeof progressByIndex[index] === "number" && uploading ? (
+                <View style={styles.progressOverlay}>
+                  <Text style={styles.progressText}>
+                    {progressByIndex[index]}%
+                  </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-            {typeof progressByIndex[index] === "number" && uploading ? (
-              <View style={styles.progressOverlay}>
-                <Text style={styles.progressText}>
-                  {progressByIndex[index]}%
-                </Text>
-              </View>
-            ) : null}
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => removeImage(index)}
-            >
-              <Ionicons name="close-circle" size={24} color={COLORS.error} />
-            </TouchableOpacity>
-          </View>
-        ))}
+              ) : null}
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => removeImage(index)}
+              >
+                <Ionicons name="close-circle" size={24} color={COLORS.error} />
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         {images.length < maxImages && (
           <TouchableOpacity
@@ -445,10 +465,13 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: "relative",
-    width: (width - 60) / 2, // Larger thumbnails for debugging
-    height: (width - 60) / 2,
     borderRadius: 8,
     overflow: "hidden",
+    backgroundColor: "#F0F0F0",
+  },
+  imageTouch: {
+    width: "100%",
+    height: "100%",
   },
   image: {
     width: "100%",
