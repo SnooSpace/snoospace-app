@@ -1,6 +1,44 @@
 export const BACKEND_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://192.168.1.11:5000";
 
+/**
+ * ACCOUNT SWITCH RACE CONDITION GUARD
+ *
+ * This generation counter increments every time the user switches accounts.
+ * It's used to detect and abort stale API requests from previous account sessions
+ * that would otherwise corrupt tokens when their refresh completes after a switch.
+ *
+ * Problem: In-flight request for Account A gets 401 → triggers refresh → but user
+ * already switched to Account B → refresh uses A's token but getActiveAccount()
+ * returns B → tokens get corrupted.
+ *
+ * Solution: Capture generation at request time, verify before saving tokens.
+ */
+let accountSwitchGeneration = 0;
+
+/**
+ * Increment the generation counter when switching accounts.
+ * Call this from accountManager.switchAccount() BEFORE the actual switch.
+ * @returns {number} The new generation number
+ */
+export function incrementAccountSwitchGeneration() {
+  accountSwitchGeneration++;
+  console.log(
+    "[AccountGuard] ⚡ Generation incremented to:",
+    accountSwitchGeneration,
+    "at",
+    new Date().toISOString()
+  );
+  return accountSwitchGeneration;
+}
+
+/**
+ * Get current generation for debugging purposes
+ */
+export function getAccountSwitchGeneration() {
+  return accountSwitchGeneration;
+}
+
 function withTimeout(promise, ms = 15000) {
   return Promise.race([
     promise,
@@ -21,9 +59,31 @@ function buildError(res, data) {
   return err;
 }
 
-async function tryRefreshAndRetry(doRequest) {
+async function tryRefreshAndRetry(doRequest, requestGeneration = null) {
   try {
-    console.log("[tryRefreshAndRetry] Attempting token refresh...");
+    // CRITICAL: Capture generation at the START of refresh attempt
+    // This detects if user switched accounts while refresh was in progress
+    const refreshStartGeneration =
+      requestGeneration !== null ? requestGeneration : accountSwitchGeneration;
+
+    console.log("[tryRefreshAndRetry] Attempting token refresh...", {
+      startGeneration: refreshStartGeneration,
+      currentGeneration: accountSwitchGeneration,
+    });
+
+    // EARLY ABORT: If generation already changed, don't even attempt refresh
+    if (refreshStartGeneration !== accountSwitchGeneration) {
+      console.warn(
+        "[tryRefreshAndRetry] 🚨 STALE REQUEST - Account switched before refresh started!"
+      );
+      console.warn(
+        "[tryRefreshAndRetry] Request generation:",
+        refreshStartGeneration,
+        "Current:",
+        accountSwitchGeneration
+      );
+      throw new Error("Unauthorized"); // Abort - don't corrupt tokens
+    }
 
     // CRITICAL: Capture account context BEFORE refresh to prevent race conditions
     // This ensures tokens are saved to the correct account even if user switches accounts
@@ -37,6 +97,7 @@ async function tryRefreshAndRetry(doRequest) {
       accountId,
       accountType,
       email: activeAccount?.email,
+      generation: refreshStartGeneration,
     });
 
     const refreshToken =
@@ -178,6 +239,31 @@ async function tryRefreshAndRetry(doRequest) {
         newAccess?.length
       );
 
+      // CRITICAL CHECK: Verify generation BEFORE saving tokens
+      // If user switched accounts during refresh, DO NOT save tokens - they would corrupt the new account
+      if (refreshStartGeneration !== accountSwitchGeneration) {
+        console.error(
+          "🚨 [tryRefreshAndRetry] ACCOUNT SWITCH DETECTED during token refresh!"
+        );
+        console.error(
+          "[tryRefreshAndRetry] Refresh started at generation:",
+          refreshStartGeneration
+        );
+        console.error(
+          "[tryRefreshAndRetry] Current generation:",
+          accountSwitchGeneration
+        );
+        console.error(
+          "[tryRefreshAndRetry] Aborting token save to prevent corruption!"
+        );
+        console.error(
+          "[tryRefreshAndRetry] Account that would have been corrupted:",
+          accountId,
+          activeAccount?.email
+        );
+        throw new Error("Unauthorized"); // Don't save tokens, request is stale
+      }
+
       // CRITICAL: Update tokens atomically for the SPECIFIC account that initiated refresh
       // This prevents race conditions when user switches accounts during API calls
       if (accountId) {
@@ -192,7 +278,9 @@ async function tryRefreshAndRetry(doRequest) {
         await authModule.updateAccountTokens(accountId, newAccess, newRefresh);
         console.log(
           "[tryRefreshAndRetry] Tokens updated for account:",
-          accountId
+          accountId,
+          "generation:",
+          refreshStartGeneration
         );
       } else {
         // Fallback to old behavior if no account context (legacy support)
@@ -222,10 +310,14 @@ async function tryRefreshAndRetry(doRequest) {
 }
 
 export async function apiPost(path, body, timeoutMs, token) {
+  // Capture generation at request initiation for stale request detection
+  const requestGeneration = accountSwitchGeneration;
+
   console.log(`[apiPost] ${path}`, {
     hasToken: !!token,
     tokenLength: token?.length,
     bodyKeys: Object.keys(body || {}),
+    generation: requestGeneration,
   });
 
   const headers = { "Content-Type": "application/json" };
@@ -245,8 +337,16 @@ export async function apiPost(path, body, timeoutMs, token) {
     throw new Error("Network error. Please check your connection.");
   }
   if (res.status === 401) {
-    return tryRefreshAndRetry((newToken) =>
-      apiPost(path, body, timeoutMs, newToken)
+    // Check if account switched before attempting refresh
+    if (requestGeneration !== accountSwitchGeneration) {
+      console.log(
+        `[apiPost] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+      );
+      throw new Error("Request aborted - account switched");
+    }
+    return tryRefreshAndRetry(
+      (newToken) => apiPost(path, body, timeoutMs, newToken),
+      requestGeneration
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -255,6 +355,9 @@ export async function apiPost(path, body, timeoutMs, token) {
 }
 
 export async function apiGet(path, timeoutMs, token) {
+  // Capture generation at request initiation for stale request detection
+  const requestGeneration = accountSwitchGeneration;
+
   const headers = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
   let res;
@@ -268,7 +371,17 @@ export async function apiGet(path, timeoutMs, token) {
     throw new Error("Network error. Please check your connection.");
   }
   if (res.status === 401) {
-    return tryRefreshAndRetry((newToken) => apiGet(path, timeoutMs, newToken));
+    // Check if account switched before attempting refresh
+    if (requestGeneration !== accountSwitchGeneration) {
+      console.log(
+        `[apiGet] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+      );
+      throw new Error("Request aborted - account switched");
+    }
+    return tryRefreshAndRetry(
+      (newToken) => apiGet(path, timeoutMs, newToken),
+      requestGeneration
+    );
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw buildError(res, data);
@@ -276,6 +389,9 @@ export async function apiGet(path, timeoutMs, token) {
 }
 
 export async function apiPatch(path, body, timeoutMs, token) {
+  // Capture generation at request initiation for stale request detection
+  const requestGeneration = accountSwitchGeneration;
+
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   let res;
@@ -293,8 +409,16 @@ export async function apiPatch(path, body, timeoutMs, token) {
     throw new Error("Network error. Please check your connection.");
   }
   if (res.status === 401) {
-    return tryRefreshAndRetry((newToken) =>
-      apiPatch(path, body, timeoutMs, newToken)
+    // Check if account switched before attempting refresh
+    if (requestGeneration !== accountSwitchGeneration) {
+      console.log(
+        `[apiPatch] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+      );
+      throw new Error("Request aborted - account switched");
+    }
+    return tryRefreshAndRetry(
+      (newToken) => apiPatch(path, body, timeoutMs, newToken),
+      requestGeneration
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -303,6 +427,9 @@ export async function apiPatch(path, body, timeoutMs, token) {
 }
 
 export async function apiDelete(path, body, timeoutMs, token) {
+  // Capture generation at request initiation for stale request detection
+  const requestGeneration = accountSwitchGeneration;
+
   const headers = {};
   if (token || body) headers["Content-Type"] = "application/json";
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -319,8 +446,16 @@ export async function apiDelete(path, body, timeoutMs, token) {
     throw new Error("Network error. Please check your connection.");
   }
   if (res.status === 401) {
-    return tryRefreshAndRetry((newToken) =>
-      apiDelete(path, body, timeoutMs, newToken)
+    // Check if account switched before attempting refresh
+    if (requestGeneration !== accountSwitchGeneration) {
+      console.log(
+        `[apiDelete] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+      );
+      throw new Error("Request aborted - account switched");
+    }
+    return tryRefreshAndRetry(
+      (newToken) => apiDelete(path, body, timeoutMs, newToken),
+      requestGeneration
     );
   }
   const data = await res.json().catch(() => ({}));

@@ -222,7 +222,17 @@ export async function addAccount(accountData) {
  */
 export async function switchAccount(accountId) {
   try {
-    console.log("[switchAccount] Starting switch to account:", accountId);
+    // CRITICAL: Increment generation FIRST to invalidate all in-flight requests
+    // from the previous account session. This prevents token corruption.
+    const { incrementAccountSwitchGeneration } = await import("../api/client");
+    const newGeneration = incrementAccountSwitchGeneration();
+
+    console.log(
+      "[switchAccount] Starting switch to account:",
+      accountId,
+      "generation:",
+      newGeneration
+    );
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
 
