@@ -101,6 +101,7 @@ export const useCrop = () => {
    * @param {string} imageUri - URI of image to crop
    * @param {string} presetKey - Crop preset key
    * @param {Object} options - Additional options
+   * @param {Object} options.initialCropData - Saved crop position data for re-edit
    * @returns {Promise<Object|null>} Cropped image result or null if cancelled
    */
   const cropImage = useCallback(
@@ -115,6 +116,7 @@ export const useCrop = () => {
             imageUri: imageUri,
             presetKey,
             allowPresetChange: options.allowPresetChange || false,
+            initialCropData: options.initialCropData || null, // For position restoration
             onComplete: (result) => {
               if (resolveRef.current) {
                 resolveRef.current(result);

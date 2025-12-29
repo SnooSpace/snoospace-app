@@ -28,6 +28,7 @@ import { COLORS } from "../../../constants/theme";
 export default function CommunityCreatePostScreen({ navigation }) {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
+  const [aspectRatios, setAspectRatios] = useState([]); // NEW: Track aspect ratios for images
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isPosting, setIsPosting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -63,6 +64,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const handleImageSelect = (selectedUris) => {
     // selectedUris is an array of strings (local URIs before upload, HTTPS URLs after upload)
     setImages(selectedUris);
+  };
+
+  // NEW: Handle aspect ratios from ImageUploader
+  const handleAspectRatiosChange = (newAspectRatios) => {
+    setAspectRatios(newAspectRatios);
   };
 
   const handlePost = async () => {
@@ -117,11 +123,37 @@ export default function CommunityCreatePostScreen({ navigation }) {
         }))
         .filter((entry) => entry.id && entry.type);
 
+      console.log("[CreatePost] Sending post data:", {
+        captionLength: caption?.trim()?.length || 0,
+        imageCount: finalImageUrls.length,
+        aspectRatiosCount: aspectRatios.length,
+        aspectRatios,
+        lengthsMatch: aspectRatios.length === finalImageUrls.length,
+      });
+
+      // Convert aspect ratios from [width, height] format to float (width/height)
+      // Backend expects floats like 1.0 for 1:1 or 0.8 for 4:5
+      const formattedAspectRatios = aspectRatios.map((ar) => {
+        if (Array.isArray(ar) && ar.length === 2) {
+          return ar[0] / ar[1]; // [1, 1] → 1.0, [4, 5] → 0.8
+        }
+        return typeof ar === "number" ? ar : 1; // Fallback to 1:1
+      });
+
+      console.log(
+        "[CreatePost] Formatted aspectRatios:",
+        formattedAspectRatios
+      );
+
       await apiPost(
         "/posts",
         {
           caption: caption.trim() || null,
           imageUrls: finalImageUrls,
+          aspectRatios:
+            formattedAspectRatios.length === finalImageUrls.length
+              ? formattedAspectRatios
+              : null,
           taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
         },
         15000,
@@ -149,6 +181,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setShowCelebration(false);
     setCaption("");
     setImages([]);
+    setAspectRatios([]); // NEW: Reset aspect ratios
     setTaggedEntities([]);
 
     // DELAYED END: Navigate after potential interaction
@@ -174,6 +207,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
             onPress: () => {
               setCaption("");
               setImages([]);
+              setAspectRatios([]); // NEW: Reset aspect ratios
               setTaggedEntities([]);
               navigation.goBack();
             },
@@ -278,7 +312,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
           {/* Image Uploader */}
           <View style={styles.imageSection}>
             <Text style={styles.sectionTitle}>Add Photos</Text>
-            <ImageUploader onImagesChange={handleImageSelect} maxImages={5} />
+            <ImageUploader
+              onImagesChange={handleImageSelect}
+              onAspectRatiosChange={handleAspectRatiosChange}
+              maxImages={5}
+            />
           </View>
 
           {/* Post Guidelines */}

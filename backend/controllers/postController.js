@@ -5,11 +5,13 @@ const pool = createPool();
 // Create a new post
 const createPost = async (req, res) => {
   try {
-    const { caption, imageUrls, taggedEntities } = req.body;
+    const { caption, imageUrls, taggedEntities, aspectRatios } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    console.log(`[createPost] Attempting to create post for author_id: ${userId}, author_type: ${userType}`);
+    console.log(
+      `[createPost] Attempting to create post for author_id: ${userId}, author_type: ${userType}`
+    );
 
     if (!userId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
@@ -23,21 +25,46 @@ const createPost = async (req, res) => {
       return res.status(400).json({ error: "Maximum 10 images allowed" });
     }
 
+    // Validate aspect ratios if provided
+    let validatedAspectRatios = null;
+    if (aspectRatios && Array.isArray(aspectRatios)) {
+      // Ensure aspect ratios array length matches image urls length
+      if (aspectRatios.length !== imageUrls.length) {
+        console.warn(
+          "[createPost] aspectRatios length mismatch, defaulting to 0.8 (4:5)"
+        );
+        validatedAspectRatios = imageUrls.map(() => 0.8); // Default 4:5
+      } else {
+        // Validate each aspect ratio is a valid number between 0.5 and 2.0
+        validatedAspectRatios = aspectRatios.map((ar) => {
+          const num = parseFloat(ar);
+          if (isNaN(num) || num < 0.5 || num > 2.0) {
+            return 0.8; // Default to 4:5
+          }
+          return num;
+        });
+      }
+    }
+
     // Validate tagged entities if provided
     if (taggedEntities && Array.isArray(taggedEntities)) {
       for (const entity of taggedEntities) {
         if (!entity.id || !entity.type) {
-          return res.status(400).json({ error: "Invalid tagged entity format" });
+          return res
+            .status(400)
+            .json({ error: "Invalid tagged entity format" });
         }
-        if (!['member', 'community', 'sponsor', 'venue'].includes(entity.type)) {
+        if (
+          !["member", "community", "sponsor", "venue"].includes(entity.type)
+        ) {
           return res.status(400).json({ error: "Invalid entity type" });
         }
       }
     }
 
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, created_at
     `;
 
@@ -46,23 +73,28 @@ const createPost = async (req, res) => {
       userType,
       caption || null,
       JSON.stringify(imageUrls),
-      taggedEntities ? JSON.stringify(taggedEntities) : null
+      taggedEntities ? JSON.stringify(taggedEntities) : null,
+      validatedAspectRatios ? JSON.stringify(validatedAspectRatios) : null,
     ];
 
     const result = await pool.query(query, values);
     const post = result.rows[0];
 
     // Create notifications for tagged users
-    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+    if (
+      taggedEntities &&
+      Array.isArray(taggedEntities) &&
+      taggedEntities.length > 0
+    ) {
       try {
         // Get actor info (post author)
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
-        
-        if (userType === 'member') {
+
+        if (userType === "member") {
           const actorResult = await pool.query(
-            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -70,9 +102,9 @@ const createPost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
           }
-        } else if (userType === 'community') {
+        } else if (userType === "community") {
           const actorResult = await pool.query(
-            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            "SELECT name, username, logo_url FROM communities WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -80,9 +112,9 @@ const createPost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'sponsor') {
+        } else if (userType === "sponsor") {
           const actorResult = await pool.query(
-            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -90,9 +122,9 @@ const createPost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'venue') {
+        } else if (userType === "venue") {
           const actorResult = await pool.query(
-            'SELECT name, username FROM venues WHERE id = $1',
+            "SELECT name, username FROM venues WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -113,20 +145,20 @@ const createPost = async (req, res) => {
                 entity.type,
                 userId,
                 userType,
-                'tag',
+                "tag",
                 JSON.stringify({
                   actorName,
                   actorUsername,
                   actorAvatar,
                   postId: post.id,
-                })
+                }),
               ]
             );
           }
         }
       } catch (e) {
         // Non-fatal: do not block post creation if notification fails
-        console.error('Failed to create tag notifications', e);
+        console.error("Failed to create tag notifications", e);
       }
     }
 
@@ -138,13 +170,13 @@ const createPost = async (req, res) => {
         author_type: userType,
         caption,
         image_urls: imageUrls,
+        aspect_ratios: validatedAspectRatios || imageUrls.map(() => 0.8), // Default 4:5
         tagged_entities: taggedEntities,
         like_count: 0,
         comment_count: 0,
-        created_at: post.created_at
-      }
+        created_at: post.created_at,
+      },
     });
-
   } catch (error) {
     console.error("Error creating post:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -158,10 +190,10 @@ const getFeed = async (req, res) => {
     const userType = req.user?.type;
     const { page = 1, limit = 10 } = req.query;
 
-    console.log('Feed request - userId:', userId, 'userType:', userType);
+    console.log("Feed request - userId:", userId, "userType:", userType);
 
     if (!userId || !userType) {
-      console.log('Authentication failed - missing userId or userType');
+      console.log("Authentication failed - missing userId or userType");
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -211,12 +243,19 @@ const getFeed = async (req, res) => {
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset, viewerId, viewerType]);
-    
-    console.log('Feed query result:', result.rows.length, 'posts found');
-    
+    const result = await pool.query(query, [
+      userId,
+      userType,
+      limit,
+      offset,
+      viewerId,
+      viewerType,
+    ]);
+
+    console.log("Feed query result:", result.rows.length, "posts found");
+
     // Parse JSON fields
-    const posts = result.rows.map(post => ({
+    const posts = result.rows.map((post) => ({
       ...post,
       image_urls: (() => {
         try {
@@ -233,12 +272,20 @@ const getFeed = async (req, res) => {
         } catch {
           return null; // Fallback on parsing error
         }
-      })()
+      })(),
+      aspect_ratios: (() => {
+        try {
+          if (!post.aspect_ratios) return null;
+          const parsed = JSON.parse(post.aspect_ratios);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return null; // Fallback - frontend will use default 4:5
+        }
+      })(),
     }));
 
-    console.log('Parsed posts:', posts.length);
+    console.log("Parsed posts:", posts.length);
     res.json({ posts });
-
   } catch (error) {
     console.error("Error getting feed:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -288,9 +335,9 @@ const getExplore = async (req, res) => {
     `;
 
     const result = await pool.query(query, [userId, userType, limit, offset]);
-    
+
     // Parse JSON fields
-    const posts = result.rows.map(post => ({
+    const posts = result.rows.map((post) => ({
       ...post,
       image_urls: (() => {
         try {
@@ -300,11 +347,21 @@ const getExplore = async (req, res) => {
           return post.image_urls ? [post.image_urls] : [];
         }
       })(),
-      tagged_entities: post.tagged_entities ? JSON.parse(post.tagged_entities) : null
+      tagged_entities: post.tagged_entities
+        ? JSON.parse(post.tagged_entities)
+        : null,
+      aspect_ratios: (() => {
+        try {
+          if (!post.aspect_ratios) return null;
+          const parsed = JSON.parse(post.aspect_ratios);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return null;
+        }
+      })(),
     }));
 
     res.json({ posts });
-
   } catch (error) {
     console.error("Error getting explore:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -323,7 +380,9 @@ const likePost = async (req, res) => {
     }
 
     // Check if post exists
-    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [postId]);
+    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [
+      postId,
+    ]);
     if (postCheck.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
@@ -357,16 +416,19 @@ const likePost = async (req, res) => {
         [postId]
       );
       const postAuthor = postResult.rows[0];
-      
-      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
+
+      if (
+        postAuthor &&
+        (postAuthor.author_id !== userId || postAuthor.author_type !== userType)
+      ) {
         // Get actor info (liker)
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
-        
-        if (userType === 'member') {
+
+        if (userType === "member") {
           const actorResult = await pool.query(
-            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -374,9 +436,9 @@ const likePost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
           }
-        } else if (userType === 'community') {
+        } else if (userType === "community") {
           const actorResult = await pool.query(
-            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            "SELECT name, username, logo_url FROM communities WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -384,9 +446,9 @@ const likePost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'sponsor') {
+        } else if (userType === "sponsor") {
           const actorResult = await pool.query(
-            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -394,9 +456,9 @@ const likePost = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'venue') {
+        } else if (userType === "venue") {
           const actorResult = await pool.query(
-            'SELECT name, username FROM venues WHERE id = $1',
+            "SELECT name, username FROM venues WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -414,23 +476,22 @@ const likePost = async (req, res) => {
             postAuthor.author_type,
             userId,
             userType,
-            'like',
+            "like",
             JSON.stringify({
               actorName,
               actorUsername,
               actorAvatar,
               postId,
-            })
+            }),
           ]
         );
       }
     } catch (e) {
       // Non-fatal: do not block like if notification fails
-      console.error('Failed to create like notification', e);
+      console.error("Failed to create like notification", e);
     }
 
     res.json({ success: true, message: "Post liked" });
-
   } catch (error) {
     console.error("Error liking post:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -471,7 +532,7 @@ const unlikePost = async (req, res) => {
         [postId]
       );
       const postAuthor = postResult.rows[0];
-      
+
       if (postAuthor) {
         await pool.query(
           `DELETE FROM notifications 
@@ -481,16 +542,21 @@ const unlikePost = async (req, res) => {
            AND actor_type = $4 
            AND type = 'like' 
            AND payload->>'postId' = $5`,
-          [postAuthor.author_id, postAuthor.author_type, userId, userType, postId]
+          [
+            postAuthor.author_id,
+            postAuthor.author_type,
+            userId,
+            userType,
+            postId,
+          ]
         );
       }
     } catch (e) {
       // Non-fatal: do not block unlike if notification deletion fails
-      console.error('Failed to delete like notification', e);
+      console.error("Failed to delete like notification", e);
     }
 
     res.json({ success: true, message: "Post unliked" });
-
   } catch (error) {
     console.error("Error unliking post:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -537,14 +603,18 @@ const getPost = async (req, res) => {
       WHERE p.id = $1
     `;
 
-    const result = await pool.query(query, [postId, userId || null, userType || null]);
+    const result = await pool.query(query, [
+      postId,
+      userId || null,
+      userType || null,
+    ]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
 
     const post = result.rows[0];
-    
+
     // Parse JSON fields
     try {
       const parsed = JSON.parse(post.image_urls);
@@ -552,15 +622,16 @@ const getPost = async (req, res) => {
     } catch {
       post.image_urls = post.image_urls ? [post.image_urls] : [];
     }
-    
+
     try {
-      post.tagged_entities = post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
+      post.tagged_entities = post.tagged_entities
+        ? JSON.parse(post.tagged_entities)
+        : null;
     } catch {
       post.tagged_entities = null;
     }
 
     res.json({ post });
-
   } catch (error) {
     console.error("Error getting post:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -573,13 +644,17 @@ const getUserPosts = async (req, res) => {
     const { userId, userType } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     // Get viewer info from auth (the person viewing the profile)
     const viewerId = req.user?.id || null;
     const viewerType = req.user?.type || null;
 
-    console.log(`[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`);
-    console.log(`[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`);
+    console.log(
+      `[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`
+    );
+    console.log(
+      `[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`
+    );
 
     const query = `
       SELECT 
@@ -619,12 +694,21 @@ const getUserPosts = async (req, res) => {
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset, viewerId, viewerType]);
-    
-    console.log(`[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`);
-    
+    const result = await pool.query(query, [
+      userId,
+      userType,
+      limit,
+      offset,
+      viewerId,
+      viewerType,
+    ]);
+
+    console.log(
+      `[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`
+    );
+
     // Parse JSON fields
-    const posts = result.rows.map(post => ({
+    const posts = result.rows.map((post) => ({
       ...post,
       image_urls: (() => {
         try {
@@ -641,11 +725,19 @@ const getUserPosts = async (req, res) => {
         } catch {
           return null; // Fallback on parsing error
         }
-      })()
+      })(),
+      aspect_ratios: (() => {
+        try {
+          if (!post.aspect_ratios) return null;
+          const parsed = JSON.parse(post.aspect_ratios);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return null;
+        }
+      })(),
     }));
 
     res.json({ posts });
-
   } catch (error) {
     console.error("Error getting user posts:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -670,21 +762,21 @@ const deletePost = async (req, res) => {
     );
 
     if (postCheck.rows.length === 0) {
-      return res.status(404).json({ error: "Post not found or not authorized" });
+      return res
+        .status(404)
+        .json({ error: "Post not found or not authorized" });
     }
 
     // Delete post (CASCADE will handle related likes and comments)
-    const result = await pool.query(
-      "DELETE FROM posts WHERE id = $1",
-      [postId]
-    );
+    const result = await pool.query("DELETE FROM posts WHERE id = $1", [
+      postId,
+    ]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
 
     res.json({ success: true, message: "Post deleted successfully" });
-
   } catch (error) {
     console.error("Error deleting post:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -699,5 +791,5 @@ module.exports = {
   unlikePost,
   getPost,
   getUserPosts,
-  deletePost
+  deletePost,
 };

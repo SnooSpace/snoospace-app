@@ -39,6 +39,9 @@ const SPRING_CONFIG = {
  * @param {boolean} props.showSafeZone - Show safe zone overlay
  * @param {Function} props.onCropChange - Callback with crop metadata
  * @param {Function} props.onImageLoad - Callback when image loads with dimensions
+ * @param {number} props.initialScale - Initial scale for position restoration
+ * @param {number} props.initialTranslateX - Initial X translation for position restoration
+ * @param {number} props.initialTranslateY - Initial Y translation for position restoration
  */
 const CropView = ({
   imageUri,
@@ -50,6 +53,9 @@ const CropView = ({
   showSafeZone = false,
   onCropChange,
   onImageLoad,
+  initialScale,
+  initialTranslateX,
+  initialTranslateY,
 }) => {
   const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -67,15 +73,27 @@ const CropView = ({
     frameWidth = frameHeight * ratio;
   }
 
-  // Shared values for transforms
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
+  // Debug log to trace initial values
+  console.log("[CropView] Initialized with:", {
+    initialScale,
+    initialTranslateX,
+    initialTranslateY,
+    hasInitialValues: !!(
+      initialScale ||
+      initialTranslateX ||
+      initialTranslateY
+    ),
+  });
 
-  // Saved values for gesture continuity
-  const savedScale = useSharedValue(1);
-  const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
+  // Shared values for transforms - initialize with saved values if provided
+  const scale = useSharedValue(initialScale || 1);
+  const translateX = useSharedValue(initialTranslateX || 0);
+  const translateY = useSharedValue(initialTranslateY || 0);
+
+  // Saved values for gesture continuity - also use initial values
+  const savedScale = useSharedValue(initialScale || 1);
+  const savedTranslateX = useSharedValue(initialTranslateX || 0);
+  const savedTranslateY = useSharedValue(initialTranslateY || 0);
 
   // Focal point for pinch gestures
   const focalX = useSharedValue(0);
@@ -257,7 +275,7 @@ const CropView = ({
       imageHeight.value = height;
 
       // Calculate initial scale to fill frame (cover behavior)
-      const initialScale = calculateInitialScale({
+      const initialScaleValue = calculateInitialScale({
         imageWidth: width,
         imageHeight: height,
         frameWidth,
@@ -267,8 +285,8 @@ const CropView = ({
 
       // Set display dimensions so image fills the frame at initial scale
       // The image will be sized to fill the frame, then we apply scale=1
-      const scaledWidth = width * initialScale;
-      const scaledHeight = height * initialScale;
+      const scaledWidth = width * initialScaleValue;
+      const scaledHeight = height * initialScaleValue;
 
       // Set shared values for worklet access
       displayWidth.value = scaledWidth;
@@ -280,24 +298,62 @@ const CropView = ({
         height: scaledHeight,
       });
 
-      // Start with scale=1 since image is already sized to fill
-      scale.value = 1;
-      savedScale.value = 1;
-      translateX.value = 0;
-      translateY.value = 0;
-      savedTranslateX.value = 0;
-      savedTranslateY.value = 0;
+      // DEBUG: Log dimensions to verify display sizing
+      console.log("[CropView] handleImageLoad dimensions:", {
+        originalImage: {
+          width,
+          height,
+          aspectRatio: (width / height).toFixed(3),
+        },
+        frame: { width: frameWidth, height: frameHeight },
+        initialScaleValue,
+        displaySize: { width: scaledWidth, height: scaledHeight },
+        extendsOutsideFrame: {
+          horizontally: scaledWidth > frameWidth,
+          vertically: scaledHeight > frameHeight,
+          verticalOverflow: scaledHeight - frameHeight,
+        },
+      });
+
+      // ONLY reset position when there are NO saved initial values
+      // When re-editing, preserve the saved position
+      const hasInitialValues = !!(
+        initialScale ||
+        initialTranslateX ||
+        initialTranslateY
+      );
+
+      if (!hasInitialValues) {
+        // New crop - start fresh at scale=1 (since image is already sized to fill)
+        scale.value = 1;
+        savedScale.value = 1;
+        translateX.value = 0;
+        translateY.value = 0;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      } else {
+        console.log("[CropView] Preserving initial position:", {
+          scale: initialScale,
+          translateX: initialTranslateX,
+          translateY: initialTranslateY,
+        });
+        // Re-edit - use the saved position values (already set in useSharedValue init)
+        // Just make sure saved values match current values for gesture continuity
+        savedScale.value = scale.value;
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      }
 
       if (onImageLoad) {
-        onImageLoad({ width, height, initialScale });
+        onImageLoad({ width, height, initialScale: initialScaleValue });
       }
 
       // Report initial crop state directly (avoid stale callback issues)
       if (onCropChange) {
         onCropChange({
-          scale: 1,
-          translateX: 0,
-          translateY: 0,
+          scale: scale.value,
+          translateX: translateX.value,
+          translateY: translateY.value,
           imageWidth: width,
           imageHeight: height,
           frameWidth,
@@ -381,9 +437,13 @@ const styles = StyleSheet.create({
     borderColor: "#E0E0E0",
   },
   imageWrapper: {
-    flex: 1,
+    // Use width/height: '100%' and overflow: 'visible' to allow image to extend beyond
+    // The parent frameContainer's overflow: 'hidden' will handle clipping
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "visible",
   },
   image: {
     // Removed static dimensions - now using dynamic displayDimensions

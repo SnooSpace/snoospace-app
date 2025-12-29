@@ -80,7 +80,11 @@ const PostCard = ({
       } else {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
-      console.log('[PostCard] Emitting post-like-updated event:', { postId: post.id, isLiked: nextLiked, likeCount: nextLikes });
+      console.log("[PostCard] Emitting post-like-updated event:", {
+        postId: post.id,
+        isLiked: nextLiked,
+        likeCount: nextLikes,
+      });
       EventBus.emit("post-like-updated", {
         postId: post.id,
         isLiked: nextLiked,
@@ -224,13 +228,20 @@ const PostCard = ({
             if (typeof imageUrl !== "string" || !imageUrl.startsWith("http")) {
               return null;
             }
+            // Get aspect ratio for this image, default to 4:5 for backward compatibility
+            const imageAspectRatio = post.aspect_ratios?.[index] || 4 / 5;
+
             return (
-              <Image
+              <View
                 key={index}
-                source={{ uri: imageUrl }}
-                style={styles.postImage}
-                resizeMode="cover"
-              />
+                style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}
+              >
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={styles.postImage}
+                  resizeMode="cover"
+                />
+              </View>
             );
           })}
         </ScrollView>
@@ -295,11 +306,11 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
     marginBottom: SPACING.m,
-    marginHorizontal: SPACING.m, // Detached card style
+    marginHorizontal: SPACING.m, // Card margins from screen edge
     borderRadius: BORDER_RADIUS.xl,
     ...SHADOWS.sm,
-    paddingBottom: 15,
-    overflow: 'hidden', // For image radius at top if applicable, or general cleanup
+    paddingBottom: 12,
+    overflow: "hidden", // Clips image to rounded corners
   },
   header: {
     flexDirection: "row",
@@ -340,11 +351,17 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   imageContainer: {
-    height: width - (SPACING.m * 2),
+    // Container for horizontal scrolling images
+  },
+  imageWrapper: {
+    width: width, // Full screen width
+    marginLeft: -SPACING.m, // Negative margin to extend to card edge
+    // aspectRatio set dynamically per image from post.aspect_ratios
+    backgroundColor: COLORS.surface, // Match card background
   },
   postImage: {
-    width: width - (SPACING.m * 2),
-    height: width - (SPACING.m * 2),
+    width: "100%",
+    height: "100%",
   },
   actions: {
     flexDirection: "row",

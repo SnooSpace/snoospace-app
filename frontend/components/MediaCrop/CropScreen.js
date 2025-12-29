@@ -45,6 +45,7 @@ const CropScreen = ({ route, navigation }) => {
     imageUri,
     presetKey = "avatar",
     allowPresetChange = false,
+    initialCropData = null, // For position restoration on re-edit
     onComplete,
     onCancel,
   } = route?.params || {};
@@ -97,9 +98,14 @@ const CropScreen = ({ route, navigation }) => {
     [imageLoaded]
   );
 
-  // Handle image load and validate dimensions
+  // Handle image load and validate dimensions (skip for re-edit since image was already approved)
   const handleImageLoad = useCallback(
     ({ width, height }) => {
+      // Skip validation for re-edit mode - the image was already approved during initial selection
+      if (initialCropData) {
+        return;
+      }
+
       const validation = validateImageSize(
         width,
         height,
@@ -113,7 +119,7 @@ const CropScreen = ({ route, navigation }) => {
         ]);
       }
     },
-    [preset]
+    [preset, initialCropData]
   );
 
   // Handle cancel
@@ -157,29 +163,32 @@ const CropScreen = ({ route, navigation }) => {
         displayHeight: cropData.displayHeight,
       });
 
-      // Apply crop using expo-image-manipulator
-      const result = await ImageManipulator.manipulateAsync(
+      // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
+      // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)
+      const reEncodedImage = await ImageManipulator.manipulateAsync(
         imageUri,
-        [
-          {
-            crop: {
-              originX: Math.round(cropRegion.originX),
-              originY: Math.round(cropRegion.originY),
-              width: Math.round(cropRegion.width),
-              height: Math.round(cropRegion.height),
-            },
-          },
-          // Resize to recommended dimensions if larger
-          ...(cropRegion.width > preset.recommendedWidth
-            ? [
-                {
-                  resize: {
-                    width: preset.recommendedWidth,
-                  },
-                },
-              ]
-            : []),
-        ],
+        [{ resize: { width: cropData.imageWidth } }], // Resize to same width (forces re-encode)
+        { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      // Step 2: Now crop the re-encoded image
+      const cropParams = {
+        originX: Math.round(cropRegion.originX),
+        originY: Math.round(cropRegion.originY),
+        width: Math.round(cropRegion.width),
+        height: Math.round(cropRegion.height),
+      };
+
+      const actions = [{ crop: cropParams }];
+
+      // Add final resize if needed
+      if (cropRegion.width > preset.recommendedWidth) {
+        actions.push({ resize: { width: preset.recommendedWidth } });
+      }
+
+      const result = await ImageManipulator.manipulateAsync(
+        reEncodedImage.uri, // Use re-encoded image, not original
+        actions,
         {
           compress: 0.85,
           format: ImageManipulator.SaveFormat.JPEG,
@@ -195,6 +204,7 @@ const CropScreen = ({ route, navigation }) => {
         translateY: cropData.translateY,
         originalWidth: cropData.imageWidth,
         originalHeight: cropData.imageHeight,
+        originalUri: imageUri, // Store original URI for re-editing
         outputWidth: result.width,
         outputHeight: result.height,
         timestamp: Date.now(),
@@ -297,6 +307,9 @@ const CropScreen = ({ route, navigation }) => {
             showSafeZone={showSafeZone && preset.safeZone !== null}
             onCropChange={handleCropChange}
             onImageLoad={handleImageLoad}
+            initialScale={initialCropData?.scale}
+            initialTranslateX={initialCropData?.translateX}
+            initialTranslateY={initialCropData?.translateY}
           />
 
           {/* Floating Aspect Ratio Toggle Button (for feed posts) */}

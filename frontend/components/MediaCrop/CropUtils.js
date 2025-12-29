@@ -140,29 +140,94 @@ export const calculateCropRegion = ({
   // The scale passed is the effective scale (displayScale * userZoom)
   // translateX/Y are in screen-pixel space relative to displayed image
 
-  // Calculate userZoom from effectiveScale and displayScale
+  // Calculate the display scale (how much the image is scaled to fill the frame)
   const displayScale = displayWidth / imageWidth;
+
+  // Calculate userZoom from effectiveScale
   const userZoom = scale / displayScale;
 
-  // The actual displayed size at the time of interaction
+  // The actual displayed size at the time of interaction (with user zoom applied)
   const actualDisplayedWidth = displayWidth * userZoom;
   const actualDisplayedHeight = displayHeight * userZoom;
 
-  // Center of the displayed image relative to frame center
-  // translateX/Y moves the image (negative = moved left/up)
-  const centerOffsetX = actualDisplayedWidth / 2 - translateX;
-  const centerOffsetY = actualDisplayedHeight / 2 - translateY;
+  // The frame is centered on the displayed image
+  // translateX/Y represents how much the IMAGE has moved relative to the frame center
+  // The frame is FIXED on screen. translate moves the IMAGE.
+  // Positive translateY = user dragged image DOWN = image moved DOWN relative to frame
+  // This means LOWER parts of the image are now visible in the frame
+  // So the frame's position in image coordinates should be HIGHER (larger Y value = further down)
 
-  // Visible frame region in displayed image coordinates
-  const frameLeftInDisplayed = centerOffsetX - frameWidth / 2;
-  const frameTopInDisplayed = centerOffsetY - frameHeight / 2;
+  // When translate=0, frame is centered on image
+  // When image moves down by translate, we're viewing content that's further UP in original
+  // So we subtract translate to get the frame's position in image coordinates
+  const frameLeftInDisplayed =
+    (actualDisplayedWidth - frameWidth) / 2 - translateX;
+  const frameTopInDisplayed =
+    (actualDisplayedHeight - frameHeight) / 2 - translateY;
 
-  // Convert to original image coordinates
-  // Scale factor from displayed to original = 1 / scale
-  const originX = frameLeftInDisplayed / scale;
-  const originY = frameTopInDisplayed / scale;
-  const cropWidth = frameWidth / scale;
-  const cropHeight = frameHeight / scale;
+  // Convert from actualDisplayed coordinates to original image coordinates
+  // actualDisplayed = original * displayScale * userZoom
+  // So: original = actualDisplayed / (displayScale * userZoom) = actualDisplayed / scale
+  // But scale = displayScale * userZoom, so:
+  // original = actualDisplayed / scale ??? No, that's wrong!
+
+  // Actually: actualDisplayed = displayWidth * userZoom = (imageWidth * displayScale) * userZoom
+  // So to go from actualDisplayed to original: original = actualDisplayed / (displayScale * userZoom)
+  // displayScale * userZoom = scale (the effectiveScale), so: original = actualDisplayed / scale
+
+  // Wait, let me recalculate...
+  // displayWidth = imageWidth * displayScale (image scaled to fit)
+  // actualDisplayedWidth = displayWidth * userZoom = imageWidth * displayScale * userZoom
+  // So: actualDisplayedWidth / imageWidth = displayScale * userZoom = scale
+  // Therefore: imageWidth = actualDisplayedWidth / scale
+
+  // To convert a coordinate from actualDisplayed space to original space:
+  // originalCoord = actualDisplayedCoord * (imageWidth / actualDisplayedWidth)
+  //               = actualDisplayedCoord / (actualDisplayedWidth / imageWidth)
+  //               = actualDisplayedCoord / scale
+
+  // But wait - the issue is that 'scale' passed in is effectiveScale = initialScale * savedCropData.scale
+  // where initialScale = displayWidth / imageWidth (same as displayScale)
+  // So scale = displayScale * userZoom = displayScale * savedCropData.scale
+
+  // Let me recalculate with cleaner logic:
+  // The image is displayed at size (actualDisplayedWidth, actualDisplayedHeight)
+  // The original image is (imageWidth, imageHeight)
+  // The conversion factor is: originalX = displayedX * (imageWidth / actualDisplayedWidth)
+
+  const scaleToOriginalX = imageWidth / actualDisplayedWidth;
+  const scaleToOriginalY = imageHeight / actualDisplayedHeight;
+
+  const originX = frameLeftInDisplayed * scaleToOriginalX;
+  const originY = frameTopInDisplayed * scaleToOriginalY;
+  const cropWidth = frameWidth * scaleToOriginalX;
+  const cropHeight = frameHeight * scaleToOriginalY;
+
+  // Debug: Log all intermediate values
+  console.log("[CropUtils] calculateCropRegion debug:", {
+    input: {
+      imageWidth,
+      imageHeight,
+      frameWidth,
+      frameHeight,
+      scale,
+      translateX,
+      translateY,
+      displayWidth,
+      displayHeight,
+    },
+    calculated: {
+      displayScale,
+      userZoom,
+      actualDisplayedWidth,
+      actualDisplayedHeight,
+      frameLeftInDisplayed,
+      frameTopInDisplayed,
+      scaleToOriginalX,
+      scaleToOriginalY,
+    },
+    output: { originX, originY, cropWidth, cropHeight },
+  });
 
   return {
     originX: Math.max(0, originX),

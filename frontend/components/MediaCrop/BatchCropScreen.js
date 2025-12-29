@@ -290,6 +290,24 @@ const BatchCropScreen = ({ route, navigation }) => {
           savedCropData.displayWidth / savedCropData.imageWidth || 1;
         const effectiveScale = initialScale * savedCropData.scale;
 
+        console.log("[BatchCropScreen] Calculating crop for image", i, {
+          savedCropData: {
+            scale: savedCropData.scale,
+            translateX: savedCropData.translateX,
+            translateY: savedCropData.translateY,
+            imageWidth: savedCropData.imageWidth,
+            imageHeight: savedCropData.imageHeight,
+            displayWidth: savedCropData.displayWidth,
+            displayHeight: savedCropData.displayHeight,
+            frameWidth: savedCropData.frameWidth,
+            frameHeight: savedCropData.frameHeight,
+          },
+          calculated: {
+            initialScale,
+            effectiveScale,
+          },
+        });
+
         const cropRegion = calculateCropRegion({
           imageWidth: savedCropData.imageWidth,
           imageHeight: savedCropData.imageHeight,
@@ -302,26 +320,82 @@ const BatchCropScreen = ({ route, navigation }) => {
           displayHeight: savedCropData.displayHeight,
         });
 
-        const result = await ImageManipulator.manipulateAsync(
+        console.log("[BatchCropScreen] Crop region result:", cropRegion);
+
+        // Debug: Log exact values being sent to ImageManipulator
+        const cropParams = {
+          originX: Math.round(cropRegion.originX),
+          originY: Math.round(cropRegion.originY),
+          width: Math.round(cropRegion.width),
+          height: Math.round(cropRegion.height),
+        };
+        console.log(
+          "[BatchCropScreen] Image URI being cropped:",
+          imageUri.substring(0, 80) + "..."
+        );
+        console.log(
+          "[BatchCropScreen] ImageManipulator crop params:",
+          cropParams
+        );
+        console.log(
+          "[BatchCropScreen] Expected: cropping from Y=" +
+            cropParams.originY +
+            " to Y=" +
+            (cropParams.originY + cropParams.height) +
+            " (out of " +
+            savedCropData.imageHeight +
+            " total)"
+        );
+
+        // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
+        // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)
+        console.log(
+          "[BatchCropScreen] Step 1: Re-encoding image to force proper pixel buffer"
+        );
+        const reEncodedImage = await ImageManipulator.manipulateAsync(
           imageUri,
-          [
-            {
-              crop: {
-                originX: Math.round(cropRegion.originX),
-                originY: Math.round(cropRegion.originY),
-                width: Math.round(cropRegion.width),
-                height: Math.round(cropRegion.height),
-              },
-            },
-            ...(cropRegion.width > currentPreset.recommendedWidth
-              ? [{ resize: { width: currentPreset.recommendedWidth } }]
-              : []),
-          ],
+          [{ resize: { width: savedCropData.imageWidth } }], // Resize to same width (forces re-encode)
+          { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        console.log("[BatchCropScreen] Re-encoded image:", {
+          uri: reEncodedImage.uri.substring(0, 50) + "...",
+          width: reEncodedImage.width,
+          height: reEncodedImage.height,
+        });
+
+        // Step 2: Now crop the re-encoded image
+        console.log(
+          "[BatchCropScreen] Step 2: Cropping re-encoded image with params:",
+          cropParams
+        );
+        const actions = [{ crop: cropParams }];
+
+        // Add final resize if needed
+        if (cropRegion.width > currentPreset.recommendedWidth) {
+          actions.push({ resize: { width: currentPreset.recommendedWidth } });
+        }
+
+        console.log(
+          "[BatchCropScreen] Final crop actions:",
+          JSON.stringify(actions)
+        );
+
+        const result = await ImageManipulator.manipulateAsync(
+          reEncodedImage.uri, // Use re-encoded image, not original
+          actions,
           {
             compress: 0.85,
             format: ImageManipulator.SaveFormat.JPEG,
           }
         );
+
+        console.log("[BatchCropScreen] ImageManipulator result:", {
+          uri: result.uri.substring(0, 50) + "...",
+          width: result.width,
+          height: result.height,
+          expectedAspectRatio: cropParams.width / cropParams.height,
+          actualAspectRatio: result.width / result.height,
+        });
 
         results.push({
           uri: result.uri,
@@ -331,6 +405,10 @@ const BatchCropScreen = ({ route, navigation }) => {
             preset: presetKey,
             aspectRatio: currentPreset.aspectRatio,
             originalUri: imageUri,
+            // Include crop position for restoration on re-edit
+            scale: savedCropData.scale,
+            translateX: savedCropData.translateX,
+            translateY: savedCropData.translateY,
           },
         });
       }
@@ -408,6 +486,9 @@ const BatchCropScreen = ({ route, navigation }) => {
             showGrid={showGrid}
             isCircular={false}
             onCropChange={handleCropChange}
+            initialScale={cropDataMap[currentIndex]?.scale}
+            initialTranslateX={cropDataMap[currentIndex]?.translateX}
+            initialTranslateY={cropDataMap[currentIndex]?.translateY}
           />
 
           {/* Aspect Ratio Toggle Button - only for feed presets */}

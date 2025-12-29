@@ -18,22 +18,15 @@ import { useCrop } from "./MediaCrop";
 
 /**
  * Normalize image orientation by processing through ImageManipulator.
- * This ensures EXIF orientation is applied to the pixel data so that
- * crop coordinates in CropView match what ImageManipulator will crop.
+ * This ensures EXIF orientation is applied to the pixel data.
+ *
+ * NOTE: Currently bypassed because BatchCropScreen now does a two-step
+ * crop process (resize then crop) which handles orientation as a side effect.
+ * This avoids double-processing the image unnecessarily.
  */
 const normalizeImageOrientation = async (uri) => {
-  try {
-    // Process the image with no actions - this applies EXIF orientation to pixels
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [], // No actions - just normalize orientation
-      { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    return result.uri;
-  } catch (error) {
-    console.warn("[normalizeImageOrientation] Failed:", error);
-    return uri; // Fall back to original URI
-  }
+  // Bypassed - BatchCropScreen's two-step process handles normalization
+  return uri;
 };
 
 const { width } = Dimensions.get("window");
@@ -51,12 +44,18 @@ const COLORS = {
 const ImageUploader = ({
   maxImages = 10,
   onImagesChange,
+  onAspectRatiosChange, // NEW: Callback to pass aspect ratios to parent
   initialImages = [],
+  initialAspectRatios = [], // NEW: Initial aspect ratios
   style,
   enableCrop = true, // Enable crop by default for feed posts
   cropPreset = "feed_portrait", // Default to 4:5 with toggle to 1:1
 }) => {
-  const [images, setImages] = useState(initialImages);
+  const [images, setImages] = useState(initialImages); // Cropped URIs for display/upload
+  const [originalUris, setOriginalUris] = useState([]); // Original URIs for re-editing
+  const [aspectRatios, setAspectRatios] = useState(initialAspectRatios); // Track aspect ratios
+  const [presetKeys, setPresetKeys] = useState([]); // Track preset keys (e.g., 'feed_portrait', 'feed_square')
+  const [cropMetadata, setCropMetadata] = useState([]); // Full crop data (scale, translateX, translateY) for re-edit
   const [uploading, setUploading] = useState(false);
   const [progressByIndex, setProgressByIndex] = useState({});
   const { cropImage } = useCrop();
@@ -134,12 +133,62 @@ const ImageUploader = ({
       // User cancelled cropping
       if (!croppedResults || croppedResults.length === 0) return;
 
-      // Add cropped images to the list
+      // Extract data from crop results
       const newImageUris = croppedResults.map((r) => r.uri);
+      const newOriginalUris = croppedResults.map(
+        (r) => r.metadata?.originalUri || r.uri
+      );
+      const newAspectRatios = croppedResults.map(
+        (r) => r.metadata?.aspectRatio || 0.8
+      );
+      const newPresetKeys = croppedResults.map(
+        (r) => r.metadata?.preset || cropPreset
+      );
+
+      // Update all state arrays
       const updatedImages = [...images, ...newImageUris].slice(0, maxImages);
+      const updatedOriginalUris = [...originalUris, ...newOriginalUris].slice(
+        0,
+        maxImages
+      );
+      const updatedAspectRatios = [...aspectRatios, ...newAspectRatios].slice(
+        0,
+        maxImages
+      );
+      const updatedPresetKeys = [...presetKeys, ...newPresetKeys].slice(
+        0,
+        maxImages
+      );
+
+      // NEW: Store full crop metadata for re-editing
+      const newCropMetadata = croppedResults.map((r) => r.metadata || {});
+
+      console.log(
+        "[ImageUploader] Storing crop metadata:",
+        newCropMetadata.map((m) => ({
+          preset: m.preset,
+          scale: m.scale,
+          translateX: m.translateX,
+          translateY: m.translateY,
+        }))
+      );
+
+      const updatedCropMetadata = [...cropMetadata, ...newCropMetadata].slice(
+        0,
+        maxImages
+      );
+
       setImages(updatedImages);
+      setOriginalUris(updatedOriginalUris);
+      setAspectRatios(updatedAspectRatios);
+      setPresetKeys(updatedPresetKeys);
+      setCropMetadata(updatedCropMetadata);
+
       if (onImagesChange) {
         onImagesChange(updatedImages);
+      }
+      if (onAspectRatiosChange) {
+        onAspectRatiosChange(updatedAspectRatios);
       }
     } catch (error) {
       console.error("Error picking images:", error);
@@ -187,18 +236,55 @@ const ImageUploader = ({
     ? handleAddMultipleWithCrop
     : handleAddMultiple;
 
-  // Edit/crop an existing image
+  // Edit/crop an existing image - uses ORIGINAL URI and saved preset
   const handleEditImage = async (index) => {
     if (!enableCrop) return;
 
     try {
-      const result = await cropImage(images[index], cropPreset);
+      // Use ORIGINAL URI (not cropped) for re-editing, and the saved preset
+      const originalUri = originalUris[index] || images[index];
+      const savedPreset = presetKeys[index] || cropPreset;
+      const savedCropData = cropMetadata[index] || null;
+
+      console.log("[ImageUploader] Re-editing image:", {
+        index,
+        originalUri: originalUri.substring(0, 50) + "...",
+        savedPreset,
+        hasSavedCropData: !!savedCropData,
+      });
+
+      // Pass saved crop data for position restoration
+      const result = await cropImage(originalUri, savedPreset, {
+        initialCropData: savedCropData,
+      });
+
       if (result) {
+        // Update cropped image URI
         const updatedImages = [...images];
         updatedImages[index] = result.uri;
+
+        // Update aspect ratio and preset if changed
+        const updatedAspectRatios = [...aspectRatios];
+        updatedAspectRatios[index] =
+          result.metadata?.aspectRatio || aspectRatios[index];
+
+        const updatedPresetKeys = [...presetKeys];
+        updatedPresetKeys[index] = result.metadata?.preset || presetKeys[index];
+
+        // Update crop metadata with new position
+        const updatedCropMetadata = [...cropMetadata];
+        updatedCropMetadata[index] = result.metadata || cropMetadata[index];
+
         setImages(updatedImages);
+        setAspectRatios(updatedAspectRatios);
+        setPresetKeys(updatedPresetKeys);
+        setCropMetadata(updatedCropMetadata);
+
         if (onImagesChange) {
           onImagesChange(updatedImages);
+        }
+        if (onAspectRatiosChange) {
+          onAspectRatiosChange(updatedAspectRatios);
         }
       }
     } catch (error) {
@@ -208,9 +294,22 @@ const ImageUploader = ({
 
   const removeImage = (index) => {
     const updatedImages = images.filter((_, i) => i !== index);
+    const updatedOriginalUris = originalUris.filter((_, i) => i !== index);
+    const updatedAspectRatios = aspectRatios.filter((_, i) => i !== index);
+    const updatedPresetKeys = presetKeys.filter((_, i) => i !== index);
+    const updatedCropMetadata = cropMetadata.filter((_, i) => i !== index);
+
     setImages(updatedImages);
+    setOriginalUris(updatedOriginalUris);
+    setAspectRatios(updatedAspectRatios);
+    setPresetKeys(updatedPresetKeys);
+    setCropMetadata(updatedCropMetadata);
+
     if (onImagesChange) {
       onImagesChange(updatedImages);
+    }
+    if (onAspectRatiosChange) {
+      onAspectRatiosChange(updatedAspectRatios);
     }
   };
 
@@ -346,8 +445,8 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: "relative",
-    width: (width - 60) / 3,
-    height: (width - 60) / 3,
+    width: (width - 60) / 2, // Larger thumbnails for debugging
+    height: (width - 60) / 2,
     borderRadius: 8,
     overflow: "hidden",
   },
