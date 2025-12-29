@@ -54,6 +54,7 @@ export default function EditProfileScreen({ route, navigation }) {
     return val.replace(/^[{\"]+|[}\"]+$/g, "");
   };
 
+  const [name, setName] = useState(profile?.name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
@@ -91,7 +92,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [bio, username, phone, pronouns, interests, email]);
+  }, [name, bio, username, phone, pronouns, interests, email]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -139,6 +140,7 @@ export default function EditProfileScreen({ route, navigation }) {
   };
 
   const checkForChanges = () => {
+    const originalName = profile?.name || "";
     const originalBio = profile?.bio || "";
     const originalUsername = profile?.username || "";
     const originalPhone = profile?.phone || "";
@@ -158,6 +160,7 @@ export default function EditProfileScreen({ route, navigation }) {
     const currentInterests = normalizeInterests(interests || []);
 
     const changed =
+      name !== originalName ||
       bio !== originalBio ||
       username !== originalUsername ||
       phone !== originalPhone ||
@@ -251,6 +254,7 @@ export default function EditProfileScreen({ route, navigation }) {
       const token = await getAuthToken();
 
       const updates = {
+        name: name.trim(),
         bio: bio.trim(),
         phone: phone.trim(),
         pronouns: pronouns.length > 0 ? pronouns.map(cleanLabel) : null,
@@ -341,6 +345,20 @@ export default function EditProfileScreen({ route, navigation }) {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* Name Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Name</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Your full name"
+              placeholderTextColor={LIGHT_TEXT_COLOR}
+              value={name}
+              onChangeText={setName}
+              maxLength={100}
+            />
+          </View>
+
           {/* Bio Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bio</Text>

@@ -359,6 +359,7 @@ async function patchProfile(req, res) {
     }
 
     const {
+      name,
       bio,
       phone,
       category,
@@ -371,6 +372,20 @@ async function patchProfile(req, res) {
     const updates = [];
     const values = [];
     let paramIndex = 1;
+
+    if (name !== undefined) {
+      const nameTrimmed = typeof name === "string" ? name.trim() : null;
+      if (!nameTrimmed || nameTrimmed.length === 0) {
+        return res.status(400).json({ error: "Name cannot be empty" });
+      }
+      if (nameTrimmed.length > 100) {
+        return res
+          .status(400)
+          .json({ error: "Name must be 100 characters or less" });
+      }
+      updates.push(`name = $${paramIndex++}`);
+      values.push(nameTrimmed);
+    }
 
     if (bio !== undefined) {
       const bioTrimmed = typeof bio === "string" ? bio.trim() : null;
@@ -482,7 +497,7 @@ async function patchProfile(req, res) {
     values.push(userId);
     const query = `UPDATE communities SET ${updates.join(
       ", "
-    )} WHERE id = $${paramIndex} RETURNING id, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url`;
+    )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url`;
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -493,6 +508,7 @@ async function patchProfile(req, res) {
     res.json({
       success: true,
       profile: {
+        name: community.name,
         bio: community.bio,
         phone: community.phone,
         secondary_phone: community.secondary_phone,

@@ -1,13 +1,13 @@
 function parsePgTextArray(value) {
   if (!value) return null;
   if (Array.isArray(value)) return value;
-  if (typeof value !== 'string') return null;
+  if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return [trimmed];
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return [trimmed];
   const inner = trimmed.substring(1, trimmed.length - 1);
   if (!inner) return [];
   return inner
-    .split(',')
+    .split(",")
     .map((item) => item.trim())
     .map((item) => {
       // remove surrounding quotes if present
@@ -20,32 +20,62 @@ function parsePgTextArray(value) {
 async function signup(req, res) {
   try {
     const pool = req.app.locals.pool;
-    const { name, email, phone, dob, gender, location, interests, profile_photo_url, username } = req.body || {};
-    
-    if (!name || !email || !phone || !dob || !gender || !location || !Array.isArray(interests)) {
-      return res.status(400).json({ error: "All fields are required: name, email, phone, dob, gender, location (JSONB), interests[]" });
+    const {
+      name,
+      email,
+      phone,
+      dob,
+      gender,
+      location,
+      interests,
+      profile_photo_url,
+      username,
+    } = req.body || {};
+
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !dob ||
+      !gender ||
+      !location ||
+      !Array.isArray(interests)
+    ) {
+      return res.status(400).json({
+        error:
+          "All fields are required: name, email, phone, dob, gender, location (JSONB), interests[]",
+      });
     }
     if (!/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: "phone must be 10 digits" });
     }
     const allowedGenders = ["Male", "Female", "Non-binary"];
     if (!allowedGenders.includes(gender)) {
-      return res.status(400).json({ error: "gender must be one of: Male, Female, Non-binary" });
+      return res
+        .status(400)
+        .json({ error: "gender must be one of: Male, Female, Non-binary" });
     }
     if (interests.length < 3 || interests.length > 7) {
-      return res.status(400).json({ error: "interests must include between 3 and 7 items" });
+      return res
+        .status(400)
+        .json({ error: "interests must include between 3 and 7 items" });
     }
     // Validate location is an object with at least city
-    if (typeof location !== 'object' || location === null || !location.city) {
-      return res.status(400).json({ error: "location must be an object with at least a city field" });
+    if (typeof location !== "object" || location === null || !location.city) {
+      return res.status(400).json({
+        error: "location must be an object with at least a city field",
+      });
     }
-    
+
     // Validate username if provided
     let sanitizedUsername = null;
-    if (username && typeof username === 'string') {
+    if (username && typeof username === "string") {
       sanitizedUsername = username.toLowerCase().trim();
       if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
-        return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only" });
+        return res.status(400).json({
+          error:
+            "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only",
+        });
       }
       // Check if username is already taken
       const existingUsername = await pool.query(
@@ -56,17 +86,32 @@ async function signup(req, res) {
         return res.status(409).json({ error: "Username is already taken" });
       }
     }
-    
+
     // No longer using supabase_user_id - we use email as login credential
     // and backend-generated id as account identity
-    console.log('[MemberSignup] Creating member for email:', email, 'username:', sanitizedUsername);
-    
+    console.log(
+      "[MemberSignup] Creating member for email:",
+      email,
+      "username:",
+      sanitizedUsername
+    );
+
     // INSERT with optional username
     const result = await pool.query(
       `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
        RETURNING *`,
-      [name, email, phone, dob, gender, JSON.stringify(location), JSON.stringify(interests), profile_photo_url || null, sanitizedUsername]
+      [
+        name,
+        email,
+        phone,
+        dob,
+        gender,
+        JSON.stringify(location),
+        JSON.stringify(interests),
+        profile_photo_url || null,
+        sanitizedUsername,
+      ]
     );
     res.json({ member: result.rows[0] });
   } catch (err) {
@@ -88,7 +133,7 @@ async function getProfile(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -125,9 +170,9 @@ async function getProfile(req, res) {
       [userId]
     );
 
-    const posts = postsResult.rows.map(post => ({
+    const posts = postsResult.rows.map((post) => ({
       ...post,
-      image_urls: JSON.parse(post.image_urls)
+      image_urls: JSON.parse(post.image_urls),
     }));
 
     const profileData = {
@@ -136,14 +181,16 @@ async function getProfile(req, res) {
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
       pronouns: parsePgTextArray(member.pronouns),
-      location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
+      location:
+        typeof member.location === "string"
+          ? JSON.parse(member.location)
+          : member.location,
     };
 
     res.json({
       profile: profileData,
-      posts
+      posts,
     });
-
   } catch (error) {
     console.error("Error getting profile:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -157,7 +204,7 @@ async function updatePhoto(req, res) {
     const userType = req.user?.type;
     const { photo_url } = req.body || {};
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
     if (!photo_url) {
@@ -188,9 +235,9 @@ async function searchMembers(req, res) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const q = (req.query.query || req.query.q || '').trim();
-    const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const q = (req.query.query || req.query.q || "").trim();
+    const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
+    const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
 
     if (q.length < 2) {
       return res.json({ results: [], nextOffset: offset, hasMore: false });
@@ -198,9 +245,9 @@ async function searchMembers(req, res) {
 
     const likeParam = `%${q}%`;
     // Only check is_following if the searcher is a member
-    const isMemberSearcher = userType === 'member';
+    const isMemberSearcher = userType === "member";
     let query, params;
-    
+
     if (isMemberSearcher) {
       query = `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
                       (SELECT 1 FROM follows f
@@ -222,10 +269,10 @@ async function searchMembers(req, res) {
                LIMIT $2 OFFSET $3`;
       params = [likeParam, limit, offset];
     }
-    
+
     const r = await pool.query(query, params);
 
-    const results = r.rows.map(row => ({
+    const results = r.rows.map((row) => ({
       id: row.id,
       username: row.username,
       full_name: row.full_name,
@@ -275,7 +322,7 @@ async function getPublicMember(req, res) {
     const counts = countsR.rows[0];
 
     // Check cross-entity follow relationships (members, communities, sponsors, venues)
-    const followableTypes = ['member', 'community', 'sponsor', 'venue'];
+    const followableTypes = ["member", "community", "sponsor", "venue"];
     let isFollowing = false;
     if (followableTypes.includes(userType)) {
       const isFollowingR = await pool.query(
@@ -299,11 +346,17 @@ async function getPublicMember(req, res) {
       followers_count: parseInt(counts.followers_count || 0, 10),
       following_count: parseInt(counts.following_count || 0, 10),
       is_following: isFollowing,
-      interests: typeof profile.interests === 'string' ? JSON.parse(profile.interests) : (profile.interests || []),
+      interests:
+        typeof profile.interests === "string"
+          ? JSON.parse(profile.interests)
+          : profile.interests || [],
       pronouns: parsePgTextArray(profile.pronouns),
     });
   } catch (err) {
-    console.error("/members/:id/public error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/:id/public error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to load public profile" });
   }
 }
@@ -314,27 +367,43 @@ async function patchProfile(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const { bio, phone, pronouns, interests, location } = req.body || {};
+    const { name, bio, phone, pronouns, interests, location } = req.body || {};
 
     const updates = [];
     const values = [];
     let paramIndex = 1;
 
+    if (name !== undefined) {
+      const nameTrimmed = typeof name === "string" ? name.trim() : null;
+      if (!nameTrimmed || nameTrimmed.length === 0) {
+        return res.status(400).json({ error: "Name cannot be empty" });
+      }
+      if (nameTrimmed.length > 100) {
+        return res
+          .status(400)
+          .json({ error: "Name must be 100 characters or less" });
+      }
+      updates.push(`name = $${paramIndex++}`);
+      values.push(nameTrimmed);
+    }
+
     if (bio !== undefined) {
-      const bioTrimmed = typeof bio === 'string' ? bio.trim() : null;
+      const bioTrimmed = typeof bio === "string" ? bio.trim() : null;
       if (bioTrimmed && bioTrimmed.length > 150) {
-        return res.status(400).json({ error: "Bio must be 150 characters or less" });
+        return res
+          .status(400)
+          .json({ error: "Bio must be 150 characters or less" });
       }
       updates.push(`bio = $${paramIndex++}`);
       values.push(bioTrimmed || null);
     }
 
     if (phone !== undefined) {
-      const phoneTrimmed = typeof phone === 'string' ? phone.trim() : '';
+      const phoneTrimmed = typeof phone === "string" ? phone.trim() : "";
       if (phoneTrimmed && !/^\d{10}$/.test(phoneTrimmed)) {
         return res.status(400).json({ error: "Phone must be 10 digits" });
       }
@@ -349,10 +418,15 @@ async function patchProfile(req, res) {
         if (pronouns.length > 10) {
           return res.status(400).json({ error: "Maximum 10 pronouns allowed" });
         }
-        const sanitized = pronouns.filter(p => typeof p === 'string' && p.trim().length > 0 && p.trim().length <= 50);
+        const sanitized = pronouns.filter(
+          (p) =>
+            typeof p === "string" &&
+            p.trim().length > 0 &&
+            p.trim().length <= 50
+        );
         updates.push(`pronouns = $${paramIndex++}::text[]`);
         values.push(sanitized);
-      } else if (typeof pronouns === 'string') {
+      } else if (typeof pronouns === "string") {
         updates.push(`pronouns = $${paramIndex++}::text[]`);
         values.push([pronouns]);
       }
@@ -365,20 +439,35 @@ async function patchProfile(req, res) {
       if (interests.length > 20) {
         return res.status(400).json({ error: "Maximum 20 interests allowed" });
       }
-      const sanitized = interests.filter(i => typeof i === 'string' && i.trim().length > 0 && i.trim().length <= 100);
+      const sanitized = interests.filter(
+        (i) =>
+          typeof i === "string" && i.trim().length > 0 && i.trim().length <= 100
+      );
       updates.push(`interests = $${paramIndex++}::jsonb`);
       values.push(JSON.stringify(sanitized));
     }
 
     if (location !== undefined) {
-      if (location && typeof location === 'object') {
-        const locCity = location.city ? String(location.city).trim().substring(0, 100) : null;
-        const locState = location.state ? String(location.state).trim().substring(0, 100) : null;
-        const locCountry = location.country ? String(location.country).trim().substring(0, 100) : null;
+      if (location && typeof location === "object") {
+        const locCity = location.city
+          ? String(location.city).trim().substring(0, 100)
+          : null;
+        const locState = location.state
+          ? String(location.state).trim().substring(0, 100)
+          : null;
+        const locCountry = location.country
+          ? String(location.country).trim().substring(0, 100)
+          : null;
         const lat = location.lat != null ? parseFloat(location.lat) : null;
         const lng = location.lng != null ? parseFloat(location.lng) : null;
-        
-        const locationJson = JSON.stringify({ city: locCity, state: locState, country: locCountry, lat, lng });
+
+        const locationJson = JSON.stringify({
+          city: locCity,
+          state: locState,
+          country: locCountry,
+          lat,
+          lng,
+        });
         updates.push(`location = $${paramIndex++}::jsonb`);
         values.push(locationJson);
       } else if (location === null) {
@@ -391,8 +480,10 @@ async function patchProfile(req, res) {
     }
 
     values.push(userId);
-    const query = `UPDATE members SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING id, bio, phone, pronouns, interests, location`;
-    
+    const query = `UPDATE members SET ${updates.join(
+      ", "
+    )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, pronouns, interests, location`;
+
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Member not found" });
@@ -402,15 +493,25 @@ async function patchProfile(req, res) {
     res.json({
       success: true,
       profile: {
+        name: member.name,
         bio: member.bio,
         phone: member.phone,
         pronouns: parsePgTextArray(member.pronouns),
-        interests: typeof member.interests === 'string' ? JSON.parse(member.interests) : member.interests,
-        location: typeof member.location === 'string' ? JSON.parse(member.location) : member.location,
+        interests:
+          typeof member.interests === "string"
+            ? JSON.parse(member.interests)
+            : member.interests,
+        location:
+          typeof member.location === "string"
+            ? JSON.parse(member.location)
+            : member.location,
       },
     });
   } catch (err) {
-    console.error("/members/profile PATCH error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/profile PATCH error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to update profile" });
   }
 }
@@ -421,18 +522,21 @@ async function changeUsernameEndpoint(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     const { username } = req.body || {};
-    if (!username || typeof username !== 'string') {
+    if (!username || typeof username !== "string") {
       return res.status(400).json({ error: "Username is required" });
     }
 
     const sanitized = username.toLowerCase().trim();
     if (!/^[a-z0-9._]{3,30}$/.test(sanitized)) {
-      return res.status(400).json({ error: "Username must be 3-30 characters, lowercase letters, numbers, and underscores only" });
+      return res.status(400).json({
+        error:
+          "Username must be 3-30 characters, lowercase letters, numbers, and underscores only",
+      });
     }
 
     const existing = await pool.query(
@@ -443,14 +547,17 @@ async function changeUsernameEndpoint(req, res) {
       return res.status(409).json({ error: "Username is already taken" });
     }
 
-    await pool.query(
-      `UPDATE members SET username = $1 WHERE id = $2`,
-      [sanitized, userId]
-    );
+    await pool.query(`UPDATE members SET username = $1 WHERE id = $2`, [
+      sanitized,
+      userId,
+    ]);
 
     res.json({ success: true, username: sanitized });
   } catch (err) {
-    console.error("/members/username POST error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/username POST error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to update username" });
   }
 }
@@ -461,12 +568,12 @@ async function startEmailChange(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     const { email } = req.body || {};
-    if (!email || typeof email !== 'string') {
+    if (!email || typeof email !== "string") {
       return res.status(400).json({ error: "Email is required" });
     }
 
@@ -478,7 +585,12 @@ async function startEmailChange(req, res) {
 
     // Check if email is in use across all user roles
     const { isEmailInUse } = require("../middleware/validators");
-    const emailExists = await isEmailInUse(pool, emailTrimmed, 'members', userId);
+    const emailExists = await isEmailInUse(
+      pool,
+      emailTrimmed,
+      "members",
+      userId
+    );
     if (emailExists) {
       return res.status(409).json({ error: "Email is already in use" });
     }
@@ -492,8 +604,8 @@ async function startEmailChange(req, res) {
       email: emailTrimmed,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: undefined
-      }
+        emailRedirectTo: undefined,
+      },
     });
 
     if (error) {
@@ -502,7 +614,10 @@ async function startEmailChange(req, res) {
 
     res.json({ success: true, message: "OTP sent to email" });
   } catch (err) {
-    console.error("/members/email/change/start error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/email/change/start error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to send OTP" });
   }
 }
@@ -513,7 +628,7 @@ async function verifyEmailChange(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -524,7 +639,7 @@ async function verifyEmailChange(req, res) {
 
     const emailTrimmed = email.trim().toLowerCase();
     const supabase = require("../supabase");
-    
+
     const { data, error } = await supabase.auth.verifyOtp({
       email: emailTrimmed,
       token: otp,
@@ -535,20 +650,23 @@ async function verifyEmailChange(req, res) {
       return res.status(400).json({ error: error.message || "Invalid OTP" });
     }
 
-    await pool.query(
-      `UPDATE members SET email = $1 WHERE id = $2`,
-      [emailTrimmed, userId]
-    );
+    await pool.query(`UPDATE members SET email = $1 WHERE id = $2`, [
+      emailTrimmed,
+      userId,
+    ]);
 
     // Return the new access token so the frontend can update its stored token
     const newAccessToken = data?.session?.access_token;
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       email: emailTrimmed,
-      accessToken: newAccessToken 
+      accessToken: newAccessToken,
     });
   } catch (err) {
-    console.error("/members/email/change/verify error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/email/change/verify error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to verify email" });
   }
 }
@@ -558,36 +676,55 @@ async function updateLocation(req, res) {
     const pool = req.app.locals.pool;
     const userId = req.user?.id;
     const userType = req.user?.type;
-    if (!userId || userType !== 'member') {
+    if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
     const body = req.body || {};
     const loc = body.location;
-    if (!loc || typeof loc !== 'object') {
+    if (!loc || typeof loc !== "object") {
       return res.status(400).json({ error: "location object is required" });
     }
     const lat = loc.lat != null ? parseFloat(loc.lat) : null;
     const lng = loc.lng != null ? parseFloat(loc.lng) : null;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return res.status(400).json({ error: "lat and lng are required numeric values" });
+      return res
+        .status(400)
+        .json({ error: "lat and lng are required numeric values" });
     }
     const city = loc.city ? String(loc.city).trim().substring(0, 100) : null;
     const state = loc.state ? String(loc.state).trim().substring(0, 100) : null;
-    const country = loc.country ? String(loc.country).trim().substring(0, 100) : null;
+    const country = loc.country
+      ? String(loc.country).trim().substring(0, 100)
+      : null;
     const locationJson = JSON.stringify({ city, state, country, lat, lng });
 
-    await pool.query(`UPDATE members SET location = $1::jsonb WHERE id = $2`, [locationJson, userId]);
+    await pool.query(`UPDATE members SET location = $1::jsonb WHERE id = $2`, [
+      locationJson,
+      userId,
+    ]);
     await pool.query(
       `INSERT INTO member_location_history (member_id, location) VALUES ($1, $2::jsonb)`,
       [userId, locationJson]
     );
     res.json({ success: true });
   } catch (err) {
-    console.error("/members/location POST error:", err && err.stack ? err.stack : err);
+    console.error(
+      "/members/location POST error:",
+      err && err.stack ? err.stack : err
+    );
     res.status(500).json({ error: "Failed to update location" });
   }
 }
 
-module.exports = { signup, getProfile, updatePhoto, searchMembers, getPublicMember, patchProfile, changeUsernameEndpoint, startEmailChange, verifyEmailChange, updateLocation };
-
-
+module.exports = {
+  signup,
+  getProfile,
+  updatePhoto,
+  searchMembers,
+  getPublicMember,
+  patchProfile,
+  changeUsernameEndpoint,
+  startEmailChange,
+  verifyEmailChange,
+  updateLocation,
+};

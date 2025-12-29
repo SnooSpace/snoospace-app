@@ -77,6 +77,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     });
   }, [profile]);
 
+  const [name, setName] = useState(profile?.name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
@@ -142,6 +143,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   useEffect(() => {
     checkForChanges();
   }, [
+    name,
     bio,
     username,
     primaryPhone,
@@ -195,6 +197,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const checkForChanges = () => {
     const sourceProfile = profileRef.current || {};
+    const originalName = sourceProfile?.name || "";
     const originalBio = sourceProfile?.bio || "";
     const originalUsername = sourceProfile?.username || "";
     const originalPrimaryPhone = sanitizePhoneValue(
@@ -220,6 +223,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     const originalCategoriesNormalized = normalizeArray(originalCategories);
 
     const changed =
+      name !== originalName ||
       bio !== originalBio ||
       username !== originalUsername ||
       primaryPhone !== originalPrimaryPhone ||
@@ -412,6 +416,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       }
 
       const updates = {
+        name: name.trim(),
         bio: bio.trim(),
         phone: normalizedPrimary,
         primary_phone: normalizedPrimary,
@@ -527,6 +532,19 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 <Text style={styles.changeButtonText}>Change Logo</Text>
               )}
             </TouchableOpacity>
+          </View>
+
+          {/* Name Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Community Name</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Your community name"
+              placeholderTextColor={LIGHT_TEXT_COLOR}
+              value={name}
+              onChangeText={setName}
+              maxLength={100}
+            />
           </View>
 
           {/* Banner Section */}
