@@ -128,12 +128,14 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [logoUrl, setLogoUrl] = useState(
     profile?.logo_url ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(
         profile?.name || "Community"
       )}&background=5f27cd&color=FFFFFF&size=120&bold=true`
   );
+  const [bannerUrl, setBannerUrl] = useState(profile?.banner_url || null);
   const allowLeaveRef = useRef(false);
   const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
     FALLBACK_SPONSOR_TYPES
@@ -362,6 +364,28 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
   };
 
+  const handleChangeBanner = async () => {
+    try {
+      // Use Instagram-style crop for 3:1 banner
+      const result = await pickAndCrop("banner");
+      if (!result) return; // User cancelled
+
+      setUploadingBanner(true);
+      const secureUrl = await uploadImage(result.uri);
+      const token = await getAuthToken();
+
+      // Update banner via profile update
+      await updateCommunityProfile({ banner_url: secureUrl }, token);
+
+      setBannerUrl(secureUrl);
+      Alert.alert("Updated", "Banner updated");
+    } catch (e) {
+      Alert.alert("Update failed", e?.message || "Could not update banner");
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!hasChanges) return;
 
@@ -517,7 +541,11 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 80 }}
+        >
           {/* Logo Section */}
           <View style={[styles.section, styles.photoSection]}>
             <Image source={{ uri: logoUrl }} style={styles.logoImage} />
@@ -551,42 +579,47 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Banner</Text>
             <Text style={styles.sectionSubtitle}>
-              Add a banner to make your profile stand out (1200 x 400
+              Add a banner to make your profile stand out (1280 x 800
               recommended)
             </Text>
-            {profile?.banner_url ? (
+            {bannerUrl ? (
               <View style={styles.bannerPreviewContainer}>
                 <Image
-                  source={{ uri: profile.banner_url }}
+                  source={{ uri: bannerUrl }}
                   style={styles.bannerPreview}
                 />
                 <View style={styles.bannerButtons}>
                   <TouchableOpacity
                     style={styles.changeButton}
-                    onPress={() => {
-                      // Navigate to CommunityProfile to use existing banner picker
-                      navigation.goBack();
-                      // Banner change is handled in main profile screen
-                    }}
+                    onPress={handleChangeBanner}
+                    disabled={uploadingBanner}
                   >
-                    <Text style={styles.changeButtonText}>Change</Text>
+                    {uploadingBanner ? (
+                      <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                    ) : (
+                      <Text style={styles.changeButtonText}>Change</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <TouchableOpacity
                 style={styles.addBannerButton}
-                onPress={() => {
-                  // Navigate back to profile to add banner
-                  navigation.goBack();
-                }}
+                onPress={handleChangeBanner}
+                disabled={uploadingBanner}
               >
-                <Ionicons
-                  name="image-outline"
-                  size={24}
-                  color={PRIMARY_COLOR}
-                />
-                <Text style={styles.addBannerText}>Add Banner</Text>
+                {uploadingBanner ? (
+                  <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="image-outline"
+                      size={24}
+                      color={PRIMARY_COLOR}
+                    />
+                    <Text style={styles.addBannerText}>Add Banner</Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -756,24 +789,32 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           </View>
 
           {/* Location Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { borderBottomWidth: 0 }]}>
             <Text style={styles.sectionTitle}>Location</Text>
+            {location ? (
+              <View style={styles.locationInfoContainer}>
+                <Ionicons
+                  name="location-outline"
+                  size={20}
+                  color={LIGHT_TEXT_COLOR}
+                />
+                <Text style={styles.locationInfoText}>
+                  {location.address ||
+                    [location.city, location.state].filter(Boolean).join(", ")}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.noLocationText}>No location selected</Text>
+            )}
+
             <TouchableOpacity
-              style={styles.locationButton}
+              style={styles.changeLocationButton}
               onPress={() => setShowLocationPicker(true)}
             >
-              <Ionicons name="location" size={20} color={PRIMARY_COLOR} />
-              <Text style={styles.locationButtonText}>
-                {location?.address || location?.city || "Select Location"}
+              <Text style={styles.changeLocationButtonText}>
+                Change Location
               </Text>
             </TouchableOpacity>
-            {location && (
-              <Text style={styles.locationText}>
-                {[location.city, location.state, location.country]
-                  .filter(Boolean)
-                  .join(", ")}
-              </Text>
-            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -940,26 +981,43 @@ const styles = StyleSheet.create({
   photoSection: {
     alignItems: "center",
   },
-  locationButton: {
+  locationInfoContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
+    alignItems: "flex-start",
+    backgroundColor: "#F8F9FA",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    marginBottom: 12,
+    borderColor: "#E5E5EA",
   },
-  locationButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 16,
-    fontWeight: "600",
+  locationInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: TEXT_COLOR,
     marginLeft: 8,
+    lineHeight: 20,
   },
-  locationText: {
+  noLocationText: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
+    fontStyle: "italic",
+    marginBottom: 16,
     textAlign: "center",
+  },
+  changeLocationButton: {
+    alignSelf: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: "#FFFFFF",
+  },
+  changeLocationButtonText: {
+    color: PRIMARY_COLOR,
+    fontSize: 14,
+    fontWeight: "700",
   },
   // Banner styles
   bannerPreviewContainer: {
@@ -968,7 +1026,7 @@ const styles = StyleSheet.create({
   },
   bannerPreview: {
     width: "100%",
-    height: 100,
+    aspectRatio: 8 / 5,
     borderRadius: 8,
   },
   bannerButtons: {
@@ -981,7 +1039,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
+    aspectRatio: 8 / 5,
     borderRadius: 8,
     borderWidth: 1,
     borderStyle: "dashed",

@@ -32,19 +32,19 @@ export const CROP_PRESETS = {
   BANNER: {
     key: "banner",
     label: "Banner",
-    aspectRatio: [3, 1],
-    minWidth: 600,
-    minHeight: 200,
-    recommendedWidth: 1200,
-    recommendedHeight: 400,
+    aspectRatio: [8, 5],
+    minWidth: 400,
+    minHeight: 250,
+    recommendedWidth: 1280,
+    recommendedHeight: 800,
     maxZoom: 5,
     showGrid: true,
     isCircular: false,
     safeZone: {
-      left: 0.2, // 20% from left is reserved for avatar overlap
+      left: 0.25,
       top: 0,
-      right: 0,
-      bottom: 0,
+      right: 0.25,
+      bottom: 0.25, // Avatar overlaps bottom centered area
     },
   },
 

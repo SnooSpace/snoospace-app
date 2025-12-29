@@ -41,12 +41,14 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
+import { useCrop } from "../../../components/MediaCrop";
 import PostCard from "../../../components/PostCard";
 import { mockData } from "../../../data/mockData";
 import HeadsEditorModal from "../../../components/modals/HeadsEditorModal";
 import CommentsModal from "../../../components/CommentsModal";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
+import ActionSheet from "../../../components/modals/ActionSheet";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
@@ -115,6 +117,7 @@ export default function CommunityProfileScreen({ navigation }) {
     visible: false,
     postId: null,
   });
+  const [showBannerActionSheet, setShowBannerActionSheet] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [activeEmail, setActiveEmail] = useState("");
   const pendingPostUpdateRef = useRef(null);
@@ -133,7 +136,10 @@ export default function CommunityProfileScreen({ navigation }) {
     showLogoutModal ||
     showDeleteModal ||
     headsModalVisible ||
+    showBannerActionSheet ||
     commentsModalState.visible;
+  const { pickAndCrop } = useCrop();
+
   const { counts: polledCounts, initializeCounts } = useProfileCountsPolling({
     userId: profile?.id,
     userType: "community",
@@ -652,36 +658,16 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const handleBannerAction = () => {
     if (!profile) return;
-    const options = [
-      { text: "Change banner", onPress: () => pickBannerImage() },
-    ];
-    if (profile.banner_url) {
-      options.push({ text: "Remove banner", onPress: removeBanner });
-    }
-    options.push({ text: "Cancel", style: "cancel" });
-    Alert.alert("Banner", "Update your community banner", options);
+    setShowBannerActionSheet(true);
   };
 
   const pickBannerImage = async () => {
     try {
-      const perm = await requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          "Permission required",
-          "Allow photo access to change banner"
-        );
-        return;
-      }
-      const picker = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 1],
-        quality: 0.85,
-      });
-      if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+      const result = await pickAndCrop("banner");
+      if (!result) return; // User cancelled
+
       setBannerUploading(true);
-      const uri = picker.assets[0].uri;
-      const secureUrl = await uploadImage(uri);
+      const secureUrl = await uploadImage(result.uri);
       await updateCommunityProfile({ banner_url: secureUrl });
       setProfile((prev) => (prev ? { ...prev, banner_url: secureUrl } : prev));
     } catch (e) {
@@ -1486,6 +1472,36 @@ export default function CommunityProfileScreen({ navigation }) {
           navigation.navigate("Login", { isAddingAccount: true })
         }
         onCreateNew={() => navigation.navigate("Landing")}
+      />
+
+      <ActionSheet
+        visible={showBannerActionSheet}
+        onClose={() => setShowBannerActionSheet(false)}
+        title="Banner"
+        message="Update your community banner"
+        actions={[
+          {
+            text: "Change banner",
+            icon: "image-outline",
+            onPress: () => {
+              setShowBannerActionSheet(false);
+              pickBannerImage();
+            },
+          },
+          ...(profile?.banner_url
+            ? [
+                {
+                  text: "Remove banner",
+                  icon: "trash-outline",
+                  style: "destructive",
+                  onPress: () => {
+                    setShowBannerActionSheet(false);
+                    removeBanner();
+                  },
+                },
+              ]
+            : []),
+        ]}
       />
     </SafeAreaView>
   );
