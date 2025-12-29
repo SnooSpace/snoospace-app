@@ -74,6 +74,10 @@ async function tryRefreshAndRetry(
   requestGeneration = null,
   failedToken = null
 ) {
+  // Declare variables outside try block so they're accessible in finally block
+  let accountId = null;
+  let refreshPromiseResolve = null;
+
   try {
     // CRITICAL: Capture generation at the START of refresh attempt
     // This detects if user switched accounts while refresh was in progress
@@ -104,7 +108,7 @@ async function tryRefreshAndRetry(
     const authModule = await import("./auth");
     const sessionManager = await import("../utils/sessionManager");
     const activeAccount = await authModule.getActiveAccount();
-    const accountId = activeAccount?.id;
+    accountId = activeAccount?.id;
     const accountType = activeAccount?.type;
 
     // --- CONCURRENCY PROTECTION (THUNDERING HERD) ---
@@ -142,7 +146,6 @@ async function tryRefreshAndRetry(
     }
 
     // 3. START REFRESH WITH LOCK:
-    let refreshPromiseResolve;
     const refreshPromise = new Promise((resolve) => {
       refreshPromiseResolve = resolve;
     });
