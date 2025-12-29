@@ -23,6 +23,8 @@ const createEvent = async (req, res) => {
     }
 
     const {
+      title,
+      description,
       event_date,
       start_datetime,
       end_datetime,
@@ -1360,9 +1362,10 @@ const updateEvent = async (req, res) => {
       updates.push(`description = $${paramIndex++}`);
       values.push(description);
     }
-    if (event_date !== undefined) {
+    const effectiveStartDateTime = start_datetime || event_date;
+    if (effectiveStartDateTime !== undefined) {
       updates.push(`start_datetime = $${paramIndex++}`);
-      values.push(event_date);
+      values.push(effectiveStartDateTime);
     }
     if (end_datetime !== undefined) {
       updates.push(`end_datetime = $${paramIndex++}`);
@@ -1396,10 +1399,6 @@ const updateEvent = async (req, res) => {
       updates.push(`gates_open_time = $${paramIndex++}`);
       values.push(gates_open_time);
     }
-    if (start_datetime !== undefined) {
-      updates.push(`start_datetime = $${paramIndex++}`);
-      values.push(start_datetime);
-    }
     // Note: highlights, featured_accounts, things_to_know are in separate tables
     // They are updated after the main query below
 
@@ -1423,9 +1422,10 @@ const updateEvent = async (req, res) => {
     // Add event ID as last parameter
     values.push(eventId);
 
+    const setClause = updates.length > 0 ? updates.join(", ") + ", " : "";
     const updateQuery = `
       UPDATE events 
-      SET ${updates.join(", ")}, updated_at = NOW()
+      SET ${setClause} updated_at = NOW()
       WHERE id = $${paramIndex}
       RETURNING *
     `;

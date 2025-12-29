@@ -192,6 +192,7 @@ export default function EditEventModal({
     description,
     eventDate,
     endDate,
+    hasEndTime,
     hasGates,
     eventType,
     locationUrl,
@@ -281,9 +282,38 @@ export default function EditEventModal({
         highlights,
         featured_accounts: featuredAccounts,
         things_to_know: thingsToKnow,
-        ticket_types: ticketTypes.length > 0 ? ticketTypes : null,
-        discount_codes: discountCodes.length > 0 ? discountCodes : null,
-        pricing_rules: pricingRules.length > 0 ? pricingRules : null,
+        ticket_types:
+          ticketTypes.length > 0
+            ? ticketTypes.map((t) => ({
+                ...t,
+                base_price:
+                  t.base_price !== undefined
+                    ? t.base_price
+                    : parseFloat(t.price || 0),
+                total_quantity:
+                  t.total_quantity !== undefined
+                    ? t.total_quantity
+                    : parseInt(t.quantity || 0),
+              }))
+            : null,
+        discount_codes:
+          discountCodes.length > 0
+            ? discountCodes.map((d) => ({
+                ...d,
+                discount_type: d.discount_type || d.type,
+                discount_value:
+                  d.discount_value !== undefined ? d.discount_value : d.value,
+              }))
+            : null,
+        pricing_rules:
+          pricingRules.length > 0
+            ? pricingRules.map((r) => ({
+                ...r,
+                discount_type: r.discount_type || r.type,
+                discount_value:
+                  r.discount_value !== undefined ? r.discount_value : r.value,
+              }))
+            : null,
         categories: categories.length > 0 ? categories : [],
       };
 
@@ -827,10 +857,14 @@ export default function EditEventModal({
             <TouchableOpacity
               style={styles.nextButtonWrapper}
               onPress={handleSave}
-              disabled={loading}
+              disabled={loading || !hasChanges}
             >
               <LinearGradient
-                colors={["#34C759", "#2FB350"]}
+                colors={
+                  loading || !hasChanges
+                    ? ["#E5E7EB", "#D1D5DB"]
+                    : ["#34C759", "#2FB350"]
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.fullButtonGradient}
