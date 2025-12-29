@@ -361,6 +361,7 @@ const getCommunityEvents = async (req, res) => {
         e.has_featured_accounts,
         e.is_editable,
         e.is_cancelled,
+        e.ticket_price,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
         (e.start_datetime < NOW()) as is_past,
         e.created_at

@@ -151,13 +151,14 @@ const EventDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Check if current user is the event creator
+  // Check if current user is allowed to book (only members)
+  const isRestrictedRole = currentUser?.type !== "member";
   const isEventCreator =
     currentUser?.type === "community" &&
     parseInt(currentUser?.id) === parseInt(event?.creator_id);
 
-  // Show toast message for creators trying to book
-  const showCreatorMessage = () => {
+  // Show toast message for restricted roles (communities)
+  const showRoleRestrictionMessage = () => {
     setShowCreatorToast(true);
     toastOpacity.setValue(0);
     toastTranslateY.setValue(0);
@@ -170,7 +171,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
       }),
       Animated.timing(toastTranslateY, {
         toValue: -20,
-        duration: 5000,
+        duration: 300,
         useNativeDriver: true,
       }),
     ]).start();
@@ -194,9 +195,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
       });
       return;
     }
-    // Block creators from booking their own events
-    if (isEventCreator) {
-      showCreatorMessage();
+    // Only members can book tickets
+    if (isRestrictedRole) {
+      showRoleRestrictionMessage();
       return;
     }
     // Navigate to ticket selection if there are ticket types
@@ -697,7 +698,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
           ]}
         >
           <Text style={styles.creatorToastText}>
-            The creator of the event can't book their own events tickets
+            Only Members are allowed to buy tickets
           </Text>
         </Animated.View>
       )}
@@ -740,14 +741,14 @@ const EventDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={[
             styles.registerButtonWrapper,
-            isEventCreator && styles.registerButtonDisabled,
+            isRestrictedRole && styles.registerButtonDisabled,
           ]}
           onPress={handleRegister}
-          activeOpacity={isEventCreator ? 1 : 0.8}
+          activeOpacity={isRestrictedRole ? 1 : 0.8}
         >
           <LinearGradient
             colors={
-              isEventCreator ? ["#9CA3AF", "#9CA3AF"] : COLORS.primaryGradient
+              isRestrictedRole ? ["#9CA3AF", "#9CA3AF"] : COLORS.primaryGradient
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -961,8 +962,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
   },
   thingText: {
     fontSize: 14,
@@ -1113,8 +1112,11 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BACKGROUND,
     paddingHorizontal: 20,
     paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 20,
   },
   priceContainer: {
     flexDirection: "row",
