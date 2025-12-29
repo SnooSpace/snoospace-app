@@ -60,6 +60,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [hasGates, setHasGates] = useState(false);
   const [eventType, setEventType] = useState("in-person");
   const [locationUrl, setLocationUrl] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
@@ -96,6 +97,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setHasGates(false);
     setEventType("in-person");
     setLocationUrl("");
+    setLocationName("");
     setVirtualLink("");
     setMaxAttendees("");
     setTicketTypes([]);
@@ -118,6 +120,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     has_gates: hasGates,
     event_type: eventType,
     location_url: locationUrl,
+    location_name: locationName.trim(),
     virtual_link: virtualLink,
     max_attendees: maxAttendees,
     ticket_types: ticketTypes,
@@ -177,6 +180,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           draft.data.event_type || draft.data.eventType || "in-person"
         );
         setLocationUrl(draft.data.location_url || draft.data.locationUrl || "");
+        setLocationName(draft.data.location_name || "");
         setVirtualLink(draft.data.virtual_link || draft.data.virtualLink || "");
         setBannerCarousel(
           draft.data.banner_carousel || draft.data.bannerCarousel || []
@@ -515,6 +519,14 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   placeholder="Paste Google Maps Link"
                   placeholderTextColor={LIGHT_TEXT_COLOR}
                 />
+                <Text style={styles.label}>Location Name (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={locationName}
+                  onChangeText={setLocationName}
+                  placeholder="e.g. Ground Floor, Sector 5"
+                  placeholderTextColor={LIGHT_TEXT_COLOR}
+                />
               </>
             )}
 
@@ -657,8 +669,18 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 <View style={styles.reviewSection}>
                   <Text style={styles.reviewLabel}>Location</Text>
                   <Text style={styles.reviewValue} numberOfLines={2}>
-                    {locationUrl || "No location set"}
+                    {locationUrl || "No location URL set"}
                   </Text>
+                  {locationName ? (
+                    <Text
+                      style={[
+                        styles.reviewValue,
+                        { fontWeight: "600", marginTop: 4 },
+                      ]}
+                    >
+                      Display Name: {locationName}
+                    </Text>
+                  ) : null}
                 </View>
               ) : (
                 <View style={styles.reviewSection}>

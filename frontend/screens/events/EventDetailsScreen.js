@@ -133,9 +133,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
   };
 
   // Get location name from Google Maps URL (handles shortened URLs)
-  const locationName = useLocationName(event?.location_url, {
+  const decodedLocationName = useLocationName(event?.location_url, {
     fallback: event?.venue_name || "View Location",
   });
+
+  // Prioritize custom location_name if provided
+  const displayLocationName = event?.location_name || decodedLocationName;
 
   const handleOpenLocation = () => {
     if (event?.location_url) {
@@ -440,7 +443,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoTitle} numberOfLines={2}>
-                  {locationName}
+                  {displayLocationName}
                 </Text>
                 <Text style={styles.infoSubtitle}>Tap to open in Maps</Text>
               </View>

@@ -232,6 +232,9 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_price DECIMAL(10,2);
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS location_name TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Add constraint for event_type
       DO $$ BEGIN

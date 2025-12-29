@@ -58,9 +58,12 @@ export default function DiscoverEventCard({
   };
 
   // Get location name from Google Maps URL (handles shortened URLs)
-  const locationName = useLocationName(location_url, {
+  const decodedLocationName = useLocationName(location_url, {
     fallback: community_name || "Location TBD",
   });
+
+  // Prioritize custom location_name if provided
+  const displayLocation = event.location_name || decodedLocationName;
 
   return (
     <TouchableOpacity
@@ -116,16 +119,18 @@ export default function DiscoverEventCard({
           </TouchableOpacity>
         </View>
 
-        {/* Title */}
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
+        {/* Title - Fixed height for 2 lines */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+        </View>
 
         {/* Location */}
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={14} color="#8E8E93" />
           <Text style={styles.locationText} numberOfLines={1}>
-            {locationName}
+            {displayLocation}
           </Text>
         </View>
 
@@ -192,11 +197,13 @@ const styles = StyleSheet.create({
   bookmarkButton: {
     padding: 4,
   },
+  titleContainer: {
+    height: 44, // Fixed height for 2 lines (lineHeight 22 * 2)
+  },
   title: {
     fontSize: 17,
     fontWeight: "700",
     color: "#1C1C1E",
-    marginBottom: 8,
     lineHeight: 22,
   },
   locationRow: {

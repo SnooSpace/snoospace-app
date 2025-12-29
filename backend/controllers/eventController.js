@@ -29,6 +29,7 @@ const createEvent = async (req, res) => {
       start_datetime,
       end_datetime,
       location_url, // Changed from 'location'
+      location_name, // Optional custom location display name
       max_attendees,
       banner_carousel, // Array of {url, cloudinary_public_id, order}
       gallery, // Array of {url, cloudinary_public_id, order}
@@ -83,10 +84,10 @@ const createEvent = async (req, res) => {
     const query = `
       INSERT INTO events (
         community_id, title, description, start_datetime, end_datetime, location_url,
-        max_attendees, banner_url, event_type, virtual_link, venue_id,
+        location_name, max_attendees, banner_url, event_type, virtual_link, venue_id,
         creator_id, is_published, ticket_price, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
       RETURNING *
     `;
 
@@ -95,8 +96,9 @@ const createEvent = async (req, res) => {
       title,
       description || null,
       start_datetime || event_date,
-      end_datetime || event_date, // Use end_datetime if provided, else fallback to event_date
-      location_url || null, // Changed from location
+      end_datetime || event_date,
+      location_url || null,
+      location_name || null, // New: custom location name
       max_attendees || null,
       banner_url,
       event_type || "in-person",
@@ -104,7 +106,7 @@ const createEvent = async (req, res) => {
       venue_id || null,
       userId, // creator_id
       true, // is_published
-      ticket_price || null, // Ticket price
+      ticket_price || null,
     ];
 
     const result = await pool.query(query, values);
@@ -352,6 +354,7 @@ const getCommunityEvents = async (req, res) => {
         e.gates_open_time,
         e.schedule_description,
         e.location_url,
+        e.location_name,
         e.max_attendees,
         e.categories,
         e.banner_url,
@@ -579,6 +582,7 @@ const getMyEvents = async (req, res) => {
         e.start_datetime,
         e.end_datetime,
         e.location_url,
+        e.location_name,
         e.max_attendees,
         e.banner_url,
         CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END as is_past,
@@ -1073,6 +1077,7 @@ const discoverEvents = async (req, res) => {
           e.start_datetime as event_date,
           e.end_datetime,
           e.location_url,
+          e.location_name,
           e.max_attendees,
           e.banner_url,
           e.event_type,
@@ -1199,6 +1204,7 @@ const searchEvents = async (req, res) => {
         e.start_datetime as event_date,
         e.end_datetime,
         e.location_url,
+        e.location_name,
         e.max_attendees,
         e.banner_url,
         e.event_type,
@@ -1309,6 +1315,7 @@ const updateEvent = async (req, res) => {
       end_datetime,
       gates_open_time,
       location_url,
+      location_name,
       max_attendees,
       banner_carousel,
       gallery,
@@ -1375,6 +1382,10 @@ const updateEvent = async (req, res) => {
     if (location_url !== undefined) {
       updates.push(`location_url = $${paramIndex++}`);
       values.push(location_url);
+    }
+    if (location_name !== undefined) {
+      updates.push(`location_name = $${paramIndex++}`);
+      values.push(location_name);
     }
     if (max_attendees !== undefined) {
       updates.push(`max_attendees = $${paramIndex++}`);
@@ -2428,6 +2439,7 @@ const getInterestedEvents = async (req, res) => {
         e.start_datetime as event_date,
         e.end_datetime,
         e.location_url,
+        e.location_name,
         e.max_attendees,
         e.banner_url,
         e.event_type,

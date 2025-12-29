@@ -58,6 +58,7 @@ export default function EditEventModal({
   const [hasGates, setHasGates] = useState(false);
   const [eventType, setEventType] = useState("in-person");
   const [locationUrl, setLocationUrl] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
@@ -110,6 +111,7 @@ export default function EditEventModal({
       setHasGates(!!eventData.gates_open_time);
       setEventType(eventData.event_type || "in-person");
       setLocationUrl(eventData.location_url || "");
+      setLocationName(eventData.location_name || "");
       setVirtualLink(eventData.virtual_link || "");
       setMaxAttendees(eventData.max_attendees?.toString() || "");
 
@@ -148,6 +150,7 @@ export default function EditEventModal({
         hasGates: !!eventData.gates_open_time,
         eventType: eventData.event_type || "in-person",
         locationUrl: eventData.location_url || "",
+        locationName: eventData.location_name || "",
         virtualLink: eventData.virtual_link || "",
         maxAttendees: eventData.max_attendees?.toString() || "",
         bannerCarousel: JSON.stringify(eventData.banner_carousel || []),
@@ -175,6 +178,7 @@ export default function EditEventModal({
       hasGates !== initialSnapshot.hasGates ||
       eventType !== initialSnapshot.eventType ||
       locationUrl !== initialSnapshot.locationUrl ||
+      locationName !== initialSnapshot.locationName ||
       virtualLink !== initialSnapshot.virtualLink ||
       maxAttendees !== initialSnapshot.maxAttendees ||
       JSON.stringify(bannerCarousel) !== initialSnapshot.bannerCarousel ||
@@ -196,6 +200,7 @@ export default function EditEventModal({
     hasGates,
     eventType,
     locationUrl,
+    locationName,
     virtualLink,
     maxAttendees,
     bannerCarousel,
@@ -274,6 +279,7 @@ export default function EditEventModal({
         gates_open_time:
           hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
         location_url: locationUrl.trim() || null,
+        location_name: locationName.trim() || null,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
         event_type: eventType,
         virtual_link: virtualLink.trim() || null,
@@ -552,6 +558,27 @@ export default function EditEventModal({
               ))}
             </View>
 
+            {(eventType === "in-person" || eventType === "hybrid") && (
+              <>
+                <Text style={styles.label}>Location URL *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={locationUrl}
+                  onChangeText={setLocationUrl}
+                  placeholder="Paste Google Maps Link"
+                  placeholderTextColor={LIGHT_TEXT_COLOR}
+                />
+                <Text style={styles.label}>Location Name (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={locationName}
+                  onChangeText={setLocationName}
+                  placeholder="e.g. Ground Floor, Sector 5"
+                  placeholderTextColor={LIGHT_TEXT_COLOR}
+                />
+              </>
+            )}
+
             <TicketTypesEditor
               ticketTypes={ticketTypes}
               onChange={setTicketTypes}
@@ -692,8 +719,18 @@ export default function EditEventModal({
                 <View style={styles.reviewSection}>
                   <Text style={styles.reviewLabel}>Location</Text>
                   <Text style={styles.reviewValue} numberOfLines={2}>
-                    {locationUrl || "No location set"}
+                    {locationUrl || "No location URL set"}
                   </Text>
+                  {locationName ? (
+                    <Text
+                      style={[
+                        styles.reviewValue,
+                        { fontWeight: "600", marginTop: 4 },
+                      ]}
+                    >
+                      Display Name: {locationName}
+                    </Text>
+                  ) : null}
                 </View>
               ) : (
                 <View style={styles.reviewSection}>
