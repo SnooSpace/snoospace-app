@@ -100,6 +100,7 @@ export default function MemberProfileScreen({ navigation }) {
     postId: null,
   });
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [activeEmail, setActiveEmail] = useState("");
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
@@ -144,14 +145,20 @@ export default function MemberProfileScreen({ navigation }) {
         setLoading(true);
       }
       setError(null);
+
+      // CRITICAL: Try to capture email as early as possible for Re-login fallback
+      const activeAccount = await getActiveAccount();
+      if (activeAccount?.email) {
+        setActiveEmail(activeAccount.email);
+      }
+
       const token = await getAuthToken();
       console.log(`[Profile] Token: ${token}`);
-      if (!token) throw new Error("No auth token found");
+      if (!token) throw new Error("No auth token found. Please re-login.");
 
       // Use getActiveAccount instead of AsyncStorage to get the correct email
-      const activeAccount = await getActiveAccount();
       if (!activeAccount || !activeAccount.email) {
-        throw new Error("No active account found");
+        throw new Error("No active account found. Please re-login.");
       }
 
       const email = activeAccount.email;
@@ -387,6 +394,58 @@ export default function MemberProfileScreen({ navigation }) {
         routes: [{ name: routeName }],
       })
     );
+  };
+
+  const handleRelogin = async () => {
+    try {
+      setShowSettingsModal(false);
+      setShowLogoutModal(false);
+
+      // Simple cleanup before re-login flow
+      await AsyncStorage.multiRemove([
+        "accessToken",
+        "userData",
+        "auth_token",
+        "pending_otp",
+      ]);
+
+      // Pre-filled email priority: state -> active account -> storage
+      let emailToUse = activeEmail;
+      if (!emailToUse) {
+        const acc = await getActiveAccount();
+        emailToUse = acc?.email;
+      }
+      if (!emailToUse) {
+        emailToUse = await AsyncStorage.getItem("auth_email");
+      }
+
+      console.log(
+        "[MemberProfile] Navigating to login with email:",
+        emailToUse
+      );
+
+      // Navigate to Login screen with email pre-filled
+      let rootNavigator = navigation;
+      while (rootNavigator.getParent && rootNavigator.getParent()) {
+        rootNavigator = rootNavigator.getParent();
+      }
+
+      rootNavigator.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Login",
+              params: { email: emailToUse },
+            },
+          ],
+        })
+      );
+    } catch (error) {
+      console.error("Error during relogin:", error);
+      // Final fallback to Landing if everything else fails
+      navigation.reset({ index: 0, routes: [{ name: "Landing" }] });
+    }
   };
 
   const performLogout = async (logoutAll = false) => {
@@ -1082,7 +1141,7 @@ export default function MemberProfileScreen({ navigation }) {
             </Text>
             <TouchableOpacity
               style={styles.reloginButton}
-              onPress={handleLogout}
+              onPress={handleRelogin}
             >
               <Text style={styles.reloginButtonText}>Re-login</Text>
             </TouchableOpacity>

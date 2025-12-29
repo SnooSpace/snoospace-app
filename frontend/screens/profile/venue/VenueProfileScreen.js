@@ -40,6 +40,7 @@ export default function VenueProfileScreen({ navigation }) {
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [authError, setAuthError] = useState(false);
+  const [activeEmail, setActiveEmail] = useState("");
 
   useEffect(() => {
     loadProfile();
@@ -48,8 +49,12 @@ export default function VenueProfileScreen({ navigation }) {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const token = await getAuthToken();
+
+      // CRITICAL: Capture email early for Re-login fallback
       const email = await AsyncStorage.getItem("auth_email");
+      if (email) setActiveEmail(email);
+
+      const token = await getAuthToken();
       let role = "venue";
       let fullProfile = null;
       try {
@@ -125,6 +130,50 @@ export default function VenueProfileScreen({ navigation }) {
       setPosts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRelogin = async () => {
+    try {
+      setShowSettingsModal(false);
+
+      // Simple cleanup before re-login flow
+      await AsyncStorage.multiRemove([
+        "accessToken",
+        "userData",
+        "auth_token",
+        "pending_otp",
+      ]);
+
+      // Pre-filled email priority: state -> storage
+      let emailToUse = activeEmail;
+      if (!emailToUse) {
+        emailToUse = await AsyncStorage.getItem("auth_email");
+      }
+
+      console.log("[VenueProfile] Navigating to login with email:", emailToUse);
+
+      // Navigate to Login screen with email pre-filled
+      let rootNavigator = navigation;
+      while (rootNavigator.getParent && rootNavigator.getParent()) {
+        rootNavigator = rootNavigator.getParent();
+      }
+
+      rootNavigator.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Login",
+              params: { email: emailToUse },
+            },
+          ],
+        })
+      );
+    } catch (error) {
+      console.error("Error during relogin:", error);
+      // Final fallback to Landing if everything else fails
+      navigation.reset({ index: 0, routes: [{ name: "Landing" }] });
     }
   };
 
@@ -291,7 +340,10 @@ export default function VenueProfileScreen({ navigation }) {
           <Text style={styles.errorText}>
             Unexpected error. Please re-login
           </Text>
-          <TouchableOpacity style={styles.reloginButton} onPress={handleLogout}>
+          <TouchableOpacity
+            style={styles.reloginButton}
+            onPress={handleRelogin}
+          >
             <Text style={styles.reloginButtonText}>Re-login</Text>
           </TouchableOpacity>
         </View>

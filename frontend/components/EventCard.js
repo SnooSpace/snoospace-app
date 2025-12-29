@@ -15,6 +15,7 @@ import { useLocationName } from "../utils/locationNameCache";
 import { toggleEventInterest } from "../api/events";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
+import { getActiveAccount } from "../api/auth";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -37,10 +38,24 @@ export default function EventCard({
   const [isInterested, setIsInterested] = useState(
     Boolean(event?.is_interested)
   );
+  const [userRole, setUserRole] = useState(null);
   const [interestLoading, setInterestLoading] = useState(false);
 
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
+
+  // Fetch current user role
+  useEffect(() => {
+    getActiveAccount()
+      .then((account) => {
+        if (account?.type) {
+          setUserRole(account.type);
+        }
+      })
+      .catch((err) =>
+        console.error("[EventCard] Error fetching account:", err)
+      );
+  }, []);
 
   // Listen for interest updates from other components (e.g., EventDetailsScreen)
   useEffect(() => {
@@ -281,7 +296,12 @@ export default function EventCard({
           </View>
 
           {/* Bottom Row: Attendees + Interested Button */}
-          <View style={styles.bottomRow}>
+          <View
+            style={[
+              styles.bottomRow,
+              userRole === "community" && { justifyContent: "flex-start" },
+            ]}
+          >
             <View style={styles.attendeeInfo}>
               <Ionicons
                 name="people-outline"
@@ -295,41 +315,49 @@ export default function EventCard({
               </Text>
             </View>
 
-            {isRegistered ? (
-              <View style={[styles.interestedButton, styles.goingButton]}>
-                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-                <Text style={styles.goingText}>You are going</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                key={`interest-btn-${isInterested}`}
-                style={[
-                  styles.interestedButton,
-                  isInterested === true && styles.interestedButtonActive,
-                ]}
-                onPress={handleInterestedPress}
-                disabled={interestLoading}
-              >
-                {isInterested === true ? (
-                  <View style={styles.interestedActiveContent}>
+            {userRole !== "community" && (
+              <>
+                {isRegistered ? (
+                  <View style={[styles.interestedButton, styles.goingButton]}>
                     <Ionicons
-                      name="bookmark"
+                      name="checkmark-circle"
                       size={16}
-                      color={COLORS.primary}
+                      color="#16A34A"
                     />
-                    <Text style={styles.interestedActiveText}>Saved</Text>
+                    <Text style={styles.goingText}>You are going</Text>
                   </View>
                 ) : (
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.interestedGradient}
+                  <TouchableOpacity
+                    key={`interest-btn-${isInterested}`}
+                    style={[
+                      styles.interestedButton,
+                      isInterested === true && styles.interestedButtonActive,
+                    ]}
+                    onPress={handleInterestedPress}
+                    disabled={interestLoading}
                   >
-                    <Text style={styles.interestedText}>Interested</Text>
-                  </LinearGradient>
+                    {isInterested === true ? (
+                      <View style={styles.interestedActiveContent}>
+                        <Ionicons
+                          name="bookmark"
+                          size={16}
+                          color={COLORS.primary}
+                        />
+                        <Text style={styles.interestedActiveText}>Saved</Text>
+                      </View>
+                    ) : (
+                      <LinearGradient
+                        colors={COLORS.primaryGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.interestedGradient}
+                      >
+                        <Text style={styles.interestedText}>Interested</Text>
+                      </LinearGradient>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </>
             )}
           </View>
         </View>

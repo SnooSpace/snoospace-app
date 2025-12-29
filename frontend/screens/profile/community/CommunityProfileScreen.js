@@ -116,6 +116,7 @@ export default function CommunityProfileScreen({ navigation }) {
     postId: null,
   });
   const [authError, setAuthError] = useState(false);
+  const [activeEmail, setActiveEmail] = useState("");
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
@@ -309,12 +310,19 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const loadProfile = useCallback(async (isRefresh = false) => {
     try {
-      if (!initialLoadCompletedRef.current) {
+      if (initialLoadCompletedRef.current === false) {
         setLoading(true);
       }
       if (isRefresh) {
         setRefreshing(true);
       }
+
+      // CRITICAL: Try to capture email as early as possible
+      try {
+        const email = await AsyncStorage.getItem("auth_email");
+        if (email) setActiveEmail(email);
+      } catch {}
+
       const token = await getAuthToken();
 
       // Fetch profile using communities/profile endpoint to get full profile with heads
@@ -336,6 +344,10 @@ export default function CommunityProfileScreen({ navigation }) {
           role = profRes?.role || "community";
           fullProfile = profRes?.profile || null;
         } catch {}
+      }
+
+      if (fullProfile?.email) {
+        setActiveEmail(fullProfile.email);
       }
 
       if (!fullProfile) {
@@ -469,6 +481,54 @@ export default function CommunityProfileScreen({ navigation }) {
       setRefreshing(false);
     }
   }, []);
+
+  const handleRelogin = async () => {
+    try {
+      setShowSettingsModal(false);
+      setShowLogoutModal(false);
+
+      // Simple cleanup before re-login flow
+      await AsyncStorage.multiRemove([
+        "accessToken",
+        "userData",
+        "auth_token",
+        "pending_otp",
+      ]);
+
+      // Pre-filled email priority: state -> storage
+      let emailToUse = activeEmail;
+      if (!emailToUse) {
+        emailToUse = await AsyncStorage.getItem("auth_email");
+      }
+
+      console.log(
+        "[CommunityProfile] Navigating to login with email:",
+        emailToUse
+      );
+
+      // Navigate to Login screen with email pre-filled
+      let rootNavigator = navigation;
+      while (rootNavigator.getParent && rootNavigator.getParent()) {
+        rootNavigator = rootNavigator.getParent();
+      }
+
+      rootNavigator.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Login",
+              params: { email: emailToUse },
+            },
+          ],
+        })
+      );
+    } catch (error) {
+      console.error("Error during relogin:", error);
+      // Final fallback to Landing if everything else fails
+      navigation.reset({ index: 0, routes: [{ name: "Landing" }] });
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -778,7 +838,10 @@ export default function CommunityProfileScreen({ navigation }) {
           <Text style={styles.errorText}>
             Unexpected error. Please re-login
           </Text>
-          <TouchableOpacity style={styles.reloginButton} onPress={handleLogout}>
+          <TouchableOpacity
+            style={styles.reloginButton}
+            onPress={handleRelogin}
+          >
             <Text style={styles.reloginButtonText}>Re-login</Text>
           </TouchableOpacity>
         </View>
