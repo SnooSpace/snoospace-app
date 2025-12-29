@@ -1068,14 +1068,25 @@ export default function MemberProfileScreen({ navigation }) {
       error.includes("Unauthorized");
 
     if (isAuthError) {
-      // Show skeleton with unexpected logout banner for auth errors
+      // Show centered error view with re-login button for auth errors
       return (
         <SafeAreaView style={styles.container}>
-          <ScrollView scrollEnabled={false}>
-            <SkeletonProfileHeader type="member" />
-            <SkeletonPostGrid />
-          </ScrollView>
-          <UnexpectedLogoutBanner />
+          <View style={styles.errorContainer}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={64}
+              color={COLORS.error || "#FF4B2B"}
+            />
+            <Text style={styles.errorText}>
+              Unexpected error. Please re-login
+            </Text>
+            <TouchableOpacity
+              style={styles.reloginButton}
+              onPress={handleLogout}
+            >
+              <Text style={styles.reloginButtonText}>Re-login</Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       );
     }
@@ -1879,10 +1890,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   errorText: {
-    fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    fontSize: 18,
+    color: COLORS.textPrimary || "#000",
     textAlign: "center",
-    paddingHorizontal: 20,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    fontWeight: "600",
+  },
+  reloginButton: {
+    backgroundColor: COLORS.primary || "#00C6FF",
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: BORDER_RADIUS.pill || 25,
+    ...SHADOWS.small,
+  },
+  reloginButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   // Modal styles
   modalOverlay: {

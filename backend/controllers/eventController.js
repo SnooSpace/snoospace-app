@@ -23,9 +23,9 @@ const createEvent = async (req, res) => {
     }
 
     const {
-      title,
-      description,
       event_date,
+      start_datetime,
+      end_datetime,
       location_url, // Changed from 'location'
       max_attendees,
       banner_carousel, // Array of {url, cloudinary_public_id, order}
@@ -92,8 +92,8 @@ const createEvent = async (req, res) => {
       userId, // community_id
       title,
       description || null,
-      event_date,
-      event_date, // end_datetime (same as start for now)
+      start_datetime || event_date,
+      end_datetime || event_date, // Use end_datetime if provided, else fallback to event_date
       location_url || null, // Changed from location
       max_attendees || null,
       banner_url,

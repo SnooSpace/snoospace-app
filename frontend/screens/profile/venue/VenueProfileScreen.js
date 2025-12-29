@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -10,22 +10,26 @@ import {
   Modal,
   FlatList,
   TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken } from '../../../api/auth';
-import { deleteAccount as apiDeleteAccount } from '../../../api/account';
-import { apiGet, apiPost } from '../../../api/client';
-import PostCard from '../../../components/PostCard';
-import { mockData } from '../../../data/mockData';
-import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
-import { uploadImage } from '../../../api/cloudinary';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions } from "@react-navigation/native";
+import { clearAuthSession, getAuthToken } from "../../../api/auth";
+import { deleteAccount as apiDeleteAccount } from "../../../api/account";
+import { apiGet, apiPost } from "../../../api/client";
+import PostCard from "../../../components/PostCard";
+import { mockData } from "../../../data/mockData";
+import {
+  launchImageLibraryAsync,
+  requestMediaLibraryPermissionsAsync,
+  MediaTypeOptions,
+} from "expo-image-picker";
+import { uploadImage } from "../../../api/cloudinary";
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const PRIMARY_COLOR = "#6A0DAD";
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 export default function VenueProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -33,8 +37,9 @@ export default function VenueProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteInput, setDeleteInput] = useState('');
+  const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -44,55 +49,67 @@ export default function VenueProfileScreen({ navigation }) {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const email = await AsyncStorage.getItem('auth_email');
-      let role = 'venue';
+      const email = await AsyncStorage.getItem("auth_email");
+      let role = "venue";
       let fullProfile = null;
       try {
-        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
-        role = profRes?.role || 'venue';
+        const profRes = await apiPost(
+          "/auth/get-user-profile",
+          email ? { email } : {},
+          15000,
+          token
+        );
+        role = profRes?.role || "venue";
         fullProfile = profRes?.profile || null;
       } catch (_) {}
 
-      if (!fullProfile || role !== 'venue') {
-        const venueProfile = mockData.venues[0];
-        const venuePosts = mockData.posts.filter(post => post.author_type === 'venue' && post.author_id === venueProfile.id);
-        setProfile(venueProfile);
-        setPosts(venuePosts);
+      if (!fullProfile || role !== "venue") {
+        setAuthError(true);
+        setProfile(null);
+        setPosts([]);
         return;
       }
 
       const userId = fullProfile.id;
-      const userType = 'venue';
+      const userType = "venue";
 
       let followerCount = 0;
       let followingCount = 0;
       try {
-        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        const counts = await apiGet(
+          `/follow/counts/${userId}/${userType}`,
+          15000,
+          token
+        );
         followerCount = counts?.followers || 0;
         followingCount = counts?.following || 0;
       } catch (_) {}
 
       let userPosts = [];
       try {
-        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        const postsRes = await apiGet(
+          `/posts/user/${userId}/${userType}`,
+          15000,
+          token
+        );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch (_) {}
 
       const mapped = {
         id: userId,
-        name: fullProfile.name || '',
-        username: fullProfile.username || '',
-        city: fullProfile.city || '',
-        address: fullProfile.address || '',
+        name: fullProfile.name || "",
+        username: fullProfile.username || "",
+        city: fullProfile.city || "",
+        address: fullProfile.address || "",
         capacity_min: fullProfile.capacity_min || 0,
         capacity_max: fullProfile.capacity_max || 0,
         price_per_head: fullProfile.price_per_head || 0,
         hourly_price: fullProfile.hourly_price || 0,
         daily_price: fullProfile.daily_price || 0,
-        conditions: fullProfile.conditions || '',
-        contact_name: fullProfile.contact_name || '',
-        contact_email: fullProfile.contact_email || '',
-        contact_phone: fullProfile.contact_phone || '',
+        conditions: fullProfile.conditions || "",
+        contact_name: fullProfile.contact_name || "",
+        contact_email: fullProfile.contact_email || "",
+        contact_phone: fullProfile.contact_phone || "",
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
@@ -100,59 +117,67 @@ export default function VenueProfileScreen({ navigation }) {
 
       setProfile(mapped);
       setPosts(userPosts);
+      setAuthError(false);
+    } catch (error) {
+      console.error("[VenueProfile] error loading profile:", error);
+      setAuthError(true);
+      setProfile(null);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Close settings modal first
-              setShowSettingsModal(false);
-              
-              // Clear all authentication data
-              await clearAuthSession();
-              await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-              
-              // Get the root navigator by going up the navigation hierarchy
-              let rootNavigator = navigation;
-              
-              // Try to get parent navigator (go up from VenueProfileScreen -> VenueBottomTabNavigator)
-              if (navigation.getParent) {
-                const parent = navigation.getParent();
-                if (parent) {
-                  // Go up one more level (from VenueBottomTabNavigator to AppNavigator)
-                  rootNavigator = parent.getParent ? parent.getParent() : parent;
-                }
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Close settings modal first
+            setShowSettingsModal(false);
+
+            // Clear all authentication data
+            await clearAuthSession();
+            await AsyncStorage.multiRemove([
+              "accessToken",
+              "userData",
+              "auth_token",
+              "auth_email",
+              "pending_otp",
+            ]);
+
+            // Get the root navigator by going up the navigation hierarchy
+            let rootNavigator = navigation;
+
+            // Try to get parent navigator (go up from VenueProfileScreen -> VenueBottomTabNavigator)
+            if (navigation.getParent) {
+              const parent = navigation.getParent();
+              if (parent) {
+                // Go up one more level (from VenueBottomTabNavigator to AppNavigator)
+                rootNavigator = parent.getParent ? parent.getParent() : parent;
               }
-              
-              // Reset navigation stack to Landing using root navigator
-              rootNavigator.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Landing' }],
-                })
-              );
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout properly');
             }
-          },
+
+            // Reset navigation stack to Landing using root navigator
+            rootNavigator.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: "Landing" }],
+              })
+            );
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert("Error", "Failed to logout properly");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderPost = ({ item }) => (
@@ -182,46 +207,93 @@ export default function VenueProfileScreen({ navigation }) {
               <Ionicons name="close" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity style={styles.settingsItem} onPress={async () => {
-            try {
-              const perm = await requestMediaLibraryPermissionsAsync();
-              if (!perm.granted) { Alert.alert('Permission Required', 'Allow photo access to change logo'); return; }
-              const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
-              if (picker.canceled || !picker.assets || !picker.assets[0]) return;
-              const uri = picker.assets[0].uri;
-              const secureUrl = await uploadImage(uri);
-              const token = await getAuthToken();
-              await apiPost('/venues/profile/logo', { logo_url: secureUrl }, 15000, token);
-              setProfile(prev => ({ ...prev, logo_url: secureUrl }));
-              Alert.alert('Updated', 'Logo updated');
-            } catch (e) {
-              Alert.alert('Update failed', e?.message || 'Could not update logo');
-            }
-          }}>
+
+          <TouchableOpacity
+            style={styles.settingsItem}
+            onPress={async () => {
+              try {
+                const perm = await requestMediaLibraryPermissionsAsync();
+                if (!perm.granted) {
+                  Alert.alert(
+                    "Permission Required",
+                    "Allow photo access to change logo"
+                  );
+                  return;
+                }
+                const picker = await launchImageLibraryAsync({
+                  mediaTypes: MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.85,
+                });
+                if (picker.canceled || !picker.assets || !picker.assets[0])
+                  return;
+                const uri = picker.assets[0].uri;
+                const secureUrl = await uploadImage(uri);
+                const token = await getAuthToken();
+                await apiPost(
+                  "/venues/profile/logo",
+                  { logo_url: secureUrl },
+                  15000,
+                  token
+                );
+                setProfile((prev) => ({ ...prev, logo_url: secureUrl }));
+                Alert.alert("Updated", "Logo updated");
+              } catch (e) {
+                Alert.alert(
+                  "Update failed",
+                  e?.message || "Could not update logo"
+                );
+              }
+            }}
+          >
             <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
             <Text style={styles.settingsText}>Change Logo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
+          <TouchableOpacity
+            style={styles.settingsItem}
+            onPress={() => setShowDeleteModal(true)}
+          >
             <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
+            <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
+              Delete Account
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
+            <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
+              Logout
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 
-  if (loading || !profile) {
+  if (loading && !profile && !authError) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Loading profile...</Text>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (authError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text style={styles.errorText}>
+            Unexpected error. Please re-login
+          </Text>
+          <TouchableOpacity style={styles.reloginButton} onPress={handleLogout}>
+            <Text style={styles.reloginButtonText}>Re-login</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -253,7 +325,11 @@ export default function VenueProfileScreen({ navigation }) {
               <Text style={styles.venueName}>{profile.name}</Text>
               <Text style={styles.username}>@{profile.username}</Text>
               <View style={styles.locationContainer}>
-                <Ionicons name="location-outline" size={16} color={LIGHT_TEXT_COLOR} />
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={LIGHT_TEXT_COLOR}
+                />
                 <Text style={styles.location}>{profile.city}</Text>
               </View>
             </View>
@@ -291,7 +367,9 @@ export default function VenueProfileScreen({ navigation }) {
               <View style={styles.detailItem}>
                 <Ionicons name="cash" size={20} color={PRIMARY_COLOR} />
                 <Text style={styles.detailLabel}>Per Head</Text>
-                <Text style={styles.detailValue}>₹{profile.price_per_head}</Text>
+                <Text style={styles.detailValue}>
+                  ₹{profile.price_per_head}
+                </Text>
               </View>
               <View style={styles.detailItem}>
                 <Ionicons name="time" size={20} color={PRIMARY_COLOR} />
@@ -342,8 +420,16 @@ export default function VenueProfileScreen({ navigation }) {
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: LIGHT_TEXT_COLOR }}>No posts</Text>
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: LIGHT_TEXT_COLOR,
+                  }}
+                >
+                  No posts
+                </Text>
               </View>
             }
           />
@@ -363,49 +449,85 @@ export default function VenueProfileScreen({ navigation }) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Delete Account</Text>
-              <TouchableOpacity onPress={() => setShowDeleteModal(false)} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(false)}
+                style={styles.closeButton}
+              >
                 <Ionicons name="close" size={24} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>This is permanent and cannot be undone. Type "delete" to confirm.</Text>
+              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
+                This is permanent and cannot be undone. Type "delete" to
+                confirm.
+              </Text>
               <TextInput
                 value={deleteInput}
                 onChangeText={setDeleteInput}
                 placeholder="Type delete"
                 autoCapitalize="none"
-                style={{ borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16 }}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#E5E5EA",
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  marginBottom: 16,
+                }}
               />
               <TouchableOpacity
-                disabled={deleting || (deleteInput.trim().toLowerCase() !== 'delete')}
+                disabled={
+                  deleting || deleteInput.trim().toLowerCase() !== "delete"
+                }
                 onPress={async () => {
-                  if (deleteInput.trim().toLowerCase() !== 'delete') return;
+                  if (deleteInput.trim().toLowerCase() !== "delete") return;
                   setDeleting(true);
                   try {
-                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
+                    const { switchedToAccount, navigateToLanding } =
+                      await apiDeleteAccount();
                     setShowDeleteModal(false);
-                    
+
                     if (navigateToLanding || !switchedToAccount) {
-                      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Landing" }],
+                      });
                     } else {
                       const routeMap = {
-                        member: 'MemberHome',
-                        community: 'CommunityHome',
-                        sponsor: 'SponsorHome',
-                        venue: 'VenueHome',
+                        member: "MemberHome",
+                        community: "CommunityHome",
+                        sponsor: "SponsorHome",
+                        venue: "VenueHome",
                       };
-                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
-                      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+                      const routeName =
+                        routeMap[switchedToAccount.type] || "Landing";
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: routeName }],
+                      });
                     }
                   } catch (e) {
-                    Alert.alert('Delete failed', e?.message || 'Could not delete account');
+                    Alert.alert(
+                      "Delete failed",
+                      e?.message || "Could not delete account"
+                    );
                   } finally {
                     setDeleting(false);
                   }
                 }}
-                style={{ backgroundColor: (deleteInput.trim().toLowerCase() === 'delete' ? '#FF3B30' : '#FFAAA3'), paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                style={{
+                  backgroundColor:
+                    deleteInput.trim().toLowerCase() === "delete"
+                      ? "#FF3B30"
+                      : "#FFAAA3",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: "center",
+                }}
               >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>{deleting ? 'Deleting...' : 'Delete Account'}</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  {deleting ? "Deleting..." : "Delete Account"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -418,12 +540,12 @@ export default function VenueProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   scrollView: {
     flex: 1,
@@ -433,13 +555,13 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   settingsButton: {
@@ -450,25 +572,25 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   profileHeader: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 15,
   },
   venueImageContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#F8F5FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F8F5FF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 15,
   },
   profileInfo: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   venueName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 2,
   },
@@ -478,8 +600,8 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   location: {
     fontSize: 14,
@@ -493,20 +615,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginBottom: 20,
     paddingVertical: 15,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
   },
   statItem: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   statLabel: {
@@ -519,22 +641,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 15,
   },
   detailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   detailItem: {
-    width: '48%',
-    backgroundColor: '#F8F5FF',
+    width: "48%",
+    backgroundColor: "#F8F5FF",
     borderRadius: 12,
     padding: 15,
     marginBottom: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   detailLabel: {
     fontSize: 12,
@@ -544,7 +666,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   conditionsContainer: {
@@ -559,8 +681,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   contactText: {
@@ -574,41 +696,67 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingBottom: 40,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   closeButton: {
     padding: 5,
   },
   settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   settingsText: {
     fontSize: 16,
     marginLeft: 15,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#FFF",
+  },
+  errorText: {
+    fontSize: 18,
+    color: TEXT_COLOR,
+    textAlign: "center",
+    marginTop: 15,
+    marginBottom: 20,
+    fontWeight: "600",
+  },
+  reloginButton: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 25,
+  },
+  reloginButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

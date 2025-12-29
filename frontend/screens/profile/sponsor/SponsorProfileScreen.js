@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -10,22 +10,26 @@ import {
   Modal,
   FlatList,
   TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions } from '@react-navigation/native';
-import { clearAuthSession, getAuthToken } from '../../../api/auth';
-import { deleteAccount as apiDeleteAccount } from '../../../api/account';
-import { apiGet, apiPost } from '../../../api/client';
-import { launchImageLibraryAsync, requestMediaLibraryPermissionsAsync, MediaTypeOptions } from 'expo-image-picker';
-import { uploadImage } from '../../../api/cloudinary';
-import PostCard from '../../../components/PostCard';
-import { mockData } from '../../../data/mockData';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions } from "@react-navigation/native";
+import { clearAuthSession, getAuthToken } from "../../../api/auth";
+import { deleteAccount as apiDeleteAccount } from "../../../api/account";
+import { apiGet, apiPost } from "../../../api/client";
+import {
+  launchImageLibraryAsync,
+  requestMediaLibraryPermissionsAsync,
+  MediaTypeOptions,
+} from "expo-image-picker";
+import { uploadImage } from "../../../api/cloudinary";
+import PostCard from "../../../components/PostCard";
+import { mockData } from "../../../data/mockData";
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const PRIMARY_COLOR = "#6A0DAD";
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 export default function SponsorProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -33,8 +37,9 @@ export default function SponsorProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteInput, setDeleteInput] = useState('');
+  const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -44,50 +49,70 @@ export default function SponsorProfileScreen({ navigation }) {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const email = await AsyncStorage.getItem('auth_email');
-      let role = 'sponsor';
+      const email = await AsyncStorage.getItem("auth_email");
+      let role = "sponsor";
       let fullProfile = null;
       try {
-        const profRes = await apiPost('/auth/get-user-profile', email ? { email } : {}, 15000, token);
-        role = profRes?.role || 'sponsor';
+        const profRes = await apiPost(
+          "/auth/get-user-profile",
+          email ? { email } : {},
+          15000,
+          token
+        );
+        role = profRes?.role || "sponsor";
         fullProfile = profRes?.profile || null;
       } catch (_) {}
 
-      if (!fullProfile || role !== 'sponsor') {
-        const sponsorProfile = mockData.sponsors[0];
-        const sponsorPosts = mockData.posts.filter(post => post.author_type === 'sponsor' && post.author_id === sponsorProfile.id);
-        setProfile(sponsorProfile);
-        setPosts(sponsorPosts);
+      if (!fullProfile || role !== "sponsor") {
+        setAuthError(true);
+        setProfile(null);
+        setPosts([]);
         return;
       }
 
       const userId = fullProfile.id;
-      const userType = 'sponsor';
+      const userType = "sponsor";
 
       let followerCount = 0;
       let followingCount = 0;
       try {
-        const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+        const counts = await apiGet(
+          `/follow/counts/${userId}/${userType}`,
+          15000,
+          token
+        );
         followerCount = counts?.followers || 0;
         followingCount = counts?.following || 0;
       } catch (_) {}
 
       let userPosts = [];
       try {
-        const postsRes = await apiGet(`/posts/user/${userId}/${userType}`, 15000, token);
+        const postsRes = await apiGet(
+          `/posts/user/${userId}/${userType}`,
+          15000,
+          token
+        );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch (_) {}
 
       const mapped = {
         id: userId,
-        brand_name: fullProfile.brand_name || fullProfile.name || '',
-        username: fullProfile.username || '',
-        category: fullProfile.category || '',
-        logo_url: fullProfile.logo_url || '',
-        bio: fullProfile.bio || '',
-        interests: Array.isArray(fullProfile.interests) ? fullProfile.interests : (fullProfile.interests ? JSON.parse(fullProfile.interests) : []),
-        cities: Array.isArray(fullProfile.cities) ? fullProfile.cities : (fullProfile.cities ? JSON.parse(fullProfile.cities) : []),
-        requirements: fullProfile.requirements || '',
+        brand_name: fullProfile.brand_name || fullProfile.name || "",
+        username: fullProfile.username || "",
+        category: fullProfile.category || "",
+        logo_url: fullProfile.logo_url || "",
+        bio: fullProfile.bio || "",
+        interests: Array.isArray(fullProfile.interests)
+          ? fullProfile.interests
+          : fullProfile.interests
+          ? JSON.parse(fullProfile.interests)
+          : [],
+        cities: Array.isArray(fullProfile.cities)
+          ? fullProfile.cities
+          : fullProfile.cities
+          ? JSON.parse(fullProfile.cities)
+          : [],
+        requirements: fullProfile.requirements || "",
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
@@ -95,59 +120,67 @@ export default function SponsorProfileScreen({ navigation }) {
 
       setProfile(mapped);
       setPosts(userPosts);
+      setAuthError(false);
+    } catch (error) {
+      console.error("[SponsorProfile] error loading profile:", error);
+      setAuthError(true);
+      setProfile(null);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Close settings modal first
-              setShowSettingsModal(false);
-              
-              // Clear all authentication data
-              await clearAuthSession();
-              await AsyncStorage.multiRemove(['accessToken', 'userData', 'auth_token', 'auth_email', 'pending_otp']);
-              
-              // Get the root navigator by going up the navigation hierarchy
-              let rootNavigator = navigation;
-              
-              // Try to get parent navigator (go up from SponsorProfileScreen -> SponsorBottomTabNavigator)
-              if (navigation.getParent) {
-                const parent = navigation.getParent();
-                if (parent) {
-                  // Go up one more level (from SponsorBottomTabNavigator to AppNavigator)
-                  rootNavigator = parent.getParent ? parent.getParent() : parent;
-                }
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Close settings modal first
+            setShowSettingsModal(false);
+
+            // Clear all authentication data
+            await clearAuthSession();
+            await AsyncStorage.multiRemove([
+              "accessToken",
+              "userData",
+              "auth_token",
+              "auth_email",
+              "pending_otp",
+            ]);
+
+            // Get the root navigator by going up the navigation hierarchy
+            let rootNavigator = navigation;
+
+            // Try to get parent navigator (go up from SponsorProfileScreen -> SponsorBottomTabNavigator)
+            if (navigation.getParent) {
+              const parent = navigation.getParent();
+              if (parent) {
+                // Go up one more level (from SponsorBottomTabNavigator to AppNavigator)
+                rootNavigator = parent.getParent ? parent.getParent() : parent;
               }
-              
-              // Reset navigation stack to Landing using root navigator
-              rootNavigator.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'Landing' }],
-                })
-              );
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout properly');
             }
-          },
+
+            // Reset navigation stack to Landing using root navigator
+            rootNavigator.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: "Landing" }],
+              })
+            );
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert("Error", "Failed to logout properly");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderPost = ({ item }) => (
@@ -177,46 +210,93 @@ export default function SponsorProfileScreen({ navigation }) {
               <Ionicons name="close" size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity style={styles.settingsItem} onPress={async () => {
-            try {
-              const perm = await requestMediaLibraryPermissionsAsync();
-              if (!perm.granted) { Alert.alert('Permission Required', 'Allow photo access to change logo'); return; }
-              const picker = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: [1,1], quality: 0.85 });
-              if (picker.canceled || !picker.assets || !picker.assets[0]) return;
-              const uri = picker.assets[0].uri;
-              const secureUrl = await uploadImage(uri);
-              const token = await getAuthToken();
-              await apiPost('/sponsors/profile/logo', { logo_url: secureUrl }, 15000, token);
-              setProfile(prev => ({ ...prev, logo_url: secureUrl }));
-              Alert.alert('Updated', 'Logo updated');
-            } catch (e) {
-              Alert.alert('Update failed', e?.message || 'Could not update logo');
-            }
-          }}>
+
+          <TouchableOpacity
+            style={styles.settingsItem}
+            onPress={async () => {
+              try {
+                const perm = await requestMediaLibraryPermissionsAsync();
+                if (!perm.granted) {
+                  Alert.alert(
+                    "Permission Required",
+                    "Allow photo access to change logo"
+                  );
+                  return;
+                }
+                const picker = await launchImageLibraryAsync({
+                  mediaTypes: MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.85,
+                });
+                if (picker.canceled || !picker.assets || !picker.assets[0])
+                  return;
+                const uri = picker.assets[0].uri;
+                const secureUrl = await uploadImage(uri);
+                const token = await getAuthToken();
+                await apiPost(
+                  "/sponsors/profile/logo",
+                  { logo_url: secureUrl },
+                  15000,
+                  token
+                );
+                setProfile((prev) => ({ ...prev, logo_url: secureUrl }));
+                Alert.alert("Updated", "Logo updated");
+              } catch (e) {
+                Alert.alert(
+                  "Update failed",
+                  e?.message || "Could not update logo"
+                );
+              }
+            }}
+          >
             <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
             <Text style={styles.settingsText}>Change Logo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingsItem} onPress={() => setShowDeleteModal(true)}>
+          <TouchableOpacity
+            style={styles.settingsItem}
+            onPress={() => setShowDeleteModal(true)}
+          >
             <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Delete Account</Text>
+            <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
+              Delete Account
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-            <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Logout</Text>
+            <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
+              Logout
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 
-  if (loading || !profile) {
+  if (loading && !profile && !authError) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text>Loading profile...</Text>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (authError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text style={styles.errorText}>
+            Unexpected error. Please re-login
+          </Text>
+          <TouchableOpacity style={styles.reloginButton} onPress={handleLogout}>
+            <Text style={styles.reloginButtonText}>Re-login</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -241,21 +321,28 @@ export default function SponsorProfileScreen({ navigation }) {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
-            <Image 
-              source={{ 
-                uri: profile.logo_url && /^https?:\/\//.test(profile.logo_url)
-                  ? profile.logo_url 
-                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.brand_name || 'Sponsor')}&background=6A0DAD&color=FFFFFF&size=80&bold=true`
-              }} 
-              style={styles.logo} 
+            <Image
+              source={{
+                uri:
+                  profile.logo_url && /^https?:\/\//.test(profile.logo_url)
+                    ? profile.logo_url
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        profile.brand_name || "Sponsor"
+                      )}&background=6A0DAD&color=FFFFFF&size=80&bold=true`,
+              }}
+              style={styles.logo}
             />
             <View style={styles.profileInfo}>
               <Text style={styles.brandName}>{profile.brand_name}</Text>
               <Text style={styles.username}>@{profile.username}</Text>
               <Text style={styles.category}>{profile.category}</Text>
               <View style={styles.locationContainer}>
-                <Ionicons name="location-outline" size={16} color={LIGHT_TEXT_COLOR} />
-                <Text style={styles.cities}>{profile.cities.join(', ')}</Text>
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={LIGHT_TEXT_COLOR}
+                />
+                <Text style={styles.cities}>{profile.cities.join(", ")}</Text>
               </View>
             </View>
           </View>
@@ -319,8 +406,16 @@ export default function SponsorProfileScreen({ navigation }) {
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: LIGHT_TEXT_COLOR }}>No posts</Text>
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: LIGHT_TEXT_COLOR,
+                  }}
+                >
+                  No posts
+                </Text>
               </View>
             }
           />
@@ -340,49 +435,85 @@ export default function SponsorProfileScreen({ navigation }) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Delete Account</Text>
-              <TouchableOpacity onPress={() => setShowDeleteModal(false)} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(false)}
+                style={styles.closeButton}
+              >
                 <Ionicons name="close" size={24} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>This is permanent and cannot be undone. Type "delete" to confirm.</Text>
+              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
+                This is permanent and cannot be undone. Type "delete" to
+                confirm.
+              </Text>
               <TextInput
                 value={deleteInput}
                 onChangeText={setDeleteInput}
                 placeholder="Type delete"
                 autoCapitalize="none"
-                style={{ borderWidth: 1, borderColor: '#E5E5EA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16 }}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#E5E5EA",
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  marginBottom: 16,
+                }}
               />
               <TouchableOpacity
-                disabled={deleting || (deleteInput.trim().toLowerCase() !== 'delete')}
+                disabled={
+                  deleting || deleteInput.trim().toLowerCase() !== "delete"
+                }
                 onPress={async () => {
-                  if (deleteInput.trim().toLowerCase() !== 'delete') return;
+                  if (deleteInput.trim().toLowerCase() !== "delete") return;
                   setDeleting(true);
                   try {
-                    const { switchedToAccount, navigateToLanding } = await apiDeleteAccount();
+                    const { switchedToAccount, navigateToLanding } =
+                      await apiDeleteAccount();
                     setShowDeleteModal(false);
-                    
+
                     if (navigateToLanding || !switchedToAccount) {
-                      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Landing" }],
+                      });
                     } else {
                       const routeMap = {
-                        member: 'MemberHome',
-                        community: 'CommunityHome',
-                        sponsor: 'SponsorHome',
-                        venue: 'VenueHome',
+                        member: "MemberHome",
+                        community: "CommunityHome",
+                        sponsor: "SponsorHome",
+                        venue: "VenueHome",
                       };
-                      const routeName = routeMap[switchedToAccount.type] || 'Landing';
-                      navigation.reset({ index: 0, routes: [{ name: routeName }] });
+                      const routeName =
+                        routeMap[switchedToAccount.type] || "Landing";
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: routeName }],
+                      });
                     }
                   } catch (e) {
-                    Alert.alert('Delete failed', e?.message || 'Could not delete account');
+                    Alert.alert(
+                      "Delete failed",
+                      e?.message || "Could not delete account"
+                    );
                   } finally {
                     setDeleting(false);
                   }
                 }}
-                style={{ backgroundColor: (deleteInput.trim().toLowerCase() === 'delete' ? '#FF3B30' : '#FFAAA3'), paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                style={{
+                  backgroundColor:
+                    deleteInput.trim().toLowerCase() === "delete"
+                      ? "#FF3B30"
+                      : "#FFAAA3",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: "center",
+                }}
               >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>{deleting ? 'Deleting...' : 'Delete Account'}</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  {deleting ? "Deleting..." : "Delete Account"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -395,12 +526,12 @@ export default function SponsorProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   scrollView: {
     flex: 1,
@@ -410,13 +541,13 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   settingsButton: {
@@ -427,7 +558,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   profileHeader: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 15,
   },
   logo: {
@@ -438,11 +569,11 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   brandName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 2,
   },
@@ -454,12 +585,12 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 16,
     color: PRIMARY_COLOR,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 5,
   },
   locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   cities: {
     fontSize: 14,
@@ -473,20 +604,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginBottom: 20,
     paddingVertical: 15,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
   },
   statItem: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   statLabel: {
@@ -499,7 +630,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 10,
   },
@@ -512,8 +643,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   interestsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   interestTag: {
@@ -524,19 +655,19 @@ const styles = StyleSheet.create({
   },
   interestText: {
     fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
   },
   citiesContainer: {
     marginBottom: 20,
   },
   citiesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   cityTag: {
-    backgroundColor: '#F8F5FF',
+    backgroundColor: "#F8F5FF",
     borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -546,7 +677,7 @@ const styles = StyleSheet.create({
   cityText: {
     fontSize: 12,
     color: PRIMARY_COLOR,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   postsSection: {
     paddingHorizontal: 20,
@@ -554,41 +685,67 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingBottom: 40,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   closeButton: {
     padding: 5,
   },
   settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   settingsText: {
     fontSize: 16,
     marginLeft: 15,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#FFF",
+  },
+  errorText: {
+    fontSize: 18,
+    color: TEXT_COLOR,
+    textAlign: "center",
+    marginTop: 15,
+    marginBottom: 20,
+    fontWeight: "600",
+  },
+  reloginButton: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 25,
+  },
+  reloginButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

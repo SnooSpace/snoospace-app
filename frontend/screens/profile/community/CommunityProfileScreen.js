@@ -115,6 +115,7 @@ export default function CommunityProfileScreen({ navigation }) {
     visible: false,
     postId: null,
   });
+  const [authError, setAuthError] = useState(false);
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
@@ -338,23 +339,9 @@ export default function CommunityProfileScreen({ navigation }) {
       }
 
       if (!fullProfile) {
-        const communityProfile = mockData.communities[0];
-        const categoriesFallback =
-          Array.isArray(communityProfile.categories) &&
-          communityProfile.categories.length
-            ? communityProfile.categories
-            : communityProfile.category
-            ? [communityProfile.category]
-            : [];
-        communityProfile.categories = categoriesFallback;
-        communityProfile.category =
-          categoriesFallback[0] || communityProfile.category || "";
-        const communityPosts = mockData.posts.filter(
-          (p) =>
-            p.author_type === "community" && p.author_id === communityProfile.id
-        );
-        setProfile(communityProfile);
-        setPosts(communityPosts);
+        setAuthError(true);
+        setProfile(null);
+        setPosts([]);
         return;
       }
 
@@ -461,6 +448,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
       setProfile(mappedProfile);
       setPosts(userPosts);
+      setAuthError(false);
       // Initialize counts polling with initial values
       initializeCounts({
         follower_count: followerCount,
@@ -468,23 +456,10 @@ export default function CommunityProfileScreen({ navigation }) {
         post_count: userPosts.length,
       });
     } catch (error) {
-      const communityProfile = mockData.communities[0];
-      const categoriesFallback =
-        Array.isArray(communityProfile.categories) &&
-        communityProfile.categories.length
-          ? communityProfile.categories
-          : communityProfile.category
-          ? [communityProfile.category]
-          : [];
-      communityProfile.categories = categoriesFallback;
-      communityProfile.category =
-        categoriesFallback[0] || communityProfile.category || "";
-      const communityPosts = mockData.posts.filter(
-        (p) =>
-          p.author_type === "community" && p.author_id === communityProfile.id
-      );
-      setProfile(communityProfile);
-      setPosts(communityPosts);
+      console.error("[CommunityProfile] error loading profile:", error);
+      setAuthError(true);
+      setProfile(null);
+      setPosts([]);
     } finally {
       if (!initialLoadCompletedRef.current) {
         setLoading(false);
@@ -787,6 +762,26 @@ export default function CommunityProfileScreen({ navigation }) {
           <SkeletonProfileHeader type="community" />
           <SkeletonPostGrid />
         </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (authError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={COLORS.error || "#FF4B2B"}
+          />
+          <Text style={styles.errorText}>
+            Unexpected error. Please re-login
+          </Text>
+          <TouchableOpacity style={styles.reloginButton} onPress={handleLogout}>
+            <Text style={styles.reloginButtonText}>Re-login</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -2393,5 +2388,32 @@ const postModalStyles = StyleSheet.create({
   handleContainer: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.xl,
+    backgroundColor: COLORS.background || "#FFF",
+  },
+  errorText: {
+    fontSize: 18,
+    color: COLORS.textPrimary || "#000",
+    textAlign: "center",
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    fontWeight: "600",
+  },
+  reloginButton: {
+    backgroundColor: COLORS.primary || "#00C6FF",
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: BORDER_RADIUS.pill || 25,
+    ...SHADOWS.small,
+  },
+  reloginButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

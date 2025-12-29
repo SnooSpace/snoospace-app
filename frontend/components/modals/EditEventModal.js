@@ -76,7 +76,9 @@ export default function EditEventModal({
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
+  const [hasEndTime, setHasEndTime] = useState(false);
 
   const stepLabels = [
     "Basic Info",
@@ -94,9 +96,14 @@ export default function EditEventModal({
       setEventDate(
         eventData.event_date ? new Date(eventData.event_date) : new Date()
       );
-      setEndDate(
-        eventData.end_datetime ? new Date(eventData.end_datetime) : new Date()
-      );
+      if (eventData.end_datetime) {
+        setEndDate(new Date(eventData.end_datetime));
+        setHasEndTime(true);
+      } else {
+        setEndDate(new Date(eventData.event_date || new Date()));
+        setHasEndTime(false);
+      }
+
       setGatesOpenTime(
         eventData.gates_open_time ? new Date(eventData.gates_open_time) : null
       );
@@ -121,7 +128,9 @@ export default function EditEventModal({
       setDiscountCodes(eventData.discount_codes || []);
       setPricingRules(eventData.pricing_rules || []);
       // Transform categories from objects (with id, name, etc.) to array of IDs
-      const categoryIds = (eventData.categories || []).map((c) => c.id);
+      const categoryIds = (eventData.categories || []).map((c) =>
+        typeof c === "object" ? c.id : c
+      );
       setCategories(categoryIds);
       setCurrentStep(1);
 
@@ -134,7 +143,8 @@ export default function EditEventModal({
           : new Date().toISOString(),
         endDate: eventData.end_datetime
           ? new Date(eventData.end_datetime).toISOString()
-          : new Date().toISOString(),
+          : null,
+        hasEndTime: !!eventData.end_datetime,
         hasGates: !!eventData.gates_open_time,
         eventType: eventData.event_type || "in-person",
         locationUrl: eventData.location_url || "",
@@ -160,7 +170,8 @@ export default function EditEventModal({
       title !== initialSnapshot.title ||
       description !== initialSnapshot.description ||
       eventDate.toISOString() !== initialSnapshot.eventDate ||
-      endDate.toISOString() !== initialSnapshot.endDate ||
+      (hasEndTime ? endDate.toISOString() : null) !== initialSnapshot.endDate ||
+      hasEndTime !== initialSnapshot.hasEndTime ||
       hasGates !== initialSnapshot.hasGates ||
       eventType !== initialSnapshot.eventType ||
       locationUrl !== initialSnapshot.locationUrl ||
@@ -256,8 +267,9 @@ export default function EditEventModal({
       const updateData = {
         title: title.trim(),
         description: description.trim(),
+        event_date: eventDate.toISOString(),
         start_datetime: eventDate.toISOString(),
-        end_datetime: endDate.toISOString(),
+        end_datetime: hasEndTime ? endDate.toISOString() : null,
         gates_open_time:
           hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
         location_url: locationUrl.trim() || null,
@@ -337,6 +349,58 @@ export default function EditEventModal({
               </Text>
             </TouchableOpacity>
 
+            {/* End Time - Optional */}
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                alignItems: "flex-end",
+                marginTop: 10,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>End Time (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={hasEndTime ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+                  />
+                  <Text
+                    style={[
+                      styles.dateButtonText,
+                      !hasEndTime && { color: LIGHT_TEXT_COLOR },
+                    ]}
+                  >
+                    {hasEndTime
+                      ? endDate.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Not set"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {hasEndTime && (
+                <TouchableOpacity
+                  style={{ paddingBottom: 15 }}
+                  onPress={() => {
+                    setHasEndTime(false);
+                    setEndDate(new Date(eventDate));
+                  }}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={24}
+                    color={LIGHT_TEXT_COLOR}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
             {(showDatePicker || showTimePicker) && (
               <DateTimePicker
                 value={eventDate}
@@ -360,7 +424,42 @@ export default function EditEventModal({
                       );
                     }
                     setEventDate(combined);
-                    setEndDate(combined);
+                    if (!hasEndTime) {
+                      setEndDate(combined);
+                    } else if (endDate < combined) {
+                      // If start moves past end, reset end to same as start
+                      setEndDate(combined);
+                    }
+                  }
+                }}
+              />
+            )}
+
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="time"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowEndTimePicker(false);
+                  if (selectedDate) {
+                    // Start with the same date as eventDate
+                    const nextEndDate = new Date(eventDate);
+                    nextEndDate.setHours(
+                      selectedDate.getHours(),
+                      selectedDate.getMinutes(),
+                      0,
+                      0
+                    );
+
+                    // If the selected time is earlier than the start time,
+                    // assume it's for the next day (e.g., 7 PM to 2 AM)
+                    if (nextEndDate < eventDate) {
+                      nextEndDate.setDate(nextEndDate.getDate() + 1);
+                    }
+
+                    setEndDate(nextEndDate);
+                    setHasEndTime(true);
                   }
                 }}
               />
@@ -514,17 +613,133 @@ export default function EditEventModal({
         return (
           <ScrollView
             style={styles.stepContent}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={styles.scrollContent}
           >
-            <Text style={styles.stepTitle}>Review</Text>
-            <View style={styles.reviewSection}>
-              <Text style={styles.reviewLabel}>Title</Text>
-              <Text style={styles.reviewValue}>{title}</Text>
+            <Text style={styles.stepTitle}>Review Changes</Text>
+            <Text style={styles.reviewSubtitle}>
+              Verify your updates before saving
+            </Text>
+
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Event Title</Text>
+                <Text style={styles.reviewValue}>
+                  {title || "No title set"}
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Date & Time</Text>
+                <Text style={styles.reviewValue}>
+                  {eventDate.toLocaleDateString()} at{" "}
+                  {eventDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                {hasEndTime && (
+                  <Text style={styles.reviewSubValue}>
+                    Ends:{" "}
+                    {endDate.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {endDate.getDate() !== eventDate.getDate()
+                      ? ` (${endDate.toLocaleDateString()})`
+                      : ""}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Event Type</Text>
+                <Text style={styles.reviewValue}>
+                  {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
+                </Text>
+              </View>
+
+              {eventType !== "virtual" ? (
+                <View style={styles.reviewSection}>
+                  <Text style={styles.reviewLabel}>Location</Text>
+                  <Text style={styles.reviewValue} numberOfLines={2}>
+                    {locationUrl || "No location set"}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.reviewSection}>
+                  <Text style={styles.reviewLabel}>Virtual Link</Text>
+                  <Text style={styles.reviewValue} numberOfLines={2}>
+                    {virtualLink || "No link set"}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Ticket Tiers</Text>
+                {ticketTypes.map((t, idx) => (
+                  <Text key={idx} style={styles.reviewValue}>
+                    • {t.name}: ₹{t.base_price} ({t.total_quantity} qty)
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Media</Text>
+                <Text style={styles.reviewValue}>
+                  {bannerCarousel.length} Banners, {gallery.length} Gallery
+                  images
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Description</Text>
+                <Text style={styles.reviewValue} numberOfLines={3}>
+                  {description
+                    ? description.replace(/<[^>]*>?/gm, "")
+                    : "No description"}
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Highlights</Text>
+                {highlights.length > 0 ? (
+                  highlights.map((h, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {h.title}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Featured Accounts</Text>
+                {featuredAccounts.length > 0 ? (
+                  featuredAccounts.map((a, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {a.display_name || a.account_name} ({a.role})
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Things to Know</Text>
+                {thingsToKnow.length > 0 ? (
+                  thingsToKnow.map((item, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {item.label}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
             </View>
-            <View style={styles.reviewSection}>
-              <Text style={styles.reviewLabel}>Type</Text>
-              <Text style={styles.reviewValue}>{eventType}</Text>
-            </View>
+
             <View style={styles.infoBanner}>
               <Ionicons
                 name="information-circle"
@@ -532,7 +747,8 @@ export default function EditEventModal({
                 color={PRIMARY_COLOR}
               />
               <Text style={styles.infoText}>
-                Attendees will be notified of key changes.
+                Attendees will be notified of key changes to date, title, or
+                location.
               </Text>
             </View>
           </ScrollView>
@@ -779,13 +995,43 @@ const styles = StyleSheet.create({
   },
   eventTypeText: { fontSize: 13, fontWeight: "500", color: LIGHT_TEXT_COLOR },
   eventTypeTextActive: { color: PRIMARY_COLOR, fontWeight: "600" },
-  reviewSection: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+  reviewSubtitle: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 20,
   },
-  reviewLabel: { fontSize: 13, color: LIGHT_TEXT_COLOR, marginBottom: 4 },
-  reviewValue: { fontSize: 16, fontWeight: "500", color: TEXT_COLOR },
+  reviewCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+  },
+  reviewSection: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingBottom: 12,
+  },
+  reviewLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: LIGHT_TEXT_COLOR,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  reviewValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+    lineHeight: 20,
+  },
+  reviewSubValue: {
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 2,
+  },
   infoBanner: {
     flexDirection: "row",
     alignItems: "flex-start",

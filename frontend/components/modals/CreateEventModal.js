@@ -109,24 +109,27 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   };
 
   const getCurrentFormData = () => ({
-    title,
-    eventDate: eventDate.toISOString(),
-    endDate: hasEndTime ? endDate.toISOString() : null,
-    hasEndTime,
-    gatesOpenTime: gatesOpenTime ? gatesOpenTime.toISOString() : null,
-    hasGates,
-    eventType,
-    locationUrl,
-    virtualLink,
-    maxAttendees,
-    ticketTypes,
-    categories,
-    bannerCarousel,
-    gallery,
-    description,
-    highlights,
-    featuredAccounts,
-    thingsToKnow,
+    title: title.trim(),
+    event_date: eventDate.toISOString(),
+    start_datetime: eventDate.toISOString(),
+    end_datetime: hasEndTime ? endDate.toISOString() : null,
+    has_end_time: hasEndTime,
+    gates_open_time: gatesOpenTime ? gatesOpenTime.toISOString() : null,
+    has_gates: hasGates,
+    event_type: eventType,
+    location_url: locationUrl,
+    virtual_link: virtualLink,
+    max_attendees: maxAttendees,
+    ticket_types: ticketTypes,
+    discount_codes: discountCodes,
+    pricing_rules: pricingRules,
+    categories: categories,
+    banner_carousel: bannerCarousel,
+    gallery: gallery,
+    description: description,
+    highlights: highlights,
+    featured_accounts: featuredAccounts,
+    things_to_know: thingsToKnow,
   });
 
   const saveDraft = async (silent = false) => {
@@ -145,29 +148,59 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     try {
       const account = await getActiveAccount();
       const draft = await loadDraftUtil(account.id);
-      if (draft) {
+      if (draft && draft.data) {
         setTitle(draft.data.title || "");
-        setEventDate(new Date(draft.data.eventDate));
-        if (draft.data.hasEndTime && draft.data.endDate) {
-          setEndDate(new Date(draft.data.endDate));
+
+        // Handle both old camelCase and new snake_case keys for backward compatibility with existing drafts
+        const dateStr = draft.data.event_date || draft.data.eventDate;
+        if (dateStr) setEventDate(new Date(dateStr));
+
+        const hasEnd =
+          draft.data.has_end_time !== undefined
+            ? draft.data.has_end_time
+            : draft.data.hasEndTime;
+        const endStr = draft.data.end_datetime || draft.data.endDate;
+
+        if (hasEnd && endStr) {
+          setEndDate(new Date(endStr));
           setHasEndTime(true);
         } else {
           setHasEndTime(false);
         }
-        setHasGates(draft.data.hasGates || false);
-        setEventType(draft.data.eventType || "in-person");
-        setLocationUrl(draft.data.locationUrl || "");
-        setVirtualLink(draft.data.virtualLink || "");
-        setBannerCarousel(draft.data.bannerCarousel || []);
+
+        setHasGates(
+          draft.data.has_gates !== undefined
+            ? draft.data.has_gates
+            : draft.data.hasGates || false
+        );
+        setEventType(
+          draft.data.event_type || draft.data.eventType || "in-person"
+        );
+        setLocationUrl(draft.data.location_url || draft.data.locationUrl || "");
+        setVirtualLink(draft.data.virtual_link || draft.data.virtualLink || "");
+        setBannerCarousel(
+          draft.data.banner_carousel || draft.data.bannerCarousel || []
+        );
         setGallery(draft.data.gallery || []);
         setDescription(draft.data.description || "");
         setHighlights(draft.data.highlights || []);
-        setFeaturedAccounts(draft.data.featuredAccounts || []);
-        setThingsToKnow(draft.data.thingsToKnow || []);
+        setFeaturedAccounts(
+          draft.data.featured_accounts || draft.data.featuredAccounts || []
+        );
+        setThingsToKnow(
+          draft.data.things_to_know || draft.data.thingsToKnow || []
+        );
+
+        // Also load categories if they exist
+        if (draft.data.categories) setCategories(draft.data.categories);
+        // Load ticket types
+        if (draft.data.ticket_types) setTicketTypes(draft.data.ticket_types);
+
         setCurrentStep(draft.currentStep || 1);
         setShowDraftPrompt(false);
       }
     } catch (error) {
+      console.error("[CreateEventModal] Error loading draft:", error);
       Alert.alert("Error", "Failed to load draft");
     }
   };
@@ -263,11 +296,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setCreating(true);
     setCreationError(null);
     try {
-      const response = await createEvent({
-        ...getCurrentFormData(),
-        start_datetime: eventDate.toISOString(),
-        end_datetime: hasEndTime ? endDate.toISOString() : null,
-      });
+      const response = await createEvent(getCurrentFormData());
       if (response?.event) {
         Alert.alert("Success", "Event created successfully!", [
           {
@@ -401,27 +430,45 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 onChange={(e, date) => {
                   setShowDatePicker(false);
                   setShowTimePicker(false);
-                  if (date) setEventDate(date);
+                  if (date) {
+                    const combined = new Date(date);
+                    setEventDate(combined);
+                    // If end time is set, adjust it if it's now before the start time
+                    if (hasEndTime) {
+                      if (endDate < combined) {
+                        // If start moves past end, reset end to same as start
+                        setEndDate(combined);
+                      }
+                    }
+                  }
                 }}
               />
             )}
 
             {showEndTimePicker && (
               <DateTimePicker
-                value={hasEndTime ? endDate : eventDate}
+                value={endDate}
                 mode="time"
-                onChange={(e, date) => {
+                display="default"
+                onChange={(event, selectedDate) => {
                   setShowEndTimePicker(false);
-                  if (date) {
-                    // Copy the start date but with the selected end time
-                    const newEndDate = new Date(eventDate);
-                    newEndDate.setHours(
-                      date.getHours(),
-                      date.getMinutes(),
+                  if (selectedDate) {
+                    // Start with the same date as eventDate
+                    const nextEndDate = new Date(eventDate);
+                    nextEndDate.setHours(
+                      selectedDate.getHours(),
+                      selectedDate.getMinutes(),
                       0,
                       0
                     );
-                    setEndDate(newEndDate);
+
+                    // If the selected time is earlier than the start time,
+                    // assume it's for the next day (e.g., 7 PM to 2 AM)
+                    if (nextEndDate < eventDate) {
+                      nextEndDate.setDate(nextEndDate.getDate() + 1);
+                    }
+
+                    setEndDate(nextEndDate);
                     setHasEndTime(true);
                   }
                 }}
@@ -559,11 +606,142 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         );
       case 7:
         return (
-          <ScrollView style={styles.stepContent}>
+          <ScrollView
+            style={styles.stepContent}
+            contentContainerStyle={styles.scrollContent}
+          >
             <Text style={styles.stepTitle}>Review</Text>
-            <View style={styles.reviewSection}>
-              <Text style={styles.reviewLabel}>Title</Text>
-              <Text style={styles.reviewValue}>{title}</Text>
+            <Text style={styles.reviewSubtitle}>
+              Check your event details before publishing
+            </Text>
+
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Event Title</Text>
+                <Text style={styles.reviewValue}>
+                  {title || "No title set"}
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Date & Time</Text>
+                <Text style={styles.reviewValue}>
+                  {eventDate.toLocaleDateString()} at{" "}
+                  {eventDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                {hasEndTime && (
+                  <Text style={styles.reviewSubValue}>
+                    Ends:{" "}
+                    {endDate.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {endDate.getDate() !== eventDate.getDate()
+                      ? ` (${endDate.toLocaleDateString()})`
+                      : ""}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Event Type</Text>
+                <Text style={styles.reviewValue}>
+                  {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
+                </Text>
+              </View>
+
+              {eventType !== "virtual" ? (
+                <View style={styles.reviewSection}>
+                  <Text style={styles.reviewLabel}>Location</Text>
+                  <Text style={styles.reviewValue} numberOfLines={2}>
+                    {locationUrl || "No location set"}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.reviewSection}>
+                  <Text style={styles.reviewLabel}>Virtual Link</Text>
+                  <Text style={styles.reviewValue} numberOfLines={2}>
+                    {virtualLink || "No link set"}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Ticket Tiers</Text>
+                {ticketTypes.map((t, idx) => (
+                  <Text key={idx} style={styles.reviewValue}>
+                    • {t.name}: ₹{t.base_price} ({t.total_quantity} qty)
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Categories</Text>
+                <Text style={styles.reviewValue}>
+                  {categories.length > 0
+                    ? `${categories.length} categories selected`
+                    : "None selected"}
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Media</Text>
+                <Text style={styles.reviewValue}>
+                  {bannerCarousel.length} Banners, {gallery.length} Gallery
+                  images
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Description</Text>
+                <Text style={styles.reviewValue} numberOfLines={3}>
+                  {description
+                    ? description.replace(/<[^>]*>?/gm, "")
+                    : "No description"}
+                </Text>
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Highlights</Text>
+                {highlights.length > 0 ? (
+                  highlights.map((h, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {h.title}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Featured Accounts</Text>
+                {featuredAccounts.length > 0 ? (
+                  featuredAccounts.map((a, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {a.display_name || a.account_name} ({a.role})
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
+
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Things to Know</Text>
+                {thingsToKnow.length > 0 ? (
+                  thingsToKnow.map((item, idx) => (
+                    <Text key={idx} style={styles.reviewValue}>
+                      • {item.label}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.reviewValue}>None</Text>
+                )}
+              </View>
             </View>
           </ScrollView>
         );
@@ -796,13 +974,43 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nextButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  reviewSection: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F9FAFB",
+  reviewSubtitle: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 20,
   },
-  reviewLabel: { fontSize: 12, color: LIGHT_TEXT_COLOR, marginBottom: 4 },
-  reviewValue: { fontSize: 14, fontWeight: "600", color: TEXT_COLOR },
+  reviewCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+  },
+  reviewSection: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingBottom: 12,
+  },
+  reviewLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: LIGHT_TEXT_COLOR,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  reviewValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+    lineHeight: 20,
+  },
+  reviewSubValue: {
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 2,
+  },
   // Draft Modal
   draftPromptOverlay: {
     flex: 1,
