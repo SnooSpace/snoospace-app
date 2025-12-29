@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -11,9 +11,14 @@ import {
   Platform,
   Image,
   ActivityIndicator,
+  Modal,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { Camera, Image as ImageIcon, Hash, Info, X } from "lucide-react-native";
 import ImageUploader from "../../../components/ImageUploader";
 import MentionInput from "../../../components/MentionInput";
 import { apiPost } from "../../../api/client";
@@ -38,6 +43,9 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [createdPostData, setCreatedPostData] = useState(null);
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const insets = useSafeAreaInsets();
+  const imageUploaderRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -207,7 +215,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
             onPress: () => {
               setCaption("");
               setImages([]);
-              setAspectRatios([]); // NEW: Reset aspect ratios
+              setAspectRatios([]);
               setTaggedEntities([]);
               navigation.goBack();
             },
@@ -219,45 +227,95 @@ export default function CommunityCreatePostScreen({ navigation }) {
     }
   };
 
+  const renderGuidelinesModal = () => (
+    <Modal
+      visible={showGuidelines}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowGuidelines(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowGuidelines(false)}
+      >
+        <View style={styles.bottomSheet}>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Community Post Guidelines</Text>
+          </View>
+          <View style={styles.sheetContent}>
+            <Text style={styles.guidelineText}>
+              • Share updates about community events and activities
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Tag relevant members and partners
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Keep content relevant to your community
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Be respectful and inclusive
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.sheetCloseButton}
+            onPress={() => setShowGuidelines(false)}
+          >
+            <Text style={styles.sheetCloseButtonText}>Got it</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  const canSubmit = images.length > 0 || caption.trim().length > 0;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <CelebrationModal
         visible={showCelebration}
         onClose={handleCelebrationClose}
         type="post"
       />
+
+      <BlurView
+        intensity={80}
+        tint="light"
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
+        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
+          <X size={24} color={COLORS.textPrimary} strokeWidth={2.5} />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>New Post</Text>
+
+        <TouchableOpacity
+          onPress={handlePost}
+          disabled={!canSubmit || isPosting}
+          style={[
+            styles.postButton,
+            (!canSubmit || isPosting) && styles.postButtonDisabled,
+          ]}
+        >
+          {isPosting ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.postButtonText}>Post</Text>
+          )}
+        </TouchableOpacity>
+      </BlurView>
+
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Create Post</Text>
-
-          <TouchableOpacity
-            onPress={handlePost}
-            style={[
-              styles.postButton,
-              images.length === 0 && styles.postButtonDisabled,
-            ]}
-            disabled={images.length === 0 || isPosting}
-          >
-            <Text
-              style={[
-                styles.postButtonText,
-                images.length === 0 && styles.postButtonTextDisabled,
-              ]}
-            >
-              {isPosting ? "Posting..." : "Post"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {errorMsg ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -268,6 +326,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           ) : null}
+
           {/* Author Info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
@@ -279,60 +338,89 @@ export default function CommunityCreatePostScreen({ navigation }) {
                   style={styles.authorAvatarImage}
                 />
               ) : (
-                <Ionicons name="people" size={24} color={COLORS.primary} />
+                <Ionicons name="people" size={20} color={COLORS.primary} />
               )}
             </View>
             <View style={styles.authorDetails}>
               <Text style={styles.authorName}>
                 {profile?.name || "Your Community"}
               </Text>
-              {profileError ? (
-                <Text style={styles.authorError}>{profileError}</Text>
-              ) : (
-                <Text style={styles.authorType}>
-                  {profile?.username ? `@${profile.username}` : "Community"}
-                </Text>
-              )}
+              <Text style={styles.authorType}>
+                {profile?.username ? `@${profile.username}` : "Community"}
+              </Text>
             </View>
           </View>
 
-          {/* Caption Input with @ Mention Support */}
-          <View style={styles.captionContainer}>
+          {/* Caption Input */}
+          <View style={styles.composerSection}>
             <MentionInput
               value={caption}
               onChangeText={setCaption}
               onTaggedEntitiesChange={setTaggedEntities}
-              placeholder="What's happening in your community? Use @ to mention someone..."
-              placeholderTextColor={COLORS.textSecondary}
+              placeholder="What's happening? Use @ to mention..."
+              placeholderTextColor="#A0A0A0"
               maxLength={2000}
-              style={styles.mentionInput}
+              style={styles.mainInput}
+              autoFocus={true}
             />
+
+            {caption.length > 0 && (
+              <Text style={styles.counterText}>{caption.length}/2000</Text>
+            )}
           </View>
 
-          {/* Image Uploader */}
-          <View style={styles.imageSection}>
-            <Text style={styles.sectionTitle}>Add Photos</Text>
+          {/* Horizontal Image Tray */}
+          <View
+            style={[
+              styles.mediaTrayContainer,
+              images.length === 0 && { marginTop: 0, height: 0, opacity: 0 },
+            ]}
+          >
             <ImageUploader
+              ref={imageUploaderRef}
               onImagesChange={handleImageSelect}
               onAspectRatiosChange={handleAspectRatiosChange}
               maxImages={5}
+              horizontal={true}
+              initialImages={images}
             />
           </View>
-
-          {/* Post Guidelines */}
-          <View style={styles.guidelinesContainer}>
-            <Text style={styles.guidelinesTitle}>
-              Community Post Guidelines
-            </Text>
-            <Text style={styles.guidelinesText}>
-              • Share updates about community events and activities{"\n"}• Tag
-              relevant members and partners{"\n"}• Keep content relevant to your
-              community{"\n"}• Be respectful and inclusive
-            </Text>
-          </View>
         </ScrollView>
+
+        <View style={styles.toolbar}>
+          <View style={styles.toolbarContent}>
+            <TouchableOpacity
+              onPress={() => {
+                imageUploaderRef.current?.openCamera();
+              }}
+            >
+              <Camera size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                imageUploaderRef.current?.pick();
+              }}
+            >
+              <ImageIcon size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                /* Trigger Hash/Tag */
+              }}
+            >
+              <Hash size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+
+            <View style={{ flex: 1 }} />
+
+            <TouchableOpacity onPress={() => setShowGuidelines(true)}>
+              <Info size={22} color={COLORS.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      {renderGuidelinesModal()}
+    </View>
   );
 }
 
@@ -346,129 +434,113 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 100,
   },
-  cancelButton: {
-    padding: 5,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
+  closeButton: {
+    padding: 8,
+    marginLeft: -8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 17,
+    fontWeight: "700",
     color: COLORS.textPrimary,
   },
   postButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
+    minWidth: 70,
+    alignItems: "center",
   },
   postButtonDisabled: {
+    opacity: 0.5,
     backgroundColor: "#E5E5EA",
   },
   postButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  postButtonTextDisabled: {
-    color: COLORS.textSecondary,
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   authorInfo: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   authorAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#F8F5FF",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
+    marginRight: 12,
   },
   authorAvatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   authorDetails: {
     flex: 1,
   },
   authorName: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "700",
     color: COLORS.textPrimary,
   },
   authorType: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
-  authorError: {
-    fontSize: 12,
-    color: "#FF3B30",
+  composerSection: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
   },
-  captionContainer: {
-    paddingVertical: 20,
-  },
-  captionInput: {
-    fontSize: 16,
+  mainInput: {
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textPrimary,
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: "top",
   },
-  imageSection: {
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
-  },
-  tagSection: {
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 15,
-  },
-  guidelinesContainer: {
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
-    marginBottom: 20,
-  },
-  guidelinesTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 10,
-  },
-  guidelinesText: {
-    fontSize: 12,
+  counterText: {
+    fontSize: 11,
     color: COLORS.textSecondary,
-    lineHeight: 18,
+    textAlign: "right",
+    marginTop: 8,
+    fontWeight: "500",
+  },
+  mediaTrayContainer: {
+    marginTop: 20,
+    paddingLeft: 20,
+  },
+  toolbar: {
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+    backgroundColor: "#FFF",
+    paddingBottom: Platform.OS === "ios" ? 34 : 10,
+  },
+  toolbarContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 24,
   },
   errorBanner: {
     backgroundColor: "#FFE5E5",
     padding: 12,
     borderRadius: 8,
+    marginHorizontal: 20,
     marginVertical: 10,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -483,5 +555,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#FF3B30",
     fontWeight: "600",
+  },
+  // Bottom Sheet Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  bottomSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    minHeight: 300,
+  },
+  sheetHeader: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#E5E5E5",
+    borderRadius: 3,
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  sheetContent: {
+    paddingHorizontal: 24,
+    gap: 16,
+    marginTop: 10,
+  },
+  guidelineText: {
+    fontSize: 15,
+    color: "#555",
+    lineHeight: 22,
+  },
+  sheetCloseButton: {
+    backgroundColor: "#F8F9FA",
+    marginHorizontal: 24,
+    marginTop: 30,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  sheetCloseButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
   },
 });

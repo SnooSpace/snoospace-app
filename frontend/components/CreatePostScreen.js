@@ -11,10 +11,12 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { Camera, Image as ImageIcon, Hash, Info, X } from "lucide-react-native";
 import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
@@ -41,6 +43,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const imageUploaderRef = useRef(null);
 
   // Animation for Share button
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -302,92 +306,165 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     }
   };
 
-  const canSubmit =
-    images.length > 0 && (caption.trim() || taggedEntities.length > 0);
+  const canSubmit = images.length > 0 || caption.trim().length > 0;
+
+  const renderGuidelinesModal = () => (
+    <Modal
+      visible={showGuidelines}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowGuidelines(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowGuidelines(false)}
+      >
+        <View style={styles.bottomSheet}>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Post Guidelines</Text>
+          </View>
+          <View style={styles.sheetContent}>
+            <Text style={styles.guidelineText}>
+              • Be respectful and kind to everyone
+            </Text>
+            <Text style={styles.guidelineText}>
+              • No spam or inappropriate content
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Tag relevant people and places
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Share meaningful moments with your community
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.sheetCloseButton}
+            onPress={() => setShowGuidelines(false)}
+          >
+            <Text style={styles.sheetCloseButtonText}>Got it</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
 
   return (
     <View style={styles.safeArea}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={handleCancel} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textDark} />
+      <BlurView
+        intensity={80}
+        tint="light"
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
+        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
+          <X size={24} color={COLORS.textDark} strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Post</Text>
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity
-            onPress={() => {
-              HapticsService.triggerImpactLight();
-              handleSubmit();
-            }}
-            disabled={!canSubmit || isSubmitting}
-            style={[
-              styles.shareButton,
-              (!canSubmit || isSubmitting) && styles.shareButtonDisabled,
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Text style={styles.shareButtonText}>Share</Text>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
 
-      {/* Content */}
+        <Text style={styles.headerTitle}>New Post</Text>
+
+        <TouchableOpacity
+          onPress={() => {
+            HapticsService.triggerImpactLight();
+            handleSubmit();
+          }}
+          disabled={!canSubmit || isSubmitting}
+          style={[
+            styles.postButton,
+            (!canSubmit || isSubmitting) && styles.postButtonDisabled,
+          ]}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text style={styles.postButtonText}>Post</Text>
+          )}
+        </TouchableOpacity>
+      </BlurView>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.composerCard}>
-            {/* Caption Input with @ Mention Support */}
-            <View style={styles.captionContainer}>
-              <MentionInput
-                value={caption}
-                onChangeText={setCaption}
-                onTaggedEntitiesChange={setTaggedEntities}
-                placeholder="What's on your mind? Use @ to mention someone..."
-                placeholderTextColor={COLORS.textLight}
-                maxLength={2000}
-                style={styles.mentionInput}
-                currentUser={currentUser}
-              />
-              <Text style={styles.characterCount}>{caption.length}/2000</Text>
-            </View>
+          <View style={styles.composerSection}>
+            <MentionInput
+              value={caption}
+              onChangeText={setCaption}
+              onTaggedEntitiesChange={setTaggedEntities}
+              placeholder="What's on your mind? Use @ to mention..."
+              placeholderTextColor="#A0A0A0"
+              maxLength={2000}
+              style={styles.mainInput}
+              currentUser={currentUser}
+              autoFocus={true}
+              multiline={true}
+            />
 
-            {/* Image Uploader */}
-            <View style={styles.uploaderContainer}>
-              <ImageUploader
-                maxImages={10}
-                onImagesChange={handleImagesChange}
-                onAspectRatiosChange={handleAspectRatiosChange}
-                initialImages={images}
-              />
-              <Text style={styles.addPhotosLabel}>Add Photos</Text>
-            </View>
+            {caption.length > 0 && (
+              <Text style={styles.counterText}>{caption.length}/2000</Text>
+            )}
           </View>
 
-          {/* Post Guidelines */}
-          <View style={styles.guidelinesContainer}>
-            <Text style={styles.guidelinesTitle}>Post Guidelines:</Text>
-            <Text style={styles.guideline}>• Be respectful and kind</Text>
-            <Text style={styles.guideline}>
-              • No spam or inappropriate content
-            </Text>
-            <Text style={styles.guideline}>
-              • Tag relevant people and places
-            </Text>
-            <Text style={styles.guideline}>• Share meaningful moments</Text>
+          <View
+            style={[
+              styles.mediaTrayContainer,
+              images.length === 0 && { marginTop: 0, height: 0, opacity: 0 },
+            ]}
+          >
+            <ImageUploader
+              ref={imageUploaderRef}
+              maxImages={10}
+              onImagesChange={handleImagesChange}
+              onAspectRatiosChange={handleAspectRatiosChange}
+              initialImages={images}
+              horizontal={true}
+            />
           </View>
         </ScrollView>
+
+        <View style={styles.toolbar}>
+          <View style={styles.toolbarContent}>
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                imageUploaderRef.current?.openCamera();
+              }}
+            >
+              <Camera size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                imageUploaderRef.current?.pick();
+              }}
+            >
+              <ImageIcon size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                /* Tag logic could go here */
+              }}
+            >
+              <Hash size={22} color={COLORS.primary} strokeWidth={2} />
+            </TouchableOpacity>
+
+            <View style={{ flex: 1 }} />
+
+            <TouchableOpacity onPress={() => setShowGuidelines(true)}>
+              <Info size={22} color={COLORS.textLight} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
+      {renderGuidelinesModal()}
     </View>
   );
 };
@@ -403,35 +480,33 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    zIndex: 10,
+    zIndex: 100,
   },
-  backButton: {
-    padding: 4,
-    marginRight: 4,
+  closeButton: {
+    padding: 8,
+    marginLeft: -8,
   },
   headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "800", // Bolder title as requested
+    fontSize: 17,
+    fontWeight: "700",
     color: COLORS.textDark,
-    textAlign: "center",
   },
-  shareButton: {
+  postButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
+    minWidth: 70,
+    alignItems: "center",
   },
-  shareButtonDisabled: {
+  postButtonDisabled: {
+    opacity: 0.5,
     backgroundColor: COLORS.textLight,
   },
-  shareButtonText: {
-    color: COLORS.white,
+  postButtonText: {
+    color: "#FFF",
+    fontWeight: "700",
     fontSize: 14,
-    fontWeight: "600",
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -440,66 +515,95 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 30,
+    paddingTop: 10,
+    paddingBottom: 100,
   },
-  composerCard: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 20,
+  composerSection: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
-  captionContainer: {
-    marginBottom: 12,
-    minHeight: 100,
-  },
-  mentionInput: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
+  mainInput: {
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textDark,
+    minHeight: 120,
+    textAlignVertical: "top",
   },
-  characterCount: {
-    fontSize: 12,
+  counterText: {
+    fontSize: 11,
     color: COLORS.textLight,
     textAlign: "right",
     marginTop: 8,
+    fontWeight: "500",
   },
-  uploaderContainer: {
+  mediaTrayContainer: {
+    marginTop: 20,
+    paddingLeft: 20,
+  },
+  toolbar: {
     borderTopWidth: 1,
-    borderTopColor: "#E5E5E5",
-    paddingTop: 12,
+    borderTopColor: "#F0F0F0",
+    backgroundColor: "#FFF",
+    paddingBottom: Platform.OS === "ios" ? 34 : 10, // Account for home indicator
   },
-  addPhotosLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textLight,
-    marginTop: 4,
-    textAlign: "center",
+  toolbarContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 24,
   },
-  guidelinesContainer: {
-    backgroundColor: "#F8F9FA",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 30,
+  // Bottom Sheet Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  guidelinesTitle: {
-    fontSize: 14,
+  bottomSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    minHeight: 300,
+  },
+  sheetHeader: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#E5E5E5",
+    borderRadius: 3,
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+  sheetContent: {
+    paddingHorizontal: 24,
+    gap: 16,
+    marginTop: 10,
+  },
+  guidelineText: {
+    fontSize: 15,
+    color: "#555",
+    lineHeight: 22,
+  },
+  sheetCloseButton: {
+    backgroundColor: COLORS.cardBg,
+    marginHorizontal: 24,
+    marginTop: 30,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  sheetCloseButtonText: {
+    fontSize: 16,
     fontWeight: "600",
     color: COLORS.textDark,
-    marginBottom: 8,
-  },
-  guideline: {
-    fontSize: 13,
-    color: COLORS.textLight,
-    marginBottom: 4,
-    lineHeight: 18,
   },
 });
 

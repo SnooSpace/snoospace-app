@@ -16,7 +16,12 @@ import {
   Platform,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
@@ -67,7 +72,6 @@ import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import {
   getGradientForName,
   getInitials,
@@ -92,6 +96,7 @@ const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function CommunityProfileScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -803,18 +808,20 @@ export default function CommunityProfileScreen({ navigation }) {
 
   if (!initialLoadCompleted && (loading || !profile)) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <StatusBar translucent backgroundColor="transparent" style="dark" />
         <ScrollView scrollEnabled={false}>
           <SkeletonProfileHeader type="community" />
           <SkeletonPostGrid />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (authError) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <StatusBar translucent backgroundColor="transparent" style="dark" />
         <View style={styles.errorContainer}>
           <Ionicons
             name="alert-circle-outline"
@@ -831,12 +838,13 @@ export default function CommunityProfileScreen({ navigation }) {
             <Text style={styles.reloginButtonText}>Re-login</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" style="dark" />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
@@ -875,7 +883,7 @@ export default function CommunityProfileScreen({ navigation }) {
           onPress={() => setShowSettingsModal(true)}
           style={[
             styles.settingsIconAbsolute,
-            !profile.banner_url && styles.settingsIconNoBanner,
+            !profile.banner_url && { top: insets.top + 16 },
           ]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -885,7 +893,7 @@ export default function CommunityProfileScreen({ navigation }) {
         <View
           style={[
             styles.summarySection,
-            !profile.banner_url && styles.summarySectionNoBanner,
+            !profile.banner_url && { paddingTop: insets.top + 60 },
           ]}
         >
           <View
@@ -1503,7 +1511,7 @@ export default function CommunityProfileScreen({ navigation }) {
             : []),
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -2011,7 +2019,7 @@ const styles = StyleSheet.create({
   settingsIconAbsolute: {
     position: "absolute",
     right: 16,
-    top: BANNER_HEIGHT + 12, // Just below banner
+    top: BANNER_HEIGHT + 12, // Default case (with banner)
     zIndex: 10,
     padding: 8,
     backgroundColor: "rgba(255, 255, 255, 0.9)",
@@ -2034,10 +2042,10 @@ const styles = StyleSheet.create({
   },
   // Styles for when no banner exists
   settingsIconNoBanner: {
-    top: 16, // Position at top when no banner
+    // top: handled dynamically via insets.top
   },
   summarySectionNoBanner: {
-    paddingTop: 50, // Space for settings icon when no banner
+    // paddingTop: handled dynamically via insets.top
   },
   profileHeaderNoBanner: {
     marginTop: 0, // No overlap when no banner

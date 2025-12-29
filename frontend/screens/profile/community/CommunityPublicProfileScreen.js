@@ -16,13 +16,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import { StatusBar } from "expo-status-bar";
 import {
   getPublicCommunity,
   getCommunityPosts,
   followCommunity,
   unfollowCommunity,
 } from "../../../api/communities";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
@@ -63,6 +67,7 @@ const GAP = 2;
 const ITEM_SIZE = (screenWidth - GAP * 2) / 3;
 
 export default function CommunityPublicProfileScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const communityId = route?.params?.communityId;
   const viewerRoleParam = route?.params?.viewerRole || "member";
   const viewerRole =
@@ -435,33 +440,42 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
+        <StatusBar translucent backgroundColor="transparent" style="dark" />
         <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
           <SkeletonProfileHeader type="community" />
           <SkeletonPostGrid />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
+        <StatusBar translucent backgroundColor="transparent" style="dark" />
         <Text style={{ color: "#FF3B30" }}>{error}</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" style="dark" />
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={[
+          styles.backBtn,
+          {
+            position: "absolute",
+            top: insets.top + 8,
+            left: 16,
+            zIndex: 100,
+          },
+        ]}
+      >
+        <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
+      </TouchableOpacity>
 
       <ScrollView
         style={styles.scrollView}
@@ -482,7 +496,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         <View
           style={[
             styles.summarySection,
-            !profile?.banner_url && styles.summarySectionNoBanner,
+            !profile?.banner_url && { paddingTop: insets.top + 60 },
           ]}
         >
           <View
@@ -813,7 +827,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         }}
         navigation={navigation}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1258,25 +1272,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
   backBtn: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1D1D1F",
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scrollView: {
     flex: 1,
@@ -1315,7 +1322,7 @@ const styles = StyleSheet.create({
   },
   // Styles for when no banner exists
   summarySectionNoBanner: {
-    paddingTop: 20, // Space at top when no banner
+    // handled dynamically via insets.top
   },
   profileHeaderNoBanner: {
     marginTop: 0, // No overlap when no banner
