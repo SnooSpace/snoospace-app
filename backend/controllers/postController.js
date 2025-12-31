@@ -1,4 +1,5 @@
 const { createPool } = require("../config/db");
+const pushService = require("../services/pushService");
 
 const pool = createPool();
 
@@ -153,6 +154,19 @@ const createPost = async (req, res) => {
                   postId: post.id,
                 }),
               ]
+            );
+
+            // Send push notification for tag
+            await pushService.sendPushNotification(
+              pool,
+              entity.id,
+              entity.type,
+              "You were tagged 📌",
+              `${actorName || "Someone"} tagged you in a post`,
+              {
+                type: "tag",
+                postId: post.id,
+              }
             );
           }
         }
@@ -484,6 +498,19 @@ const likePost = async (req, res) => {
               postId,
             }),
           ]
+        );
+
+        // Send push notification for like
+        await pushService.sendPushNotification(
+          pool,
+          postAuthor.author_id,
+          postAuthor.author_type,
+          "Someone liked your post ❤️",
+          `${actorName || "Someone"} liked your post`,
+          {
+            type: "like",
+            postId: parseInt(postId),
+          }
         );
       }
     } catch (e) {

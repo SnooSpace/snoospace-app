@@ -2,6 +2,7 @@ const { createPool } = require("../config/db");
 const { isValidGoogleMapsUrl } = require("../utils/googleMapsValidation");
 const crypto = require("crypto");
 const notificationService = require("../services/notificationService");
+const pushService = require("../services/pushService");
 const {
   sendBookingConfirmationEmail,
   sendCancellationEmail,
@@ -1377,7 +1378,8 @@ const updateEvent = async (req, res) => {
     }
     if (end_datetime !== undefined) {
       updates.push(`end_datetime = $${paramIndex++}`);
-      values.push(end_datetime);
+      // If end_datetime is null/removed, fall back to start_datetime (same as createEvent behavior)
+      values.push(end_datetime || effectiveStartDateTime);
     }
     if (location_url !== undefined) {
       updates.push(`location_url = $${paramIndex++}`);
@@ -1791,35 +1793,65 @@ const updateEvent = async (req, res) => {
         [eventId]
       );
 
-      // Create notification for each attendee
-      const notificationPayload = JSON.stringify({
-        event_id: parseInt(eventId),
-        event_title: title || existingEvent.title,
-        changed_fields: changedFields,
-        community_name: communityName,
-      });
+      // Determine if this is a reschedule (date change) or regular update
+      const isRescheduled = changedFields.includes("date");
+      const notificationType = isRescheduled
+        ? "event_rescheduled"
+        : "event_updated";
+      const eventTitle = title || existingEvent.title;
 
-      const notificationPromises = attendeesResult.rows.map((attendee) =>
-        pool.query(
-          `INSERT INTO notifications (
-            recipient_id, recipient_type, actor_id, actor_type, 
-            type, payload, is_read, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
-          [
+      // Get new date info if rescheduled
+      const newStartDateTime =
+        effectiveStartDateTime || existingEvent.start_datetime;
+
+      // Create notification for each attendee (in-app + push)
+      for (const attendee of attendeesResult.rows) {
+        try {
+          // In-app notification
+          await notificationService.createSimpleNotification(pool, {
+            recipientId: attendee.member_id,
+            recipientType: "member",
+            actorId: userId,
+            actorType: "community",
+            type: notificationType,
+            payload: {
+              eventId: parseInt(eventId),
+              eventTitle: eventTitle,
+              changedFields: changedFields,
+              communityName: communityName,
+              newStartDateTime: isRescheduled ? newStartDateTime : undefined,
+            },
+          });
+
+          // Push notification
+          const pushTitle = isRescheduled
+            ? "Event Rescheduled 📅"
+            : "Event Updated 📝";
+          const pushBody = isRescheduled
+            ? `${communityName} has rescheduled "${eventTitle}"`
+            : `${communityName} updated details for "${eventTitle}"`;
+
+          await pushService.sendPushNotification(
+            pool,
             attendee.member_id,
             "member",
-            userId,
-            "community",
-            "event_updated",
-            notificationPayload,
-          ]
-        )
-      );
-
-      await Promise.all(notificationPromises);
+            pushTitle,
+            pushBody,
+            {
+              type: notificationType,
+              eventId: parseInt(eventId),
+            }
+          );
+        } catch (notifError) {
+          console.warn(
+            `[updateEvent] Failed to notify member ${attendee.member_id}:`,
+            notifError.message
+          );
+        }
+      }
 
       console.log(
-        `[Event Update] Notified ${attendeesResult.rows.length} attendees about changes to event ${eventId}`
+        `[Event Update] Notified ${attendeesResult.rows.length} attendees about ${notificationType} for event ${eventId}`
       );
     }
 
@@ -2750,6 +2782,19 @@ const registerForEvent = async (req, res) => {
         "UPDATE ticket_types SET sold_count = sold_count + $1 WHERE id = $2",
         [item.quantity, item.ticketTypeId]
       );
+
+      // Check if ticket type is now sold out
+      const updatedTicket = await client.query(
+        "SELECT sold_count, total_quantity FROM ticket_types WHERE id = $1",
+        [item.ticketTypeId]
+      );
+      if (
+        updatedTicket.rows[0].total_quantity &&
+        updatedTicket.rows[0].sold_count >= updatedTicket.rows[0].total_quantity
+      ) {
+        // Mark for sold out notification (processed after commit)
+        item.isSoldOut = true;
+      }
     }
 
     // 11. Remove from bookmarks (event_interests) if bookmarked
@@ -2758,8 +2803,18 @@ const registerForEvent = async (req, res) => {
       [eventId, userId]
     );
 
-    // 12. Create notification for community
+    const totalTicketCount = tickets.reduce((sum, t) => sum + t.quantity, 0);
+
+    // 12. Create notification for community (in-app + push)
     try {
+      // Get member photo for avatar
+      const memberPhotoResult = await client.query(
+        "SELECT profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+      const memberAvatar = memberPhotoResult.rows[0]?.profile_photo_url || null;
+
+      // In-app notification with collapse_after for 30 min collapse
       await notificationService.createSimpleNotification(client, {
         recipientId: event.community_id,
         recipientType: "community",
@@ -2769,9 +2824,28 @@ const registerForEvent = async (req, res) => {
         payload: {
           eventId: parseInt(eventId),
           eventTitle: event.title,
-          ticketCount: tickets.reduce((sum, t) => sum + t.quantity, 0),
+          memberName: member.name,
+          actorName: member.name, // For frontend consistency
+          actorAvatar: memberAvatar, // For frontend consistency
+          ticketCount: totalTicketCount,
+          totalAmount: totalAmount || 0,
+          collapseKey: `event_registration:${eventId}`,
+          collapseAfter: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         },
       });
+
+      // Push notification to community
+      await pushService.sendPushNotification(
+        pool,
+        event.community_id,
+        "community",
+        "New Registration 🎟️",
+        `${member.name} registered for ${event.title}`,
+        {
+          type: "event_registration",
+          eventId: parseInt(eventId),
+        }
+      );
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);
       // Don't fail registration if notification fails
@@ -2794,6 +2868,68 @@ const registerForEvent = async (req, res) => {
       qrCodeHash: qrCodeHash,
       totalAmount: totalAmount || 0,
     }).catch((err) => console.error("Email send failed:", err));
+
+    // 14. Send sold out notifications if any ticket types sold out
+    const soldOutTickets = tickets.filter((t) => t.isSoldOut);
+    if (soldOutTickets.length > 0) {
+      try {
+        // Get interested users for this event
+        const interestedUsersResult = await pool.query(
+          "SELECT member_id FROM event_interests WHERE event_id = $1",
+          [eventId]
+        );
+        const interestedUserIds = interestedUsersResult.rows.map(
+          (r) => r.member_id
+        );
+
+        if (interestedUserIds.length > 0) {
+          console.log(
+            `[registerForEvent] Sending sold out notifications to ${interestedUserIds.length} interested users`
+          );
+
+          // Send notifications to interested users
+          for (const memberId of interestedUserIds) {
+            try {
+              await notificationService.createSimpleNotification(pool, {
+                recipientId: memberId,
+                recipientType: "member",
+                actorId: event.community_id,
+                actorType: "community",
+                type: "tickets_sold_out",
+                payload: {
+                  eventId: parseInt(eventId),
+                  eventTitle: event.title,
+                  communityName: event.community_name,
+                },
+              });
+
+              await pushService.sendPushNotification(
+                pool,
+                memberId,
+                "member",
+                "Tickets Sold Out 😢",
+                `Tickets for ${event.title} are now sold out`,
+                {
+                  type: "tickets_sold_out",
+                  eventId: parseInt(eventId),
+                }
+              );
+            } catch (notifError) {
+              console.warn(
+                `[registerForEvent] Failed to notify member ${memberId} about sold out:`,
+                notifError.message
+              );
+            }
+          }
+        }
+      } catch (soldOutError) {
+        console.error(
+          "[registerForEvent] Error sending sold out notifications:",
+          soldOutError
+        );
+        // Don't fail registration if sold out notification fails
+      }
+    }
 
     res.json({
       success: true,
@@ -2903,6 +3039,63 @@ const cancelRegistration = async (req, res) => {
       eventTitle: registration.event_title,
       refundAmount: refundAmount,
     }).catch((err) => console.error("Cancellation email failed:", err));
+
+    // 7. Send refund processed notification if refund was applied
+    if (refundAmount > 0) {
+      try {
+        // Get community ID for the event
+        const eventResult = await pool.query(
+          "SELECT community_id FROM events WHERE id = $1",
+          [eventId]
+        );
+        const communityId = eventResult.rows[0]?.community_id;
+
+        if (communityId) {
+          // Get community name
+          const communityResult = await pool.query(
+            "SELECT name FROM communities WHERE id = $1",
+            [communityId]
+          );
+          const communityName = communityResult.rows[0]?.name || "Community";
+
+          // In-app notification
+          await notificationService.createSimpleNotification(pool, {
+            recipientId: userId,
+            recipientType: "member",
+            actorId: communityId,
+            actorType: "community",
+            type: "refund_processed",
+            payload: {
+              eventId: parseInt(eventId),
+              eventTitle: registration.event_title,
+              refundAmount: refundAmount,
+              communityName: communityName,
+            },
+          });
+
+          // Push notification
+          await pushService.sendPushNotification(
+            pool,
+            userId,
+            "member",
+            "Refund Processed 💰",
+            `Your refund of ₹${refundAmount.toLocaleString("en-IN")} for ${
+              registration.event_title
+            } has been processed`,
+            {
+              type: "refund_processed",
+              eventId: parseInt(eventId),
+            }
+          );
+        }
+      } catch (notifError) {
+        console.error(
+          "[cancelRegistration] Failed to send refund notification:",
+          notifError.message
+        );
+        // Don't fail cancellation if notification fails
+      }
+    }
 
     res.json({
       success: true,

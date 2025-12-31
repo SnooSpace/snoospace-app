@@ -3,6 +3,7 @@ const {
   createFollowNotification,
   deactivateFollowNotification,
 } = require("../services/notificationService");
+const pushService = require("../services/pushService");
 
 const pool = createPool();
 
@@ -106,6 +107,20 @@ const follow = async (req, res) => {
         actorType: followerType,
         payload: { actorName, actorUsername, actorAvatar },
       });
+
+      // Send push notification
+      await pushService.sendPushNotification(
+        pool,
+        followingId,
+        followingType,
+        "New Follower 👤",
+        `${actorName || "Someone"} started following you`,
+        {
+          type: "follow",
+          actorId: followerId,
+          actorType: followerType,
+        }
+      );
     } catch (e) {
       // Non-fatal: do not block follow if notification fails
       console.error("Failed to create follow notification", e);

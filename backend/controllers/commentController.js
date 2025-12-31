@@ -1,4 +1,5 @@
 const { createPool } = require("../config/db");
+const pushService = require("../services/pushService");
 
 const pool = createPool();
 
@@ -22,16 +23,22 @@ const createComment = async (req, res) => {
     if (taggedEntities && Array.isArray(taggedEntities)) {
       for (const entity of taggedEntities) {
         if (!entity.id || !entity.type) {
-          return res.status(400).json({ error: "Invalid tagged entity format" });
+          return res
+            .status(400)
+            .json({ error: "Invalid tagged entity format" });
         }
-        if (!['member', 'community', 'sponsor', 'venue'].includes(entity.type)) {
+        if (
+          !["member", "community", "sponsor", "venue"].includes(entity.type)
+        ) {
           return res.status(400).json({ error: "Invalid entity type" });
         }
       }
     }
 
     // Check if post exists
-    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [postId]);
+    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [
+      postId,
+    ]);
     if (postCheck.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
@@ -42,11 +49,20 @@ const createComment = async (req, res) => {
       RETURNING id, created_at
     `;
 
-    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
-      ? JSON.stringify(taggedEntities)
-      : null;
+    const taggedEntitiesJson =
+      taggedEntities &&
+      Array.isArray(taggedEntities) &&
+      taggedEntities.length > 0
+        ? JSON.stringify(taggedEntities)
+        : null;
 
-    const result = await pool.query(query, [postId, userId, userType, commentText.trim(), taggedEntitiesJson]);
+    const result = await pool.query(query, [
+      postId,
+      userId,
+      userType,
+      commentText.trim(),
+      taggedEntitiesJson,
+    ]);
     const comment = result.rows[0];
 
     // Update comment count
@@ -62,16 +78,19 @@ const createComment = async (req, res) => {
         [postId]
       );
       const postAuthor = postResult.rows[0];
-      
-      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
+
+      if (
+        postAuthor &&
+        (postAuthor.author_id !== userId || postAuthor.author_type !== userType)
+      ) {
         // Get actor info (commenter)
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
-        
-        if (userType === 'member') {
+
+        if (userType === "member") {
           const actorResult = await pool.query(
-            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -79,9 +98,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
           }
-        } else if (userType === 'community') {
+        } else if (userType === "community") {
           const actorResult = await pool.query(
-            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            "SELECT name, username, logo_url FROM communities WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -89,9 +108,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'sponsor') {
+        } else if (userType === "sponsor") {
           const actorResult = await pool.query(
-            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -99,9 +118,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'venue') {
+        } else if (userType === "venue") {
           const actorResult = await pool.query(
-            'SELECT name, username FROM venues WHERE id = $1',
+            "SELECT name, username FROM venues WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -119,7 +138,7 @@ const createComment = async (req, res) => {
             postAuthor.author_type,
             userId,
             userType,
-            'comment',
+            "comment",
             JSON.stringify({
               actorName,
               actorUsername,
@@ -127,26 +146,43 @@ const createComment = async (req, res) => {
               postId,
               commentId: comment.id,
               commentText: commentText.trim().substring(0, 100),
-            })
+            }),
           ]
+        );
+
+        // Send push notification for comment
+        await pushService.sendPushNotification(
+          pool,
+          postAuthor.author_id,
+          postAuthor.author_type,
+          "New Comment 💬",
+          `${actorName || "Someone"} commented on your post`,
+          {
+            type: "comment",
+            postId: parseInt(postId),
+          }
         );
       }
     } catch (e) {
       // Non-fatal: do not block comment creation if notification fails
-      console.error('Failed to create comment notification', e);
+      console.error("Failed to create comment notification", e);
     }
 
     // Create notifications for tagged users
-    if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+    if (
+      taggedEntities &&
+      Array.isArray(taggedEntities) &&
+      taggedEntities.length > 0
+    ) {
       try {
         // Get actor info (commenter) - reuse from above if already fetched
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
-        
-        if (userType === 'member') {
+
+        if (userType === "member") {
           const actorResult = await pool.query(
-            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -154,9 +190,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
           }
-        } else if (userType === 'community') {
+        } else if (userType === "community") {
           const actorResult = await pool.query(
-            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            "SELECT name, username, logo_url FROM communities WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -164,9 +200,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'sponsor') {
+        } else if (userType === "sponsor") {
           const actorResult = await pool.query(
-            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -174,9 +210,9 @@ const createComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'venue') {
+        } else if (userType === "venue") {
           const actorResult = await pool.query(
-            'SELECT name, username FROM venues WHERE id = $1',
+            "SELECT name, username FROM venues WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -197,21 +233,35 @@ const createComment = async (req, res) => {
                 entity.type,
                 userId,
                 userType,
-                'tag',
+                "tag",
                 JSON.stringify({
                   actorName,
                   actorUsername,
                   actorAvatar,
                   postId,
                   commentId: comment.id,
-                })
+                }),
               ]
+            );
+
+            // Send push notification for tag in comment
+            await pushService.sendPushNotification(
+              pool,
+              entity.id,
+              entity.type,
+              "You were tagged 📌",
+              `${actorName || "Someone"} tagged you in a comment`,
+              {
+                type: "tag",
+                postId: parseInt(postId),
+                commentId: comment.id,
+              }
             );
           }
         }
       } catch (e) {
         // Non-fatal: do not block comment creation if notification fails
-        console.error('Failed to create tag notifications', e);
+        console.error("Failed to create tag notifications", e);
       }
     }
 
@@ -225,10 +275,9 @@ const createComment = async (req, res) => {
         comment_text: commentText.trim(),
         parent_comment_id: null,
         tagged_entities: taggedEntities || null,
-        created_at: comment.created_at
-      }
+        created_at: comment.created_at,
+      },
     });
-
   } catch (error) {
     console.error("Error creating comment:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -255,9 +304,13 @@ const replyToComment = async (req, res) => {
     if (taggedEntities && Array.isArray(taggedEntities)) {
       for (const entity of taggedEntities) {
         if (!entity.id || !entity.type) {
-          return res.status(400).json({ error: "Invalid tagged entity format" });
+          return res
+            .status(400)
+            .json({ error: "Invalid tagged entity format" });
         }
-        if (!['member', 'community', 'sponsor', 'venue'].includes(entity.type)) {
+        if (
+          !["member", "community", "sponsor", "venue"].includes(entity.type)
+        ) {
           return res.status(400).json({ error: "Invalid entity type" });
         }
       }
@@ -281,11 +334,21 @@ const replyToComment = async (req, res) => {
       RETURNING id, created_at
     `;
 
-    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
-      ? JSON.stringify(taggedEntities)
-      : null;
+    const taggedEntitiesJson =
+      taggedEntities &&
+      Array.isArray(taggedEntities) &&
+      taggedEntities.length > 0
+        ? JSON.stringify(taggedEntities)
+        : null;
 
-    const result = await pool.query(query, [postId, userId, userType, commentText.trim(), commentId, taggedEntitiesJson]);
+    const result = await pool.query(query, [
+      postId,
+      userId,
+      userType,
+      commentText.trim(),
+      commentId,
+      taggedEntitiesJson,
+    ]);
     const comment = result.rows[0];
 
     // Update comment count
@@ -301,16 +364,19 @@ const replyToComment = async (req, res) => {
         [postId]
       );
       const postAuthor = postResult.rows[0];
-      
-      if (postAuthor && (postAuthor.author_id !== userId || postAuthor.author_type !== userType)) {
+
+      if (
+        postAuthor &&
+        (postAuthor.author_id !== userId || postAuthor.author_type !== userType)
+      ) {
         // Get actor info (commenter)
         let actorName = null;
         let actorUsername = null;
         let actorAvatar = null;
-        
-        if (userType === 'member') {
+
+        if (userType === "member") {
           const actorResult = await pool.query(
-            'SELECT name, username, profile_photo_url FROM members WHERE id = $1',
+            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -318,9 +384,9 @@ const replyToComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].profile_photo_url;
           }
-        } else if (userType === 'community') {
+        } else if (userType === "community") {
           const actorResult = await pool.query(
-            'SELECT name, username, logo_url FROM communities WHERE id = $1',
+            "SELECT name, username, logo_url FROM communities WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -328,9 +394,9 @@ const replyToComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'sponsor') {
+        } else if (userType === "sponsor") {
           const actorResult = await pool.query(
-            'SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1',
+            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -338,9 +404,9 @@ const replyToComment = async (req, res) => {
             actorUsername = actorResult.rows[0].username;
             actorAvatar = actorResult.rows[0].logo_url;
           }
-        } else if (userType === 'venue') {
+        } else if (userType === "venue") {
           const actorResult = await pool.query(
-            'SELECT name, username FROM venues WHERE id = $1',
+            "SELECT name, username FROM venues WHERE id = $1",
             [userId]
           );
           if (actorResult.rows[0]) {
@@ -358,7 +424,7 @@ const replyToComment = async (req, res) => {
             postAuthor.author_type,
             userId,
             userType,
-            'comment',
+            "comment",
             JSON.stringify({
               actorName,
               actorUsername,
@@ -366,13 +432,26 @@ const replyToComment = async (req, res) => {
               postId,
               commentId: comment.id,
               commentText: commentText.trim().substring(0, 100),
-            })
+            }),
           ]
+        );
+
+        // Send push notification for reply
+        await pushService.sendPushNotification(
+          pool,
+          postAuthor.author_id,
+          postAuthor.author_type,
+          "New Comment 💬",
+          `${actorName || "Someone"} replied on your post`,
+          {
+            type: "comment",
+            postId: parseInt(postId),
+          }
         );
       }
     } catch (e) {
       // Non-fatal: do not block comment creation if notification fails
-      console.error('Failed to create comment notification for reply', e);
+      console.error("Failed to create comment notification for reply", e);
     }
 
     res.status(201).json({
@@ -385,10 +464,9 @@ const replyToComment = async (req, res) => {
         comment_text: commentText.trim(),
         parent_comment_id: commentId,
         tagged_entities: taggedEntities || null,
-        created_at: comment.created_at
-      }
+        created_at: comment.created_at,
+      },
     });
-
   } catch (error) {
     console.error("Error replying to comment:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -403,7 +481,9 @@ const getPostComments = async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Check if post exists
-    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [postId]);
+    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [
+      postId,
+    ]);
     if (postCheck.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
@@ -411,7 +491,7 @@ const getPostComments = async (req, res) => {
     // Get current user info for is_liked check and post author info
     const userId = req.user?.id;
     const userType = req.user?.type;
-    
+
     // Get post author info
     const postResult = await pool.query(
       "SELECT author_id, author_type FROM posts WHERE id = $1",
@@ -501,7 +581,8 @@ const getPostComments = async (req, res) => {
 
     const result = await pool.query(query, queryParams).catch(() => {
       // Fallback if comment_likes table doesn't exist yet
-      return pool.query(`
+      return pool.query(
+        `
         SELECT 
           c.*,
           CASE 
@@ -532,12 +613,16 @@ const getPostComments = async (req, res) => {
         WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
         ORDER BY c.created_at ASC
         LIMIT $2 OFFSET $3
-      `, [postId, limit, offset]);
+      `,
+        [postId, limit, offset]
+      );
     });
     // Parse tagged_entities for each comment
-    const comments = result.rows.map(comment => {
+    const comments = result.rows.map((comment) => {
       try {
-        comment.tagged_entities = comment.tagged_entities ? JSON.parse(comment.tagged_entities) : null;
+        comment.tagged_entities = comment.tagged_entities
+          ? JSON.parse(comment.tagged_entities)
+          : null;
       } catch {
         comment.tagged_entities = null;
       }
@@ -578,9 +663,11 @@ const getPostComments = async (req, res) => {
 
       const repliesResult = await pool.query(repliesQuery, [comment.id]);
       // Parse tagged_entities for replies
-      comment.replies = repliesResult.rows.map(reply => {
+      comment.replies = repliesResult.rows.map((reply) => {
         try {
-          reply.tagged_entities = reply.tagged_entities ? JSON.parse(reply.tagged_entities) : null;
+          reply.tagged_entities = reply.tagged_entities
+            ? JSON.parse(reply.tagged_entities)
+            : null;
         } catch {
           reply.tagged_entities = null;
         }
@@ -588,12 +675,11 @@ const getPostComments = async (req, res) => {
       });
     }
 
-    res.json({ 
+    res.json({
       comments,
       post_author_id: postAuthorId,
-      post_author_type: postAuthorType
+      post_author_type: postAuthorType,
     });
-
   } catch (error) {
     console.error("Error getting post comments:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -625,12 +711,17 @@ const deleteComment = async (req, res) => {
     }
 
     const comment = commentResult.rows[0];
-    const isCommentAuthor = comment.commenter_id === userId && comment.commenter_type === userType;
-    const isPostAuthor = comment.author_id === userId && comment.author_type === userType;
+    const isCommentAuthor =
+      comment.commenter_id === userId && comment.commenter_type === userType;
+    const isPostAuthor =
+      comment.author_id === userId && comment.author_type === userType;
 
     // Only comment author or post author can delete
     if (!isCommentAuthor && !isPostAuthor) {
-      return res.status(403).json({ error: "You can only delete your own comments or comments on your posts" });
+      return res.status(403).json({
+        error:
+          "You can only delete your own comments or comments on your posts",
+      });
     }
 
     // Delete the comment (replies will be deleted via CASCADE if foreign key is set)
@@ -661,30 +752,37 @@ const likeComment = async (req, res) => {
     }
 
     // Check if comment exists
-    const commentCheck = await pool.query("SELECT id FROM post_comments WHERE id = $1", [commentId]);
+    const commentCheck = await pool.query(
+      "SELECT id FROM post_comments WHERE id = $1",
+      [commentId]
+    );
     if (commentCheck.rows.length === 0) {
       return res.status(404).json({ error: "Comment not found" });
     }
 
     // Check if already liked (assuming we have a comment_likes table)
     // For now, we'll check if the table exists and handle gracefully
-    const existingLike = await pool.query(
-      "SELECT id FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
-      [commentId, userId, userType]
-    ).catch(() => ({ rows: [] }));
+    const existingLike = await pool
+      .query(
+        "SELECT id FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
+        [commentId, userId, userType]
+      )
+      .catch(() => ({ rows: [] }));
 
     if (existingLike.rows && existingLike.rows.length > 0) {
       return res.status(400).json({ error: "Comment already liked" });
     }
 
     // Add like (assuming comment_likes table exists)
-    await pool.query(
-      "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
-      [commentId, userId, userType]
-    ).catch(async (err) => {
-      // If table doesn't exist, create it first (one-time setup)
-      if (err.code === '42P01') {
-        await pool.query(`
+    await pool
+      .query(
+        "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
+        [commentId, userId, userType]
+      )
+      .catch(async (err) => {
+        // If table doesn't exist, create it first (one-time setup)
+        if (err.code === "42P01") {
+          await pool.query(`
           CREATE TABLE IF NOT EXISTS comment_likes (
             id SERIAL PRIMARY KEY,
             comment_id INTEGER NOT NULL REFERENCES post_comments(id) ON DELETE CASCADE,
@@ -694,26 +792,27 @@ const likeComment = async (req, res) => {
             UNIQUE(comment_id, liker_id, liker_type)
           )
         `);
-        await pool.query(
-          "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
-          [commentId, userId, userType]
-        );
-      } else {
-        throw err;
-      }
-    });
+          await pool.query(
+            "INSERT INTO comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3)",
+            [commentId, userId, userType]
+          );
+        } else {
+          throw err;
+        }
+      });
 
     // Update like count in post_comments if column exists
-    await pool.query(
-      "UPDATE post_comments SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1",
-      [commentId]
-    ).catch(() => {
-      // Column might not exist yet, that's okay
-      console.log('like_count column may not exist on post_comments');
-    });
+    await pool
+      .query(
+        "UPDATE post_comments SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1",
+        [commentId]
+      )
+      .catch(() => {
+        // Column might not exist yet, that's okay
+        console.log("like_count column may not exist on post_comments");
+      });
 
     res.json({ success: true, message: "Comment liked" });
-
   } catch (error) {
     console.error("Error liking comment:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -732,35 +831,41 @@ const unlikeComment = async (req, res) => {
     }
 
     // Check if comment exists
-    const commentCheck = await pool.query("SELECT id FROM post_comments WHERE id = $1", [commentId]);
+    const commentCheck = await pool.query(
+      "SELECT id FROM post_comments WHERE id = $1",
+      [commentId]
+    );
     if (commentCheck.rows.length === 0) {
       return res.status(404).json({ error: "Comment not found" });
     }
 
     // Remove like (handle case where table doesn't exist)
-    const result = await pool.query(
-      "DELETE FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
-      [commentId, userId, userType]
-    ).catch(() => {
-      // Table might not exist yet
-      return { rowCount: 0 };
-    });
+    const result = await pool
+      .query(
+        "DELETE FROM comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
+        [commentId, userId, userType]
+      )
+      .catch(() => {
+        // Table might not exist yet
+        return { rowCount: 0 };
+      });
 
     if (!result || result.rowCount === 0) {
       return res.status(400).json({ error: "Comment not liked" });
     }
 
     // Update like count in post_comments if column exists
-    await pool.query(
-      "UPDATE post_comments SET like_count = GREATEST(COALESCE(like_count, 0) - 1, 0) WHERE id = $1",
-      [commentId]
-    ).catch(() => {
-      // Column might not exist yet, that's okay
-      console.log('like_count column may not exist on post_comments');
-    });
+    await pool
+      .query(
+        "UPDATE post_comments SET like_count = GREATEST(COALESCE(like_count, 0) - 1, 0) WHERE id = $1",
+        [commentId]
+      )
+      .catch(() => {
+        // Column might not exist yet, that's okay
+        console.log("like_count column may not exist on post_comments");
+      });
 
     res.json({ success: true, message: "Comment unliked" });
-
   } catch (error) {
     console.error("Error unliking comment:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -773,5 +878,5 @@ module.exports = {
   getPostComments,
   deleteComment,
   likeComment,
-  unlikeComment
+  unlikeComment,
 };

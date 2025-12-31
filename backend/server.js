@@ -3,6 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 const { createPool, ensureTables } = require("./config/db");
 const routes = require("./routes/index");
+const schedulerService = require("./services/schedulerService");
 
 const app = express();
 app.use(cors());
@@ -10,8 +11,13 @@ app.use(express.json());
 
 // PostgreSQL connection
 const pool = createPool();
-pool.connect()
-  .then(() => console.log("✅ Connected to PostgreSQL"))
+pool
+  .connect()
+  .then(() => {
+    console.log("✅ Connected to PostgreSQL");
+    // Initialize scheduler service after DB connection
+    schedulerService.init(pool);
+  })
   .catch((err) => console.error("❌ DB Connection Error", err));
 
 // Expose pool to routes
