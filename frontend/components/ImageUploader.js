@@ -358,6 +358,7 @@ const ImageUploader = forwardRef(
 
     const renderImageGrid = () => {
       if (images.length === 0) {
+        if (horizontal) return null;
         return (
           <TouchableOpacity style={styles.addButton} onPress={handleAddImages}>
             <Ionicons name="camera-outline" size={40} color={COLORS.primary} />
@@ -450,7 +451,13 @@ const ImageUploader = forwardRef(
     };
 
     return (
-      <View style={[styles.container, style]}>
+      <View
+        style={[
+          styles.container,
+          style,
+          horizontal && images.length === 0 && { marginBottom: 0, height: 0 },
+        ]}
+      >
         {!horizontal && (
           <Text style={styles.label}>
             Photos ({images.length}/{maxImages})

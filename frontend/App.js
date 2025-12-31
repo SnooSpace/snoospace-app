@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import AppNavigator from "./navigation/AppNavigator";
 import {
   getAuthToken,
@@ -62,11 +63,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AuthStateProvider>
-        <NotificationsProvider>
-          <AppContent />
-        </NotificationsProvider>
-      </AuthStateProvider>
+      <KeyboardProvider>
+        <AuthStateProvider>
+          <NotificationsProvider>
+            <AppContent />
+          </NotificationsProvider>
+        </AuthStateProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

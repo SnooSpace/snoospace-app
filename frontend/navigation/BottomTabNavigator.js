@@ -142,7 +142,11 @@ const BottomTabNavigator = ({ navigation, route }) => {
           tabBarLabel: "Home",
           tabBarStyle: (() => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "HomeFeed";
-            if (routeName === "ConversationsList" || routeName === "Chat") {
+            if (
+              routeName === "ConversationsList" ||
+              routeName === "Chat" ||
+              routeName === "CreatePost"
+            ) {
               return { display: "none" };
             }
             return {
@@ -180,7 +184,29 @@ const BottomTabNavigator = ({ navigation, route }) => {
       <Tab.Screen
         name="Profile"
         component={ProfileStackNavigator}
-        options={{ tabBarLabel: "Profile" }}
+        options={({ route }) => ({
+          tabBarLabel: "Profile",
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
+            if (routeName === "CreatePost" || routeName === "EditProfile") {
+              return { display: "none" };
+            }
+            return {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: "transparent",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              height: 85,
+              borderTopWidth: 0,
+              elevation: 0,
+              shadowOpacity: 0,
+              paddingBottom: 0,
+            };
+          })(),
+        })}
       />
     </Tab.Navigator>
   );

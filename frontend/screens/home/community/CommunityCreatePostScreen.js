@@ -18,7 +18,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Image as ImageIcon, Hash, Info, X } from "lucide-react-native";
+import { Camera, Info, X } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
+import CelebrationModal from "../../../components/CelebrationModal";
+import HapticsService from "../../../services/HapticsService";
+import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
+
 import ImageUploader from "../../../components/ImageUploader";
 import MentionInput from "../../../components/MentionInput";
 import { apiPost } from "../../../api/client";
@@ -26,7 +31,8 @@ import { getAuthToken } from "../../../api/auth";
 import { uploadMultipleImages } from "../../../api/cloudinary";
 import { getCommunityProfile } from "../../../api/communities";
 import EventBus from "../../../utils/EventBus";
-import { COLORS } from "../../../constants/theme";
+import { COLORS, SHADOWS } from "../../../constants/theme";
+import GradientButton from "../../../components/GradientButton";
 
 // Local constants removed in favor of theme constants
 
@@ -193,6 +199,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setTaggedEntities([]);
 
     // DELAYED END: Navigate after potential interaction
+    HapticsService.triggerImpactLight();
     navigation.navigate("CommunityHome", {
       screen: "Home",
       params: {
@@ -223,6 +230,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
         ]
       );
     } else {
+      HapticsService.triggerImpactLight();
       navigation.goBack();
     }
   };
@@ -290,20 +298,23 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
         <Text style={styles.headerTitle}>New Post</Text>
 
-        <TouchableOpacity
-          onPress={handlePost}
+        <GradientButton
+          title="Post"
+          onPress={() => {
+            HapticsService.triggerImpactLight();
+            handlePost();
+          }}
           disabled={!canSubmit || isPosting}
+          loading={isPosting}
           style={[
-            styles.postButton,
-            (!canSubmit || isPosting) && styles.postButtonDisabled,
+            { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
+            (!canSubmit || isPosting) && {
+              shadowOpacity: 0,
+              elevation: 0,
+              shadowColor: "transparent",
+            },
           ]}
-        >
-          {isPosting ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Text style={styles.postButtonText}>Post</Text>
-          )}
-        </TouchableOpacity>
+        />
       </BlurView>
 
       <KeyboardAvoidingView
@@ -373,8 +384,14 @@ export default function CommunityCreatePostScreen({ navigation }) {
           <View
             style={[
               styles.mediaTrayContainer,
-              images.length === 0 && { marginTop: 0, height: 0, opacity: 0 },
+              images.length === 0 && {
+                marginTop: 0,
+                height: 0,
+                opacity: 0,
+                overflow: "hidden",
+              },
             ]}
+            pointerEvents={images.length === 0 ? "none" : "auto"}
           >
             <ImageUploader
               ref={imageUploaderRef}
@@ -386,39 +403,31 @@ export default function CommunityCreatePostScreen({ navigation }) {
             />
           </View>
         </ScrollView>
-
-        <View style={styles.toolbar}>
-          <View style={styles.toolbarContent}>
-            <TouchableOpacity
-              onPress={() => {
-                imageUploaderRef.current?.openCamera();
-              }}
-            >
-              <Camera size={22} color={COLORS.primary} strokeWidth={2} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                imageUploaderRef.current?.pick();
-              }}
-            >
-              <ImageIcon size={22} color={COLORS.primary} strokeWidth={2} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                /* Trigger Hash/Tag */
-              }}
-            >
-              <Hash size={22} color={COLORS.primary} strokeWidth={2} />
-            </TouchableOpacity>
-
-            <View style={{ flex: 1 }} />
-
-            <TouchableOpacity onPress={() => setShowGuidelines(true)}>
-              <Info size={22} color={COLORS.textSecondary} strokeWidth={2} />
-            </TouchableOpacity>
-          </View>
-        </View>
       </KeyboardAvoidingView>
+
+      <KeyboardAwareToolbar>
+        <View style={styles.toolbarContent}>
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              imageUploaderRef.current?.openCamera();
+            }}
+          >
+            <Camera size={28} color="#8E8E93" strokeWidth={2} />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1 }} />
+
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setShowGuidelines(true);
+            }}
+          >
+            <Info size={28} color="#8E8E93" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAwareToolbar>
       {renderGuidelinesModal()}
     </View>
   );
@@ -448,23 +457,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: COLORS.textPrimary,
-  },
-  postButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 25,
-    minWidth: 70,
-    alignItems: "center",
-  },
-  postButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#E5E5EA",
-  },
-  postButtonText: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 14,
   },
   content: {
     flex: 1,
@@ -522,12 +514,6 @@ const styles = StyleSheet.create({
   mediaTrayContainer: {
     marginTop: 20,
     paddingLeft: 20,
-  },
-  toolbar: {
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    backgroundColor: "#FFF",
-    paddingBottom: Platform.OS === "ios" ? 34 : 10,
   },
   toolbarContent: {
     flexDirection: "row",

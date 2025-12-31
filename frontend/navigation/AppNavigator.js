@@ -16,6 +16,8 @@ import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import CreatePostScreen from "../components/CreatePostScreen";
+import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
+
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
@@ -70,8 +72,8 @@ export default function AppNavigator({ initialRouteName }) {
       />
       <Stack.Screen
         name="CommunityCreatePost"
-        component={CreatePostScreen}
-        options={{ headerShown: false, presentation: "modal" }}
+        component={CommunityCreatePostScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
       <Stack.Screen
         name="EventDetails"
