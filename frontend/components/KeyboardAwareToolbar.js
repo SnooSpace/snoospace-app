@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
  * reliable keyboard tracking. This component:
  * 1. Sticks to the top of the keyboard when it's open
  * 2. Returns to the bottom of the screen when keyboard closes
- * 3. Respects safe area via the bottom position
+ * 3. Respects safe area via the offset prop when keyboard is closed
  */
 
 const KeyboardAwareToolbar = ({ children, style }) => {
@@ -19,17 +19,12 @@ const KeyboardAwareToolbar = ({ children, style }) => {
   return (
     <KeyboardStickyView
       offset={{
-        closed: 0,
+        // When keyboard is closed: negative offset to push UP above home indicator
+        closed: -insets.bottom,
+        // When keyboard is open: no extra offset (sit right on keyboard)
         opened: 0,
       }}
-      style={[
-        styles.container,
-        {
-          // Position above the home indicator when keyboard is closed
-          bottom: insets.bottom,
-        },
-        style,
-      ]}
+      style={[styles.container, style]}
     >
       {children}
     </KeyboardStickyView>
@@ -39,6 +34,7 @@ const KeyboardAwareToolbar = ({ children, style }) => {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
     borderTopWidth: 1,

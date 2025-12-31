@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,35 +12,42 @@ import {
   Platform,
   PanResponder,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getMessages, sendMessage, getConversations } from '../../api/messages';
-import { getPublicMemberProfile } from '../../api/members';
-import { getPublicCommunity } from '../../api/communities';
-import EventBus from '../../utils/EventBus';
-import { COLORS } from '../../constants/theme';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { getMessages, sendMessage, getConversations } from "../../api/messages";
+import { getPublicMemberProfile } from "../../api/members";
+import { getPublicCommunity } from "../../api/communities";
+import EventBus from "../../utils/EventBus";
+import { COLORS } from "../../constants/theme";
+import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 export default function ChatScreen({ route, navigation }) {
-  const { conversationId, recipientId, recipientType = 'member' } = route.params || {};
+  const {
+    conversationId,
+    recipientId,
+    recipientType = "member",
+  } = route.params || {};
   const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState('');
+  const [messageText, setMessageText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recipient, setRecipient] = useState(null);
-  const [currentConversationId, setCurrentConversationId] = useState(conversationId);
-  const [currentRecipientType, setCurrentRecipientType] = useState(recipientType);
+  const [currentConversationId, setCurrentConversationId] =
+    useState(conversationId);
+  const [currentRecipientType, setCurrentRecipientType] =
+    useState(recipientType);
   const [currentRecipientId, setCurrentRecipientId] = useState(recipientId);
   const flatListRef = useRef(null);
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
   const pollingIntervalRef = useRef(null);
-  
+
   // Swipe gesture handler
   const panResponder = useRef(
     PanResponder.create({
@@ -48,9 +55,11 @@ export default function ChatScreen({ route, navigation }) {
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         // Only respond to horizontal swipes from the left edge
         // Don't interfere with FlatList scrolling
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && 
-               Math.abs(gestureState.dx) > 10 &&
-               evt.nativeEvent.pageX < 20; // Start from left edge
+        return (
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
+          Math.abs(gestureState.dx) > 10 &&
+          evt.nativeEvent.pageX < 20
+        ); // Start from left edge
       },
       onPanResponderRelease: (evt, gestureState) => {
         // If swiped right (positive dx) and far enough, navigate back
@@ -72,9 +81,9 @@ export default function ChatScreen({ route, navigation }) {
           // Need to find or create conversation
           const conversationsRes = await getConversations();
           const existingConv = conversationsRes.conversations?.find(
-            conv => conv.otherParticipant.id === recipientId
+            (conv) => conv.otherParticipant.id === recipientId
           );
-          
+
           if (existingConv) {
             setCurrentConversationId(existingConv.id);
             await loadMessages(existingConv.id);
@@ -82,13 +91,13 @@ export default function ChatScreen({ route, navigation }) {
             // Will create conversation when first message is sent
             setCurrentConversationId(null);
           }
-          
+
           // Load recipient profile based on type
           let recipientProfile;
-          const actualRecipientType = recipientType || 'member';
+          const actualRecipientType = recipientType || "member";
           setCurrentRecipientId(recipientId);
           setCurrentRecipientType(actualRecipientType);
-          if (actualRecipientType === 'community') {
+          if (actualRecipientType === "community") {
             recipientProfile = await getPublicCommunity(recipientId);
             setRecipient({
               id: recipientProfile.id,
@@ -108,13 +117,13 @@ export default function ChatScreen({ route, navigation }) {
           }
         }
       } catch (error) {
-        console.error('Error initializing conversation:', error);
+        console.error("Error initializing conversation:", error);
         Alert.alert(
-          'Error',
-          error?.message || 'Failed to load conversation. Please try again.',
+          "Error",
+          error?.message || "Failed to load conversation. Please try again.",
           [
             {
-              text: 'OK',
+              text: "OK",
               onPress: () => navigation.goBack(),
             },
           ]
@@ -133,7 +142,9 @@ export default function ChatScreen({ route, navigation }) {
       if (conversationId && !recipient) {
         try {
           const conversationsRes = await getConversations();
-          const conv = conversationsRes.conversations?.find(c => c.id === conversationId);
+          const conv = conversationsRes.conversations?.find(
+            (c) => c.id === conversationId
+          );
           if (conv && conv.otherParticipant) {
             setRecipient(conv.otherParticipant);
             // Store recipient ID and type from conversation
@@ -145,7 +156,7 @@ export default function ChatScreen({ route, navigation }) {
             }
           }
         } catch (error) {
-          console.error('Error loading recipient:', error);
+          console.error("Error loading recipient:", error);
         }
       }
     };
@@ -157,16 +168,16 @@ export default function ChatScreen({ route, navigation }) {
     try {
       const response = await getMessages(convId);
       setMessages(response.messages || []);
-      
+
       // Emit event to refresh unread count (messages are marked as read in getMessages)
-      EventBus.emit('messages-read');
-      
+      EventBus.emit("messages-read");
+
       // Scroll to bottom after loading
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: false });
       }, 100);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error("Error loading messages:", error);
     }
   };
 
@@ -178,16 +189,16 @@ export default function ChatScreen({ route, navigation }) {
       // No Supabase config, skip realtime
       return;
     }
-    
+
     (async () => {
       try {
-        const mod = await import('@supabase/supabase-js');
+        const mod = await import("@supabase/supabase-js");
         if (mod && mod.createClient) {
           supabaseRef.current = mod.createClient(url, key);
         }
       } catch (err) {
         // Supabase module not installed or failed to load - continue without realtime
-        console.log('Supabase not available, realtime updates disabled');
+        console.log("Supabase not available, realtime updates disabled");
       }
     })();
   }, []);
@@ -202,31 +213,34 @@ export default function ChatScreen({ route, navigation }) {
       const channel = supabaseRef.current
         .channel(`messages:${currentConversationId}`)
         .on(
-          'postgres_changes',
+          "postgres_changes",
           {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
             filter: `conversation_id=eq.${currentConversationId}`,
           },
           (payload) => {
             // Add new message to state
             const newMessage = payload.new;
-            setMessages(prev => {
+            setMessages((prev) => {
               // Check if message already exists
-              if (prev.some(m => m.id === newMessage.id)) {
+              if (prev.some((m) => m.id === newMessage.id)) {
                 return prev;
               }
-              return [...prev, {
-                id: newMessage.id,
-                senderId: newMessage.sender_id,
-                senderType: newMessage.sender_type,
-                messageText: newMessage.message_text,
-                isRead: newMessage.is_read,
-                createdAt: newMessage.created_at,
-              }];
+              return [
+                ...prev,
+                {
+                  id: newMessage.id,
+                  senderId: newMessage.sender_id,
+                  senderType: newMessage.sender_type,
+                  messageText: newMessage.message_text,
+                  isRead: newMessage.is_read,
+                  createdAt: newMessage.created_at,
+                },
+              ];
             });
-            
+
             // Scroll to bottom
             setTimeout(() => {
               flatListRef.current?.scrollToEnd({ animated: true });
@@ -246,10 +260,13 @@ export default function ChatScreen({ route, navigation }) {
       // Fallback: Poll for new messages every 3 seconds
       const pollForMessages = async () => {
         try {
-          const response = await getMessages(currentConversationId, { page: 1, limit: 50 });
+          const response = await getMessages(currentConversationId, {
+            page: 1,
+            limit: 50,
+          });
           const newMessages = response.messages || [];
-          
-          setMessages(prev => {
+
+          setMessages((prev) => {
             // Only update if we have new messages
             if (newMessages.length > prev.length) {
               return newMessages;
@@ -257,7 +274,7 @@ export default function ChatScreen({ route, navigation }) {
             return prev;
           });
         } catch (error) {
-          console.error('Error polling messages:', error);
+          console.error("Error polling messages:", error);
         }
       };
 
@@ -278,20 +295,22 @@ export default function ChatScreen({ route, navigation }) {
     if (!messageText.trim() || sending) return;
 
     const text = messageText.trim();
-    setMessageText('');
+    setMessageText("");
     setSending(true);
 
     try {
       // Determine recipient ID and type - use stored values with fallbacks
-      const finalRecipientId = currentRecipientId || recipientId || recipient?.id;
-      const finalRecipientType = currentRecipientType || recipientType || recipient?.type || 'member';
-      
+      const finalRecipientId =
+        currentRecipientId || recipientId || recipient?.id;
+      const finalRecipientType =
+        currentRecipientType || recipientType || recipient?.type || "member";
+
       if (!finalRecipientId) {
-        throw new Error('Recipient information is missing. Please try again.');
+        throw new Error("Recipient information is missing. Please try again.");
       }
 
       let convId = currentConversationId;
-      
+
       // If no conversation exists, create one by sending message
       const emitUpdate = (messagePayload) => {
         if (!messagePayload) return;
@@ -305,51 +324,59 @@ export default function ChatScreen({ route, navigation }) {
             }
           : {
               id: finalRecipientId,
-              name: recipient?.name || '',
-              username: recipient?.username || '',
-              profilePhotoUrl: recipient?.profilePhotoUrl || '',
+              name: recipient?.name || "",
+              username: recipient?.username || "",
+              profilePhotoUrl: recipient?.profilePhotoUrl || "",
               type: currentRecipientType || finalRecipientType,
             };
 
-        EventBus.emit('conversation-updated', {
+        EventBus.emit("conversation-updated", {
           conversationId: convId,
           lastMessage: messagePayload.messageText || text,
           lastMessageAt: messagePayload.createdAt || new Date().toISOString(),
           otherParticipant: otherParticipantPayload,
         });
-        
+
         // Emit new-message event to trigger unread count refresh on other screens
-        EventBus.emit('new-message');
+        EventBus.emit("new-message");
       };
 
       if (!convId) {
-        const response = await sendMessage(finalRecipientId, text, finalRecipientType);
+        const response = await sendMessage(
+          finalRecipientId,
+          text,
+          finalRecipientType
+        );
         convId = response.message.conversationId;
         setCurrentConversationId(convId);
-        
+
         // Add message to state optimistically
-        setMessages(prev => [...prev, response.message]);
+        setMessages((prev) => [...prev, response.message]);
         emitUpdate(response.message);
       } else {
         // Send message to existing conversation
-        const response = await sendMessage(finalRecipientId, text, finalRecipientType);
-        
+        const response = await sendMessage(
+          finalRecipientId,
+          text,
+          finalRecipientType
+        );
+
         // Add message to state optimistically
-        setMessages(prev => [...prev, response.message]);
+        setMessages((prev) => [...prev, response.message]);
         emitUpdate(response.message);
       }
-      
+
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("Error sending message:", error);
       setMessageText(text); // Restore text on error
       Alert.alert(
-        'Error',
-        error?.message || 'Failed to send message. Please try again.',
-        [{ text: 'OK' }]
+        "Error",
+        error?.message || "Failed to send message. Please try again.",
+        [{ text: "OK" }]
       );
     } finally {
       setSending(false);
@@ -357,39 +384,46 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   const formatTime = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return "";
     const date = new Date(dateString);
     const hours = date.getHours();
     const minutes = date.getMinutes();
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const renderMessage = ({ item, index }) => {
     const isMyMessage = item.senderId !== (recipient?.id || recipientId);
     // Show avatar if it's the last message in the list OR the next message is from a different sender
-    const showAvatar = index === messages.length - 1 || messages[index + 1]?.senderId !== item.senderId;
-    
+    const showAvatar =
+      index === messages.length - 1 ||
+      messages[index + 1]?.senderId !== item.senderId;
+
     return (
       <View
         style={[
           styles.messageContainer,
-          isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
+          isMyMessage
+            ? styles.myMessageContainer
+            : styles.otherMessageContainer,
         ]}
       >
-        {!isMyMessage && (
-          showAvatar ? (
+        {!isMyMessage &&
+          (showAvatar ? (
             <Image
               source={{
-                uri: recipient?.profilePhotoUrl || 'https://via.placeholder.com/30',
+                uri:
+                  recipient?.profilePhotoUrl ||
+                  "https://via.placeholder.com/30",
               }}
               style={styles.messageAvatar}
             />
           ) : (
             // Placeholder to maintain alignment for messages in the same block
             <View style={{ width: 30, marginRight: 8 }} />
-          )
-        )}
-        
+          ))}
+
         {isMyMessage ? (
           <LinearGradient
             colors={COLORS.primaryGradient}
@@ -422,7 +456,10 @@ export default function ChatScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Loading...</Text>
@@ -440,26 +477,31 @@ export default function ChatScreen({ route, navigation }) {
       <KeyboardAvoidingView
         behavior="padding"
         style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           {recipient && (
             <>
               <Image
                 source={{
-                  uri: recipient.profilePhotoUrl || 'https://via.placeholder.com/32',
+                  uri:
+                    recipient.profilePhotoUrl ||
+                    "https://via.placeholder.com/32",
                 }}
                 style={styles.headerAvatar}
               />
               <View style={styles.headerInfo}>
                 <Text style={styles.headerName} numberOfLines={1}>
-                  {recipient.name || 'User'}
+                  {recipient.name || "User"}
                 </Text>
                 <Text style={styles.headerUsername} numberOfLines={1}>
-                  @{recipient.username || 'user'}
+                  @{recipient.username || "user"}
                 </Text>
               </View>
             </>
@@ -483,8 +525,10 @@ export default function ChatScreen({ route, navigation }) {
             </View>
           }
         />
+      </KeyboardAvoidingView>
 
-        <View style={styles.inputContainer}>
+      <KeyboardAwareToolbar>
+        <View style={styles.inputContent}>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."
@@ -509,7 +553,7 @@ export default function ChatScreen({ route, navigation }) {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareToolbar>
     </SafeAreaView>
   );
 }
@@ -517,24 +561,24 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   keyboardView: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 8,
   },
   headerAvatar: {
@@ -548,7 +592,7 @@ const styles = StyleSheet.create({
   },
   headerName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   headerUsername: {
@@ -557,23 +601,23 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   messagesList: {
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   messageContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 8,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   myMessageContainer: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   otherMessageContainer: {
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   messageAvatar: {
     width: 30,
@@ -582,7 +626,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   messageBubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 18,
@@ -591,7 +635,7 @@ const styles = StyleSheet.create({
     // Background handled by LinearGradient
   },
   otherMessageBubble: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
   },
   messageText: {
     fontSize: 15,
@@ -606,23 +650,23 @@ const styles = StyleSheet.create({
   },
   messageTime: {
     fontSize: 11,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   myMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: "rgba(255, 255, 255, 0.7)",
   },
   otherMessageTime: {
     color: LIGHT_TEXT_COLOR,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingTop: 100,
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 4,
   },
@@ -630,19 +674,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  inputContent: {
+    flexDirection: "row",
+    alignItems: "flex-end",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    backgroundColor: '#FFFFFF',
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -656,11 +697,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: PRIMARY_COLOR,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sendButtonDisabled: {
     backgroundColor: LIGHT_TEXT_COLOR,
   },
 });
-
