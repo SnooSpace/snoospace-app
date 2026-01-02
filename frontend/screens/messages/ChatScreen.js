@@ -19,9 +19,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { getMessages, sendMessage, getConversations } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
+import { confirmGiftRSVP } from "../../api/events";
 import EventBus from "../../utils/EventBus";
 import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
+import TicketMessageCard from "../../components/TicketMessageCard";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -47,6 +49,7 @@ export default function ChatScreen({ route, navigation }) {
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const [rsvpLoading, setRsvpLoading] = useState({});
 
   // Swipe gesture handler
   const panResponder = useRef(
@@ -400,6 +403,68 @@ export default function ChatScreen({ route, navigation }) {
       index === messages.length - 1 ||
       messages[index + 1]?.senderId !== item.senderId;
 
+    // Handle ticket-type messages with special card
+    if (item.messageType === "ticket" && item.metadata) {
+      const handleRSVP = async (response) => {
+        const giftId = item.metadata.giftId;
+        if (!giftId) {
+          Alert.alert("Error", "Unable to process RSVP");
+          return;
+        }
+
+        setRsvpLoading((prev) => ({ ...prev, [item.id]: true }));
+        try {
+          const result = await confirmGiftRSVP(giftId, response);
+          if (result.success) {
+            // Update the message locally to reflect new status
+            setMessages((prevMessages) =>
+              prevMessages.map((msg) => {
+                if (msg.id === item.id) {
+                  return {
+                    ...msg,
+                    metadata: {
+                      ...msg.metadata,
+                      status: result.status,
+                    },
+                  };
+                }
+                return msg;
+              })
+            );
+            Alert.alert(
+              response === "going" ? "You're In! 🎉" : "Maybe Next Time",
+              result.message
+            );
+          }
+        } catch (error) {
+          console.error("RSVP error:", error);
+          Alert.alert("Error", error?.message || "Failed to confirm RSVP");
+        } finally {
+          setRsvpLoading((prev) => ({ ...prev, [item.id]: false }));
+        }
+      };
+
+      return (
+        <View style={styles.messageContainer}>
+          <TicketMessageCard
+            metadata={item.metadata}
+            isFromMe={isMyMessage}
+            senderName={recipient?.name}
+            loading={rsvpLoading[item.id]}
+            onViewEvent={() => {
+              // Navigate using root navigator for proper EventDetails layout
+              const rootNav = navigation.getParent()?.getParent() || navigation;
+              rootNav.navigate("EventDetails", {
+                eventId: item.metadata.eventId,
+              });
+            }}
+            onConfirmGoing={() => handleRSVP("going")}
+            onDecline={() => handleRSVP("not_going")}
+          />
+        </View>
+      );
+    }
+
     return (
       <View
         style={[
@@ -511,12 +576,19 @@ export default function ChatScreen({ route, navigation }) {
 
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={[...messages].reverse()}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderMessage}
           contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
+          inverted
+          onLayout={() => {
+            // Scroll to end after layout (for inverted list, end is visually at bottom)
+            setTimeout(() => {
+              flatListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: false,
+              });
+            }, 100);
           }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -606,7 +678,8 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 50, // Increased spacing to prevent last card from being cut off in inverted list
+    paddingBottom: 80, // Extra padding to clear the input box
   },
   messageContainer: {
     flexDirection: "row",

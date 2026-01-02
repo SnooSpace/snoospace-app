@@ -73,6 +73,9 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [highlights, setHighlights] = useState([]);
   const [featuredAccounts, setFeaturedAccounts] = useState([]);
   const [thingsToKnow, setThingsToKnow] = useState([]);
+  // Event visibility
+  const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
+  const [invitePublicVisibility, setInvitePublicVisibility] = useState(false); // Show in feeds with hidden location
 
   // UI States
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -108,6 +111,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setHighlights([]);
     setFeaturedAccounts([]);
     setThingsToKnow([]);
+    setAccessType("public");
+    setInvitePublicVisibility(false);
   };
 
   const getCurrentFormData = () => ({
@@ -131,8 +136,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     gallery: gallery,
     description: description,
     highlights: highlights,
-    featured_accounts: featuredAccounts,
+    highlighted_accounts: featuredAccounts,
     things_to_know: thingsToKnow,
+    access_type: accessType,
+    invite_public_visibility: invitePublicVisibility,
   });
 
   const saveDraft = async (silent = false) => {
@@ -508,6 +515,78 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Event Visibility */}
+            <Text style={styles.label}>Event Visibility *</Text>
+            <View style={styles.eventTypeRow}>
+              {[
+                { value: "public", label: "Public", icon: "globe-outline" },
+                {
+                  value: "invite_only",
+                  label: "Invite Only",
+                  icon: "lock-closed-outline",
+                },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.pillWrapper}
+                  onPress={() => setAccessType(opt.value)}
+                >
+                  {accessType === opt.value ? (
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.pillActive,
+                        { flexDirection: "row", alignItems: "center", gap: 6 },
+                      ]}
+                    >
+                      <Ionicons name={opt.icon} size={14} color="#fff" />
+                      <Text style={styles.pillTextActive}>{opt.label}</Text>
+                    </LinearGradient>
+                  ) : (
+                    <View
+                      style={[
+                        styles.pillInactive,
+                        { flexDirection: "row", alignItems: "center", gap: 6 },
+                      ]}
+                    >
+                      <Ionicons
+                        name={opt.icon}
+                        size={14}
+                        color={LIGHT_TEXT_COLOR}
+                      />
+                      <Text style={styles.pillText}>{opt.label}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* For invite-only: option to show in feeds with hidden location */}
+            {accessType === "invite_only" && (
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() =>
+                  setInvitePublicVisibility(!invitePublicVisibility)
+                }
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    invitePublicVisibility && styles.checkboxChecked,
+                  ]}
+                >
+                  {invitePublicVisibility && (
+                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  )}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  Show in discover feed (location hidden until invited)
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {eventType !== "virtual" && (
               <>
@@ -1090,6 +1169,34 @@ const styles = StyleSheet.create({
   toggleActive: { borderColor: PRIMARY_COLOR, backgroundColor: PRIMARY_COLOR },
   toggleText: { fontSize: 14, fontWeight: "600", color: LIGHT_TEXT_COLOR },
   toggleTextActive: { color: "#FFFFFF" },
+  // Checkbox styles for visibility toggle
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: BORDER_COLOR,
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+  },
+  checkboxChecked: {
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+    flex: 1,
+  },
 });
 
 export default CreateEventModal;

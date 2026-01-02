@@ -985,14 +985,34 @@ export default function CommunityProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <GradientButton
-            title="Edit Profile"
-            onPress={() => {
-              HapticsService.triggerImpactLight();
-              navigation.navigate("EditCommunityProfile", { profile });
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              marginTop: 10,
+              marginBottom: 20,
+              width: "100%",
             }}
-            style={styles.editProfileButton}
-          />
+          >
+            <GradientButton
+              title="Edit Profile"
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.navigate("EditCommunityProfile", { profile });
+              }}
+              style={{ flex: 1 }}
+            />
+            <GradientButton
+              title="Create Post"
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.navigate("CommunityCreatePost", {
+                  role: "community",
+                });
+              }}
+              style={{ flex: 1 }}
+            />
+          </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>

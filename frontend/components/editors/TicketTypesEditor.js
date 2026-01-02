@@ -278,7 +278,7 @@ const TicketTypesEditor = ({ ticketTypes = [], onChange }) => {
               {/* Visibility */}
               <Text style={styles.fieldLabel}>Visibility</Text>
               <View style={styles.visibilityOptions}>
-                {["public", "hidden", "invite_only"].map((vis) => (
+                {["public", "invite_only"].map((vis) => (
                   <TouchableOpacity
                     key={vis}
                     style={[
@@ -294,8 +294,6 @@ const TicketTypesEditor = ({ ticketTypes = [], onChange }) => {
                       name={
                         vis === "public"
                           ? "globe-outline"
-                          : vis === "hidden"
-                          ? "eye-off-outline"
                           : "lock-closed-outline"
                       }
                       size={18}

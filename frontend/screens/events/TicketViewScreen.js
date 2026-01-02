@@ -109,6 +109,8 @@ export default function TicketViewScreen({ route, navigation }) {
         return PRIMARY_COLOR;
       case "cancelled":
         return ERROR_COLOR;
+      case "revoked":
+        return ERROR_COLOR;
       default:
         return MUTED_TEXT;
     }
@@ -122,6 +124,8 @@ export default function TicketViewScreen({ route, navigation }) {
         return "✓ Attended";
       case "cancelled":
         return "✗ Cancelled";
+      case "revoked":
+        return "⊘ Revoked";
       default:
         return status;
     }
@@ -178,6 +182,8 @@ export default function TicketViewScreen({ route, navigation }) {
   }
 
   const isCancelled = ticket?.status === "cancelled";
+  const isRevoked = ticket?.status === "revoked";
+  const isInvalid = isCancelled || isRevoked;
   const isPast = new Date(ticket?.eventDate) < new Date();
 
   return (
@@ -205,27 +211,37 @@ export default function TicketViewScreen({ route, navigation }) {
         <View style={styles.ticketCard}>
           {/* QR Code Section */}
           <View
-            style={[styles.qrSection, isCancelled && styles.qrSectionCancelled]}
+            style={[styles.qrSection, isInvalid && styles.qrSectionCancelled]}
           >
             <View
               style={[
                 styles.qrContainer,
-                isCancelled && styles.qrContainerCancelled,
+                isInvalid && styles.qrContainerCancelled,
               ]}
             >
               <QRCode
                 value={ticket?.qrCodeData || "INVALID"}
                 size={200}
-                backgroundColor={isCancelled ? "#F3F4F6" : "#FFFFFF"}
-                color={isCancelled ? "#9CA3AF" : "#000000"}
+                backgroundColor={isInvalid ? "#F3F4F6" : "#FFFFFF"}
+                color={isInvalid ? "#9CA3AF" : "#000000"}
               />
             </View>
-            {isCancelled ? (
+            {isRevoked ? (
+              <Text style={styles.qrCancelledText}>Ticket Revoked</Text>
+            ) : isCancelled ? (
               <Text style={styles.qrCancelledText}>Ticket Cancelled</Text>
             ) : (
               <Text style={styles.qrHint}>Scan this QR code at entry</Text>
             )}
           </View>
+
+          {/* Revoked Banner */}
+          {isRevoked && ticket?.revokedReason && (
+            <View style={styles.revokedBanner}>
+              <Ionicons name="warning" size={18} color={ERROR_COLOR} />
+              <Text style={styles.revokedText}>{ticket.revokedReason}</Text>
+            </View>
+          )}
 
           {/* Dashed Divider */}
           <View style={styles.dashedDivider}>
@@ -633,5 +649,24 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: "#92400E",
+  },
+  revokedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FEE2E2",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  revokedText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#DC2626",
+    fontWeight: "500",
   },
 });

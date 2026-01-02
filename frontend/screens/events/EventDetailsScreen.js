@@ -15,13 +15,18 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getEventDetails, toggleEventInterest } from "../../api/events";
+import {
+  getEventDetails,
+  toggleEventInterest,
+  requestEventInvite,
+} from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS } from "../../constants/theme";
 import { useLocationName } from "../../utils/locationNameCache";
 import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
+import { Alert } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -49,6 +54,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [showCreatorToast, setShowCreatorToast] = useState(false);
   const [isInterested, setIsInterested] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [isInvited, setIsInvited] = useState(false);
+  const [locationHidden, setLocationHidden] = useState(false);
+  const [requestingInvite, setRequestingInvite] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -76,6 +84,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
         setEvent(response.event);
         setIsInterested(response.event.is_interested || false);
         setIsRegistered(response.event.is_registered || false);
+        setIsInvited(response.event.is_invited || false);
+        setLocationHidden(response.event.location_hidden || false);
       } else {
         // If API fails but we have initialData, use it
         if (!initialData) {
@@ -192,7 +202,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const handleRegister = () => {
     // If already registered, go directly to ticket view
     if (isRegistered) {
-      navigation.navigate("YourEvents", {
+      // Use root navigation to ensure it works from any navigator context (Chat, Events, etc.)
+      const rootNav =
+        navigation.getParent()?.getParent() ||
+        navigation.getParent() ||
+        navigation;
+      rootNav.navigate("YourEvents", {
         screen: "TicketView",
         params: { eventId: event?.id },
       });
@@ -211,6 +226,40 @@ const EventDetailsScreen = ({ route, navigation }) => {
       console.log("Register for free event:", event?.id);
     }
   };
+
+  // Handle request invite for invite-only events
+  const handleRequestInvite = async () => {
+    if (requestingInvite || !event?.id) return;
+
+    try {
+      setRequestingInvite(true);
+      HapticsService.triggerImpactMedium();
+
+      const response = await requestEventInvite(event.id);
+
+      if (response?.success) {
+        Alert.alert(
+          "Request Sent! 📨",
+          "Your invitation request has been sent to the organizer. You'll be notified when they respond.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert("Error", response?.error || "Failed to send request");
+      }
+    } catch (error) {
+      console.error("Error requesting invite:", error);
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to send invitation request"
+      );
+    } finally {
+      setRequestingInvite(false);
+    }
+  };
+
+  // Check if this is an invite-only event where user needs to request access
+  const isInviteOnlyNotInvited =
+    event?.access_type === "invite_only" && !isInvited && !isRegistered;
 
   // Handle bookmark/interest toggle
   const handleBookmark = async () => {
@@ -432,22 +481,40 @@ const EventDetailsScreen = ({ route, navigation }) => {
           {event.location_url && (
             <TouchableOpacity
               style={styles.infoRow}
-              onPress={handleOpenLocation}
+              onPress={locationHidden ? null : handleOpenLocation}
+              disabled={locationHidden}
             >
               <View style={styles.infoIcon}>
                 <Ionicons
-                  name="location-outline"
+                  name={
+                    locationHidden ? "lock-closed-outline" : "location-outline"
+                  }
                   size={20}
-                  color={TEXT_COLOR}
+                  color={locationHidden ? MUTED_TEXT : TEXT_COLOR}
                 />
               </View>
               <View style={styles.infoContent}>
-                <Text style={styles.infoTitle} numberOfLines={2}>
-                  {displayLocationName}
-                </Text>
-                <Text style={styles.infoSubtitle}>Tap to open in Maps</Text>
+                {locationHidden ? (
+                  <>
+                    <Text style={[styles.infoTitle, { color: MUTED_TEXT }]}>
+                      Location hidden
+                    </Text>
+                    <Text style={styles.infoSubtitle}>
+                      Request invite to see location
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.infoTitle} numberOfLines={2}>
+                      {displayLocationName}
+                    </Text>
+                    <Text style={styles.infoSubtitle}>Tap to open in Maps</Text>
+                  </>
+                )}
               </View>
-              <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
+              {!locationHidden && (
+                <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
+              )}
             </TouchableOpacity>
           )}
 
@@ -728,6 +795,24 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 : 0;
               const isFree = lowestPrice === 0;
 
+              // Show "Invite Only" badge for non-invited users
+              if (isInviteOnlyNotInvited) {
+                return (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Ionicons name="lock-closed" size={16} color="#FF6B6B" />
+                    <Text style={[styles.priceText, { color: "#FF6B6B" }]}>
+                      Invite Only
+                    </Text>
+                  </View>
+                );
+              }
+
               return (
                 <>
                   <Text style={styles.priceText}>
@@ -744,26 +829,41 @@ const EventDetailsScreen = ({ route, navigation }) => {
         <TouchableOpacity
           style={[
             styles.registerButtonWrapper,
-            isRestrictedRole && styles.registerButtonDisabled,
+            isRestrictedRole &&
+              !isInviteOnlyNotInvited &&
+              styles.registerButtonDisabled,
           ]}
-          onPress={handleRegister}
-          activeOpacity={isRestrictedRole ? 1 : 0.8}
+          onPress={
+            isInviteOnlyNotInvited ? handleRequestInvite : handleRegister
+          }
+          activeOpacity={isRestrictedRole && !isInviteOnlyNotInvited ? 1 : 0.8}
+          disabled={requestingInvite}
         >
           <LinearGradient
             colors={
-              isRestrictedRole ? ["#9CA3AF", "#9CA3AF"] : COLORS.primaryGradient
+              isInviteOnlyNotInvited
+                ? ["#FF6B6B", "#FF8E8E"]
+                : isRestrictedRole
+                ? ["#9CA3AF", "#9CA3AF"]
+                : COLORS.primaryGradient
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.registerButtonGradient}
           >
-            <Text style={styles.registerButtonText}>
-              {isRegistered
-                ? "View Your Ticket"
-                : event.ticket_types?.length > 0 || event.ticket_price
-                ? "Book tickets"
-                : "Register"}
-            </Text>
+            {requestingInvite ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.registerButtonText}>
+                {isRegistered
+                  ? "View Your Ticket"
+                  : isInviteOnlyNotInvited
+                  ? "Request Invite"
+                  : event.ticket_types?.length > 0 || event.ticket_price
+                  ? "Book tickets"
+                  : "Register"}
+              </Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>

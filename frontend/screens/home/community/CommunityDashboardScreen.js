@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Animated,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +19,7 @@ import { mockData } from "../../../data/mockData";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
+
 import { COLORS, SHADOWS } from "../../../constants/theme";
 
 const PRIMARY_COLOR = "#007AFF";
@@ -27,6 +30,7 @@ export default function CommunityDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showEditEventModal, setShowEditEventModal] = useState(false);
+
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming"); // 'upcoming' or 'previous'
   const [metrics, setMetrics] = useState({
@@ -43,6 +47,29 @@ export default function CommunityDashboardScreen({ navigation }) {
     message: "",
     actions: [],
   });
+
+  // Animation for Share Tickets button - gentle pulse
+  const shareTicketsPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Start pulse animation loop
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shareTicketsPulse, {
+          toValue: 1.08,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shareTicketsPulse, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, [shareTicketsPulse]);
 
   useEffect(() => {
     loadDashboard();
@@ -93,6 +120,20 @@ export default function CommunityDashboardScreen({ navigation }) {
   const handleCreatePost = () => {
     // Navigate to post creation screen with role param
     navigation.navigate("CommunityCreatePost", { role: "community" });
+  };
+
+  const handleShareTickets = () => {
+    // Check if there are any upcoming events to share tickets for
+    if (upcomingEvents.length === 0) {
+      Alert.alert(
+        "No Events",
+        "Create an event first before sharing tickets.",
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+    // Navigate to ShareTicketScreen with events
+    navigation.navigate("ShareTicket", { events: upcomingEvents });
   };
 
   const handleViewEvent = (event) => {
@@ -484,23 +525,26 @@ export default function CommunityDashboardScreen({ navigation }) {
 
             <TouchableOpacity
               style={styles.actionButtonContainer}
-              onPress={handleCreatePost}
+              onPress={handleShareTickets}
             >
               <LinearGradient
-                colors={["#FFFFFF", "#F0F8FF"]}
+                colors={["#FFFFFF", "#FFF0F5"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.cardGradient}
               >
-                <LinearGradient
-                  colors={["#00C6FF", "#007AFF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.actionIconContainer}
+                <Animated.View
+                  style={[
+                    styles.actionIconContainer,
+                    {
+                      backgroundColor: "#FF69B4",
+                      transform: [{ scale: shareTicketsPulse }],
+                    },
+                  ]}
                 >
-                  <Ionicons name="add" size={32} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.actionButtonText}>Create Post</Text>
+                  <Ionicons name="gift" size={32} color="#FFFFFF" />
+                </Animated.View>
+                <Text style={styles.actionButtonText}>Share Tickets</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -930,5 +974,63 @@ const styles = StyleSheet.create({
   cancelledText: {
     textDecorationLine: "line-through",
     color: "#999999",
+  },
+  // Share Ticket Modal Styles
+  shareModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  shareModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 40,
+    maxHeight: "80%",
+  },
+  shareModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  shareModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: TEXT_COLOR,
+  },
+  shareModalCloseBtn: {
+    padding: 4,
+  },
+  shareModalSubtitle: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 12,
+  },
+  shareEventItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  shareEventImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: "#E5E5EA",
+  },
+  shareEventTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+  },
+  shareEventDate: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 2,
   },
 });

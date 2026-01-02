@@ -7,6 +7,7 @@ const {
   sendBookingConfirmationEmail,
   sendCancellationEmail,
 } = require("../services/emailService");
+const { sendTicketMessage } = require("./messageController");
 
 const pool = createPool();
 
@@ -44,6 +45,8 @@ const createEvent = async (req, res) => {
       ticket_types, // Array of {name, description, base_price, total_quantity, ...}
       discount_codes, // Array of {code, discount_type, discount_value, max_uses, ...}
       pricing_rules, // Array of {name, rule_type, discount_type, discount_value, ...}
+      access_type, // Event visibility: 'public' or 'invite_only'
+      invite_public_visibility, // For invite_only: show in feeds with hidden location
     } = req.body;
 
     // Validation
@@ -86,9 +89,9 @@ const createEvent = async (req, res) => {
       INSERT INTO events (
         community_id, title, description, start_datetime, end_datetime, location_url,
         location_name, max_attendees, banner_url, event_type, virtual_link, venue_id,
-        creator_id, is_published, ticket_price, created_at
+        creator_id, is_published, ticket_price, access_type, invite_public_visibility, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
       RETURNING *
     `;
 
@@ -108,6 +111,8 @@ const createEvent = async (req, res) => {
       userId, // creator_id
       true, // is_published
       ticket_price || null,
+      access_type || "public", // Event visibility
+      invite_public_visibility || false, // Show in feeds for invite_only
     ];
 
     const result = await pool.query(query, values);
@@ -594,12 +599,12 @@ const getMyEvents = async (req, res) => {
         er.registration_status,
         er.created_at as registration_date,
         (SELECT COUNT(*) FROM event_registrations er3 
-         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended')) as attendee_count
+         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count
       FROM events e
       LEFT JOIN communities c ON e.community_id = c.id
       LEFT JOIN venues v ON e.venue_id = v.id
       INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1 
-        AND er.registration_status IN ('registered', 'attended')
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
       ORDER BY COALESCE(e.start_datetime, e.event_date) DESC
     `;
 
@@ -1062,6 +1067,7 @@ const discoverEvents = async (req, res) => {
     // Build query based on user type
     // For members: prioritize events from followed communities
     // For communities: show events from similar categories
+    // Visibility: public events always show, invite_only only if invite_public_visibility=true
     const query = `
       WITH followed_communities AS (
         SELECT following_id 
@@ -1085,6 +1091,8 @@ const discoverEvents = async (req, res) => {
           e.virtual_link,
           e.is_published,
           e.created_at,
+          e.access_type,
+          e.invite_public_visibility,
           c.id as community_id,
           c.name as community_name,
           c.username as community_username,
@@ -1105,6 +1113,11 @@ const discoverEvents = async (req, res) => {
             SELECT 1 FROM event_registrations er2 
             WHERE er2.event_id = e.id AND er2.member_id = $1 AND er2.registration_status = 'registered' AND $2 = 'member'
           ) THEN true ELSE false END as is_registered,
+          -- Check if user is invited to invite_only events (has active ticket gift)
+          CASE WHEN EXISTS (
+            SELECT 1 FROM ticket_gifts tg 
+            WHERE tg.event_id = e.id AND tg.recipient_id = $1 AND tg.status = 'active' AND $2 = 'member'
+          ) THEN true ELSE false END as is_invited,
           -- Score: following bonus + recency + popularity
           (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
           (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int + -- Newer is better
@@ -1115,6 +1128,12 @@ const discoverEvents = async (req, res) => {
         WHERE e.is_published = true
           AND e.start_datetime > NOW() -- Only future events
           AND (e.is_cancelled = false OR e.is_cancelled IS NULL) -- Exclude cancelled events
+          -- Visibility filter: public OR invite_only with public visibility
+          AND (
+            e.access_type = 'public' 
+            OR e.access_type IS NULL 
+            OR (e.access_type = 'invite_only' AND e.invite_public_visibility = true)
+          )
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT $3 OFFSET $4
       )
@@ -1212,6 +1231,8 @@ const searchEvents = async (req, res) => {
         e.virtual_link,
         e.is_published,
         e.created_at,
+        e.access_type,
+        e.invite_public_visibility,
         c.id as community_id,
         c.name as community_name,
         c.username as community_username,
@@ -1221,6 +1242,11 @@ const searchEvents = async (req, res) => {
           (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
           0
         ) as attendee_count,
+        -- Check if user is invited (has active ticket gift)
+        CASE WHEN EXISTS (
+          SELECT 1 FROM ticket_gifts tg 
+          WHERE tg.event_id = e.id AND tg.recipient_id = $4 AND tg.status = 'active'
+        ) THEN true ELSE false END as is_invited,
         'event' as type
       FROM events e
       INNER JOIN communities c ON e.community_id = c.id
@@ -1231,6 +1257,12 @@ const searchEvents = async (req, res) => {
           OR LOWER(e.description) LIKE $1
           OR LOWER(c.name) LIKE $1
           OR LOWER(c.username) LIKE $1
+        )
+        -- Visibility filter: public OR invite_only with public visibility
+        AND (
+          e.access_type = 'public' 
+          OR e.access_type IS NULL 
+          OR (e.access_type = 'invite_only' AND e.invite_public_visibility = true)
         )
       ORDER BY e.start_datetime ASC
       LIMIT $2 OFFSET $3
@@ -1247,6 +1279,7 @@ const searchEvents = async (req, res) => {
       searchTerm,
       parseInt(limit),
       parseInt(offset),
+      userId, // For is_invited check
     ]);
 
     console.log("[searchEvents] Found", result.rows.length, "events");
@@ -1890,7 +1923,7 @@ const getEventById = async (req, res) => {
         c.name as community_name,
         c.logo_url as community_logo,
         c.id as community_id,
-        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status IN ('registered', 'attended', 'confirmed')), 0) as attendee_count,
         (SELECT COUNT(*) FROM events WHERE creator_id = e.creator_id) as community_events_count
       FROM events e
       LEFT JOIN communities c ON e.creator_id = c.id
@@ -2066,7 +2099,16 @@ const getEventById = async (req, res) => {
     let isRegistered = false;
     const userId = req.user?.id;
     const userType = req.user?.type;
+
+    // Check if user is invited (has active ticket gift) for invite_only events
+    let isInvited = false;
     if (userId && userType === "member") {
+      const inviteCheck = await pool.query(
+        "SELECT id FROM ticket_gifts WHERE event_id = $1 AND recipient_id = $2 AND status = 'active'",
+        [eventId, userId]
+      );
+      isInvited = inviteCheck.rows.length > 0;
+
       const interestCheck = await pool.query(
         "SELECT id FROM event_interests WHERE event_id = $1 AND member_id = $2",
         [eventId, userId]
@@ -2075,29 +2117,86 @@ const getEventById = async (req, res) => {
 
       // Check if user is registered for this event
       const registrationCheck = await pool.query(
-        "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended')",
+        "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
         [eventId, userId]
       );
       isRegistered = registrationCheck.rows.length > 0;
     }
 
+    // Check if event creator (community) is the one viewing
+    const isEventCreator =
+      userType === "community" && userId == event.creator_id;
+
+    console.log("[getEventById] Creator check:", {
+      userId,
+      userType,
+      creatorId: event.creator_id,
+      isEventCreator,
+      ticketTypesCount: ticketTypesResult.rows.length,
+    });
+
+    // Determine if location should be hidden
+    // Hide if: invite_only + public visibility + viewer is NOT invited/registered AND NOT the creator
+    const shouldHideLocation =
+      event.access_type === "invite_only" &&
+      event.invite_public_visibility === true &&
+      !isInvited &&
+      !isRegistered &&
+      !isEventCreator;
+
+    // Filter ticket types based on viewer:
+    // - Event creator sees ALL ticket types (including invite_only)
+    // - Public viewers only see 'public' visibility tickets
+    // - For invite_only events where location is hidden, hide all tickets
+    let filteredTicketTypes = ticketTypesResult.rows;
+    if (!isEventCreator) {
+      if (shouldHideLocation) {
+        // Hide all tickets for invite-only events when user not invited
+        filteredTicketTypes = [];
+      } else {
+        // For public events, filter out invite_only tickets
+        filteredTicketTypes = ticketTypesResult.rows.filter(
+          (t) => t.visibility === "public" || !t.visibility
+        );
+      }
+    }
+
+    // Build response event with conditional location
+    const responseEvent = {
+      ...event,
+      banner_carousel: bannerCarousel,
+      gallery: gallery,
+      highlights: highlightsResult.rows,
+      things_to_know: thingsResult.rows,
+      featured_accounts: featuredResult.rows,
+      community_heads: headsResult.rows,
+      ticket_types: filteredTicketTypes,
+      all_ticket_types: isEventCreator ? ticketTypesResult.rows : undefined, // Include all for creator (for ShareTickets)
+      discount_codes: shouldHideLocation ? [] : discountCodesResult.rows,
+      pricing_rules: shouldHideLocation ? [] : pricingRulesResult.rows,
+      categories: categories,
+      is_interested: isInterested,
+      is_registered: isRegistered,
+      is_invited: isInvited,
+      location_hidden: shouldHideLocation,
+    };
+
+    // Hide location details if user is not invited to invite_only public event
+    if (shouldHideLocation) {
+      responseEvent.location_url = null;
+      responseEvent.location_name = null;
+      responseEvent.virtual_link = null;
+    }
+
+    console.log("[getEventById] Response ticket types:", {
+      ticket_types_count: responseEvent.ticket_types?.length,
+      all_ticket_types_count: responseEvent.all_ticket_types?.length,
+      isEventCreator,
+    });
+
     res.json({
       success: true,
-      event: {
-        ...event,
-        banner_carousel: bannerCarousel,
-        gallery: gallery,
-        highlights: highlightsResult.rows,
-        things_to_know: thingsResult.rows,
-        featured_accounts: featuredResult.rows,
-        community_heads: headsResult.rows,
-        ticket_types: ticketTypesResult.rows,
-        discount_codes: discountCodesResult.rows,
-        pricing_rules: pricingRulesResult.rows,
-        categories: categories,
-        is_interested: isInterested,
-        is_registered: isRegistered,
-      },
+      event: responseEvent,
     });
   } catch (error) {
     console.error("Error getting event:", error);
@@ -2638,7 +2737,23 @@ const registerForEvent = async (req, res) => {
     }
     const event = eventResult.rows[0];
 
-    // 4. Check event hasn't passed (use start_datetime if available, fallback to event_date)
+    // 4a. Check if event is invite_only and user is invited
+    if (event.access_type === "invite_only") {
+      const inviteCheck = await client.query(
+        `SELECT id FROM ticket_gifts 
+         WHERE event_id = $1 AND recipient_id = $2 AND status = 'active'`,
+        [eventId, userId]
+      );
+      if (inviteCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error:
+            "This is an invite-only event. You must be invited to register.",
+        });
+      }
+    }
+
+    // 4b. Check event hasn't passed (use start_datetime if available, fallback to event_date)
     const eventStartDate = event.start_datetime || event.event_date;
     if (new Date(eventStartDate) < new Date()) {
       await client.query("ROLLBACK");
@@ -3389,6 +3504,874 @@ const verifyTicket = async (req, res) => {
   }
 };
 
+// ============================================================
+// TICKET GIFTING SYSTEM
+// ============================================================
+
+/**
+ * Create a ticket gift (send tickets to a user)
+ * POST /events/:eventId/gifts
+ * Community only - the event creator
+ *
+ * @body {number} ticketTypeId - The ticket type to gift
+ * @body {number} recipientId - Member receiving the gift
+ * @body {number} quantity - Number of tickets to gift
+ * @body {boolean} canReshare - Allow recipient to re-share
+ * @body {string} message - Custom message
+ * @body {string} messagePreset - 'plus_one', 'plus_two', 'custom'
+ */
+const createTicketGift = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const {
+      ticketTypeId,
+      recipientId,
+      quantity,
+      canReshare,
+      message,
+      messagePreset,
+    } = req.body;
+
+    // 1. Validate community
+    if (!userId || userType !== "community") {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "Only communities can gift tickets" });
+    }
+
+    // 2. Validate event belongs to this community
+    const eventResult = await client.query(
+      "SELECT id, title, creator_id, access_type FROM events WHERE id = $1",
+      [eventId]
+    );
+    if (eventResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const event = eventResult.rows[0];
+    if (event.creator_id != userId) {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "You can only gift tickets for your own events" });
+    }
+
+    // 3. Validate ticket type and availability
+    const ticketResult = await client.query(
+      `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2`,
+      [ticketTypeId, eventId]
+    );
+    if (ticketResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Ticket type not found" });
+    }
+    const ticketType = ticketResult.rows[0];
+
+    // Check availability
+    const available = ticketType.total_quantity
+      ? ticketType.total_quantity -
+        ticketType.sold_count -
+        ticketType.reserved_count
+      : Infinity;
+    if (quantity > available) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: `Only ${available} tickets available` });
+    }
+
+    // 4. Validate recipient exists
+    const recipientResult = await client.query(
+      "SELECT id, name, email FROM members WHERE id = $1",
+      [recipientId]
+    );
+    if (recipientResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Recipient not found" });
+    }
+    const recipient = recipientResult.rows[0];
+
+    // 5. Create the gift
+    const giftResult = await client.query(
+      `INSERT INTO ticket_gifts (
+        event_id, ticket_type_id, creator_id, recipient_id,
+        original_quantity, remaining_quantity, can_reshare,
+        message, message_preset
+      ) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8)
+      RETURNING *`,
+      [
+        eventId,
+        ticketTypeId,
+        userId,
+        recipientId,
+        quantity,
+        canReshare || false,
+        message,
+        messagePreset,
+      ]
+    );
+    const gift = giftResult.rows[0];
+
+    // 6. If ticket is FREE, create registration immediately
+    const isFreeTicket = parseFloat(ticketType.base_price) === 0;
+    let registration = null;
+
+    if (isFreeTicket) {
+      // Generate QR code hash
+      const qrHash = `SNOO-E${eventId}-G${gift.id}-${crypto
+        .randomBytes(4)
+        .toString("hex")
+        .toUpperCase()}`;
+
+      // Create event registration with PENDING status (requires RSVP confirmation)
+      const regResult = await client.query(
+        `INSERT INTO event_registrations (
+          event_id, member_id, registration_status, total_amount, qr_code_hash
+        ) VALUES ($1, $2, 'pending', 0, $3)
+        ON CONFLICT (event_id, member_id) DO UPDATE SET
+          registration_status = CASE 
+            WHEN event_registrations.registration_status = 'cancelled' THEN 'pending'
+            ELSE event_registrations.registration_status
+          END,
+          qr_code_hash = COALESCE(event_registrations.qr_code_hash, $3),
+          updated_at = NOW()
+        RETURNING *`,
+        [eventId, recipientId, qrHash]
+      );
+      registration = regResult.rows[0];
+
+      // Create registration ticket record
+      await client.query(
+        `INSERT INTO registration_tickets (
+          registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price
+        ) VALUES ($1, $2, $3, $4, 0, 0)`,
+        [registration.id, ticketTypeId, ticketType.name, quantity]
+      );
+
+      // Update gift with used quantity
+      await client.query(
+        `UPDATE ticket_gifts SET used_quantity = $1, remaining_quantity = 0 WHERE id = $2`,
+        [quantity, gift.id]
+      );
+
+      // Update ticket sold count
+      await client.query(
+        `UPDATE ticket_types SET sold_count = sold_count + $1 WHERE id = $2`,
+        [quantity, ticketTypeId]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    // 7. Send ticket via chat message
+    let conversationId = null;
+    try {
+      const chatResult = await sendTicketMessage({
+        senderId: userId,
+        senderType: "community",
+        recipientId: recipientId,
+        recipientType: "member",
+        ticketData: {
+          giftId: gift.id,
+          eventId: parseInt(eventId),
+          eventTitle: event.title,
+          ticketTypeId: parseInt(ticketTypeId),
+          ticketName: ticketType.name,
+          quantity,
+          isFree: isFreeTicket,
+          message: message || null,
+          status: isFreeTicket ? "pending" : "invite_pending", // pending = needs RSVP
+          senderName: null, // Will be populated on frontend from conversation
+        },
+      });
+      conversationId = chatResult.conversationId;
+    } catch (chatError) {
+      console.error("Error sending ticket chat message:", chatError);
+      // Continue even if chat fails - gift was already created
+    }
+
+    // 8. Send notification (push + in-app)
+    try {
+      const notifTitle = isFreeTicket
+        ? "🎫 You received a free ticket!"
+        : "You're invited to an event!";
+      const notifMessage = isFreeTicket
+        ? `You've received ${quantity}x ${ticketType.name} for "${event.title}"`
+        : `You're invited to "${event.title}". Register now!`;
+
+      await notificationService.createNotification({
+        recipientId: recipientId,
+        recipientType: "member",
+        type: isFreeTicket ? "ticket_gifted" : "event_invite",
+        title: notifTitle,
+        message: notifMessage,
+        referenceType: "event",
+        referenceId: eventId,
+        metadata: {
+          giftId: gift.id,
+          ticketTypeId,
+          quantity,
+          isFree: isFreeTicket,
+          conversationId: conversationId, // For navigation to chat
+        },
+      });
+
+      await pushService.sendPushNotification(
+        recipientId,
+        "member",
+        notifTitle,
+        notifMessage,
+        {
+          type: isFreeTicket ? "ticket_gifted" : "event_invite",
+          eventId: eventId,
+          giftId: gift.id,
+          conversationId: conversationId,
+        }
+      );
+    } catch (notifError) {
+      console.error("Error sending gift notification:", notifError);
+    }
+
+    res.json({
+      success: true,
+      gift: {
+        ...gift,
+        ticket_name: ticketType.name,
+        recipient_name: recipient.name,
+        is_free: isFreeTicket,
+        registration: registration,
+      },
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error creating ticket gift:", error);
+    res.status(500).json({ error: "Failed to create ticket gift" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get all gifts for an event (for community dashboard)
+ * GET /events/:eventId/gifts
+ */
+const getEventGifts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Verify event ownership
+    const eventCheck = await pool.query(
+      "SELECT creator_id FROM events WHERE id = $1",
+      [eventId]
+    );
+    if (
+      eventCheck.rows.length === 0 ||
+      eventCheck.rows[0].creator_id != userId
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get all gifts with recipient and ticket info
+    const result = await pool.query(
+      `SELECT 
+        tg.*,
+        tt.name as ticket_name,
+        tt.base_price,
+        m.name as recipient_name,
+        m.profile_photo_url as recipient_photo
+      FROM ticket_gifts tg
+      JOIN ticket_types tt ON tg.ticket_type_id = tt.id
+      JOIN members m ON tg.recipient_id = m.id
+      WHERE tg.event_id = $1
+      ORDER BY tg.created_at DESC`,
+      [eventId]
+    );
+
+    res.json({
+      success: true,
+      gifts: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting event gifts:", error);
+    res.status(500).json({ error: "Failed to get gifts" });
+  }
+};
+
+/**
+ * Revoke a gift (cascade to children)
+ * POST /gifts/:giftId/revoke
+ */
+const revokeGift = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { giftId } = req.params;
+    const { reason } = req.body;
+
+    if (!userId || userType !== "community") {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "Only communities can revoke gifts" });
+    }
+
+    // Get gift and verify ownership
+    const giftResult = await client.query(
+      `SELECT tg.*, e.creator_id 
+       FROM ticket_gifts tg
+       JOIN events e ON tg.event_id = e.id
+       WHERE tg.id = $1`,
+      [giftId]
+    );
+    if (giftResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Gift not found" });
+    }
+    const gift = giftResult.rows[0];
+
+    if (gift.creator_id != userId) {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "You can only revoke gifts for your own events" });
+    }
+
+    if (gift.status === "revoked") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Gift already revoked" });
+    }
+
+    // Revoke this gift and all children (cascade)
+    const revokedGifts = await client.query(
+      `WITH RECURSIVE gift_tree AS (
+        SELECT id FROM ticket_gifts WHERE id = $1
+        UNION ALL
+        SELECT tg.id FROM ticket_gifts tg
+        JOIN gift_tree gt ON tg.parent_gift_id = gt.id
+      )
+      UPDATE ticket_gifts 
+      SET status = 'revoked', revoked_at = NOW(), revoked_reason = $2
+      WHERE id IN (SELECT id FROM gift_tree) AND status = 'active'
+      RETURNING id, recipient_id`,
+      [giftId, reason || "Revoked by event creator"]
+    );
+
+    await client.query("COMMIT");
+
+    // Send notifications to affected recipients
+    for (const revoked of revokedGifts.rows) {
+      try {
+        await notificationService.createNotification({
+          recipientId: revoked.recipient_id,
+          recipientType: "member",
+          type: "gift_revoked",
+          title: "Ticket Revoked",
+          message: "Your event ticket has been revoked by the organizer.",
+          referenceType: "event",
+          referenceId: gift.event_id,
+        });
+      } catch (e) {
+        console.error("Revoke notification error:", e);
+      }
+    }
+
+    res.json({
+      success: true,
+      revokedCount: revokedGifts.rowCount,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error revoking gift:", error);
+    res.status(500).json({ error: "Failed to revoke gift" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get gifts received by current member
+ * GET /members/my-gifts
+ */
+const getMyGifts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(403).json({ error: "Members only" });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        tg.*,
+        tt.name as ticket_name,
+        tt.base_price,
+        e.id as event_id,
+        e.title as event_title,
+        e.start_datetime as event_date,
+        e.banner_url,
+        c.name as community_name,
+        c.logo_url as community_logo
+      FROM ticket_gifts tg
+      JOIN ticket_types tt ON tg.ticket_type_id = tt.id
+      JOIN events e ON tg.event_id = e.id
+      JOIN communities c ON e.creator_id = c.id
+      WHERE tg.recipient_id = $1
+      ORDER BY tg.created_at DESC`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      gifts: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting my gifts:", error);
+    res.status(500).json({ error: "Failed to get gifts" });
+  }
+};
+
+/**
+ * Re-share a gift to another user
+ * POST /gifts/:giftId/reshare
+ * Member only - must have can_reshare = true
+ */
+const reshareGift = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { giftId } = req.params;
+    const { recipientId, quantity, message } = req.body;
+
+    if (!userId || userType !== "member") {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Members only" });
+    }
+
+    // Get parent gift
+    const parentResult = await client.query(
+      `SELECT tg.*, tt.base_price, e.title as event_title
+       FROM ticket_gifts tg
+       JOIN ticket_types tt ON tg.ticket_type_id = tt.id
+       JOIN events e ON tg.event_id = e.id
+       WHERE tg.id = $1 AND tg.recipient_id = $2`,
+      [giftId, userId]
+    );
+    if (parentResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Gift not found" });
+    }
+    const parent = parentResult.rows[0];
+
+    if (!parent.can_reshare) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "This gift cannot be re-shared" });
+    }
+
+    if (parent.status !== "active") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Cannot reshare an inactive gift" });
+    }
+
+    if (quantity > parent.remaining_quantity) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Only ${parent.remaining_quantity} tickets available to share`,
+      });
+    }
+
+    // Create child gift
+    const childResult = await client.query(
+      `INSERT INTO ticket_gifts (
+        event_id, ticket_type_id, parent_gift_id, creator_id, recipient_id,
+        original_quantity, remaining_quantity, can_reshare, message
+      ) VALUES ($1, $2, $3, $4, $5, $6, $6, false, $7)
+      RETURNING *`,
+      [
+        parent.event_id,
+        parent.ticket_type_id,
+        giftId,
+        parent.creator_id,
+        recipientId,
+        quantity,
+        message,
+      ]
+    );
+
+    // Update parent gift
+    await client.query(
+      `UPDATE ticket_gifts 
+       SET remaining_quantity = remaining_quantity - $1, shared_quantity = shared_quantity + $1
+       WHERE id = $2`,
+      [quantity, giftId]
+    );
+
+    await client.query("COMMIT");
+
+    // Send notification
+    try {
+      const isFree = parseFloat(parent.base_price) === 0;
+      await notificationService.createNotification({
+        recipientId: recipientId,
+        recipientType: "member",
+        type: isFree ? "ticket_gifted" : "event_invite",
+        title: isFree ? "🎫 You received a ticket!" : "You're invited!",
+        message: `You received ${quantity}x tickets for "${parent.event_title}"`,
+        referenceType: "event",
+        referenceId: parent.event_id,
+      });
+    } catch (e) {
+      console.error("Reshare notification error:", e);
+    }
+
+    res.json({
+      success: true,
+      gift: childResult.rows[0],
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error resharing gift:", error);
+    res.status(500).json({ error: "Failed to reshare gift" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Request invite to an event
+ * POST /events/:eventId/request-invite
+ * Member only
+ */
+const requestInvite = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const { message } = req.body;
+
+    if (!userId || userType !== "member") {
+      return res.status(403).json({ error: "Members only" });
+    }
+
+    // Check event exists and is invite_only
+    const eventResult = await pool.query(
+      "SELECT id, title, access_type, creator_id FROM events WHERE id = $1",
+      [eventId]
+    );
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const event = eventResult.rows[0];
+
+    if (event.access_type !== "invite_only") {
+      return res
+        .status(400)
+        .json({ error: "This event doesn't require an invite" });
+    }
+
+    // Check if already requested
+    const existingResult = await pool.query(
+      "SELECT id, status FROM invite_requests WHERE event_id = $1 AND member_id = $2",
+      [eventId, userId]
+    );
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({
+        error: "You already requested an invite",
+        status: existingResult.rows[0].status,
+      });
+    }
+
+    // Create request
+    const result = await pool.query(
+      `INSERT INTO invite_requests (event_id, member_id, message)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [eventId, userId, message]
+    );
+
+    // Notify community
+    try {
+      const memberResult = await pool.query(
+        "SELECT name FROM members WHERE id = $1",
+        [userId]
+      );
+      const memberName = memberResult.rows[0]?.name || "Someone";
+
+      await notificationService.createNotification({
+        recipientId: event.creator_id,
+        recipientType: "community",
+        type: "invite_request",
+        title: "Invite Request",
+        message: `${memberName} wants to join "${event.title}"`,
+        referenceType: "event",
+        referenceId: eventId,
+        metadata: { requestId: result.rows[0].id },
+      });
+    } catch (e) {
+      console.error("Request invite notification error:", e);
+    }
+
+    res.json({
+      success: true,
+      request: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error requesting invite:", error);
+    res.status(500).json({ error: "Failed to request invite" });
+  }
+};
+
+/**
+ * Get invite requests for an event (community view)
+ * GET /events/:eventId/invite-requests
+ */
+const getInviteRequests = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Communities only" });
+    }
+
+    // Verify ownership
+    const eventCheck = await pool.query(
+      "SELECT creator_id FROM events WHERE id = $1",
+      [eventId]
+    );
+    if (
+      eventCheck.rows.length === 0 ||
+      eventCheck.rows[0].creator_id != userId
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const result = await pool.query(
+      `SELECT ir.*, m.name, m.profile_photo_url, m.username
+       FROM invite_requests ir
+       JOIN members m ON ir.member_id = m.id
+       WHERE ir.event_id = $1
+       ORDER BY ir.created_at DESC`,
+      [eventId]
+    );
+
+    res.json({
+      success: true,
+      requests: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting invite requests:", error);
+    res.status(500).json({ error: "Failed to get requests" });
+  }
+};
+
+/**
+ * Respond to an invite request (approve/decline)
+ * POST /invite-requests/:requestId/respond
+ */
+const respondToInviteRequest = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { requestId } = req.params;
+    const { approved } = req.body;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Communities only" });
+    }
+
+    // Get request and verify ownership
+    const requestResult = await pool.query(
+      `SELECT ir.*, e.creator_id, e.title as event_title
+       FROM invite_requests ir
+       JOIN events e ON ir.event_id = e.id
+       WHERE ir.id = $1`,
+      [requestId]
+    );
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    const request = requestResult.rows[0];
+
+    if (request.creator_id != userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({ error: "Request already processed" });
+    }
+
+    // Update request status
+    await pool.query(
+      `UPDATE invite_requests 
+       SET status = $1, responded_at = NOW(), responded_by = $2
+       WHERE id = $3`,
+      [approved ? "approved" : "declined", userId, requestId]
+    );
+
+    // Notify member
+    await notificationService.createNotification({
+      recipientId: request.member_id,
+      recipientType: "member",
+      type: approved ? "invite_approved" : "invite_declined",
+      title: approved ? "Invite Request Approved!" : "Invite Request Declined",
+      message: approved
+        ? `Your request to join "${request.event_title}" was approved!`
+        : `Your request to join "${request.event_title}" was declined.`,
+      referenceType: "event",
+      referenceId: request.event_id,
+    });
+
+    res.json({
+      success: true,
+      status: approved ? "approved" : "declined",
+    });
+  } catch (error) {
+    console.error("Error responding to invite request:", error);
+    res.status(500).json({ error: "Failed to respond" });
+  }
+};
+
+/**
+ * Confirm RSVP for a gifted free ticket
+ * POST /gifts/:giftId/confirm
+ * Updates registration status and notifies community
+ */
+const confirmGiftRSVP = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { giftId } = req.params;
+    const { response } = req.body; // 'going' or 'not_going'
+
+    if (!userId || userType !== "member") {
+      return res.status(403).json({ error: "Only members can RSVP" });
+    }
+
+    if (!response || !["going", "not_going"].includes(response)) {
+      return res
+        .status(400)
+        .json({ error: "Invalid response. Use 'going' or 'not_going'" });
+    }
+
+    // Verify the gift belongs to this member
+    console.log(
+      `[confirmGiftRSVP] Looking up gift: giftId=${giftId} (type: ${typeof giftId}), userId=${userId}`
+    );
+
+    const giftResult = await pool.query(
+      `SELECT tg.*, e.title as event_title, e.creator_id as community_id, 
+              tt.name as ticket_name, tt.base_price
+       FROM ticket_gifts tg
+       JOIN events e ON tg.event_id = e.id
+       JOIN ticket_types tt ON tg.ticket_type_id = tt.id
+       WHERE tg.id = $1 AND tg.recipient_id = $2`,
+      [giftId, userId]
+    );
+
+    console.log(
+      `[confirmGiftRSVP] Gift query returned: ${giftResult.rows.length} rows`
+    );
+
+    if (giftResult.rows.length === 0) {
+      // Debug: check if gift exists at all
+      const giftOnly = await pool.query(
+        "SELECT id, recipient_id FROM ticket_gifts WHERE id = $1",
+        [giftId]
+      );
+      console.log(
+        `[confirmGiftRSVP] Gift ${giftId} exists:`,
+        giftOnly.rows[0] || "NOT FOUND"
+      );
+      return res.status(404).json({ error: "Gift not found" });
+    }
+
+    const gift = giftResult.rows[0];
+
+    // Check if it's a free ticket (RSVP only applies to free tickets)
+    if (parseFloat(gift.base_price) > 0) {
+      return res.status(400).json({ error: "RSVP is only for free tickets" });
+    }
+
+    const newStatus = response === "going" ? "registered" : "declined";
+
+    // Update event registration status
+    await pool.query(
+      `UPDATE event_registrations 
+       SET registration_status = $1, updated_at = NOW()
+       WHERE event_id = $2 AND member_id = $3`,
+      [newStatus, gift.event_id, userId]
+    );
+
+    // Update message metadata to persist the status
+    // Find the message with this giftId in metadata and update it
+    await pool.query(
+      `UPDATE messages 
+       SET metadata = jsonb_set(metadata, '{status}', to_jsonb($1::text))
+       WHERE message_type = 'ticket' 
+       AND metadata->>'giftId' = $2`,
+      [newStatus, String(gift.id)]
+    );
+
+    // Get member name for notification
+    const memberResult = await pool.query(
+      "SELECT name FROM members WHERE id = $1",
+      [userId]
+    );
+    const memberName = memberResult.rows[0]?.name || "A member";
+
+    // Notify community if going
+    if (response === "going") {
+      await notificationService.createNotification({
+        recipientId: gift.community_id,
+        recipientType: "community",
+        actorId: userId,
+        actorType: "member",
+        type: "gift_rsvp_confirmed",
+        title: "🎉 Ticket RSVP Confirmed!",
+        message: `${memberName} confirmed they're attending "${gift.event_title}"`,
+        referenceType: "event",
+        referenceId: gift.event_id,
+        metadata: {
+          giftId: gift.id,
+          memberId: userId,
+          memberName,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      status: newStatus,
+      message:
+        response === "going"
+          ? "You're confirmed! See you there!"
+          : "Response recorded. Maybe next time!",
+    });
+  } catch (error) {
+    console.error("Error confirming gift RSVP:", error);
+    res.status(500).json({ error: "Failed to confirm RSVP" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -3410,4 +4393,15 @@ module.exports = {
   cancelRegistration,
   getMyTicket,
   verifyTicket,
+  // Ticket gifting
+  createTicketGift,
+  getEventGifts,
+  revokeGift,
+  getMyGifts,
+  reshareGift,
+  confirmGiftRSVP,
+  // Invite requests
+  requestInvite,
+  getInviteRequests,
+  respondToInviteRequest,
 };

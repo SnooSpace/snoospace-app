@@ -663,6 +663,64 @@ router.patch(
   EventController.cancelEvent
 );
 
+// ============================================
+// TICKET GIFTING SYSTEM
+// ============================================
+// Community creates ticket gift
+router.post(
+  "/events/:eventId/gifts",
+  authMiddleware,
+  EventController.createTicketGift
+);
+// Community views all gifts for event
+router.get(
+  "/events/:eventId/gifts",
+  authMiddleware,
+  EventController.getEventGifts
+);
+// Community revokes a gift (cascade to children)
+router.post(
+  "/gifts/:giftId/revoke",
+  authMiddleware,
+  EventController.revokeGift
+);
+// Member views their received gifts
+router.get("/members/my-gifts", authMiddleware, EventController.getMyGifts);
+// Member re-shares a gift to another user
+router.post(
+  "/gifts/:giftId/reshare",
+  authMiddleware,
+  EventController.reshareGift
+);
+// Member confirms RSVP for free gifted ticket
+router.post(
+  "/gifts/:giftId/confirm",
+  authMiddleware,
+  EventController.confirmGiftRSVP
+);
+
+// ============================================
+// INVITE REQUESTS
+// ============================================
+// Member requests invite to invite-only event
+router.post(
+  "/events/:eventId/request-invite",
+  authMiddleware,
+  EventController.requestInvite
+);
+// Community views invite requests for event
+router.get(
+  "/events/:eventId/invite-requests",
+  authMiddleware,
+  EventController.getInviteRequests
+);
+// Community responds to invite request
+router.post(
+  "/invite-requests/:requestId/respond",
+  authMiddleware,
+  EventController.respondToInviteRequest
+);
+
 // Upload (Cloudinary)
 router.post(
   "/upload/event-banner",

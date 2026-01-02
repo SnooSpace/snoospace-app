@@ -501,6 +501,258 @@ export default function NotificationsScreen({ navigation }) {
       );
     }
 
+    // TICKET GIFTED - Member received free tickets
+    if (group.type === "ticket_gifted") {
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => navigateToEvent(payload.referenceId)}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#FF69B420" },
+            ]}
+          >
+            <Ionicons name="gift" size={22} color="#FF69B4" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "🎁 Gift Received!"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="#8E8E93"
+            style={styles.icon}
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    // EVENT INVITE - Member invited to paid event
+    if (group.type === "event_invite") {
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => navigateToEvent(payload.referenceId)}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#007AFF20" },
+            ]}
+          >
+            <Ionicons name="mail" size={22} color="#007AFF" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "You're Invited!"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="#8E8E93"
+            style={styles.icon}
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    // GIFT REVOKED - Member's ticket was revoked
+    if (group.type === "gift_revoked") {
+      return (
+        <View style={styles.row}>
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#FF3B3020" },
+            ]}
+          >
+            <Ionicons name="close-circle" size={22} color="#FF3B30" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Ticket Revoked"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // INVITE REQUEST - Community received invite request
+    if (group.type === "invite_request") {
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => navigateToEvent(payload.referenceId)}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#FF950020" },
+            ]}
+          >
+            <Ionicons name="hand-left" size={22} color="#FF9500" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Invite Request"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="#8E8E93"
+            style={styles.icon}
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    // INVITE APPROVED - Member's invite request was approved
+    if (group.type === "invite_approved") {
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => navigateToEvent(payload.referenceId)}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#34C75920" },
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={22} color="#34C759" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Invite Approved!"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="#8E8E93"
+            style={styles.icon}
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    // INVITE DECLINED - Member's invite request was declined
+    if (group.type === "invite_declined") {
+      return (
+        <View style={styles.row}>
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#8E8E9320" },
+            ]}
+          >
+            <Ionicons name="remove-circle" size={22} color="#8E8E93" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Invite Declined"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // TICKET GIFTED - Navigate to chat to see the ticket card
+    if (group.type === "ticket_gifted" || group.type === "event_invite") {
+      const hasConversation = payload.conversationId;
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            if (hasConversation) {
+              // Navigate to chat with the community that sent the ticket
+              navigation.navigate("Chat", {
+                conversationId: payload.conversationId,
+              });
+            } else {
+              // Fallback to event details
+              navigateToEvent(payload.eventId || firstItem.reference_id);
+            }
+          }}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#007AFF20" },
+            ]}
+          >
+            <Ionicons name="ticket" size={22} color="#007AFF" />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "🎫 You received a ticket!"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="#8E8E93"
+            style={styles.icon}
+          />
+        </TouchableOpacity>
+      );
+    }
+
     // Fallback for unknown types
     return null;
   };

@@ -444,6 +444,72 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_pricing_rules_event ON pricing_rules(event_id);
       CREATE INDEX IF NOT EXISTS idx_pricing_rules_active ON pricing_rules(is_active, event_id);
 
+      -- ============================================================
+      -- Event Visibility & Ticket Gifting System
+      -- ============================================================
+      
+      -- Add visibility columns to events table
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS access_type TEXT DEFAULT 'public';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS invite_public_visibility BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Ticket gifts table (for gifting/sharing tickets with chain tracking)
+      CREATE TABLE IF NOT EXISTS ticket_gifts (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        ticket_type_id BIGINT NOT NULL REFERENCES ticket_types(id) ON DELETE CASCADE,
+        
+        -- Hierarchy: NULL parent = direct from creator
+        parent_gift_id BIGINT REFERENCES ticket_gifts(id) ON DELETE CASCADE,
+        creator_id BIGINT NOT NULL,  -- Original community that created the event
+        
+        -- Recipient
+        recipient_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        
+        -- Pool tracking
+        original_quantity INTEGER NOT NULL,      -- Initially gifted
+        remaining_quantity INTEGER NOT NULL,     -- Available to use/re-share
+        used_quantity INTEGER DEFAULT 0,         -- Used by recipient for registration
+        shared_quantity INTEGER DEFAULT 0,       -- Re-shared to others
+        
+        -- Permissions
+        can_reshare BOOLEAN DEFAULT false,
+        
+        -- Status: 'active', 'revoked', 'exhausted'
+        status TEXT DEFAULT 'active',
+        revoked_at TIMESTAMPTZ,
+        revoked_reason TEXT,
+        
+        -- Message from sender
+        message TEXT,
+        message_preset TEXT,  -- 'plus_one', 'plus_two', 'custom'
+        
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_ticket_gifts_event ON ticket_gifts(event_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_gifts_recipient ON ticket_gifts(recipient_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_gifts_parent ON ticket_gifts(parent_gift_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_gifts_status ON ticket_gifts(status);
+      
+      -- Invite requests table (for "Request Invite" feature)
+      CREATE TABLE IF NOT EXISTS invite_requests (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        member_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        message TEXT,
+        status TEXT DEFAULT 'pending',  -- 'pending', 'approved', 'declined'
+        responded_at TIMESTAMPTZ,
+        responded_by BIGINT,  -- Community ID that responded
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(event_id, member_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_invite_requests_event ON invite_requests(event_id);
+      CREATE INDEX IF NOT EXISTS idx_invite_requests_member ON invite_requests(member_id);
+      CREATE INDEX IF NOT EXISTS idx_invite_requests_status ON invite_requests(status);
+
       -- Event swipes (for matching attendees)
       CREATE TABLE IF NOT EXISTS event_swipes (
         id BIGSERIAL PRIMARY KEY,
@@ -523,6 +589,15 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
       CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read) WHERE is_read = false;
+      
+      -- Add message_type and metadata columns for special messages (tickets, etc.)
+      DO $$ BEGIN
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'text';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      CREATE INDEX IF NOT EXISTS idx_messages_message_type ON messages(message_type) WHERE message_type != 'text';
       
       -- Indexes for conversations
       CREATE INDEX IF NOT EXISTS idx_conversations_participant1 ON conversations(participant1_id);

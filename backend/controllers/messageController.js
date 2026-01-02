@@ -3,11 +3,16 @@ const { createPool } = require("../config/db");
 const pool = createPool();
 
 // Helper function to get or create conversation between two participants (member or community)
-const getOrCreateConversation = async (participant1Id, participant1Type, participant2Id, participant2Type) => {
+const getOrCreateConversation = async (
+  participant1Id,
+  participant1Type,
+  participant2Id,
+  participant2Type
+) => {
   // Convert IDs to numbers for consistent comparison
   const id1 = Number(participant1Id);
   const id2 = Number(participant2Id);
-  
+
   // Ensure consistent ordering (smaller ID first, or if same ID, alphabetically by type)
   let p1Id, p1Type, p2Id, p2Type;
   if (id1 < id2 || (id1 === id2 && participant1Type < participant2Type)) {
@@ -51,7 +56,7 @@ const getConversations = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || (userType !== 'member' && userType !== 'community')) {
+    if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -99,7 +104,7 @@ const getConversations = async (req, res) => {
     `;
 
     const result = await pool.query(query, [userId, userType]);
-    const conversations = result.rows.map(conv => ({
+    const conversations = result.rows.map((conv) => ({
       id: conv.conversation_id,
       otherParticipant: {
         id: conv.other_participant_id,
@@ -130,7 +135,7 @@ const getMessages = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
-    if (!userId || (userType !== 'member' && userType !== 'community')) {
+    if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -152,6 +157,8 @@ const getMessages = async (req, res) => {
         m.sender_id,
         m.sender_type,
         m.message_text,
+        m.message_type,
+        m.metadata,
         m.is_read,
         m.created_at,
         COALESCE(mem.name, comm.name) as sender_name,
@@ -166,7 +173,7 @@ const getMessages = async (req, res) => {
     `;
 
     const result = await pool.query(query, [conversationId, limit, offset]);
-    const messages = result.rows.reverse().map(msg => ({
+    const messages = result.rows.reverse().map((msg) => ({
       id: msg.id,
       senderId: msg.sender_id,
       senderType: msg.sender_type,
@@ -174,6 +181,8 @@ const getMessages = async (req, res) => {
       senderUsername: msg.sender_username,
       senderPhotoUrl: msg.sender_photo_url,
       messageText: msg.message_text,
+      messageType: msg.message_type || "text",
+      metadata: msg.metadata,
       isRead: msg.is_read,
       createdAt: msg.created_at,
     }));
@@ -198,16 +207,18 @@ const getMessages = async (req, res) => {
 // Send a message
 const sendMessage = async (req, res) => {
   try {
-    const { recipientId, recipientType = 'member', messageText } = req.body;
+    const { recipientId, recipientType = "member", messageText } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || (userType !== 'member' && userType !== 'community')) {
+    if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     if (!recipientId || !messageText || messageText.trim().length === 0) {
-      return res.status(400).json({ error: "Recipient ID and message text are required" });
+      return res
+        .status(400)
+        .json({ error: "Recipient ID and message text are required" });
     }
 
     if (userId === recipientId && userType === recipientType) {
@@ -216,12 +227,12 @@ const sendMessage = async (req, res) => {
 
     // Verify recipient exists
     let recipientCheck;
-    if (recipientType === 'member') {
+    if (recipientType === "member") {
       recipientCheck = await pool.query(
         "SELECT id FROM members WHERE id = $1",
         [recipientId]
       );
-    } else if (recipientType === 'community') {
+    } else if (recipientType === "community") {
       recipientCheck = await pool.query(
         "SELECT id FROM communities WHERE id = $1",
         [recipientId]
@@ -235,7 +246,12 @@ const sendMessage = async (req, res) => {
     }
 
     // Get or create conversation
-    const conversationId = await getOrCreateConversation(userId, userType, recipientId, recipientType);
+    const conversationId = await getOrCreateConversation(
+      userId,
+      userType,
+      recipientId,
+      recipientType
+    );
 
     // Insert message
     const messageQuery = `
@@ -248,7 +264,7 @@ const sendMessage = async (req, res) => {
       conversationId,
       userId,
       userType,
-      messageText.trim()
+      messageText.trim(),
     ]);
 
     const message = messageResult.rows[0];
@@ -263,7 +279,7 @@ const sendMessage = async (req, res) => {
 
     // Get sender info
     let senderInfo;
-    if (userType === 'member') {
+    if (userType === "member") {
       senderInfo = await pool.query(
         "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
         [userId]
@@ -288,7 +304,7 @@ const sendMessage = async (req, res) => {
         messageText: messageText.trim(),
         isRead: false,
         createdAt: message.created_at,
-      }
+      },
     });
   } catch (error) {
     console.error("Error sending message:", error);
@@ -303,7 +319,7 @@ const markMessageRead = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || (userType !== 'member' && userType !== 'community')) {
+    if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -322,10 +338,9 @@ const markMessageRead = async (req, res) => {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    await pool.query(
-      "UPDATE messages SET is_read = true WHERE id = $1",
-      [messageId]
-    );
+    await pool.query("UPDATE messages SET is_read = true WHERE id = $1", [
+      messageId,
+    ]);
 
     res.json({ success: true });
   } catch (error) {
@@ -340,7 +355,7 @@ const getUnreadCount = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!userId || (userType !== 'member' && userType !== 'community')) {
+    if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
@@ -363,11 +378,74 @@ const getUnreadCount = async (req, res) => {
   }
 };
 
+/**
+ * Send a ticket message (internal use - called from gift endpoint)
+ * Creates a special message with message_type='ticket' and metadata containing gift info
+ * @param {Object} options
+ * @param {number} options.senderId - Community ID sending the ticket
+ * @param {string} options.senderType - Should be 'community'
+ * @param {number} options.recipientId - Member ID receiving the ticket
+ * @param {string} options.recipientType - Should be 'member'
+ * @param {Object} options.ticketData - Ticket/gift metadata
+ * @returns {Object} { conversationId, messageId }
+ */
+const sendTicketMessage = async ({
+  senderId,
+  senderType,
+  recipientId,
+  recipientType,
+  ticketData,
+}) => {
+  // Get or create conversation
+  const conversationId = await getOrCreateConversation(
+    senderId,
+    senderType,
+    recipientId,
+    recipientType
+  );
+
+  // Create message text for display fallback
+  const messageText = `🎟️ You received ${ticketData.quantity} ${
+    ticketData.ticketName
+  } ticket${ticketData.quantity > 1 ? "s" : ""} for ${ticketData.eventTitle}!`;
+
+  // Insert ticket message with metadata
+  const messageQuery = `
+    INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+    VALUES ($1, $2, $3, $4, 'ticket', $5)
+    RETURNING id, created_at
+  `;
+
+  const messageResult = await pool.query(messageQuery, [
+    conversationId,
+    senderId,
+    senderType,
+    messageText,
+    JSON.stringify(ticketData),
+  ]);
+
+  const message = messageResult.rows[0];
+
+  // Update conversation's last_message_at
+  await pool.query(
+    `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
+    [message.created_at, conversationId]
+  );
+
+  return {
+    conversationId,
+    messageId: message.id,
+    createdAt: message.created_at,
+  };
+};
+
 module.exports = {
   getConversations,
   getMessages,
   sendMessage,
   markMessageRead,
   getUnreadCount,
+  // Internal helpers (for use in other controllers)
+  getOrCreateConversation,
+  sendTicketMessage,
 };
-

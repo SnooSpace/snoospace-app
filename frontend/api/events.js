@@ -198,3 +198,30 @@ export async function verifyTicket(eventId, qrData) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPost(`/events/${eventId}/verify-ticket`, { qrData }, 15000, token);
 }
+
+/**
+ * Request an invite for an invite-only event
+ * @param {string|number} eventId - Event ID
+ * @param {string} message - Optional message to the organizer
+ * @returns {Promise<Object>} { success: boolean, request: Object }
+ */
+export async function requestEventInvite(eventId, message = null) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/invite-requests`,
+    { message },
+    15000,
+    token
+  );
+}
+
+/**
+ * Confirm RSVP for a gifted free ticket
+ * @param {string|number} giftId - Gift ID
+ * @param {string} response - 'going' or 'not_going'
+ * @returns {Promise<Object>} { success: boolean, status: string, message: string }
+ */
+export async function confirmGiftRSVP(giftId, response) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(`/gifts/${giftId}/confirm`, { response }, 15000, token);
+}

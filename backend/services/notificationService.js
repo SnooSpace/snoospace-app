@@ -390,6 +390,81 @@ const deactivateNotification = async (
   }
 };
 
+/**
+ * Create a notification with simplified interface (no pool required)
+ * Convenience wrapper for use in controllers
+ *
+ * @param {Object} params - Notification parameters
+ * @param {number} params.recipientId - User ID to receive notification
+ * @param {string} params.recipientType - 'member' or 'community'
+ * @param {number} params.actorId - Optional actor ID (who triggered the notification)
+ * @param {string} params.actorType - Optional actor type ('member' or 'community')
+ * @param {string} params.type - Notification type (e.g., 'ticket_gifted', 'invite_request')
+ * @param {string} params.title - Notification title
+ * @param {string} params.message - Notification message
+ * @param {string} params.referenceType - Optional reference type (e.g., 'event')
+ * @param {number} params.referenceId - Optional reference ID
+ * @param {Object} params.metadata - Optional additional data
+ */
+const createNotification = async ({
+  recipientId,
+  recipientType,
+  actorId = null,
+  actorType = null,
+  type,
+  title,
+  message,
+  referenceType = null,
+  referenceId = null,
+  metadata = {},
+}) => {
+  if (shouldSuppressNotifications()) {
+    console.log(
+      `[NotificationService] Suppressed ${type} notification in current environment`
+    );
+    return null;
+  }
+
+  const { createPool } = require("../config/db");
+  const pool = createPool();
+
+  try {
+    const payload = {
+      title,
+      message,
+      referenceType,
+      referenceId,
+      ...metadata,
+    };
+
+    const query = `
+      INSERT INTO notifications (
+        recipient_id, recipient_type, actor_id, actor_type, 
+        type, payload, is_active, is_read, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, TRUE, FALSE, NOW())
+      RETURNING id;
+    `;
+
+    const result = await pool.query(query, [
+      recipientId,
+      recipientType,
+      actorId,
+      actorType,
+      type,
+      JSON.stringify(payload),
+    ]);
+
+    return result.rows[0]?.id || null;
+  } catch (error) {
+    console.error(
+      `[NotificationService] Failed to create ${type} notification:`,
+      error
+    );
+    throw error;
+  }
+};
+
 module.exports = {
   createFollowNotification,
   deactivateFollowNotification,
@@ -398,4 +473,5 @@ module.exports = {
   createSimpleNotification,
   deactivateNotification,
   shouldSuppressNotifications,
+  createNotification,
 };
