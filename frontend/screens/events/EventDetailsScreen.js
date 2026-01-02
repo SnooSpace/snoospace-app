@@ -202,14 +202,26 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const handleRegister = () => {
     // If already registered, go directly to ticket view
     if (isRegistered) {
-      // Use root navigation to ensure it works from any navigator context (Chat, Events, etc.)
-      const rootNav =
-        navigation.getParent()?.getParent() ||
-        navigation.getParent() ||
-        navigation;
-      rootNav.navigate("YourEvents", {
-        screen: "TicketView",
-        params: { eventId: event?.id },
+      console.log(
+        "[EventDetails] Navigating to TicketView for event:",
+        event?.id
+      );
+
+      // Use root navigation to ensure it works from any navigator context
+      // Search for the top-most navigator that has MemberHome
+      let rootNav = navigation;
+      while (rootNav.getParent()) {
+        rootNav = rootNav.getParent();
+      }
+
+      console.log("[EventDetails] Using rootNav for navigation");
+
+      rootNav.navigate("MemberHome", {
+        screen: "YourEvents",
+        params: {
+          screen: "TicketView",
+          params: { eventId: event?.id },
+        },
       });
       return;
     }
