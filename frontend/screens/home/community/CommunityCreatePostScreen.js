@@ -484,9 +484,9 @@ export default function CommunityCreatePostScreen({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <KeyboardAwareToolbar>
-        <View style={styles.toolbarContent}>
-          {postType === "media" && (
+      {postType === "media" && (
+        <KeyboardAwareToolbar>
+          <View style={styles.toolbarContent}>
             <TouchableOpacity
               onPress={() => {
                 HapticsService.triggerImpactLight();
@@ -495,20 +495,20 @@ export default function CommunityCreatePostScreen({ navigation }) {
             >
               <Camera size={28} color="#8E8E93" strokeWidth={2} />
             </TouchableOpacity>
-          )}
 
-          <View style={{ flex: 1 }} />
+            <View style={{ flex: 1 }} />
 
-          <TouchableOpacity
-            onPress={() => {
-              HapticsService.triggerImpactLight();
-              setShowGuidelines(true);
-            }}
-          >
-            <Info size={28} color="#8E8E93" strokeWidth={2} />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAwareToolbar>
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setShowGuidelines(true);
+              }}
+            >
+              <Info size={28} color="#8E8E93" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </KeyboardAwareToolbar>
+      )}
       {renderGuidelinesModal()}
     </View>
   );
