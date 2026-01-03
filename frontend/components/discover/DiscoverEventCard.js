@@ -47,14 +47,22 @@ export default function DiscoverEventCard({
     community_name,
     community_logo,
     ticket_price,
+    has_free_tickets,
     location_url,
     attendee_count,
+    access_type,
+    invite_public_visibility,
   } = event;
 
-  // Format price display
+  // Check if location should be hidden (invite-only event shown in discover feed)
+  const shouldHideLocation =
+    access_type === "invite_only" && invite_public_visibility === true;
+
+  // Format price display - check for free tickets first
   const getPriceDisplay = () => {
+    if (has_free_tickets) return "Free";
     if (!ticket_price || ticket_price === 0) return "Free";
-    return `₹${ticket_price} onwards`;
+    return `₹${Number(ticket_price).toLocaleString("en-IN")} onwards`;
   };
 
   // Get location name from Google Maps URL (handles shortened URLs)
@@ -62,8 +70,10 @@ export default function DiscoverEventCard({
     fallback: community_name || "Location TBD",
   });
 
-  // Prioritize custom location_name if provided
-  const displayLocation = event.location_name || decodedLocationName;
+  // Prioritize custom location_name if provided, but hide if invite-only
+  const displayLocation = shouldHideLocation
+    ? null
+    : event.location_name || decodedLocationName;
 
   return (
     <TouchableOpacity
@@ -126,13 +136,15 @@ export default function DiscoverEventCard({
           </Text>
         </View>
 
-        {/* Location */}
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={14} color="#8E8E93" />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {displayLocation}
-          </Text>
-        </View>
+        {/* Location - hide for invite-only events with public visibility */}
+        {displayLocation && (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={14} color="#8E8E93" />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {displayLocation}
+            </Text>
+          </View>
+        )}
 
         {/* Price Row */}
         <View style={styles.priceRow}>

@@ -2121,6 +2121,7 @@ const getEventById = async (req, res) => {
 
     // Check if user is invited (has active ticket gift) for invite_only events
     let isInvited = false;
+    let inviteRequestStatus = null; // null = not requested, 'pending' = waiting, 'approved' = approved, 'rejected' = rejected
     if (userId && userType === "member") {
       const inviteCheck = await pool.query(
         "SELECT id FROM ticket_gifts WHERE event_id = $1 AND recipient_id = $2 AND status = 'active'",
@@ -2140,6 +2141,15 @@ const getEventById = async (req, res) => {
         [eventId, userId]
       );
       isRegistered = registrationCheck.rows.length > 0;
+
+      // Check if user has requested an invite for this event
+      const inviteRequestCheck = await pool.query(
+        "SELECT status FROM invite_requests WHERE event_id = $1 AND member_id = $2",
+        [eventId, userId]
+      );
+      if (inviteRequestCheck.rows.length > 0) {
+        inviteRequestStatus = inviteRequestCheck.rows[0].status;
+      }
     }
 
     // Check if event creator (community) is the one viewing
@@ -2202,6 +2212,7 @@ const getEventById = async (req, res) => {
       is_interested: isInterested,
       is_registered: isRegistered,
       is_invited: isInvited,
+      invite_request_status: inviteRequestStatus, // null, 'pending', 'approved', 'rejected'
       location_hidden: shouldHideLocation,
     };
 

@@ -57,6 +57,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [isInvited, setIsInvited] = useState(false);
   const [locationHidden, setLocationHidden] = useState(false);
   const [requestingInvite, setRequestingInvite] = useState(false);
+  const [inviteRequestStatus, setInviteRequestStatus] = useState(null); // null, 'pending', 'approved', 'rejected'
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -86,6 +87,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
         setIsRegistered(response.event.is_registered || false);
         setIsInvited(response.event.is_invited || false);
         setLocationHidden(response.event.location_hidden || false);
+        setInviteRequestStatus(response.event.invite_request_status || null);
       } else {
         // If API fails but we have initialData, use it
         if (!initialData) {
@@ -250,6 +252,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
       const response = await requestEventInvite(event.id);
 
       if (response?.success) {
+        setInviteRequestStatus("pending"); // Update status to show "Requested"
         Alert.alert(
           "Request Sent! 📨",
           "Your invitation request has been sent to the organizer. You'll be notified when they respond.",
@@ -489,12 +492,13 @@ const EventDetailsScreen = ({ route, navigation }) => {
             )}
           </Text>
 
-          {/* Venue Row */}
-          {event.location_url && (
+          {/* Venue Row - show when location exists OR when location is hidden for invite-only events */}
+          {(event.location_url || locationHidden) && (
             <TouchableOpacity
               style={styles.infoRow}
               onPress={locationHidden ? null : handleOpenLocation}
               disabled={locationHidden}
+              activeOpacity={locationHidden ? 1 : 0.7}
             >
               <View style={styles.infoIcon}>
                 <Ionicons
@@ -509,10 +513,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 {locationHidden ? (
                   <>
                     <Text style={[styles.infoTitle, { color: MUTED_TEXT }]}>
-                      Location hidden
+                      Register to view the location
                     </Text>
                     <Text style={styles.infoSubtitle}>
-                      Request invite to see location
+                      Location is visible after registration
                     </Text>
                   </>
                 ) : (
@@ -846,14 +850,22 @@ const EventDetailsScreen = ({ route, navigation }) => {
               styles.registerButtonDisabled,
           ]}
           onPress={
-            isInviteOnlyNotInvited ? handleRequestInvite : handleRegister
+            isInviteOnlyNotInvited && !inviteRequestStatus
+              ? handleRequestInvite
+              : handleRegister
           }
-          activeOpacity={isRestrictedRole && !isInviteOnlyNotInvited ? 1 : 0.8}
-          disabled={requestingInvite}
+          activeOpacity={
+            (isRestrictedRole && !isInviteOnlyNotInvited) || inviteRequestStatus
+              ? 1
+              : 0.8
+          }
+          disabled={requestingInvite || !!inviteRequestStatus}
         >
           <LinearGradient
             colors={
-              isInviteOnlyNotInvited
+              inviteRequestStatus === "pending"
+                ? ["#9CA3AF", "#9CA3AF"] // Gray for "Requested"
+                : isInviteOnlyNotInvited
                 ? ["#FF6B6B", "#FF8E8E"]
                 : isRestrictedRole
                 ? ["#9CA3AF", "#9CA3AF"]
@@ -869,6 +881,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.registerButtonText}>
                 {isRegistered
                   ? "View Your Ticket"
+                  : inviteRequestStatus === "pending"
+                  ? "Requested"
                   : isInviteOnlyNotInvited
                   ? "Request Invite"
                   : event.ticket_types?.length > 0 || event.ticket_price

@@ -208,7 +208,7 @@ export async function verifyTicket(eventId, qrData) {
 export async function requestEventInvite(eventId, message = null) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPost(
-    `/events/${eventId}/invite-requests`,
+    `/events/${eventId}/request-invite`,
     { message },
     15000,
     token

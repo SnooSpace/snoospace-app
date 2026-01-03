@@ -304,8 +304,15 @@ const getDiscoverFeedV2 = async (req, res) => {
             e.description,
             e.start_datetime as event_date,
             e.location_url,
+            e.location_name,
             e.banner_url,
-            COALESCE(e.ticket_price, (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id)) as ticket_price,
+            e.access_type,
+            e.invite_public_visibility,
+            COALESCE(
+              (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND base_price > 0),
+              e.ticket_price
+            ) as ticket_price,
+            (SELECT COUNT(*) > 0 FROM ticket_types WHERE event_id = e.id AND base_price = 0) as has_free_tickets,
             e.event_type,
             c.id as community_id,
             c.name as community_name,
@@ -381,8 +388,15 @@ const getEventsByCategory = async (req, res) => {
         e.description,
         e.start_datetime as event_date,
         e.location_url,
+        e.location_name,
         e.banner_url,
-        COALESCE(e.ticket_price, (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id)) as ticket_price,
+        e.access_type,
+        e.invite_public_visibility,
+        COALESCE(
+          (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND base_price > 0),
+          e.ticket_price
+        ) as ticket_price,
+        (SELECT COUNT(*) > 0 FROM ticket_types WHERE event_id = e.id AND base_price = 0) as has_free_tickets,
         e.event_type,
         COALESCE(e.community_id, e.creator_id) as community_id,
         c.name as community_name,

@@ -104,7 +104,17 @@ export default function EventCard({
     event_type,
     attendee_count,
     is_following_community,
+    access_type,
+    invite_public_visibility,
+    is_invited,
   } = event;
+
+  // Check if location should be hidden (invite-only event with public visibility, user NOT invited/registered)
+  const shouldHideLocation =
+    access_type === "invite_only" &&
+    invite_public_visibility === true &&
+    !is_invited &&
+    !isRegistered;
 
   // Get display image - prioritize carousel, then banner_url
   const displayImage = banner_carousel?.[0]?.image_url || banner_url;
@@ -128,10 +138,15 @@ export default function EventCard({
         hour12: true,
       }));
 
-  // Get location name from Google Maps URL (handles shortened URLs)
-  const locationName = useLocationName(location_url, {
+  // Get location name from Google Maps URL (handles shortened URLs), or hide if invite-only
+  const rawLocationName = useLocationName(location_url, {
     fallback: event_type === "virtual" ? "Virtual Event" : "Location TBD",
   });
+
+  // Use custom location_name if provided, but hide for invite-only events
+  const locationName = shouldHideLocation
+    ? null
+    : event.location_name || rawLocationName;
 
   const hasValidPhoto = community_logo && /^https?:\/\//.test(community_logo);
 
@@ -279,20 +294,23 @@ export default function EventCard({
               />
               <Text style={styles.metaText}>{displayTime}</Text>
             </View>
-            <View style={styles.metaItem}>
-              <Ionicons
-                name={
-                  event_type === "virtual"
-                    ? "videocam-outline"
-                    : "location-outline"
-                }
-                size={14}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {locationName}
-              </Text>
-            </View>
+            {/* Location - hidden for invite-only events with public visibility */}
+            {locationName && (
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name={
+                    event_type === "virtual"
+                      ? "videocam-outline"
+                      : "location-outline"
+                  }
+                  size={14}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {locationName}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Bottom Row: Attendees + Interested Button */}
