@@ -3,20 +3,39 @@ const pushService = require("../services/pushService");
 
 const pool = createPool();
 
-// Create a new post
+// Import type-specific controllers for routing
+const PollController = require("./pollController");
+const PromptController = require("./promptController");
+
+// Create a new post (routes to type-specific handlers)
 const createPost = async (req, res) => {
   try {
-    const { caption, imageUrls, taggedEntities, aspectRatios } = req.body;
+    const { post_type = "media" } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
     console.log(
-      `[createPost] Attempting to create post for author_id: ${userId}, author_type: ${userType}`
+      `[createPost] Attempting to create ${post_type} post for author_id: ${userId}, author_type: ${userType}`
     );
 
     if (!userId || !userType) {
       return res.status(401).json({ error: "Authentication required" });
     }
+
+    // Route to type-specific handlers
+    switch (post_type) {
+      case "poll":
+        return PollController.createPollPost(req, res);
+      case "prompt":
+        return PromptController.createPromptPost(req, res);
+      case "media":
+      default:
+        // Continue with media post logic below
+        break;
+    }
+
+    // Media post logic (existing behavior)
+    const { caption, imageUrls, taggedEntities, aspectRatios } = req.body;
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
       return res.status(400).json({ error: "At least one image is required" });
@@ -269,34 +288,87 @@ const getFeed = async (req, res) => {
     console.log("Feed query result:", result.rows.length, "posts found");
 
     // Parse JSON fields
-    const posts = result.rows.map((post) => ({
-      ...post,
-      image_urls: (() => {
-        try {
-          if (!post.image_urls) return [];
-          const parsed = JSON.parse(post.image_urls);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return post.image_urls ? [post.image_urls] : [];
+    const posts = await Promise.all(
+      result.rows.map(async (post) => {
+        const parsedPost = {
+          ...post,
+          image_urls: (() => {
+            try {
+              if (!post.image_urls) return [];
+              if (Array.isArray(post.image_urls)) return post.image_urls;
+              const parsed = JSON.parse(post.image_urls);
+              return Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              return post.image_urls ? [post.image_urls] : [];
+            }
+          })(),
+          tagged_entities: (() => {
+            try {
+              if (!post.tagged_entities) return null;
+              if (typeof post.tagged_entities === "object")
+                return post.tagged_entities;
+              return JSON.parse(post.tagged_entities);
+            } catch {
+              return null;
+            }
+          })(),
+          aspect_ratios: (() => {
+            try {
+              if (!post.aspect_ratios) return null;
+              if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
+              const parsed = JSON.parse(post.aspect_ratios);
+              return Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              return null;
+            }
+          })(),
+          type_data: (() => {
+            try {
+              if (!post.type_data) return {};
+              if (typeof post.type_data === "object") return post.type_data;
+              return JSON.parse(post.type_data);
+            } catch {
+              return {};
+            }
+          })(),
+        };
+
+        // For poll posts, check if user has voted
+        if (parsedPost.post_type === "poll" && viewerId && viewerType) {
+          try {
+            const voteResult = await pool.query(
+              `SELECT option_index FROM poll_votes 
+               WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
+              [post.id, viewerId, viewerType]
+            );
+            parsedPost.has_voted = voteResult.rows.length > 0;
+            parsedPost.voted_indexes = voteResult.rows.map(
+              (r) => r.option_index
+            );
+          } catch (e) {
+            parsedPost.has_voted = false;
+            parsedPost.voted_indexes = [];
+          }
         }
-      })(),
-      tagged_entities: (() => {
-        try {
-          return post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
-        } catch {
-          return null; // Fallback on parsing error
+
+        // For prompt posts, check if user has submitted
+        if (parsedPost.post_type === "prompt" && viewerId && viewerType) {
+          try {
+            const subResult = await pool.query(
+              `SELECT id, status FROM prompt_submissions 
+               WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+              [post.id, viewerId, viewerType]
+            );
+            parsedPost.has_submitted = subResult.rows.length > 0;
+            parsedPost.submission_status = subResult.rows[0]?.status || null;
+          } catch (e) {
+            parsedPost.has_submitted = false;
+          }
         }
-      })(),
-      aspect_ratios: (() => {
-        try {
-          if (!post.aspect_ratios) return null;
-          const parsed = JSON.parse(post.aspect_ratios);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return null; // Fallback - frontend will use default 4:5
-        }
-      })(),
-    }));
+
+        return parsedPost;
+      })
+    );
 
     console.log("Parsed posts:", posts.length);
     res.json({ posts });
@@ -641,8 +713,9 @@ const getPost = async (req, res) => {
     }
 
     const post = result.rows[0];
+    const postType = post.post_type || "media";
 
-    // Parse JSON fields
+    // Parse JSON fields for media posts
     try {
       const parsed = JSON.parse(post.image_urls);
       post.image_urls = Array.isArray(parsed) ? parsed : [parsed];
@@ -658,7 +731,52 @@ const getPost = async (req, res) => {
       post.tagged_entities = null;
     }
 
-    res.json({ post });
+    try {
+      post.aspect_ratios = post.aspect_ratios
+        ? JSON.parse(post.aspect_ratios)
+        : null;
+    } catch {
+      post.aspect_ratios = null;
+    }
+
+    // Get type-specific user interaction status
+    let interactionStatus = {};
+
+    if (postType === "poll" && userId && userType) {
+      // Check if user has voted
+      const voteResult = await pool.query(
+        `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
+        [postId, userId, userType]
+      );
+      interactionStatus.has_voted = voteResult.rows.length > 0;
+      interactionStatus.voted_indexes = voteResult.rows.map(
+        (r) => r.option_index
+      );
+    } else if (postType === "prompt" && userId && userType) {
+      // Check if user has submitted
+      const subResult = await pool.query(
+        `SELECT id, status FROM prompt_submissions WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+        [postId, userId, userType]
+      );
+      interactionStatus.has_submitted = subResult.rows.length > 0;
+      if (subResult.rows[0]) {
+        interactionStatus.submission_id = subResult.rows[0].id;
+        interactionStatus.submission_status = subResult.rows[0].status;
+      }
+    }
+
+    // Check if post is expired
+    const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
+    if (isExpired && post.status === "active") {
+      post.status = "expired";
+    }
+
+    res.json({
+      post: {
+        ...post,
+        ...interactionStatus,
+      },
+    });
   } catch (error) {
     console.error("Error getting post:", error);
     res.status(500).json({ error: "Internal server error" });

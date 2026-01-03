@@ -26,6 +26,9 @@ import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
 
 import ImageUploader from "../../../components/ImageUploader";
 import MentionInput from "../../../components/MentionInput";
+import PostTypeSelector from "../../../components/posts/PostTypeSelector";
+import PollCreateForm from "../../../components/posts/PollCreateForm";
+import PromptCreateForm from "../../../components/posts/PromptCreateForm";
 import { apiPost } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
 import { uploadMultipleImages } from "../../../api/cloudinary";
@@ -37,10 +40,23 @@ import GradientButton from "../../../components/GradientButton";
 // Local constants removed in favor of theme constants
 
 export default function CommunityCreatePostScreen({ navigation }) {
+  const [postType, setPostType] = useState("media"); // media, poll, prompt
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
-  const [aspectRatios, setAspectRatios] = useState([]); // NEW: Track aspect ratios for images
+  const [aspectRatios, setAspectRatios] = useState([]); // Track aspect ratios for images
   const [taggedEntities, setTaggedEntities] = useState([]);
+  const [pollData, setPollData] = useState({
+    question: "",
+    options: ["", ""],
+    allow_multiple: false,
+    show_results_before_vote: false,
+  });
+  const [promptData, setPromptData] = useState({
+    prompt_text: "",
+    submission_type: "text",
+    max_length: 500,
+    require_approval: true,
+  });
   const [isPosting, setIsPosting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [profile, setProfile] = useState(null);
@@ -86,7 +102,8 @@ export default function CommunityCreatePostScreen({ navigation }) {
   };
 
   const handlePost = async () => {
-    if (images.length === 0) {
+    // Only require images for media posts
+    if (postType === "media" && images.length === 0) {
       Alert.alert("Error", "Please add at least one image to your post");
       return;
     }
@@ -137,38 +154,68 @@ export default function CommunityCreatePostScreen({ navigation }) {
         }))
         .filter((entry) => entry.id && entry.type);
 
-      console.log("[CreatePost] Sending post data:", {
-        captionLength: caption?.trim()?.length || 0,
-        imageCount: finalImageUrls.length,
-        aspectRatiosCount: aspectRatios.length,
-        aspectRatios,
-        lengthsMatch: aspectRatios.length === finalImageUrls.length,
-      });
+      const commonPayload = {
+        post_type: postType,
+        caption: (postType === "media" ? caption : null) || null,
+      };
 
-      // Convert aspect ratios from [width, height] format to float (width/height)
-      // Backend expects floats like 1.0 for 1:1 or 0.8 for 4:5
-      const formattedAspectRatios = aspectRatios.map((ar) => {
-        if (Array.isArray(ar) && ar.length === 2) {
-          return ar[0] / ar[1]; // [1, 1] → 1.0, [4, 5] → 0.8
-        }
-        return typeof ar === "number" ? ar : 1; // Fallback to 1:1
-      });
+      let typePayload = {};
 
-      console.log(
-        "[CreatePost] Formatted aspectRatios:",
-        formattedAspectRatios
-      );
+      if (postType === "media") {
+        // ... Log media specific payload ...
+        console.log("[CreatePost] Sending media post data:", {
+          captionLength: caption?.trim()?.length || 0,
+          imageCount: finalImageUrls.length,
+          aspectRatiosCount: aspectRatios.length,
+        });
 
-      await apiPost(
-        "/posts",
-        {
-          caption: caption.trim() || null,
+        // Convert aspect ratios
+        const formattedAspectRatios = aspectRatios.map((ar) => {
+          if (Array.isArray(ar) && ar.length === 2) {
+            return ar[0] / ar[1];
+          }
+          return typeof ar === "number" ? ar : 1;
+        });
+
+        typePayload = {
           imageUrls: finalImageUrls,
           aspectRatios:
             formattedAspectRatios.length === finalImageUrls.length
               ? formattedAspectRatios
               : null,
           taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
+        };
+      } else if (postType === "poll") {
+        // Validate poll data
+        if (!pollData.question.trim())
+          throw new Error("Poll question is required");
+        if (pollData.options.filter((o) => o.trim()).length < 2)
+          throw new Error("At least 2 options are required");
+
+        typePayload = {
+          question: pollData.question,
+          options: pollData.options.filter((o) => o.trim()), // Remove empty options
+          allow_multiple: pollData.allow_multiple,
+          show_results_before_vote: pollData.show_results_before_vote,
+        };
+      } else if (postType === "prompt") {
+        // Validate prompt data
+        if (!promptData.prompt_text.trim())
+          throw new Error("Prompt text is required");
+
+        typePayload = {
+          prompt_text: promptData.prompt_text,
+          submission_type: promptData.submission_type,
+          max_length: promptData.max_length,
+          require_approval: promptData.require_approval,
+        };
+      }
+
+      await apiPost(
+        "/posts",
+        {
+          ...commonPayload,
+          ...typePayload,
         },
         15000,
         token
@@ -277,7 +324,16 @@ export default function CommunityCreatePostScreen({ navigation }) {
     </Modal>
   );
 
-  const canSubmit = images.length > 0 || caption.trim().length > 0;
+  // Determine if submit is allowed based on type
+  const canSubmit =
+    postType === "media"
+      ? images.length > 0 || caption.trim().length > 0
+      : postType === "poll"
+      ? pollData.question.trim().length > 0 &&
+        pollData.options.filter((o) => o.trim()).length >= 2
+      : postType === "prompt"
+      ? promptData.prompt_text.trim().length > 0
+      : false;
 
   return (
     <View style={styles.container}>
@@ -327,6 +383,13 @@ export default function CommunityCreatePostScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Post Type Selector */}
+          <PostTypeSelector
+            selectedType={postType}
+            onSelectType={setPostType}
+            disabled={isPosting}
+          />
+
           {errorMsg ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -362,59 +425,77 @@ export default function CommunityCreatePostScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Caption Input */}
-          <View style={styles.composerSection}>
-            <MentionInput
-              value={caption}
-              onChangeText={setCaption}
-              onTaggedEntitiesChange={setTaggedEntities}
-              placeholder="What's happening? Use @ to mention..."
-              placeholderTextColor="#A0A0A0"
-              maxLength={2000}
-              style={styles.mainInput}
-              autoFocus={true}
-            />
+          {/* Media Post Form */}
+          {postType === "media" && (
+            <>
+              <View style={styles.composerSection}>
+                <MentionInput
+                  value={caption}
+                  onChangeText={setCaption}
+                  onTaggedEntitiesChange={setTaggedEntities}
+                  placeholder="What's happening? Use @ to mention..."
+                  placeholderTextColor="#A0A0A0"
+                  maxLength={2000}
+                  style={styles.mainInput}
+                  autoFocus={true}
+                />
 
-            {caption.length > 0 && (
-              <Text style={styles.counterText}>{caption.length}/2000</Text>
-            )}
-          </View>
+                {caption.length > 0 && (
+                  <Text style={styles.counterText}>{caption.length}/2000</Text>
+                )}
+              </View>
 
-          {/* Horizontal Image Tray */}
-          <View
-            style={[
-              styles.mediaTrayContainer,
-              images.length === 0 && {
-                marginTop: 0,
-                height: 0,
-                opacity: 0,
-                overflow: "hidden",
-              },
-            ]}
-            pointerEvents={images.length === 0 ? "none" : "auto"}
-          >
-            <ImageUploader
-              ref={imageUploaderRef}
-              onImagesChange={handleImageSelect}
-              onAspectRatiosChange={handleAspectRatiosChange}
-              maxImages={5}
-              horizontal={true}
-              initialImages={images}
+              <View
+                style={[
+                  styles.mediaTrayContainer,
+                  images.length === 0 && {
+                    marginTop: 0,
+                    height: 0,
+                    opacity: 0,
+                    overflow: "hidden",
+                  },
+                ]}
+                pointerEvents={images.length === 0 ? "none" : "auto"}
+              >
+                <ImageUploader
+                  ref={imageUploaderRef}
+                  onImagesChange={handleImageSelect}
+                  onAspectRatiosChange={handleAspectRatiosChange}
+                  maxImages={5}
+                  horizontal={true}
+                  initialImages={images}
+                />
+              </View>
+            </>
+          )}
+
+          {/* Poll Post Form */}
+          {postType === "poll" && (
+            <PollCreateForm onDataChange={setPollData} disabled={isPosting} />
+          )}
+
+          {/* Prompt Post Form */}
+          {postType === "prompt" && (
+            <PromptCreateForm
+              onDataChange={setPromptData}
+              disabled={isPosting}
             />
-          </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
       <KeyboardAwareToolbar>
         <View style={styles.toolbarContent}>
-          <TouchableOpacity
-            onPress={() => {
-              HapticsService.triggerImpactLight();
-              imageUploaderRef.current?.openCamera();
-            }}
-          >
-            <Camera size={28} color="#8E8E93" strokeWidth={2} />
-          </TouchableOpacity>
+          {postType === "media" && (
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                imageUploaderRef.current?.openCamera();
+              }}
+            >
+              <Camera size={28} color="#8E8E93" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
 
           <View style={{ flex: 1 }} />
 

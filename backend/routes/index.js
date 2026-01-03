@@ -20,6 +20,8 @@ const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
 const DiscoverController = require("../controllers/discoverController");
 const CategoryController = require("../controllers/categoryController");
+const PollController = require("../controllers/pollController");
+const PromptController = require("../controllers/promptController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -518,6 +520,38 @@ router.get(
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
+
+// Poll routes
+router.post("/posts/:postId/vote", authMiddleware, PollController.vote);
+router.delete("/posts/:postId/vote", authMiddleware, PollController.removeVote);
+router.get("/posts/:postId/results", authMiddleware, PollController.getResults);
+router.get(
+  "/posts/:postId/vote-status",
+  authMiddleware,
+  PollController.getVoteStatus
+);
+
+// Prompt submission routes
+router.post(
+  "/posts/:postId/submissions",
+  authMiddleware,
+  PromptController.submitResponse
+);
+router.get(
+  "/posts/:postId/submissions",
+  authMiddleware,
+  PromptController.getSubmissions
+);
+router.get(
+  "/posts/:postId/my-submission",
+  authMiddleware,
+  PromptController.getMySubmission
+);
+router.patch(
+  "/submissions/:submissionId/status",
+  authMiddleware,
+  PromptController.moderateSubmission
+);
 
 // Comments
 router.post(

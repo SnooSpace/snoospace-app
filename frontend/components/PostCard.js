@@ -15,6 +15,10 @@ import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
 
+// Import type-specific card components
+import PollPostCard from "./posts/PollPostCard";
+import PromptPostCard from "./posts/PromptPostCard";
+
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
 
 const { width } = Dimensions.get("window");
@@ -42,6 +46,32 @@ const PostCard = ({
   currentUserId,
   currentUserType,
 }) => {
+  // Route to type-specific card components
+  const postType = post.post_type || "media";
+
+  if (postType === "poll") {
+    return (
+      <PollPostCard
+        post={post}
+        onUserPress={onUserPress}
+        currentUserId={currentUserId}
+        currentUserType={currentUserType}
+      />
+    );
+  }
+
+  if (postType === "prompt") {
+    return (
+      <PromptPostCard
+        post={post}
+        onUserPress={onUserPress}
+        currentUserId={currentUserId}
+        currentUserType={currentUserType}
+      />
+    );
+  }
+
+  // Default: Media post (existing behavior)
   // Initialize from post data (backend sends is_liked, only use is_liked field)
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
