@@ -371,6 +371,8 @@ const getCommunityEvents = async (req, res) => {
         e.is_editable,
         e.is_cancelled,
         e.ticket_price,
+        e.access_type,
+        e.invite_public_visibility,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
         (e.start_datetime < NOW()) as is_past,
         e.created_at
@@ -1364,7 +1366,16 @@ const updateEvent = async (req, res) => {
       discount_codes, // Array of discount code objects
       pricing_rules, // Array of pricing rule objects
       categories, // Array of discover category IDs
+      access_type, // 'public' or 'invite_only'
+      invite_public_visibility, // Show in feeds with hidden location
     } = req.body;
+
+    console.log(
+      "[updateEvent] Received access_type:",
+      access_type,
+      "invite_public_visibility:",
+      invite_public_visibility
+    );
 
     // Validate Google Maps URL if provided
     if (location_url && !isValidGoogleMapsUrl(location_url)) {
@@ -1445,6 +1456,14 @@ const updateEvent = async (req, res) => {
     if (gates_open_time !== undefined) {
       updates.push(`gates_open_time = $${paramIndex++}`);
       values.push(gates_open_time);
+    }
+    if (access_type !== undefined) {
+      updates.push(`access_type = $${paramIndex++}`);
+      values.push(access_type);
+    }
+    if (invite_public_visibility !== undefined) {
+      updates.push(`invite_public_visibility = $${paramIndex++}`);
+      values.push(invite_public_visibility);
     }
     // Note: highlights, featured_accounts, things_to_know are in separate tables
     // They are updated after the main query below
@@ -2146,6 +2165,7 @@ const getEventById = async (req, res) => {
 
     // Filter ticket types based on viewer:
     // - Event creator sees ALL ticket types (including invite_only)
+    // - Invited/registered users see ALL ticket types (they have been granted access)
     // - Public viewers only see 'public' visibility tickets
     // - For invite_only events where location is hidden, hide all tickets
     let filteredTicketTypes = ticketTypesResult.rows;
@@ -2153,8 +2173,12 @@ const getEventById = async (req, res) => {
       if (shouldHideLocation) {
         // Hide all tickets for invite-only events when user not invited
         filteredTicketTypes = [];
+      } else if (isInvited || isRegistered) {
+        // Invited or registered users can see all ticket types (including invite_only)
+        // They have been explicitly granted access via ticket gift
+        filteredTicketTypes = ticketTypesResult.rows;
       } else {
-        // For public events, filter out invite_only tickets
+        // Public viewers only see 'public' visibility tickets
         filteredTicketTypes = ticketTypesResult.rows.filter(
           (t) => t.visibility === "public" || !t.visibility
         );

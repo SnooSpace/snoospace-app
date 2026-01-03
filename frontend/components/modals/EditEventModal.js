@@ -65,6 +65,9 @@ export default function EditEventModal({
   const [discountCodes, setDiscountCodes] = useState([]);
   const [pricingRules, setPricingRules] = useState([]);
   const [categories, setCategories] = useState([]);
+  // Event visibility
+  const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
+  const [invitePublicVisibility, setInvitePublicVisibility] = useState(false);
 
   // Step 2-6: Content
   const [bannerCarousel, setBannerCarousel] = useState([]);
@@ -134,6 +137,14 @@ export default function EditEventModal({
         typeof c === "object" ? c.id : c
       );
       setCategories(categoryIds);
+      setAccessType(eventData.access_type || "public");
+      setInvitePublicVisibility(eventData.invite_public_visibility || false);
+      console.log(
+        "[EditEventModal] Loaded from eventData - access_type:",
+        eventData.access_type,
+        "invite_public_visibility:",
+        eventData.invite_public_visibility
+      );
       setCurrentStep(1);
 
       // Store initial snapshot for change detection
@@ -162,6 +173,8 @@ export default function EditEventModal({
         discountCodes: JSON.stringify(eventData.discount_codes || []),
         pricingRules: JSON.stringify(eventData.pricing_rules || []),
         categories: JSON.stringify(categoryIds),
+        accessType: eventData.access_type || "public",
+        invitePublicVisibility: eventData.invite_public_visibility || false,
       });
     }
   }, [eventData, visible]);
@@ -189,7 +202,9 @@ export default function EditEventModal({
       JSON.stringify(ticketTypes) !== initialSnapshot.ticketTypes ||
       JSON.stringify(discountCodes) !== initialSnapshot.discountCodes ||
       JSON.stringify(pricingRules) !== initialSnapshot.pricingRules ||
-      JSON.stringify(categories) !== initialSnapshot.categories
+      JSON.stringify(categories) !== initialSnapshot.categories ||
+      accessType !== initialSnapshot.accessType ||
+      invitePublicVisibility !== initialSnapshot.invitePublicVisibility
     );
   }, [
     title,
@@ -212,6 +227,8 @@ export default function EditEventModal({
     discountCodes,
     pricingRules,
     categories,
+    accessType,
+    invitePublicVisibility,
     initialSnapshot,
   ]);
 
@@ -321,7 +338,20 @@ export default function EditEventModal({
               }))
             : null,
         categories: categories.length > 0 ? categories : [],
+        access_type: accessType,
+        invite_public_visibility: invitePublicVisibility,
       };
+
+      console.log(
+        "[EditEventModal] Saving with access_type:",
+        accessType,
+        "invite_public_visibility:",
+        invitePublicVisibility
+      );
+      console.log(
+        "[EditEventModal] Full updateData:",
+        JSON.stringify(updateData, null, 2)
+      );
 
       const result = await updateEvent(eventData.id, updateData);
       if (result?.success) {
@@ -557,6 +587,78 @@ export default function EditEventModal({
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Event Visibility */}
+            <Text style={styles.label}>Event Visibility *</Text>
+            <View style={styles.eventTypeRow}>
+              {[
+                { value: "public", label: "Public", icon: "globe-outline" },
+                {
+                  value: "invite_only",
+                  label: "Invite Only",
+                  icon: "lock-closed-outline",
+                },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.pillWrapper}
+                  onPress={() => setAccessType(opt.value)}
+                >
+                  {accessType === opt.value ? (
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.pillActive,
+                        { flexDirection: "row", alignItems: "center", gap: 6 },
+                      ]}
+                    >
+                      <Ionicons name={opt.icon} size={14} color="#fff" />
+                      <Text style={styles.pillTextActive}>{opt.label}</Text>
+                    </LinearGradient>
+                  ) : (
+                    <View
+                      style={[
+                        styles.pillInactive,
+                        { flexDirection: "row", alignItems: "center", gap: 6 },
+                      ]}
+                    >
+                      <Ionicons
+                        name={opt.icon}
+                        size={14}
+                        color={LIGHT_TEXT_COLOR}
+                      />
+                      <Text style={styles.pillText}>{opt.label}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Checkbox for invite-only: show in feeds with hidden location */}
+            {accessType === "invite_only" && (
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() =>
+                  setInvitePublicVisibility(!invitePublicVisibility)
+                }
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    invitePublicVisibility && styles.checkboxChecked,
+                  ]}
+                >
+                  {invitePublicVisibility && (
+                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  )}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  Show in discover feed (location hidden until invited)
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {(eventType === "in-person" || eventType === "hybrid") && (
               <>
@@ -1264,5 +1366,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     fontWeight: "500",
+  },
+  // Pill styles for Event Visibility (matching CreateEventModal)
+  pillWrapper: {
+    flex: 1,
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  pillActive: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pillInactive: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pillText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    fontWeight: "500",
+  },
+  pillTextActive: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  // Checkbox styles for invite-only visibility option
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: BORDER_COLOR,
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxChecked: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+    lineHeight: 20,
   },
 });
