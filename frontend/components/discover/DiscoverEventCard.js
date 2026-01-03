@@ -136,15 +136,17 @@ export default function DiscoverEventCard({
           </Text>
         </View>
 
-        {/* Location - hide for invite-only events with public visibility */}
-        {displayLocation && (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={14} color="#8E8E93" />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {displayLocation}
-            </Text>
-          </View>
-        )}
+        {/* Location - Fixed height container for consistent card sizing */}
+        <View style={styles.locationRow}>
+          {displayLocation ? (
+            <>
+              <Ionicons name="location-outline" size={14} color="#8E8E93" />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {displayLocation}
+              </Text>
+            </>
+          ) : null}
+        </View>
 
         {/* Price Row */}
         <View style={styles.priceRow}>
@@ -223,6 +225,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
     gap: 4,
+    minHeight: 18, // Fixed height to ensure consistent card sizing
   },
   locationText: {
     fontSize: 13,
