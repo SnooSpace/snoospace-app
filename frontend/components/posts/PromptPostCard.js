@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiGet } from "../../api/client";
@@ -29,6 +30,7 @@ const PromptPostCard = ({
   currentUserId,
   currentUserType,
 }) => {
+  const navigation = useNavigation();
   const typeData = post.type_data || {};
   const [hasSubmitted, setHasSubmitted] = useState(post.has_submitted || false);
   const [submissionStatus, setSubmissionStatus] = useState(
@@ -122,10 +124,42 @@ const PromptPostCard = ({
     );
   };
 
+  // Render preview response
+  const renderPreviewResponse = () => {
+    const preview = post.preview_submission;
+    if (!preview) return null;
+
+    return (
+      <View style={styles.previewContainer}>
+        <View style={styles.previewHeader}>
+          <Image
+            source={
+              preview.author_photo_url
+                ? { uri: preview.author_photo_url }
+                : { uri: "https://via.placeholder.com/32" }
+            }
+            style={styles.previewAvatar}
+          />
+          <Text style={styles.previewAuthorName} numberOfLines={1}>
+            {preview.author_name || "Anonymous"}
+          </Text>
+          {preview.status === "featured" && (
+            <View style={styles.featuredBadge}>
+              <Ionicons name="star" size={10} color="#7B1FA2" />
+            </View>
+          )}
+        </View>
+        <Text style={styles.previewContent} numberOfLines={2}>
+          "{preview.content}"
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header with Type Indicator and Status Badge */}
+      <View style={styles.headerRow}>
         <View style={styles.typeIndicator}>
           <MaterialCommunityIcons
             name="chat-question"
@@ -134,26 +168,30 @@ const PromptPostCard = ({
           />
           <Text style={styles.typeLabel}>PROMPT</Text>
         </View>
-        <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
-          <Image
-            source={
-              post.author_photo_url
-                ? { uri: post.author_photo_url }
-                : { uri: "https://via.placeholder.com/40" }
-            }
-            style={styles.profileImage}
-          />
-          <View style={styles.userDetails}>
-            <Text style={styles.authorName}>{post.author_name}</Text>
-            <Text style={styles.timestamp}>
-              {formatTimeAgo(post.created_at)}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {getStatusBadge()}
       </View>
+
+      {/* Author Info */}
+      <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
+        <Image
+          source={
+            post.author_photo_url
+              ? { uri: post.author_photo_url }
+              : { uri: "https://via.placeholder.com/40" }
+          }
+          style={styles.profileImage}
+        />
+        <View style={styles.userDetails}>
+          <Text style={styles.authorName}>{post.author_name}</Text>
+          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Prompt Text */}
       <Text style={styles.promptText}>{typeData.prompt_text}</Text>
+
+      {/* Preview Response */}
+      {renderPreviewResponse()}
 
       {/* Submission Area */}
       {hasSubmitted ? (
@@ -161,12 +199,11 @@ const PromptPostCard = ({
           <View style={styles.submittedHeader}>
             <Ionicons
               name="checkmark-circle"
-              size={20}
+              size={18}
               color={COLORS.success}
             />
             <Text style={styles.submittedText}>Response submitted</Text>
           </View>
-          {getStatusBadge()}
         </View>
       ) : isExpired ? (
         <View style={styles.expiredContainer}>
@@ -192,7 +229,10 @@ const PromptPostCard = ({
         <Text style={styles.responseCount}>
           {submissionCount} response{submissionCount !== 1 ? "s" : ""}
         </Text>
-        <TouchableOpacity style={styles.viewAllButton}>
+        <TouchableOpacity
+          style={styles.viewAllButton}
+          onPress={() => navigation.navigate("PromptSubmissions", { post })}
+        >
           <Text style={styles.viewAllText}>See all →</Text>
         </TouchableOpacity>
       </View>
@@ -274,13 +314,15 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
     padding: SPACING.m,
   },
-  header: {
-    marginBottom: SPACING.m,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: SPACING.xs,
   },
   typeIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.s,
   },
   typeLabel: {
     fontSize: 11,
@@ -292,6 +334,7 @@ const styles = StyleSheet.create({
   userInfo: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: SPACING.m,
   },
   profileImage: {
     width: 36,
@@ -350,6 +393,42 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.success,
     marginLeft: SPACING.s,
+  },
+  // Preview response styles
+  previewContainer: {
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+    marginBottom: SPACING.m,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.xs,
+  },
+  previewAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: SPACING.xs,
+  },
+  previewAuthorName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+    flex: 1,
+  },
+  previewContent: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
+    lineHeight: 20,
+  },
+  featuredBadge: {
+    backgroundColor: "#7B1FA220",
+    borderRadius: 10,
+    padding: 4,
+    marginLeft: SPACING.xs,
   },
   statusBadge: {
     flexDirection: "row",

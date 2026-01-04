@@ -183,8 +183,13 @@ const submitResponse = async (req, res) => {
         .json({ error: "You have already submitted to this prompt" });
     }
 
-    // Determine initial status (approved if no approval required)
-    const initialStatus = typeData.require_approval ? "pending" : "approved";
+    // Determine initial status
+    // Auto-approve if: no approval required OR submitter is the post author
+    const isPostAuthor =
+      parseInt(post.author_id) === parseInt(userId) &&
+      post.author_type === userType;
+    const initialStatus =
+      !typeData.require_approval || isPostAuthor ? "approved" : "pending";
 
     // Insert submission
     const insertResult = await pool.query(
@@ -207,14 +212,13 @@ const submitResponse = async (req, res) => {
     const newCount = (typeData.submission_count || 0) + 1;
     await pool.query(
       `UPDATE posts SET 
-        type_data = jsonb_set(type_data, '{submission_count}', $1::jsonb),
-        updated_at = NOW()
+        type_data = jsonb_set(type_data, '{submission_count}', $1::jsonb)
        WHERE id = $2`,
       [JSON.stringify(newCount), postId]
     );
 
-    // Notify community admin about new submission (if approval required)
-    if (typeData.require_approval) {
+    // Notify community admin about new submission (if approval required and not author's own submission)
+    if (typeData.require_approval && !isPostAuthor) {
       try {
         // Get submitter info
         let submitterName = "Someone";
@@ -297,7 +301,10 @@ const getSubmissions = async (req, res) => {
     }
 
     // Check if user is the post author (can see all statuses)
-    const isAuthor = post.author_id === userId && post.author_type === userType;
+    // Use parseInt to handle type mismatch between DB (integer) and token (string)
+    const isAuthor =
+      parseInt(post.author_id) === parseInt(userId) &&
+      post.author_type === userType;
 
     // Build query based on permissions
     let statusFilter;
@@ -439,8 +446,7 @@ const moderateSubmission = async (req, res) => {
         featuredIds.push(parseInt(submissionId));
         await pool.query(
           `UPDATE posts SET 
-            type_data = jsonb_set(type_data, '{featured_submission_ids}', $1::jsonb),
-            updated_at = NOW()
+            type_data = jsonb_set(type_data, '{featured_submission_ids}', $1::jsonb)
            WHERE id = $2`,
           [JSON.stringify(featuredIds), submission.post_id]
         );

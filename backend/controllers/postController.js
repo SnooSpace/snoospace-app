@@ -351,18 +351,59 @@ const getFeed = async (req, res) => {
           }
         }
 
-        // For prompt posts, check if user has submitted
-        if (parsedPost.post_type === "prompt" && viewerId && viewerType) {
+        // For prompt posts, check if user has submitted AND get real-time submission count
+        if (parsedPost.post_type === "prompt") {
           try {
-            const subResult = await pool.query(
-              `SELECT id, status FROM prompt_submissions 
-               WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-              [post.id, viewerId, viewerType]
+            // Get real-time submission count
+            const countResult = await pool.query(
+              `SELECT COUNT(*) as count FROM prompt_submissions WHERE post_id = $1`,
+              [post.id]
             );
-            parsedPost.has_submitted = subResult.rows.length > 0;
-            parsedPost.submission_status = subResult.rows[0]?.status || null;
+            parsedPost.type_data = {
+              ...parsedPost.type_data,
+              submission_count: parseInt(countResult.rows[0]?.count || 0),
+            };
+
+            // Check if current user has submitted
+            if (viewerId && viewerType) {
+              const subResult = await pool.query(
+                `SELECT id, status FROM prompt_submissions 
+                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+                [post.id, viewerId, viewerType]
+              );
+              parsedPost.has_submitted = subResult.rows.length > 0;
+              parsedPost.submission_status = subResult.rows[0]?.status || null;
+            }
+
+            // Get preview submission (featured first, then latest approved)
+            const previewResult = await pool.query(
+              `SELECT 
+                s.id, s.content, s.created_at, s.status,
+                CASE 
+                  WHEN s.author_type = 'member' THEN m.name
+                  WHEN s.author_type = 'community' THEN c.name
+                  WHEN s.author_type = 'sponsor' THEN sp.brand_name
+                END as author_name,
+                CASE 
+                  WHEN s.author_type = 'member' THEN m.profile_photo_url
+                  WHEN s.author_type = 'community' THEN c.logo_url
+                  WHEN s.author_type = 'sponsor' THEN sp.logo_url
+                END as author_photo_url
+              FROM prompt_submissions s
+              LEFT JOIN members m ON s.author_type = 'member' AND s.author_id = m.id
+              LEFT JOIN communities c ON s.author_type = 'community' AND s.author_id = c.id
+              LEFT JOIN sponsors sp ON s.author_type = 'sponsor' AND s.author_id = sp.id
+              WHERE s.post_id = $1 AND s.status IN ('approved', 'featured')
+              ORDER BY 
+                CASE WHEN s.status = 'featured' THEN 0 ELSE 1 END,
+                s.created_at DESC
+              LIMIT 1`,
+              [post.id]
+            );
+            parsedPost.preview_submission = previewResult.rows[0] || null;
           } catch (e) {
             parsedPost.has_submitted = false;
+            parsedPost.preview_submission = null;
           }
         }
 
