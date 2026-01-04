@@ -10,6 +10,7 @@ import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import PromptSubmissionsScreen from "../screens/home/PromptSubmissionsScreen";
+import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
 
 const Stack = createStackNavigator();
 
@@ -63,6 +64,13 @@ export default function CommunityHomeStackNavigator() {
       <Stack.Screen
         name="PromptSubmissions"
         component={PromptSubmissionsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="PromptReplies"
+        component={PromptRepliesScreen}
         options={{
           headerShown: false,
         }}

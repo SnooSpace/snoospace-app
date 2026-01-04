@@ -143,9 +143,9 @@ const PromptPostCard = ({
           <Text style={styles.previewAuthorName} numberOfLines={1}>
             {preview.author_name || "Anonymous"}
           </Text>
-          {preview.status === "featured" && (
-            <View style={styles.featuredBadge}>
-              <Ionicons name="star" size={10} color="#7B1FA2" />
+          {preview.is_pinned && (
+            <View style={styles.pinnedBadge}>
+              <Ionicons name="pin" size={10} color="#FF9500" />
             </View>
           )}
         </View>
@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 20,
   },
-  featuredBadge: {
-    backgroundColor: "#7B1FA220",
+  pinnedBadge: {
+    backgroundColor: "#FF950020",
     borderRadius: 10,
     padding: 4,
     marginLeft: SPACING.xs,

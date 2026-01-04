@@ -217,11 +217,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const offPostCreated = EventBus.on("post-created", () => {
       loadFeed();
     });
+    const offPinUpdated = EventBus.on("prompt-pin-updated", () => {
+      loadFeed();
+    });
     return () => {
       off();
       offMessages();
       offNewMessage();
       offPostCreated();
+      offPinUpdated();
     };
   }, []);
 

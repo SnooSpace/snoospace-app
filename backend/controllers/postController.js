@@ -375,10 +375,10 @@ const getFeed = async (req, res) => {
               parsedPost.submission_status = subResult.rows[0]?.status || null;
             }
 
-            // Get preview submission (featured first, then latest approved)
+            // Get preview submission (pinned first, then latest approved)
             const previewResult = await pool.query(
               `SELECT 
-                s.id, s.content, s.created_at, s.status,
+                s.id, s.content, s.created_at, s.status, s.is_pinned, s.reply_count,
                 CASE 
                   WHEN s.author_type = 'member' THEN m.name
                   WHEN s.author_type = 'community' THEN c.name
@@ -393,9 +393,9 @@ const getFeed = async (req, res) => {
               LEFT JOIN members m ON s.author_type = 'member' AND s.author_id = m.id
               LEFT JOIN communities c ON s.author_type = 'community' AND s.author_id = c.id
               LEFT JOIN sponsors sp ON s.author_type = 'sponsor' AND s.author_id = sp.id
-              WHERE s.post_id = $1 AND s.status IN ('approved', 'featured')
+              WHERE s.post_id = $1 AND s.status = 'approved'
               ORDER BY 
-                CASE WHEN s.status = 'featured' THEN 0 ELSE 1 END,
+                s.is_pinned DESC,
                 s.created_at DESC
               LIMIT 1`,
               [post.id]

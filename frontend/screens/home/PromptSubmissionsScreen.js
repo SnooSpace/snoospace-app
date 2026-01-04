@@ -14,18 +14,20 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { apiGet, apiPatch } from "../../api/client";
+import { apiGet, apiPatch, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getActiveAccount } from "../../utils/accountManager";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import EventBus from "../../utils/EventBus";
 
 const TABS = [
   { key: "pending", label: "Pending" },
   { key: "approved", label: "Approved" },
-  { key: "featured", label: "Featured" },
 ];
 
 const PromptSubmissionsScreen = ({ route, navigation }) => {
@@ -38,6 +40,9 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState("pending");
   const [isAuthor, setIsAuthor] = useState(false);
   const [moderatingId, setModeratingId] = useState(null);
+  const [pinningId, setPinningId] = useState(null);
+  const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
 
   // Check if current user is the post author
   useEffect(() => {
@@ -95,13 +100,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       // Show success feedback
       Alert.alert(
         "Success",
-        `Submission ${
-          newStatus === "approved"
-            ? "approved"
-            : newStatus === "featured"
-            ? "featured"
-            : "rejected"
-        }`
+        `Submission ${newStatus === "approved" ? "approved" : "rejected"}`
       );
     } catch (error) {
       console.error("Error moderating submission:", error);
@@ -109,6 +108,44 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
     } finally {
       setModeratingId(null);
     }
+  };
+
+  const handlePin = async (submissionId, currentlyPinned) => {
+    setPinningId(submissionId);
+    setOptionsModalVisible(false);
+    try {
+      const token = await getAuthToken();
+      await apiPatch(`/submissions/${submissionId}/pin`, {}, 15000, token);
+      // Update the local state and re-sort (pinned items first)
+      setSubmissions((prev) => {
+        const updated = prev.map((s) => ({
+          ...s,
+          is_pinned: s.id === submissionId ? !currentlyPinned : false,
+        }));
+        // Sort: pinned first, then by created_at descending
+        return updated.sort((a, b) => {
+          if (a.is_pinned && !b.is_pinned) return -1;
+          if (!a.is_pinned && b.is_pinned) return 1;
+          return new Date(b.created_at) - new Date(a.created_at);
+        });
+      });
+      // Notify HomeFeed to refresh the preview
+      EventBus.emit("prompt-pin-updated", { postId: post.id });
+      Alert.alert(
+        "Success",
+        currentlyPinned ? "Submission unpinned" : "Submission pinned"
+      );
+    } catch (error) {
+      console.error("Error pinning submission:", error);
+      Alert.alert("Error", "Failed to pin submission");
+    } finally {
+      setPinningId(null);
+    }
+  };
+
+  const openOptionsModal = (submission) => {
+    setSelectedSubmission(submission);
+    setOptionsModalVisible(true);
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -135,27 +172,68 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
 
   const renderSubmission = ({ item }) => (
     <View style={styles.submissionCard}>
-      <TouchableOpacity
-        style={styles.submissionHeader}
-        onPress={() => handleUserPress(item.author_id, item.author_type)}
-      >
-        <Image
-          source={
-            item.author_photo_url
-              ? { uri: item.author_photo_url }
-              : { uri: "https://via.placeholder.com/40" }
-          }
-          style={styles.authorImage}
-        />
-        <View style={styles.authorInfo}>
-          <Text style={styles.authorName}>{item.author_name || "User"}</Text>
-          <Text style={styles.timestamp}>{formatTimeAgo(item.created_at)}</Text>
+      {/* Pinned indicator */}
+      {item.is_pinned && (
+        <View style={styles.pinnedBadge}>
+          <Ionicons name="pin" size={12} color="#FF9500" />
+          <Text style={styles.pinnedText}>Pinned</Text>
         </View>
-      </TouchableOpacity>
+      )}
+
+      {/* Options menu - positioned at top right of card */}
+      {isAuthor && activeTab === "approved" && (
+        <TouchableOpacity
+          style={styles.optionsButton}
+          onPress={() => openOptionsModal(item)}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={20}
+            color={COLORS.textSecondary}
+          />
+        </TouchableOpacity>
+      )}
+
+      <View style={styles.submissionHeaderRow}>
+        <TouchableOpacity
+          style={styles.submissionHeader}
+          onPress={() => handleUserPress(item.author_id, item.author_type)}
+        >
+          <Image
+            source={
+              item.author_photo_url
+                ? { uri: item.author_photo_url }
+                : { uri: "https://via.placeholder.com/40" }
+            }
+            style={styles.authorImage}
+          />
+          <View style={styles.authorInfo}>
+            <Text style={styles.authorName}>{item.author_name || "User"}</Text>
+            <Text style={styles.timestamp}>
+              {formatTimeAgo(item.created_at)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       <Text style={styles.submissionContent}>{item.content}</Text>
 
-      {/* Author moderation controls */}
+      {/* Reply count - navigate to replies */}
+      {activeTab === "approved" && (
+        <TouchableOpacity
+          style={styles.repliesButton}
+          onPress={() =>
+            navigation.navigate("PromptReplies", { submission: item, post })
+          }
+        >
+          <Text style={styles.repliesText}>
+            {item.reply_count > 0 ? `${item.reply_count} replies` : "Reply"}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+        </TouchableOpacity>
+      )}
+
+      {/* Author moderation controls for pending submissions */}
       {isAuthor && activeTab === "pending" && (
         <View style={styles.moderationButtons}>
           <TouchableOpacity
@@ -174,15 +252,6 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.modButton, styles.featureButton]}
-            onPress={() => handleModerate(item.id, "featured")}
-            disabled={moderatingId === item.id}
-          >
-            <Ionicons name="star" size={16} color="#FFFFFF" />
-            <Text style={styles.modButtonText}>Feature</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.modButton, styles.rejectButton]}
             onPress={() => handleModerate(item.id, "rejected")}
             disabled={moderatingId === item.id}
@@ -190,32 +259,6 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             <Ionicons name="close" size={16} color="#FFFFFF" />
             <Text style={styles.modButtonText}>Reject</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Status badge for approved/featured tabs */}
-      {activeTab !== "pending" && (
-        <View
-          style={[
-            styles.statusBadge,
-            item.status === "featured"
-              ? styles.featuredBadge
-              : styles.approvedBadge,
-          ]}
-        >
-          <Ionicons
-            name={item.status === "featured" ? "star" : "checkmark-circle"}
-            size={14}
-            color={item.status === "featured" ? "#7B1FA2" : "#34C759"}
-          />
-          <Text
-            style={[
-              styles.statusText,
-              { color: item.status === "featured" ? "#7B1FA2" : "#34C759" },
-            ]}
-          >
-            {item.status === "featured" ? "Featured" : "Approved"}
-          </Text>
         </View>
       )}
     </View>
@@ -300,6 +343,46 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           />
         )}
       </View>
+
+      {/* Options Modal for Pin */}
+      <Modal
+        visible={optionsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOptionsModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setOptionsModalVisible(false)}
+        >
+          <View style={styles.optionsModal}>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() =>
+                handlePin(selectedSubmission?.id, selectedSubmission?.is_pinned)
+              }
+              disabled={pinningId === selectedSubmission?.id}
+            >
+              {pinningId === selectedSubmission?.id ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={selectedSubmission?.is_pinned ? "pin-outline" : "pin"}
+                    size={22}
+                    color={"#FF9500"}
+                  />
+                  <Text style={styles.optionText}>
+                    {selectedSubmission?.is_pinned
+                      ? "Unpin response"
+                      : "Pin response"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -319,8 +402,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   backButton: {
     padding: SPACING.xs,
@@ -351,11 +432,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: SPACING.s,
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
   },
   activeTab: {
-    borderBottomColor: COLORS.primary,
+    // No underline, just text color change
   },
   tabText: {
     fontSize: 14,
@@ -380,6 +459,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.l,
     padding: SPACING.m,
     marginBottom: SPACING.m,
+    position: "relative",
     ...SHADOWS.sm,
   },
   submissionHeader: {
@@ -475,6 +555,69 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
     textAlign: "center",
+  },
+  // New styles for pin/replies
+  submissionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pinnedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF950020",
+    paddingHorizontal: SPACING.s,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.s,
+    marginBottom: SPACING.s,
+    alignSelf: "flex-start",
+    gap: 4,
+  },
+  pinnedText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FF9500",
+  },
+  optionsButton: {
+    position: "absolute",
+    top: SPACING.s,
+    right: SPACING.s,
+    padding: SPACING.xs,
+    zIndex: 1,
+  },
+  repliesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: SPACING.m,
+  },
+  repliesText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.primary,
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  optionsModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.l,
+    padding: SPACING.s,
+    minWidth: 200,
+    ...SHADOWS.md,
+  },
+  optionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: SPACING.m,
+    gap: SPACING.m,
+  },
+  optionText: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
 });
 

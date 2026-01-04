@@ -312,8 +312,8 @@ const getSubmissions = async (req, res) => {
       // Author can filter by any status
       statusFilter = status === "all" ? null : status;
     } else {
-      // Non-authors can only see approved/featured submissions
-      statusFilter = status === "featured" ? "featured" : "approved";
+      // Non-authors can only see approved submissions
+      statusFilter = "approved";
     }
 
     let query = `
@@ -347,13 +347,13 @@ const getSubmissions = async (req, res) => {
       query += ` AND s.status = $${params.length + 1}`;
       params.push(statusFilter);
     } else if (!isAuthor) {
-      // If not author and no specific filter, show approved and featured
-      query += ` AND s.status IN ('approved', 'featured')`;
+      // If not author and no specific filter, show approved only
+      query += ` AND s.status = 'approved'`;
     }
 
-    // Order featured first, then by creation date
+    // Order: pinned first, then by creation date
     query += ` ORDER BY 
-      CASE WHEN s.status = 'featured' THEN 0 ELSE 1 END,
+      s.is_pinned DESC,
       s.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
@@ -383,7 +383,7 @@ const getSubmissions = async (req, res) => {
 };
 
 /**
- * Moderate a submission (approve/reject/feature)
+ * Moderate a submission (approve/reject)
  * PATCH /submissions/:submissionId/status
  */
 const moderateSubmission = async (req, res) => {
@@ -397,15 +397,15 @@ const moderateSubmission = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (!["approved", "rejected", "featured"].includes(status)) {
+    if (!["approved", "rejected"].includes(status)) {
       return res.status(400).json({
-        error: "Invalid status. Must be: approved, rejected, or featured",
+        error: "Invalid status. Must be: approved or rejected",
       });
     }
 
     // Get the submission and its parent post
     const subResult = await pool.query(
-      `SELECT s.*, p.author_id as post_author_id, p.author_type as post_author_type, p.type_data
+      `SELECT s.*, p.author_id as post_author_id, p.author_type as post_author_type
        FROM prompt_submissions s
        JOIN posts p ON s.post_id = p.id
        WHERE s.id = $1`,
@@ -420,7 +420,7 @@ const moderateSubmission = async (req, res) => {
 
     // Check if user is the post author (has moderation rights)
     if (
-      submission.post_author_id !== userId ||
+      parseInt(submission.post_author_id) !== parseInt(userId) ||
       submission.post_author_type !== userType
     ) {
       return res
@@ -438,39 +438,20 @@ const moderateSubmission = async (req, res) => {
       [status, userId, submissionId]
     );
 
-    // If featuring, add to featured_submission_ids in type_data
-    if (status === "featured") {
-      const typeData = submission.type_data;
-      const featuredIds = typeData.featured_submission_ids || [];
-      if (!featuredIds.includes(parseInt(submissionId))) {
-        featuredIds.push(parseInt(submissionId));
-        await pool.query(
-          `UPDATE posts SET 
-            type_data = jsonb_set(type_data, '{featured_submission_ids}', $1::jsonb)
-           WHERE id = $2`,
-          [JSON.stringify(featuredIds), submission.post_id]
-        );
-      }
-    }
-
     // Notify the submitter about the moderation decision
     try {
       const notificationTitle =
-        status === "featured"
-          ? "Your response was featured! 🌟"
-          : status === "approved"
+        status === "approved"
           ? "Your response was approved ✅"
           : "Response update";
 
       const notificationBody =
-        status === "featured"
-          ? "Your prompt response has been featured by the community"
-          : status === "approved"
+        status === "approved"
           ? "Your prompt response is now visible to others"
           : "Your prompt response was reviewed";
 
-      // Only notify for positive outcomes (approved/featured)
-      if (status !== "rejected") {
+      // Only notify for approval
+      if (status === "approved") {
         await pushService.sendPushNotification(
           pool,
           submission.author_id,
@@ -548,10 +529,327 @@ const getMySubmission = async (req, res) => {
   }
 };
 
+/**
+ * Pin/unpin a submission
+ * PATCH /submissions/:submissionId/pin
+ * Only one submission can be pinned per prompt - pinning a new one unpins the previous
+ */
+const pinSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get the submission and its parent post
+    const subResult = await pool.query(
+      `SELECT s.*, p.author_id as post_author_id, p.author_type as post_author_type
+       FROM prompt_submissions s
+       JOIN posts p ON s.post_id = p.id
+       WHERE s.id = $1`,
+      [submissionId]
+    );
+
+    if (subResult.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    const submission = subResult.rows[0];
+
+    // Check if user is the post author
+    if (
+      parseInt(submission.post_author_id) !== parseInt(userId) ||
+      submission.post_author_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the prompt author can pin submissions" });
+    }
+
+    // Only approved submissions can be pinned
+    if (submission.status !== "approved") {
+      return res
+        .status(400)
+        .json({ error: "Only approved submissions can be pinned" });
+    }
+
+    const willBePinned = !submission.is_pinned;
+
+    // If pinning, first unpin any currently pinned submission for this post
+    if (willBePinned) {
+      await pool.query(
+        `UPDATE prompt_submissions SET is_pinned = FALSE WHERE post_id = $1 AND is_pinned = TRUE`,
+        [submission.post_id]
+      );
+    }
+
+    // Toggle the pin
+    await pool.query(
+      `UPDATE prompt_submissions SET is_pinned = $1, updated_at = NOW() WHERE id = $2`,
+      [willBePinned, submissionId]
+    );
+
+    console.log(
+      `[pinSubmission] Submission ${submissionId} ${
+        willBePinned ? "pinned" : "unpinned"
+      }`
+    );
+
+    res.json({
+      success: true,
+      message: willBePinned ? "Submission pinned" : "Submission unpinned",
+      is_pinned: willBePinned,
+    });
+  } catch (error) {
+    console.error("Error pinning submission:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Create a reply to a submission
+ * POST /submissions/:submissionId/replies
+ */
+const createReply = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { content } = req.body;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: "Reply content is required" });
+    }
+
+    // Check if submission exists and is approved
+    const subResult = await pool.query(
+      `SELECT s.*, p.id as post_id FROM prompt_submissions s
+       JOIN posts p ON s.post_id = p.id
+       WHERE s.id = $1`,
+      [submissionId]
+    );
+
+    if (subResult.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    const submission = subResult.rows[0];
+
+    if (submission.status !== "approved") {
+      return res
+        .status(400)
+        .json({ error: "Can only reply to approved submissions" });
+    }
+
+    // Insert the reply
+    const insertResult = await pool.query(
+      `INSERT INTO prompt_replies (submission_id, author_id, author_type, content)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, created_at`,
+      [submissionId, userId, userType, content.trim()]
+    );
+
+    // Update reply count
+    await pool.query(
+      `UPDATE prompt_submissions SET reply_count = reply_count + 1, updated_at = NOW()
+       WHERE id = $1`,
+      [submissionId]
+    );
+
+    const reply = insertResult.rows[0];
+
+    // Get author info for response
+    let authorName = "User";
+    let authorPhotoUrl = null;
+    if (userType === "member") {
+      const memberResult = await pool.query(
+        "SELECT name, profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+      if (memberResult.rows[0]) {
+        authorName = memberResult.rows[0].name;
+        authorPhotoUrl = memberResult.rows[0].profile_photo_url;
+      }
+    } else if (userType === "community") {
+      const commResult = await pool.query(
+        "SELECT name, logo_url FROM communities WHERE id = $1",
+        [userId]
+      );
+      if (commResult.rows[0]) {
+        authorName = commResult.rows[0].name;
+        authorPhotoUrl = commResult.rows[0].logo_url;
+      }
+    }
+
+    console.log(
+      `[createReply] User ${userType}:${userId} replied to submission ${submissionId}`
+    );
+
+    res.status(201).json({
+      success: true,
+      reply: {
+        id: reply.id,
+        submission_id: parseInt(submissionId),
+        author_id: userId,
+        author_type: userType,
+        author_name: authorName,
+        author_photo_url: authorPhotoUrl,
+        content: content.trim(),
+        is_hidden: false,
+        created_at: reply.created_at,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating reply:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Get replies for a submission
+ * GET /submissions/:submissionId/replies
+ */
+const getReplies = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // Check if submission exists
+    const subResult = await pool.query(
+      `SELECT id FROM prompt_submissions WHERE id = $1`,
+      [submissionId]
+    );
+
+    if (subResult.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    // Get replies with author info
+    const result = await pool.query(
+      `SELECT 
+        r.*,
+        CASE 
+          WHEN r.author_type = 'member' THEN m.name
+          WHEN r.author_type = 'community' THEN c.name
+          WHEN r.author_type = 'sponsor' THEN sp.brand_name
+        END as author_name,
+        CASE 
+          WHEN r.author_type = 'member' THEN m.profile_photo_url
+          WHEN r.author_type = 'community' THEN c.logo_url
+          WHEN r.author_type = 'sponsor' THEN sp.logo_url
+        END as author_photo_url
+      FROM prompt_replies r
+      LEFT JOIN members m ON r.author_type = 'member' AND r.author_id = m.id
+      LEFT JOIN communities c ON r.author_type = 'community' AND r.author_id = c.id
+      LEFT JOIN sponsors sp ON r.author_type = 'sponsor' AND r.author_id = sp.id
+      WHERE r.submission_id = $1
+      ORDER BY r.created_at ASC
+      LIMIT $2 OFFSET $3`,
+      [submissionId, parseInt(limit), offset]
+    );
+
+    res.json({
+      replies: result.rows,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      hasMore: result.rows.length === parseInt(limit),
+    });
+  } catch (error) {
+    console.error("Error getting replies:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Hide a reply (community moderation)
+ * PATCH /replies/:replyId/hide
+ */
+const hideReply = async (req, res) => {
+  try {
+    const { replyId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get the reply, its submission, and the post author
+    const replyResult = await pool.query(
+      `SELECT r.*, s.post_id, p.author_id as post_author_id, p.author_type as post_author_type
+       FROM prompt_replies r
+       JOIN prompt_submissions s ON r.submission_id = s.id
+       JOIN posts p ON s.post_id = p.id
+       WHERE r.id = $1`,
+      [replyId]
+    );
+
+    if (replyResult.rows.length === 0) {
+      return res.status(404).json({ error: "Reply not found" });
+    }
+
+    const reply = replyResult.rows[0];
+
+    // Only post author (community) can hide replies
+    if (
+      parseInt(reply.post_author_id) !== parseInt(userId) ||
+      reply.post_author_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the prompt author can hide replies" });
+    }
+
+    // Toggle hide status
+    const willBeHidden = !reply.is_hidden;
+
+    await pool.query(
+      `UPDATE prompt_replies 
+       SET is_hidden = $1, hidden_at = $2, hidden_by = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [
+        willBeHidden,
+        willBeHidden ? new Date() : null,
+        willBeHidden ? userId : null,
+        replyId,
+      ]
+    );
+
+    // TODO: If hiding, create a report entry for admin panel
+
+    console.log(
+      `[hideReply] Reply ${replyId} ${
+        willBeHidden ? "hidden" : "unhidden"
+      } by ${userType}:${userId}`
+    );
+
+    res.json({
+      success: true,
+      message: willBeHidden ? "Reply hidden" : "Reply unhidden",
+      is_hidden: willBeHidden,
+    });
+  } catch (error) {
+    console.error("Error hiding reply:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createPromptPost,
   submitResponse,
   getSubmissions,
   moderateSubmission,
   getMySubmission,
+  pinSubmission,
+  createReply,
+  getReplies,
+  hideReply,
 };

@@ -552,6 +552,26 @@ router.patch(
   authMiddleware,
   PromptController.moderateSubmission
 );
+router.patch(
+  "/submissions/:submissionId/pin",
+  authMiddleware,
+  PromptController.pinSubmission
+);
+router.post(
+  "/submissions/:submissionId/replies",
+  authMiddleware,
+  PromptController.createReply
+);
+router.get(
+  "/submissions/:submissionId/replies",
+  authMiddleware,
+  PromptController.getReplies
+);
+router.patch(
+  "/replies/:replyId/hide",
+  authMiddleware,
+  PromptController.hideReply
+);
 
 // Comments
 router.post(
