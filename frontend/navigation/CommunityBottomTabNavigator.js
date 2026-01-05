@@ -135,7 +135,8 @@ const CommunityBottomTabNavigator = () => {
             if (
               routeName === "ConversationsList" ||
               routeName === "Chat" ||
-              routeName === "Notifications"
+              routeName === "Notifications" ||
+              routeName === "PromptReplies"
             ) {
               return { display: "none" };
             }

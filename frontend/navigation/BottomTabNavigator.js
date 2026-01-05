@@ -145,7 +145,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
             if (
               routeName === "ConversationsList" ||
               routeName === "Chat" ||
-              routeName === "CreatePost"
+              routeName === "CreatePost" ||
+              routeName === "PromptReplies"
             ) {
               return { display: "none" };
             }

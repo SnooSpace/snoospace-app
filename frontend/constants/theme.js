@@ -38,7 +38,7 @@ export const SPACING = {
   s: 8,
   m: 16,
   l: 24,
-  xl: 32,
+  xl: 80,
 };
 
 export const BORDER_RADIUS = {

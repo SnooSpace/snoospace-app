@@ -610,13 +610,14 @@ const pinSubmission = async (req, res) => {
 };
 
 /**
- * Create a reply to a submission
+ * Create a reply to a submission (or to another reply)
  * POST /submissions/:submissionId/replies
+ * Body: { content, parent_reply_id? }
  */
 const createReply = async (req, res) => {
   try {
     const { submissionId } = req.params;
-    const { content } = req.body;
+    const { content, parent_reply_id } = req.body;
     const userId = req.user?.id;
     const userType = req.user?.type;
 
@@ -648,20 +649,41 @@ const createReply = async (req, res) => {
         .json({ error: "Can only reply to approved submissions" });
     }
 
+    // If replying to another reply, verify the parent reply exists
+    if (parent_reply_id) {
+      const parentCheck = await pool.query(
+        `SELECT id FROM prompt_replies WHERE id = $1 AND submission_id = $2`,
+        [parent_reply_id, submissionId]
+      );
+      if (parentCheck.rows.length === 0) {
+        return res.status(404).json({ error: "Parent reply not found" });
+      }
+    }
+
     // Insert the reply
     const insertResult = await pool.query(
-      `INSERT INTO prompt_replies (submission_id, author_id, author_type, content)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO prompt_replies (submission_id, author_id, author_type, content, parent_reply_id)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, created_at`,
-      [submissionId, userId, userType, content.trim()]
+      [submissionId, userId, userType, content.trim(), parent_reply_id || null]
     );
 
-    // Update reply count
-    await pool.query(
-      `UPDATE prompt_submissions SET reply_count = reply_count + 1, updated_at = NOW()
-       WHERE id = $1`,
-      [submissionId]
-    );
+    // Update reply count on appropriate parent
+    if (parent_reply_id) {
+      // Update reply_count on parent reply
+      await pool.query(
+        `UPDATE prompt_replies SET reply_count = reply_count + 1, updated_at = NOW()
+         WHERE id = $1`,
+        [parent_reply_id]
+      );
+    } else {
+      // Update reply_count on submission
+      await pool.query(
+        `UPDATE prompt_submissions SET reply_count = reply_count + 1, updated_at = NOW()
+         WHERE id = $1`,
+        [submissionId]
+      );
+    }
 
     const reply = insertResult.rows[0];
 
@@ -689,7 +711,11 @@ const createReply = async (req, res) => {
     }
 
     console.log(
-      `[createReply] User ${userType}:${userId} replied to submission ${submissionId}`
+      `[createReply] User ${userType}:${userId} replied to ${
+        parent_reply_id
+          ? `reply ${parent_reply_id}`
+          : `submission ${submissionId}`
+      }`
     );
 
     res.status(201).json({
@@ -697,12 +723,14 @@ const createReply = async (req, res) => {
       reply: {
         id: reply.id,
         submission_id: parseInt(submissionId),
+        parent_reply_id: parent_reply_id || null,
         author_id: userId,
         author_type: userType,
         author_name: authorName,
         author_photo_url: authorPhotoUrl,
         content: content.trim(),
         is_hidden: false,
+        reply_count: 0,
         created_at: reply.created_at,
       },
     });

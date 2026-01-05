@@ -49,9 +49,16 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
     const checkIsAuthor = async () => {
       const account = await getActiveAccount();
       if (account) {
-        setIsAuthor(
-          account.id === post.author_id && account.type === post.author_type
-        );
+        const isPostAuthor =
+          account.id === post.author_id && account.type === post.author_type;
+        setIsAuthor(isPostAuthor);
+        // Non-authors should default to approved tab
+        if (!isPostAuthor) {
+          setActiveTab("approved");
+        }
+      } else {
+        // Not logged in, show approved only
+        setActiveTab("approved");
       }
     };
     checkIsAuthor();
@@ -218,8 +225,8 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
 
       <Text style={styles.submissionContent}>{item.content}</Text>
 
-      {/* Reply count - navigate to replies */}
-      {activeTab === "approved" && (
+      {/* Reply count - navigate to replies (show for approved submissions) */}
+      {(activeTab === "approved" || item.status === "approved") && (
         <TouchableOpacity
           style={styles.repliesButton}
           onPress={() =>
