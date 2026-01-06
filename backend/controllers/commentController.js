@@ -673,6 +673,21 @@ const getPostComments = async (req, res) => {
         }
         return reply;
       });
+
+      // Fetch sub-replies for each reply (3rd level)
+      for (let reply of comment.replies) {
+        const subRepliesResult = await pool.query(repliesQuery, [reply.id]);
+        reply.replies = subRepliesResult.rows.map((subReply) => {
+          try {
+            subReply.tagged_entities = subReply.tagged_entities
+              ? JSON.parse(subReply.tagged_entities)
+              : null;
+          } catch {
+            subReply.tagged_entities = null;
+          }
+          return subReply;
+        });
+      }
     }
 
     res.json({

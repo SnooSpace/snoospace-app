@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
@@ -9,16 +15,15 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Alert,
-  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { searchMembers } from "../api/search";
 import EventBus from "../utils/EventBus";
+import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 
 const COLORS = {
   dark: "#FFFFFF",
@@ -29,6 +34,9 @@ const COLORS = {
   primary: "#6A0DAD",
   error: "#FF4444",
 };
+
+// Simple indent for replies (no connectors)
+const REPLY_INDENT = 48;
 
 const CommentsModal = ({
   visible,
@@ -53,35 +61,12 @@ const CommentsModal = ({
   const [tagSearchResults, setTagSearchResults] = useState([]);
   const [tagSearchLoading, setTagSearchLoading] = useState(false);
   const [atPosition, setAtPosition] = useState(-1);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null); // {id, name} of parent comment
+  const [collapsedThreads, setCollapsedThreads] = useState({}); // {commentId: boolean}
 
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
   const inputRef = useRef(null);
-
-  // Track keyboard visibility
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => {
-        setKeyboardVisible(true);
-        setKeyboardHeight(e.endCoordinates.height);
-      }
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        setKeyboardVisible(false);
-        setKeyboardHeight(0);
-      }
-    );
-
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (visible && postId) {
@@ -175,6 +160,68 @@ const CommentsModal = ({
       setLoading(false);
     }
   };
+
+  // Build flat list for display - supports 3 levels of nesting
+  const flatComments = useMemo(() => {
+    const result = [];
+
+    // Helper to count all nested replies recursively
+    const countAllReplies = (replies) => {
+      if (!replies) return 0;
+      let count = replies.length;
+      replies.forEach((r) => {
+        if (r.replies) count += countAllReplies(r.replies);
+      });
+      return count;
+    };
+
+    comments.forEach((comment) => {
+      // Add top-level comment (depth 0)
+      result.push({
+        ...comment,
+        depth: 0,
+        isTopLevel: true,
+        hasReplies: comment.replies && comment.replies.length > 0,
+        replyCount: comment.replies?.length || 0,
+      });
+
+      // Add replies only if not collapsed (depth 1)
+      const isLevel1Collapsed = collapsedThreads[comment.id] !== false;
+      if (!isLevel1Collapsed && comment.replies && comment.replies.length > 0) {
+        comment.replies.forEach((reply) => {
+          const hasSubReplies = reply.replies && reply.replies.length > 0;
+          result.push({
+            ...reply,
+            depth: 1,
+            isTopLevel: false,
+            isReply: true,
+            parentCommentId: comment.id,
+            hasReplies: hasSubReplies,
+            replyCount: reply.replies?.length || 0,
+          });
+
+          // Add sub-replies only if this reply is expanded (depth 2)
+          const isLevel2Collapsed = collapsedThreads[reply.id] !== false;
+          if (!isLevel2Collapsed && hasSubReplies) {
+            reply.replies.forEach((subReply) => {
+              result.push({
+                ...subReply,
+                depth: 2,
+                isTopLevel: false,
+                isReply: true,
+                isSubReply: true,
+                parentCommentId: reply.id,
+                grandparentCommentId: comment.id,
+                hasReplies: false, // Max 3 levels
+                replyCount: 0,
+              });
+            });
+          }
+        });
+      }
+    });
+    return result;
+  }, [comments, collapsedThreads]);
 
   const handleDeleteComment = async (commentId) => {
     Alert.alert(
@@ -345,7 +392,22 @@ const CommentsModal = ({
         setTaggedEntities([]);
         setShowTagSearch(false);
         setAtPosition(-1);
-        const newCount = comments.length + 1;
+
+        // Calculate total count including all nested replies (3 levels)
+        const getTotalCount = (arr) => {
+          let count = arr.length;
+          arr.forEach((c) => {
+            if (c.replies) {
+              count += c.replies.length;
+              // Count sub-replies too (3rd level)
+              c.replies.forEach((r) => {
+                if (r.replies) count += r.replies.length;
+              });
+            }
+          });
+          return count;
+        };
+        const newCount = getTotalCount(comments) + 1; // +1 for the new comment
         if (onCommentCountChange) {
           onCommentCountChange(newCount);
         }
@@ -361,6 +423,93 @@ const CommentsModal = ({
     } finally {
       setPosting(false);
     }
+  };
+
+  // Handle replying to a specific comment
+  const handleReplyComment = async () => {
+    if (!commentInput.trim() || posting || !replyingTo) return;
+
+    setPosting(true);
+    try {
+      const token = await getAuthToken();
+
+      // If replying to a nested comment, prepend @username to show who we're replying to
+      let finalCommentText = commentInput.trim();
+      if (replyingTo.isNestedReply && replyingTo.username) {
+        // Only add @mention if user hasn't already typed it
+        const mentionPrefix = `@${replyingTo.username}`;
+        if (!finalCommentText.startsWith(mentionPrefix)) {
+          finalCommentText = `${mentionPrefix} ${finalCommentText}`;
+        }
+      }
+
+      const result = await apiPost(
+        `/comments/${replyingTo.id}/reply`,
+        {
+          commentText: finalCommentText,
+          taggedEntities:
+            taggedEntities.length > 0 ? taggedEntities : undefined,
+        },
+        15000,
+        token
+      );
+
+      if (result?.comment) {
+        // Calculate total count BEFORE loadComments updates state (3 levels)
+        const getTotalCount = (arr) => {
+          let count = arr.length;
+          arr.forEach((c) => {
+            if (c.replies) {
+              count += c.replies.length;
+              c.replies.forEach((r) => {
+                if (r.replies) count += r.replies.length;
+              });
+            }
+          });
+          return count;
+        };
+        const newCount = getTotalCount(comments) + 1; // +1 for the new reply
+
+        // Reload comments to get updated replies with all data
+        await loadComments();
+        setCommentInput("");
+        setTaggedEntities([]);
+        setShowTagSearch(false);
+        setAtPosition(-1);
+        setReplyingTo(null);
+
+        // Update count with the pre-calculated value
+        if (onCommentCountChange) {
+          onCommentCountChange(newCount);
+        }
+        EventBus.emit("post-comment-updated", {
+          postId: postId,
+          commentCount: newCount,
+        });
+      }
+    } catch (error) {
+      console.error("Error replying to comment:", error);
+      Alert.alert("Error", error?.message || "Failed to post reply");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  // Cancel replying mode
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setCommentInput("");
+  };
+
+  // Toggle thread collapse - undefined/true means collapsed, false means expanded
+  const toggleThreadCollapse = (commentId) => {
+    setCollapsedThreads((prev) => {
+      const isCurrentlyExpanded = prev[commentId] === false;
+      return {
+        ...prev,
+        [commentId]: isCurrentlyExpanded ? true : false, // Toggle to opposite state
+      };
+    });
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -431,12 +580,19 @@ const CommentsModal = ({
   };
 
   const renderComment = ({ item }) => {
-    const hasReplies = item.replies && item.replies.length > 0;
+    const depth = item.depth || 0;
+    const hasReplies = item.hasReplies && item.replyCount > 0;
     const isLiked = item.is_liked === true || item.isLiked === true;
     const likeCount =
       typeof item.like_count === "string"
         ? parseInt(item.like_count, 10) || 0
         : Number(item.like_count) || 0;
+
+    // Check if this thread is expanded
+    const isExpanded = collapsedThreads[item.id] === false;
+
+    // Depth-based left margin for nested replies
+    const leftMargin = depth * REPLY_INDENT;
 
     const handleProfilePress = () => {
       if (!navigation || !item.commenter_id) return;
@@ -448,9 +604,7 @@ const CommentsModal = ({
         if (isOwnProfile) {
           root.navigate("MemberHome", {
             screen: "Profile",
-            params: {
-              screen: "MemberProfile",
-            },
+            params: { screen: "MemberProfile" },
           });
         } else {
           root.navigate("MemberHome", {
@@ -465,9 +619,7 @@ const CommentsModal = ({
         const parent = navigation.getParent();
         if (parent) {
           if (isOwnProfile) {
-            parent.navigate("Profile", {
-              screen: "MemberProfile",
-            });
+            parent.navigate("Profile", { screen: "MemberProfile" });
           } else {
             parent.navigate("Profile", {
               screen: "MemberPublicProfile",
@@ -478,12 +630,9 @@ const CommentsModal = ({
       }
     };
 
-    // Determine placeholder color based on commenter type
+    // Photo URL with placeholder fallback
     const isCommunity = item.commenter_type === "community";
     const placeholderBg = isCommunity ? "5f27cd" : "6A0DAD";
-
-    // Get photo URL - backend maps both member profile_photo_url and community logo_url to commenter_photo_url
-    // Use same approach as PostCard: check if URL exists, otherwise use placeholder
     const photoUri =
       item.commenter_photo_url && item.commenter_photo_url.trim() !== ""
         ? item.commenter_photo_url
@@ -492,7 +641,7 @@ const CommentsModal = ({
           )}&background=${placeholderBg}&color=FFFFFF`;
 
     return (
-      <View style={styles.commentItem}>
+      <View style={[styles.commentItem, { marginLeft: leftMargin }]}>
         <TouchableOpacity onPress={handleProfilePress}>
           <Image source={{ uri: photoUri }} style={styles.commentAvatar} />
         </TouchableOpacity>
@@ -562,60 +711,8 @@ const CommentsModal = ({
 
               return parts.map((part, idx) => {
                 if (part.type === "tag") {
-                  const isOwnProfile =
-                    currentUserId &&
-                    part.entity &&
-                    part.entity.id === currentUserId;
                   return (
-                    <Text
-                      key={idx}
-                      style={styles.taggedUsername}
-                      onPress={() => {
-                        if (
-                          navigation &&
-                          part.entity &&
-                          part.entity.id &&
-                          part.entity.type === "member"
-                        ) {
-                          const root = navigation
-                            .getParent()
-                            ?.getParent()
-                            ?.getParent();
-                          if (root) {
-                            if (isOwnProfile) {
-                              root.navigate("MemberHome", {
-                                screen: "Profile",
-                                params: {
-                                  screen: "MemberProfile",
-                                },
-                              });
-                            } else {
-                              root.navigate("MemberHome", {
-                                screen: "Profile",
-                                params: {
-                                  screen: "MemberPublicProfile",
-                                  params: { memberId: part.entity.id },
-                                },
-                              });
-                            }
-                          } else {
-                            const parent = navigation.getParent();
-                            if (parent) {
-                              if (isOwnProfile) {
-                                parent.navigate("Profile", {
-                                  screen: "MemberProfile",
-                                });
-                              } else {
-                                parent.navigate("Profile", {
-                                  screen: "MemberPublicProfile",
-                                  params: { memberId: part.entity.id },
-                                });
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    >
+                    <Text key={idx} style={styles.taggedUsername}>
                       {part.content}
                     </Text>
                   );
@@ -624,14 +721,56 @@ const CommentsModal = ({
               });
             })()}
           </Text>
-          {hasReplies && (
-            <TouchableOpacity style={styles.viewRepliesButton}>
-              <Text style={styles.viewRepliesText}>
-                View {item.replies.length} more{" "}
-                {item.replies.length === 1 ? "reply" : "replies"}
-              </Text>
+
+          {/* Action row: Reply + Show/Hide replies */}
+          <View style={styles.commentActionsRow}>
+            <TouchableOpacity
+              style={styles.replyButton}
+              onPress={() => {
+                setReplyingTo({
+                  // Reply to this specific comment (up to depth 2)
+                  // For depth 2, route to parent to keep max 3 levels
+                  id: item.depth >= 2 ? item.parentCommentId : item.id,
+                  name: item.commenter_name,
+                  username: item.commenter_username,
+                  isNestedReply: item.depth > 0,
+                });
+                // Focus the input to open keyboard - use longer delay for KeyboardStickyView
+                setTimeout(() => {
+                  if (inputRef.current) {
+                    inputRef.current.focus();
+                  }
+                }, 300);
+              }}
+            >
+              <Ionicons
+                name="arrow-undo-outline"
+                size={14}
+                color={COLORS.textSecondary}
+              />
+              <Text style={styles.replyButtonText}>Reply</Text>
             </TouchableOpacity>
-          )}
+
+            {hasReplies && (
+              <TouchableOpacity
+                style={styles.showRepliesButton}
+                onPress={() => toggleThreadCollapse(item.id)}
+              >
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={14}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.showRepliesText}>
+                  {isExpanded
+                    ? "Hide replies"
+                    : `View ${item.replyCount} ${
+                        item.replyCount === 1 ? "reply" : "replies"
+                      }`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <TouchableOpacity
           style={styles.commentLikeButton}
@@ -651,11 +790,7 @@ const CommentsModal = ({
   };
 
   const content = (
-    <KeyboardAvoidingView
-      style={embedded ? styles.embeddedContainer : styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={embedded ? styles.embeddedContainer : styles.container}>
       <View style={styles.modalContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
@@ -670,7 +805,7 @@ const CommentsModal = ({
           </View>
         ) : (
           <FlatList
-            data={comments}
+            data={flatComments}
             keyExtractor={(item) => item.id?.toString()}
             renderItem={renderComment}
             style={styles.commentsList}
@@ -686,16 +821,26 @@ const CommentsModal = ({
             keyboardShouldPersistTaps="handled"
           />
         )}
+      </View>
 
-        <View
-          style={[
-            styles.inputContainer,
-            keyboardVisible &&
-              Platform.OS === "android" && {
-                bottom: keyboardHeight + 20,
-              },
-          ]}
-        >
+      {/* Input bar using KeyboardAwareToolbar - placed OUTSIDE main content as sibling */}
+      <KeyboardAwareToolbar style={styles.toolbarContainer}>
+        <View style={styles.inputContainer}>
+          {/* Replying indicator */}
+          {replyingTo && (
+            <View style={styles.replyingIndicator}>
+              <Text style={styles.replyingText}>
+                Replying to{" "}
+                <Text style={styles.replyingName}>@{replyingTo.name}</Text>
+              </Text>
+              <TouchableOpacity
+                onPress={cancelReply}
+                style={styles.cancelReplyButton}
+              >
+                <Ionicons name="close" size={16} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.inputRow}>
             <Image
               source={{
@@ -720,7 +865,11 @@ const CommentsModal = ({
                 ref={inputRef}
                 value={commentInput}
                 onChangeText={handleCommentInputChange}
-                placeholder="Add a comment..."
+                placeholder={
+                  replyingTo
+                    ? `Reply to @${replyingTo.name}...`
+                    : "Add a comment..."
+                }
                 placeholderTextColor={COLORS.textSecondary}
                 style={styles.input}
                 multiline
@@ -777,7 +926,7 @@ const CommentsModal = ({
               )}
             </View>
             <TouchableOpacity
-              onPress={handlePostComment}
+              onPress={replyingTo ? handleReplyComment : handlePostComment}
               disabled={!commentInput.trim() || posting}
               style={styles.sendButton}
             >
@@ -793,8 +942,8 @@ const CommentsModal = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareToolbar>
+    </View>
   );
 
   if (!visible) return null;
@@ -963,12 +1112,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
   },
+  toolbarContainer: {
+    backgroundColor: COLORS.dark,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
   inputContainer: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    paddingBottom: 12,
     backgroundColor: COLORS.dark,
   },
   inputRow: {
@@ -1053,6 +1205,54 @@ const styles = StyleSheet.create({
   taggedUsername: {
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  // Reply UI styles
+  commentActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 16,
+  },
+  replyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  replyButtonText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  showRepliesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  showRepliesText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: "500",
+  },
+  replyingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: COLORS.darkGray,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  replyingText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  replyingName: {
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+  cancelReplyButton: {
+    padding: 4,
   },
 });
 
