@@ -104,11 +104,11 @@ const PromptRepliesScreen = ({ route, navigation }) => {
     [replies, buildHierarchicalReplies]
   );
 
-  // Toggle thread collapse
+  // Toggle thread collapse - default is collapsed (undefined/true), false = expanded
   const toggleCollapse = (replyId) => {
     setCollapsedThreads((prev) => ({
       ...prev,
-      [replyId]: !prev[replyId],
+      [replyId]: prev[replyId] === false ? true : false, // Toggle between collapsed (true/undefined) and expanded (false)
     }));
   };
 
@@ -129,8 +129,8 @@ const PromptRepliesScreen = ({ route, navigation }) => {
 
       result.push(reply);
 
-      // Check if this reply has children and is collapsed
-      if (collapsedThreads[reply.id]) {
+      // Check if this reply has children and is collapsed (default is collapsed, only false = expanded)
+      if (collapsedThreads[reply.id] !== false) {
         skipUntilDepth = reply.depth;
       }
     }
@@ -382,7 +382,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
     // Get depth from hierarchical data (default to 0)
     const depth = item.depth || 0;
     const hasChildren = (item.reply_count || 0) > 0;
-    const isCollapsed = collapsedThreads[item.id];
+    const isCollapsed = collapsedThreads[item.id] !== false; // Default is collapsed (undefined = collapsed)
     const hiddenCount = isCollapsed ? getHiddenChildCount(item.id) : 0;
 
     // Calculate if this reply has a next sibling at the same depth level

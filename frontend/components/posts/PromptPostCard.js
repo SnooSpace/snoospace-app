@@ -42,6 +42,7 @@ const PromptPostCard = ({
   const [submissionCount, setSubmissionCount] = useState(
     typeData.submission_count || 0
   );
+  const totalReplyCount = typeData.total_reply_count || 0;
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const maxLength = typeData.max_length || 500;
@@ -228,6 +229,9 @@ const PromptPostCard = ({
       <View style={styles.footer}>
         <Text style={styles.responseCount}>
           {submissionCount} response{submissionCount !== 1 ? "s" : ""}
+          {totalReplyCount > 0
+            ? ` • ${totalReplyCount} repl${totalReplyCount !== 1 ? "ies" : "y"}`
+            : ""}
         </Text>
         <TouchableOpacity
           style={styles.viewAllButton}

@@ -18,6 +18,7 @@ import {
   Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiGet, apiPatch, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -86,6 +87,16 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
     setIsLoading(true);
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  // Refresh submissions when screen comes into focus (e.g., returning from PromptRepliesScreen)
+  useFocusEffect(
+    useCallback(() => {
+      // Only fetch if not already loading to avoid duplicate requests on initial mount
+      if (!isLoading) {
+        fetchSubmissions();
+      }
+    }, [fetchSubmissions, isLoading])
+  );
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -234,7 +245,9 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           }
         >
           <Text style={styles.repliesText}>
-            {item.reply_count > 0 ? `${item.reply_count} replies` : "Reply"}
+            {(item.total_reply_count || item.reply_count) > 0
+              ? `${item.total_reply_count || item.reply_count} replies`
+              : "Reply"}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
         </TouchableOpacity>

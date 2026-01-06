@@ -354,14 +354,24 @@ const getFeed = async (req, res) => {
         // For prompt posts, check if user has submitted AND get real-time submission count
         if (parsedPost.post_type === "prompt") {
           try {
-            // Get real-time submission count
+            // Get real-time submission count AND total reply count (including nested replies)
             const countResult = await pool.query(
-              `SELECT COUNT(*) as count FROM prompt_submissions WHERE post_id = $1`,
+              `SELECT 
+                (SELECT COUNT(*) FROM prompt_submissions WHERE post_id = $1) as count,
+                COALESCE((
+                  SELECT COUNT(*) 
+                  FROM prompt_replies pr
+                  JOIN prompt_submissions ps ON pr.submission_id = ps.id
+                  WHERE ps.post_id = $1 AND ps.status = 'approved'
+                ), 0) as total_reply_count`,
               [post.id]
             );
             parsedPost.type_data = {
               ...parsedPost.type_data,
               submission_count: parseInt(countResult.rows[0]?.count || 0),
+              total_reply_count: parseInt(
+                countResult.rows[0]?.total_reply_count || 0
+              ),
             };
 
             // Check if current user has submitted

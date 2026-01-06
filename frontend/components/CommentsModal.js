@@ -63,6 +63,7 @@ const CommentsModal = ({
   const [atPosition, setAtPosition] = useState(-1);
   const [replyingTo, setReplyingTo] = useState(null); // {id, name} of parent comment
   const [collapsedThreads, setCollapsedThreads] = useState({}); // {commentId: boolean}
+  const [focusTrigger, setFocusTrigger] = useState(0); // Trigger to focus input
 
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
@@ -92,6 +93,37 @@ const CommentsModal = ({
       prevVisibleRef.current = false;
     }
   }, [visible, postId]);
+
+  // Robust focus strategy for the input field
+  const triggerInputFocus = useCallback(() => {
+    if (!inputRef.current) return;
+
+    // Multi-stage focus attempt to overcome layout shifts and race conditions
+    // 1. Immediate focus attempt
+    inputRef.current.focus();
+
+    // 2. Focus after next animation frame
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+
+    // 3. Delayed focus after layout (increased from 250ms for stability)
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 200);
+
+    // 4. Final safety focus
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 500);
+  }, []);
+
+  // Focus input when user taps Reply button (focusTrigger changes each tap)
+  useEffect(() => {
+    if (focusTrigger > 0) {
+      triggerInputFocus();
+    }
+  }, [focusTrigger, triggerInputFocus]);
 
   const loadUserProfile = async () => {
     try {
@@ -735,12 +767,10 @@ const CommentsModal = ({
                   username: item.commenter_username,
                   isNestedReply: item.depth > 0,
                 });
-                // Focus the input to open keyboard - use longer delay for KeyboardStickyView
-                setTimeout(() => {
-                  if (inputRef.current) {
-                    inputRef.current.focus();
-                  }
-                }, 300);
+                setFocusTrigger((prev) => prev + 1); // Trigger robust focus logic
+
+                // Reinforce focus immediately on button tap
+                inputRef.current?.focus();
               }}
             >
               <Ionicons

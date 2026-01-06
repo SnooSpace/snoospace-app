@@ -319,6 +319,7 @@ const getSubmissions = async (req, res) => {
     let query = `
       SELECT 
         s.*,
+        COALESCE((SELECT COUNT(*) FROM prompt_replies pr WHERE pr.submission_id = s.id), 0) as total_reply_count,
         CASE 
           WHEN s.author_type = 'member' THEN m.name
           WHEN s.author_type = 'community' THEN c.name
