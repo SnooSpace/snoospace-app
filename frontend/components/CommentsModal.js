@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
   },
   commentsListContent: {
     paddingVertical: 10,
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   commentItem: {
     flexDirection: "row",
