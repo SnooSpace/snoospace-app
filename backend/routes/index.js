@@ -24,6 +24,7 @@ const PollController = require("../controllers/pollController");
 const PromptController = require("../controllers/promptController");
 const QnAController = require("../controllers/qnaController");
 const ChallengeController = require("../controllers/challengeController");
+const PronounController = require("../controllers/pronounController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -105,6 +106,43 @@ router.delete(
   adminAuthMiddleware,
   CategoryController.deleteInterest
 );
+
+// ============================================
+// ADMIN PRONOUNS MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/pronouns",
+  adminAuthMiddleware,
+  PronounController.getAllPronounsAdmin
+);
+router.post(
+  "/admin/pronouns",
+  adminAuthMiddleware,
+  PronounController.createPronoun
+);
+router.patch(
+  "/admin/pronouns/:id",
+  adminAuthMiddleware,
+  PronounController.updatePronoun
+);
+router.delete(
+  "/admin/pronouns/:id",
+  adminAuthMiddleware,
+  PronounController.deletePronoun
+);
+router.post(
+  "/admin/pronouns/reorder",
+  adminAuthMiddleware,
+  PronounController.reorderPronouns
+);
+
+// ============================================
+// PUBLIC ROUTES
+// ============================================
+router.get("/api/categories", CategoryController.getDiscoverCategories);
+router.get("/api/interests", CategoryController.getSignupInterests);
+router.get("/api/pronouns", PronounController.getParamPronouns); // New Route
+router.get("/api/users/check", UsernameController.checkUsername);
 
 // ============================================
 // ADMIN USER MANAGEMENT (Protected)
@@ -369,6 +407,11 @@ router.get(
   "/communities/search",
   authMiddleware,
   CommunityController.searchCommunities
+);
+router.get(
+  "/communities/:id/events/public",
+  authMiddleware,
+  EventController.getCommunityPublicEvents
 );
 router.get(
   "/communities/:id/public",

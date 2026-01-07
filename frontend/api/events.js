@@ -221,7 +221,23 @@ export async function requestEventInvite(eventId, message = null) {
  * @param {string} response - 'going' or 'not_going'
  * @returns {Promise<Object>} { success: boolean, status: string, message: string }
  */
-export async function confirmGiftRSVP(giftId, response) {
+/**
+ * Get public events for a specific community
+ * @param {string} communityId - Community ID
+ * @param {Object} options - { limit, offset, type: 'upcoming'|'past' }
+ * @returns {Promise<Object>} List of events
+ */
+export async function getCommunityPublicEvents(communityId, options = {}) {
+  const { limit = 20, offset = 0, type = "upcoming" } = options;
   const token = await (await import("./auth")).getAuthToken();
-  return apiPost(`/gifts/${giftId}/confirm`, { response }, 15000, token);
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    type: type,
+  });
+  return apiGet(
+    `/communities/${communityId}/events/public?${params.toString()}`,
+    15000,
+    token
+  );
 }

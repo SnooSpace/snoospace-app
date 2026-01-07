@@ -4407,6 +4407,86 @@ const confirmGiftRSVP = async (req, res) => {
   }
 };
 
+/**
+ * Get public events for a specific community
+ * GET /communities/:id/events/public
+ */
+const getCommunityPublicEvents = async (req, res) => {
+  try {
+    const communityId = req.params.id;
+    const { limit = 20, offset = 0, type = "upcoming" } = req.query; // type: 'upcoming' or 'past'
+    const limitParsed = Math.min(parseInt(limit), 50);
+    const offsetParsed = Math.max(parseInt(offset), 0);
+
+    let dateFilter = "";
+    let orderClause = "";
+
+    if (type === "past") {
+      dateFilter = `AND COALESCE(e.start_datetime, e.event_date) < NOW()`;
+      orderClause = `ORDER BY COALESCE(e.start_datetime, e.event_date) DESC`;
+    } else {
+      // Upcoming
+      dateFilter = `AND COALESCE(e.start_datetime, e.event_date) >= NOW() AND e.is_cancelled = false`;
+      orderClause = `ORDER BY COALESCE(e.start_datetime, e.event_date) ASC`;
+    }
+
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        e.description,
+        COALESCE(e.start_datetime, e.event_date) as event_date,
+        e.start_datetime,
+        e.end_datetime,
+        e.location_url,
+        e.location_name,
+        e.max_attendees,
+        e.banner_url,
+        e.event_type,
+        e.virtual_link,
+        e.ticket_price,
+        e.is_cancelled,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees
+      FROM events e
+      WHERE e.community_id = $1 AND e.is_published = true ${dateFilter}
+      ${orderClause}
+      LIMIT $2 OFFSET $3
+    `;
+
+    const result = await pool.query(query, [
+      communityId,
+      limitParsed,
+      offsetParsed,
+    ]);
+
+    // Fetch ticket price ranges for each event
+    const eventsWithDetails = await Promise.all(
+      result.rows.map(async (event) => {
+        // Get ticket types with prices
+        const ticketsResult = await pool.query(
+          `SELECT id, base_price, name FROM ticket_types 
+           WHERE event_id = $1 AND is_active = true 
+           ORDER BY base_price ASC`,
+          [event.id]
+        );
+
+        return {
+          ...event,
+          ticket_types: ticketsResult.rows,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      events: eventsWithDetails,
+    });
+  } catch (error) {
+    console.error("Error getting community public events:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -4439,4 +4519,5 @@ module.exports = {
   requestInvite,
   getInviteRequests,
   respondToInviteRequest,
+  getCommunityPublicEvents,
 };

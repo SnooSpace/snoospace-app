@@ -546,37 +546,46 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               )}
 
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{postsCount}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
+            {/* Stats Row */}
+            <View style={styles.statsRow}>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() =>
+                  navigation.navigate("CommunityPublicEventsList", {
+                    communityId: profile.id,
+                    initialTab: "upcoming",
+                  })
+                }
+              >
+                <Text style={styles.statValue}>
+                  {(profile.events_scheduled_count || 0) +
+                    (profile.events_hosted_count || 0)}
+                </Text>
+                <Text style={styles.statLabel}>Events</Text>
+              </TouchableOpacity>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>
+                  {profile.followers_count || 0}
+                </Text>
+                <Text style={styles.statLabel}>Followers</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
+                  navigation.push("CommunityFollowingList", {
+                    communityId,
+                    title: "Following",
+                  });
+                }}
+              >
+                <Text style={styles.statValue}>{followingCount}</Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </TouchableOpacity>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{profile.posts_count || 0}</Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
             </View>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => {
-                navigation.push("CommunityFollowersList", {
-                  communityId,
-                  title: "Followers",
-                });
-              }}
-            >
-              <Text style={styles.statNumber}>{followersCount}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => {
-                navigation.push("CommunityFollowingList", {
-                  communityId,
-                  title: "Following",
-                });
-              }}
-            >
-              <Text style={styles.statNumber}>{followingCount}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.sectionCard}>
@@ -1375,7 +1384,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
-  statNumber: {
+  statValue: {
     fontSize: 20,
     fontWeight: "700",
     color: "#1D1D1F",

@@ -106,6 +106,14 @@ export default function AppNavigator({ initialRouteName }) {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="CommunityPublicEventsList"
+        component={
+          require("../screens/profile/community/CommunityPublicEventsListScreen")
+            .default
+        }
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="CropScreen"
         component={CropScreen}
         options={{

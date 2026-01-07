@@ -451,6 +451,8 @@ export default function CommunityProfileScreen({ navigation }) {
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
+        events_scheduled_count: fullProfile?.events_scheduled_count || 0,
+        events_hosted_count: fullProfile?.events_hosted_count || 0,
       };
       console.log(
         "[CommunityProfile] phones",
@@ -954,35 +956,48 @@ export default function CommunityProfileScreen({ navigation }) {
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
 
+          {/* Stats Row */}
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{postsCount}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
             <TouchableOpacity
               style={styles.statItem}
               onPress={() =>
-                navigation.navigate("CommunityFollowersList", {
-                  communityId: profile.id,
-                  title: "Followers",
+                navigation.navigate("CommunityEventsList", {
+                  initialTab: "upcoming",
                 })
               }
             >
-              <Text style={styles.statNumber}>{followersCount}</Text>
+              <Text style={styles.statNumber}>
+                {(profile.events_scheduled_count || 0) +
+                  (profile.events_hosted_count || 0)}
+              </Text>
+              <Text style={styles.statLabel}>Events</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate("FollowersList", { type: "followers" })
+              }
+            >
+              <Text style={styles.statNumber}>{profile.follower_count}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.statItem}
               onPress={() =>
-                navigation.navigate("CommunityFollowingList", {
+                navigation.navigate("CommunityFollowersList", {
                   communityId: profile.id,
                   title: "Following",
+                  type: "following",
                 })
               }
             >
-              <Text style={styles.statNumber}>{followingCount}</Text>
+              <Text style={styles.statNumber}>{profile.following_count}</Text>
               <Text style={styles.statLabel}>Following</Text>
             </TouchableOpacity>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{profile.post_count}</Text>
+              <Text style={styles.statLabel}>Posts</Text>
+            </View>
           </View>
 
           <View

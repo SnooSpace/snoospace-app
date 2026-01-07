@@ -16,6 +16,7 @@ import {
   Heart,
   FileImage,
   Handshake,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -61,6 +62,11 @@ const mainNavItems = [
     title: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Pronouns",
+    href: "/pronouns",
+    icon: MessageSquare,
   },
 ];
 

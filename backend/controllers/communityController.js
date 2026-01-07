@@ -288,11 +288,13 @@ async function getProfile(req, res) {
       member_photo_url: head.member_photo_url || null,
     }));
 
-    // Get follower/following counts
+    // Get follower/following/event counts
     const followCountsResult = await pool.query(
       `SELECT 
         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community') as follower_count,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count`,
+        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count,
+        (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
+        (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
       [userId]
     );
 
@@ -328,6 +330,11 @@ async function getProfile(req, res) {
       ),
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
+      events_hosted_count: parseInt(followCounts.events_hosted_count || 0, 10),
+      events_scheduled_count: parseInt(
+        followCounts.events_scheduled_count || 0,
+        10
+      ),
       location:
         typeof community.location === "string"
           ? JSON.parse(community.location)
@@ -660,7 +667,9 @@ async function getPublicCommunity(req, res) {
       `SELECT 
          (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community') AS followers_count,
          (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'community') AS following_count,
-         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community') AS posts_count`,
+         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community') AS posts_count,
+         (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
+         (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
       [targetId]
     );
     const counts = countsR.rows[0];
@@ -691,6 +700,8 @@ async function getPublicCommunity(req, res) {
       posts_count: parseInt(counts.posts_count || 0, 10),
       followers_count: parseInt(counts.followers_count || 0, 10),
       following_count: parseInt(counts.following_count || 0, 10),
+      events_hosted_count: parseInt(counts.events_hosted_count || 0, 10),
+      events_scheduled_count: parseInt(counts.events_scheduled_count || 0, 10),
       is_following: isFollowing,
       sponsor_types:
         typeof profile.sponsor_types === "string"

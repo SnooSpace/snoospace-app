@@ -195,6 +195,76 @@ export async function deleteInterest(id: number): Promise<void> {
 }
 
 // ============================================
+// PRONOUN API
+// ============================================
+
+export interface Pronoun {
+  id: number;
+  label: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PronounResponse {
+  success: boolean;
+  pronouns: Pronoun[];
+}
+
+// Get all pronouns (admin view)
+export async function getPronouns(): Promise<Pronoun[]> {
+  const data = await apiRequest<PronounResponse>("/admin/pronouns");
+  return data.pronouns;
+}
+
+// Create pronoun
+export async function createPronoun(pronoun: {
+  label: string;
+  display_order?: number;
+}): Promise<Pronoun> {
+  const data = await apiRequest<{ success: boolean; pronoun: Pronoun }>(
+    "/admin/pronouns",
+    {
+      method: "POST",
+      body: JSON.stringify(pronoun),
+    }
+  );
+  return data.pronoun;
+}
+
+// Update pronoun
+export async function updatePronoun(
+  id: number,
+  updates: Partial<Pronoun>
+): Promise<Pronoun> {
+  const data = await apiRequest<{ success: boolean; pronoun: Pronoun }>(
+    `/admin/pronouns/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    }
+  );
+  return data.pronoun;
+}
+
+// Delete pronoun
+export async function deletePronoun(id: number): Promise<void> {
+  await apiRequest(`/admin/pronouns/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// Reorder pronouns
+export async function reorderPronouns(
+  order: { id: number; display_order: number }[]
+): Promise<void> {
+  await apiRequest("/admin/pronouns/reorder", {
+    method: "POST",
+    body: JSON.stringify({ order }),
+  });
+}
+
+// ============================================
 // USER API
 // ============================================
 

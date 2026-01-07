@@ -21,6 +21,7 @@ import {
   startEmailChange,
   verifyEmailChange,
   fetchInterests,
+  fetchPronouns,
 } from "../../../api/members";
 import HapticsService from "../../../services/HapticsService";
 import { useCrop } from "../../../components/MediaCrop";
@@ -35,16 +36,6 @@ import GradientButton from "../../../components/GradientButton";
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
-
-const PRONOUN_PRESETS = [
-  "He/Him",
-  "She/Her",
-  "They/Them",
-  "He/They",
-  "She/They",
-  "Any Pronouns",
-  "Prefer not to say",
-];
 
 export default function EditProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
@@ -75,6 +66,11 @@ export default function EditProfileScreen({ route, navigation }) {
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [interestsCatalog, setInterestsCatalog] = useState([]);
+  const [pronounPresets, setPronounPresets] = useState([
+    "He/Him",
+    "She/Her",
+    "They/Them",
+  ]); // Fallback
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -88,6 +84,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     loadInterestsCatalog();
+    loadPronounsCatalog();
   }, []);
 
   useEffect(() => {
@@ -118,6 +115,18 @@ export default function EditProfileScreen({ route, navigation }) {
     });
     return unsubscribe;
   }, [navigation, hasChanges, saving]);
+
+  const loadPronounsCatalog = async () => {
+    try {
+      const data = await fetchPronouns();
+      if (data && data.length > 0) {
+        // Map objects to label strings
+        setPronounPresets(data.map((p) => p.label));
+      }
+    } catch (error) {
+      console.error("Error loading pronouns:", error);
+    }
+  };
 
   const loadInterestsCatalog = async () => {
     try {
@@ -461,7 +470,7 @@ export default function EditProfileScreen({ route, navigation }) {
             <ChipSelector
               selected={pronouns}
               onSelectionChange={setPronouns}
-              presets={PRONOUN_PRESETS}
+              presets={pronounPresets}
               allowCustom={true}
               maxSelections={10}
               placeholder="Select pronouns or add custom"
