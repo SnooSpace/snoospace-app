@@ -714,3 +714,103 @@ export async function cancelEvent(
     method: "PATCH",
   });
 }
+
+// ============================================
+// ANALYTICS API
+// ============================================
+
+export interface OverviewStats {
+  totalUsers: number;
+  totalMembers: number;
+  totalCommunities: number;
+  totalSponsors: number;
+  totalVenues: number;
+  totalEvents: number;
+  totalPosts: number;
+}
+
+export interface UserAnalytics {
+  byType: {
+    members: number;
+    communities: number;
+    sponsors: number;
+    venues: number;
+  };
+  growth: Array<{ date: string; members: number; communities: number }>;
+  recentSignups: Array<{
+    id: number;
+    name: string;
+    type: string;
+    created_at: string;
+    photo_url: string | null;
+  }>;
+}
+
+export interface EventAnalytics {
+  byStatus: {
+    upcoming: number;
+    ongoing: number;
+    completed: number;
+    cancelled: number;
+  };
+  ticketsSold: number;
+  recentEvents: Array<{
+    id: number;
+    title: string;
+    start_datetime: string;
+    community_name: string;
+    attendee_count: number;
+  }>;
+}
+
+export interface EngagementAnalytics {
+  posts: { total: number; today: number; thisWeek: number };
+  comments: { total: number; today: number; thisWeek: number };
+  likes: { total: number; today: number; thisWeek: number };
+  trend: Array<{
+    date: string;
+    posts: number;
+    comments: number;
+    likes: number;
+  }>;
+}
+
+// Get overview stats for dashboard
+export async function getOverviewStats(): Promise<OverviewStats> {
+  const data = await apiRequest<{ success: boolean; stats: OverviewStats }>(
+    "/admin/analytics/overview"
+  );
+  return data.stats;
+}
+
+// Get user analytics with growth data
+export async function getUserAnalytics(
+  period: string = "30d"
+): Promise<UserAnalytics> {
+  const data = await apiRequest<{ success: boolean; analytics: UserAnalytics }>(
+    `/admin/analytics/users?period=${period}`
+  );
+  return data.analytics;
+}
+
+// Get event analytics
+export async function getEventAnalytics(
+  period: string = "30d"
+): Promise<EventAnalytics> {
+  const data = await apiRequest<{
+    success: boolean;
+    analytics: EventAnalytics;
+  }>(`/admin/analytics/events?period=${period}`);
+  return data.analytics;
+}
+
+// Get engagement analytics
+export async function getEngagementAnalytics(
+  period: string = "30d"
+): Promise<EngagementAnalytics> {
+  const data = await apiRequest<{
+    success: boolean;
+    analytics: EngagementAnalytics;
+  }>(`/admin/analytics/engagement?period=${period}`);
+  return data.analytics;
+}

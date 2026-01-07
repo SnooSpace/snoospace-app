@@ -25,6 +25,7 @@ const PromptController = require("../controllers/promptController");
 const QnAController = require("../controllers/qnaController");
 const ChallengeController = require("../controllers/challengeController");
 const PronounController = require("../controllers/pronounController");
+const AnalyticsController = require("../controllers/analyticsController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -53,6 +54,30 @@ router.get("/db/health", async (req, res) => {
 // ============================================
 router.post("/admin/login", CategoryController.adminLogin);
 router.post("/admin/create", CategoryController.createAdmin); // TODO: Protect in production
+
+// ============================================
+// ADMIN ANALYTICS (Protected)
+// ============================================
+router.get(
+  "/admin/analytics/overview",
+  adminAuthMiddleware,
+  AnalyticsController.getOverview
+);
+router.get(
+  "/admin/analytics/users",
+  adminAuthMiddleware,
+  AnalyticsController.getUserAnalytics
+);
+router.get(
+  "/admin/analytics/events",
+  adminAuthMiddleware,
+  AnalyticsController.getEventAnalytics
+);
+router.get(
+  "/admin/analytics/engagement",
+  adminAuthMiddleware,
+  AnalyticsController.getEngagementAnalytics
+);
 
 // ============================================
 // ADMIN CATEGORY MANAGEMENT (Protected)
