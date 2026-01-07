@@ -22,6 +22,8 @@ const DiscoverController = require("../controllers/discoverController");
 const CategoryController = require("../controllers/categoryController");
 const PollController = require("../controllers/pollController");
 const PromptController = require("../controllers/promptController");
+const QnAController = require("../controllers/qnaController");
+const ChallengeController = require("../controllers/challengeController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -571,6 +573,112 @@ router.patch(
   "/replies/:replyId/hide",
   authMiddleware,
   PromptController.hideReply
+);
+
+// Q&A routes
+router.post(
+  "/posts/:postId/questions",
+  authMiddleware,
+  QnAController.submitQuestion
+);
+router.get(
+  "/posts/:postId/questions",
+  authMiddleware,
+  QnAController.getQuestions
+);
+router.post(
+  "/questions/:questionId/upvote",
+  authMiddleware,
+  QnAController.upvoteQuestion
+);
+router.delete(
+  "/questions/:questionId/upvote",
+  authMiddleware,
+  QnAController.removeUpvote
+);
+router.post(
+  "/questions/:questionId/answer",
+  authMiddleware,
+  QnAController.answerQuestion
+);
+router.patch(
+  "/questions/:questionId",
+  authMiddleware,
+  QnAController.moderateQuestion
+);
+router.patch(
+  "/answers/:answerId/best",
+  authMiddleware,
+  QnAController.markBestAnswer
+);
+router.post("/posts/:postId/experts", authMiddleware, QnAController.addExpert);
+router.delete(
+  "/posts/:postId/experts/:expertId",
+  authMiddleware,
+  QnAController.removeExpert
+);
+router.get("/posts/:postId/experts", authMiddleware, QnAController.getExperts);
+
+// Challenge routes
+router.post(
+  "/posts/:postId/join",
+  authMiddleware,
+  ChallengeController.joinChallenge
+);
+router.delete(
+  "/posts/:postId/join",
+  authMiddleware,
+  ChallengeController.leaveChallenge
+);
+router.get(
+  "/posts/:postId/participants",
+  authMiddleware,
+  ChallengeController.getParticipants
+);
+router.post(
+  "/posts/:postId/challenge-submissions",
+  authMiddleware,
+  ChallengeController.submitProof
+);
+router.get(
+  "/posts/:postId/challenge-submissions",
+  authMiddleware,
+  ChallengeController.getSubmissions
+);
+router.patch(
+  "/posts/:postId/progress",
+  authMiddleware,
+  ChallengeController.updateProgress
+);
+router.post(
+  "/posts/:postId/complete",
+  authMiddleware,
+  ChallengeController.markComplete
+);
+router.patch(
+  "/challenge-submissions/:id/status",
+  authMiddleware,
+  ChallengeController.moderateSubmission
+);
+router.patch(
+  "/challenge-submissions/:id/feature",
+  authMiddleware,
+  ChallengeController.featureSubmission
+);
+router.patch(
+  "/participants/:id/highlight",
+  authMiddleware,
+  ChallengeController.highlightParticipant
+);
+router.post(
+  "/challenge-submissions/:id/like",
+  authMiddleware,
+  ChallengeController.likeSubmission
+);
+router.delete(
+  "/challenge-submissions/:id/like",
+  authMiddleware,
+  ChallengeController.unlikeSubmission
 );
 
 // Comments

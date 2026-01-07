@@ -18,6 +18,8 @@ import MentionTextRenderer from "./MentionTextRenderer";
 // Import type-specific card components
 import PollPostCard from "./posts/PollPostCard";
 import PromptPostCard from "./posts/PromptPostCard";
+import QnAPostCard from "./posts/QnAPostCard";
+import ChallengePostCard from "./posts/ChallengePostCard";
 
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
 
@@ -63,6 +65,28 @@ const PostCard = ({
   if (postType === "prompt") {
     return (
       <PromptPostCard
+        post={post}
+        onUserPress={onUserPress}
+        currentUserId={currentUserId}
+        currentUserType={currentUserType}
+      />
+    );
+  }
+
+  if (postType === "qna") {
+    return (
+      <QnAPostCard
+        post={post}
+        onUserPress={onUserPress}
+        currentUserId={currentUserId}
+        currentUserType={currentUserType}
+      />
+    );
+  }
+
+  if (postType === "challenge") {
+    return (
+      <ChallengePostCard
         post={post}
         onUserPress={onUserPress}
         currentUserId={currentUserId}

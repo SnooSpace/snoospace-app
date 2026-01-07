@@ -6,6 +6,8 @@ const pool = createPool();
 // Import type-specific controllers for routing
 const PollController = require("./pollController");
 const PromptController = require("./promptController");
+const QnAController = require("./qnaController");
+const ChallengeController = require("./challengeController");
 
 // Create a new post (routes to type-specific handlers)
 const createPost = async (req, res) => {
@@ -28,6 +30,10 @@ const createPost = async (req, res) => {
         return PollController.createPollPost(req, res);
       case "prompt":
         return PromptController.createPromptPost(req, res);
+      case "qna":
+        return QnAController.createQnAPost(req, res);
+      case "challenge":
+        return ChallengeController.createChallengePost(req, res);
       case "media":
       default:
         // Continue with media post logic below
@@ -413,6 +419,152 @@ const getFeed = async (req, res) => {
             parsedPost.preview_submission = previewResult.rows[0] || null;
           } catch (e) {
             parsedPost.has_submitted = false;
+            parsedPost.preview_submission = null;
+          }
+        }
+
+        // For Q&A posts, get question count, answered count, and top question preview
+        if (parsedPost.post_type === "qna") {
+          try {
+            // Get question and answered counts
+            const countResult = await pool.query(
+              `SELECT 
+                COUNT(*) as question_count,
+                COUNT(*) FILTER (WHERE answered_at IS NOT NULL) as answered_count
+               FROM qna_questions 
+               WHERE post_id = $1 AND is_hidden = false`,
+              [post.id]
+            );
+            parsedPost.type_data = {
+              ...parsedPost.type_data,
+              question_count: parseInt(
+                countResult.rows[0]?.question_count || 0
+              ),
+              answered_count: parseInt(
+                countResult.rows[0]?.answered_count || 0
+              ),
+            };
+
+            // Check how many questions current user has asked
+            if (viewerId && viewerType) {
+              const userQuestionResult = await pool.query(
+                `SELECT COUNT(*) as count FROM qna_questions 
+                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+                [post.id, viewerId, viewerType]
+              );
+              parsedPost.user_question_count = parseInt(
+                userQuestionResult.rows[0]?.count || 0
+              );
+            } else {
+              parsedPost.user_question_count = 0;
+            }
+
+            // Get top question preview (by upvotes, unanswered first)
+            const previewResult = await pool.query(
+              `SELECT 
+                q.id, q.question as content, q.upvote_count, q.is_pinned,
+                q.answered_at IS NOT NULL as is_answered,
+                CASE 
+                  WHEN q.author_type = 'member' THEN m.name
+                  WHEN q.author_type = 'community' THEN c.name
+                END as author_name,
+                CASE 
+                  WHEN q.author_type = 'member' THEN m.profile_photo_url
+                  WHEN q.author_type = 'community' THEN c.logo_url
+                END as author_photo_url
+               FROM qna_questions q
+               LEFT JOIN members m ON q.author_type = 'member' AND q.author_id = m.id
+               LEFT JOIN communities c ON q.author_type = 'community' AND q.author_id = c.id
+               WHERE q.post_id = $1 AND q.is_hidden = false
+               ORDER BY q.is_pinned DESC, q.upvote_count DESC, q.created_at DESC
+               LIMIT 1`,
+              [post.id]
+            );
+            parsedPost.preview_question = previewResult.rows[0] || null;
+          } catch (e) {
+            console.error("[getFeed] Error hydrating Q&A post:", e);
+            parsedPost.user_question_count = 0;
+            parsedPost.preview_question = null;
+          }
+        }
+
+        // For Challenge posts, get participant count and user join status
+        if (parsedPost.post_type === "challenge") {
+          try {
+            // Get participant and submission counts
+            const countResult = await pool.query(
+              `SELECT 
+                COUNT(*) as participant_count,
+                COUNT(*) FILTER (WHERE status = 'completed') as completed_count
+               FROM challenge_participations 
+               WHERE post_id = $1`,
+              [post.id]
+            );
+            parsedPost.type_data = {
+              ...parsedPost.type_data,
+              participant_count: parseInt(
+                countResult.rows[0]?.participant_count || 0
+              ),
+              completed_count: parseInt(
+                countResult.rows[0]?.completed_count || 0
+              ),
+            };
+
+            // Check if current user has joined
+            if (viewerId && viewerType) {
+              const joinedResult = await pool.query(
+                `SELECT id, status, progress FROM challenge_participations 
+                 WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
+                [post.id, viewerId, viewerType]
+              );
+              parsedPost.has_joined = joinedResult.rows.length > 0;
+              parsedPost.user_participation = joinedResult.rows[0] || null;
+            }
+
+            // Get featured submission preview
+            const previewResult = await pool.query(
+              `SELECT 
+                cs.id, cs.content, cs.media_urls, cs.video_url, cs.video_thumbnail,
+                cs.like_count, cs.is_featured,
+                cp.participant_id, cp.participant_type,
+                CASE 
+                  WHEN cp.participant_type = 'member' THEN m.name
+                  WHEN cp.participant_type = 'community' THEN c.name
+                END as participant_name,
+                CASE 
+                  WHEN cp.participant_type = 'member' THEN m.profile_photo_url
+                  WHEN cp.participant_type = 'community' THEN c.logo_url
+                END as participant_photo_url
+               FROM challenge_submissions cs
+               JOIN challenge_participations cp ON cs.participant_id = cp.id
+               LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
+               LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
+               WHERE cs.post_id = $1 AND cs.status = 'approved'
+               ORDER BY cs.is_featured DESC, cs.like_count DESC, cs.created_at DESC
+               LIMIT 1`,
+              [post.id]
+            );
+            if (previewResult.rows[0]) {
+              const preview = previewResult.rows[0];
+              parsedPost.preview_submission = {
+                ...preview,
+                media_urls: (() => {
+                  try {
+                    if (!preview.media_urls) return [];
+                    if (Array.isArray(preview.media_urls))
+                      return preview.media_urls;
+                    return JSON.parse(preview.media_urls);
+                  } catch {
+                    return [];
+                  }
+                })(),
+              };
+            } else {
+              parsedPost.preview_submission = null;
+            }
+          } catch (e) {
+            console.error("[getFeed] Error hydrating Challenge post:", e);
+            parsedPost.has_joined = false;
             parsedPost.preview_submission = null;
           }
         }

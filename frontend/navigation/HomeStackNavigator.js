@@ -14,6 +14,9 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import PromptSubmissionsScreen from "../screens/home/PromptSubmissionsScreen";
 import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
+import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
+import ChallengeSubmissionsScreen from "../screens/home/ChallengeSubmissionsScreen";
+import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
 
 const Stack = createStackNavigator();
 
@@ -97,6 +100,28 @@ export default function HomeStackNavigator() {
         component={PromptRepliesScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="QnAQuestions"
+        component={QnAQuestionsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="ChallengeSubmissions"
+        component={ChallengeSubmissionsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="ChallengeSubmit"
+        component={ChallengeSubmitScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
         }}
       />
     </Stack.Navigator>

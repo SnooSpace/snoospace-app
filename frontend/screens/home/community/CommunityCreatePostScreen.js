@@ -29,6 +29,8 @@ import MentionInput from "../../../components/MentionInput";
 import PostTypeSelector from "../../../components/posts/PostTypeSelector";
 import PollCreateForm from "../../../components/posts/PollCreateForm";
 import PromptCreateForm from "../../../components/posts/PromptCreateForm";
+import QnACreateForm from "../../../components/posts/QnACreateForm";
+import ChallengeCreateForm from "../../../components/posts/ChallengeCreateForm";
 import { apiPost } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
 import { uploadMultipleImages } from "../../../api/cloudinary";
@@ -56,6 +58,23 @@ export default function CommunityCreatePostScreen({ navigation }) {
     submission_type: "text",
     max_length: 500,
     require_approval: true,
+  });
+  const [qnaData, setQnaData] = useState({
+    title: "",
+    description: "",
+    allow_anonymous: false,
+    max_questions_per_user: 1,
+    expires_at: null,
+  });
+  const [challengeData, setChallengeData] = useState({
+    title: "",
+    description: "",
+    challenge_type: "single",
+    submission_type: "image",
+    target_count: 1,
+    max_submissions_per_user: 1,
+    require_approval: true,
+    deadline: null,
   });
   const [isPosting, setIsPosting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -209,6 +228,32 @@ export default function CommunityCreatePostScreen({ navigation }) {
           max_length: promptData.max_length,
           require_approval: promptData.require_approval,
         };
+      } else if (postType === "qna") {
+        // Validate Q&A data
+        if (!qnaData.title.trim()) throw new Error("Q&A title is required");
+
+        typePayload = {
+          title: qnaData.title,
+          description: qnaData.description,
+          allow_anonymous: qnaData.allow_anonymous,
+          max_questions_per_user: qnaData.max_questions_per_user,
+          expires_at: qnaData.expires_at,
+        };
+      } else if (postType === "challenge") {
+        // Validate Challenge data
+        if (!challengeData.title.trim())
+          throw new Error("Challenge title is required");
+
+        typePayload = {
+          title: challengeData.title,
+          description: challengeData.description,
+          challenge_type: challengeData.challenge_type,
+          submission_type: challengeData.submission_type,
+          target_count: challengeData.target_count,
+          max_submissions_per_user: challengeData.max_submissions_per_user,
+          require_approval: challengeData.require_approval,
+          deadline: challengeData.deadline,
+        };
       }
 
       await apiPost(
@@ -333,6 +378,10 @@ export default function CommunityCreatePostScreen({ navigation }) {
         pollData.options.filter((o) => o.trim()).length >= 2
       : postType === "prompt"
       ? promptData.prompt_text.trim().length > 0
+      : postType === "qna"
+      ? qnaData.title.trim().length >= 3
+      : postType === "challenge"
+      ? challengeData.title.trim().length >= 3
       : false;
 
   return (
@@ -479,6 +528,19 @@ export default function CommunityCreatePostScreen({ navigation }) {
             <PromptCreateForm
               onDataChange={setPromptData}
               disabled={isPosting}
+            />
+          )}
+
+          {/* Q&A Post Form */}
+          {postType === "qna" && (
+            <QnACreateForm onSubmit={setQnaData} isSubmitting={isPosting} />
+          )}
+
+          {/* Challenge Post Form */}
+          {postType === "challenge" && (
+            <ChallengeCreateForm
+              onSubmit={setChallengeData}
+              isSubmitting={isPosting}
             />
           )}
         </ScrollView>

@@ -39,6 +39,22 @@ const POST_TYPES = [
     description: "Collect responses from members",
     color: "#00838F",
   },
+  {
+    id: "qna",
+    label: "Q&A",
+    icon: "frequently-asked-questions",
+    iconFamily: "material",
+    description: "Host a Q&A session",
+    color: "#5856D6",
+  },
+  {
+    id: "challenge",
+    label: "Challenge",
+    icon: "trophy-outline",
+    iconFamily: "material",
+    description: "Create a community challenge",
+    color: "#FF9500",
+  },
 ];
 
 const PostTypeSelector = ({ selectedType, onSelectType, disabled = false }) => {
