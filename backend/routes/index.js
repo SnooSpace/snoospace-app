@@ -26,6 +26,7 @@ const QnAController = require("../controllers/qnaController");
 const ChallengeController = require("../controllers/challengeController");
 const PronounController = require("../controllers/pronounController");
 const AnalyticsController = require("../controllers/analyticsController");
+const ModerationController = require("../controllers/moderationController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -77,6 +78,65 @@ router.get(
   "/admin/analytics/engagement",
   adminAuthMiddleware,
   AnalyticsController.getEngagementAnalytics
+);
+router.get(
+  "/admin/analytics/advanced",
+  adminAuthMiddleware,
+  AnalyticsController.getAdvancedAnalytics
+);
+
+// ============================================
+// ADMIN MODERATION (Protected)
+// ============================================
+// Reports
+router.get(
+  "/admin/reports",
+  adminAuthMiddleware,
+  ModerationController.getReports
+);
+router.get(
+  "/admin/reports/stats",
+  adminAuthMiddleware,
+  ModerationController.getReportStats
+);
+router.get(
+  "/admin/reports/:id",
+  adminAuthMiddleware,
+  ModerationController.getReportById
+);
+router.post(
+  "/admin/reports/:id/resolve",
+  adminAuthMiddleware,
+  ModerationController.resolveReport
+);
+
+// User Restrictions
+router.get(
+  "/admin/restrictions",
+  adminAuthMiddleware,
+  ModerationController.getRestrictions
+);
+router.get(
+  "/admin/restrictions/check",
+  adminAuthMiddleware,
+  ModerationController.checkUserRestriction
+);
+router.post(
+  "/admin/restrictions",
+  adminAuthMiddleware,
+  ModerationController.restrictUser
+);
+router.post(
+  "/admin/restrictions/:id/revoke",
+  adminAuthMiddleware,
+  ModerationController.revokeRestriction
+);
+
+// Audit Log
+router.get(
+  "/admin/audit-log",
+  adminAuthMiddleware,
+  ModerationController.getAuditLog
 );
 
 // ============================================

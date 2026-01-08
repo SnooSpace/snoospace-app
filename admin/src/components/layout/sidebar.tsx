@@ -17,6 +17,7 @@ import {
   FileImage,
   Handshake,
   MessageSquare,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -62,6 +63,11 @@ const mainNavItems = [
     title: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Reports",
+    href: "/reports",
+    icon: ShieldAlert,
   },
   {
     title: "Pronouns",

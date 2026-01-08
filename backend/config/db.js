@@ -661,12 +661,25 @@ async function ensureTables(pool) {
         UNIQUE(user_id, user_type, device_id)
       );
       
+      -- Add device info columns for analytics (for existing databases)
+      DO $$ BEGIN
+        ALTER TABLE sessions ADD COLUMN IF NOT EXISTS platform TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sessions ADD COLUMN IF NOT EXISTS os_version TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sessions ADD COLUMN IF NOT EXISTS device_model TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
       -- Indexes for sessions
       CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_access_token ON sessions(access_token);
       CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token);
       CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, user_type);
+      CREATE INDEX IF NOT EXISTS idx_sessions_platform ON sessions(platform) WHERE platform IS NOT NULL;
+
       
       -- ============================================================
       -- Remove supabase_user_id columns (no longer used)
@@ -985,6 +998,76 @@ async function ensureTables(pool) {
         ('Tech Gadgets', 5, true),
         ('Local Businesses', 6, true)
       ON CONFLICT (name) DO NOTHING;
+
+      -- ============================================================
+      -- Moderation System Tables
+      -- ============================================================
+
+      -- Drop and recreate reports table if it has wrong schema
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'reports' 
+                   AND NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'reports' AND column_name = 'reported_type')) THEN
+          DROP TABLE IF EXISTS reports CASCADE;
+        END IF;
+      END $$;
+
+      -- Reports table - stores user reports of content/users
+      CREATE TABLE IF NOT EXISTS reports (
+        id BIGSERIAL PRIMARY KEY,
+        reporter_id BIGINT NOT NULL,
+        reporter_type TEXT NOT NULL CHECK (reporter_type IN ('member', 'community')),
+        reported_id BIGINT NOT NULL,
+        reported_type TEXT NOT NULL CHECK (reported_type IN ('post', 'comment', 'member', 'community', 'event')),
+        reason TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+        resolved_by BIGINT,
+        resolution_notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+      CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_type, reported_id);
+      CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
+
+      -- User restrictions table - bans, suspensions, warnings
+      CREATE TABLE IF NOT EXISTS user_restrictions (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        user_type TEXT NOT NULL CHECK (user_type IN ('member', 'community', 'sponsor', 'venue')),
+        restriction_type TEXT NOT NULL CHECK (restriction_type IN ('ban', 'suspend', 'warn')),
+        reason TEXT NOT NULL,
+        expires_at TIMESTAMPTZ,
+        created_by BIGINT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        revoked_at TIMESTAMPTZ,
+        revoked_by BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS idx_restrictions_user ON user_restrictions(user_id, user_type);
+
+      -- Drop and recreate admin_audit_log if it has wrong schema
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'admin_audit_log' 
+                   AND NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'admin_audit_log' AND column_name = 'action')) THEN
+          DROP TABLE IF EXISTS admin_audit_log CASCADE;
+        END IF;
+      END $$;
+
+      -- Admin audit log - tracks all admin actions
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id BIGSERIAL PRIMARY KEY,
+        admin_id BIGINT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id BIGINT,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_log(admin_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_action ON admin_audit_log(action);
+      CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

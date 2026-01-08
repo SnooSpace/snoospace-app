@@ -26,10 +26,8 @@ async function getOverview(req, res) {
     );
     const venueCountResult = await pool.query("SELECT COUNT(*) FROM venues");
 
-    // Get event count
-    const eventCountResult = await pool.query(
-      "SELECT COUNT(*) FROM events WHERE is_cancelled = false"
-    );
+    // Get event count (including cancelled)
+    const eventCountResult = await pool.query("SELECT COUNT(*) FROM events");
 
     // Get post count
     const postCountResult = await pool.query("SELECT COUNT(*) FROM posts");
@@ -380,9 +378,241 @@ async function getEngagementAnalytics(req, res) {
   }
 }
 
+// ============================================
+// ADVANCED ANALYTICS
+// ============================================
+
+/**
+ * Get advanced analytics: DAU/WAU/MAU, retention, geo, device distribution
+ * @query period - 7d, 30d, 90d (default: 30d)
+ */
+async function getAdvancedAnalytics(req, res) {
+  try {
+    // DAU/WAU/MAU from sessions.last_used_at
+    const dauResult = await pool.query(`
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM sessions
+      WHERE last_used_at >= CURRENT_DATE
+    `);
+
+    const wauResult = await pool.query(`
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM sessions
+      WHERE last_used_at >= CURRENT_DATE - INTERVAL '7 days'
+    `);
+
+    const mauResult = await pool.query(`
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM sessions
+      WHERE last_used_at >= CURRENT_DATE - INTERVAL '30 days'
+    `);
+
+    // Active users trend (last 30 days)
+    const activeUsersTrend = await pool.query(`
+      WITH dates AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '29 days',
+          CURRENT_DATE,
+          '1 day'::interval
+        )::date AS date
+      ),
+      daily_active AS (
+        SELECT DATE(last_used_at) as date, COUNT(DISTINCT user_id) as count
+        FROM sessions
+        WHERE last_used_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY DATE(last_used_at)
+      )
+      SELECT d.date, COALESCE(da.count, 0) as active_users
+      FROM dates d
+      LEFT JOIN daily_active da ON d.date = da.date
+      ORDER BY d.date ASC
+    `);
+
+    // Retention rates - members who signed up X days ago and were active today
+    // D1: Signed up yesterday, active today
+    // D7: Signed up 7 days ago, active in last 7 days
+    // D30: Signed up 30 days ago, active in last 30 days
+
+    const retentionQuery = async (daysAgo, activePeriod) => {
+      const result = await pool.query(`
+        WITH cohort AS (
+          SELECT id FROM members
+          WHERE DATE(created_at) = CURRENT_DATE - INTERVAL '${daysAgo} days'
+        ),
+        retained AS (
+          SELECT DISTINCT s.user_id
+          FROM sessions s
+          INNER JOIN cohort c ON s.user_id = c.id
+          WHERE s.user_type = 'member'
+            AND s.last_used_at >= CURRENT_DATE - INTERVAL '${activePeriod} days'
+        )
+        SELECT 
+          (SELECT COUNT(*) FROM cohort) as cohort_size,
+          (SELECT COUNT(*) FROM retained) as retained_count
+      `);
+      return result.rows[0];
+    };
+
+    const d1 = await retentionQuery(1, 1);
+    const d7 = await retentionQuery(7, 1);
+    const d30 = await retentionQuery(30, 1);
+
+    // Geographic distribution from members.location
+    const geoResult = await pool.query(`
+      SELECT 
+        location->>'country' as country,
+        location->>'city' as city,
+        COUNT(*) as count
+      FROM members
+      WHERE location IS NOT NULL 
+        AND location->>'country' IS NOT NULL
+      GROUP BY location->>'country', location->>'city'
+      ORDER BY count DESC
+      LIMIT 20
+    `);
+
+    // Country summary
+    const countryResult = await pool.query(`
+      SELECT 
+        location->>'country' as country,
+        COUNT(*) as count
+      FROM members
+      WHERE location IS NOT NULL 
+        AND location->>'country' IS NOT NULL
+      GROUP BY location->>'country'
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+
+    // Device distribution - count unique EXISTING users by their most recent session's platform
+    const deviceResult = await pool.query(`
+      WITH latest_sessions AS (
+        SELECT DISTINCT ON (s.user_id, s.user_type) 
+          s.user_id, s.user_type, s.platform, s.os_version
+        FROM sessions s
+        WHERE s.last_used_at >= CURRENT_DATE - INTERVAL '30 days'
+          AND (
+            (s.user_type = 'member' AND EXISTS (SELECT 1 FROM members WHERE id = s.user_id))
+            OR (s.user_type = 'community' AND EXISTS (SELECT 1 FROM communities WHERE id = s.user_id))
+            OR (s.user_type = 'sponsor' AND EXISTS (SELECT 1 FROM sponsors WHERE id = s.user_id))
+            OR (s.user_type = 'venue' AND EXISTS (SELECT 1 FROM venues WHERE id = s.user_id))
+          )
+        ORDER BY s.user_id, s.user_type, s.last_used_at DESC
+      )
+      SELECT 
+        COALESCE(platform, 'Unknown') as platform,
+        COUNT(*) as user_count
+      FROM latest_sessions
+      GROUP BY platform
+      ORDER BY user_count DESC
+    `);
+
+    // OS version distribution - only existing users
+    const osResult = await pool.query(`
+      WITH latest_sessions AS (
+        SELECT DISTINCT ON (s.user_id, s.user_type) 
+          s.user_id, s.user_type, s.platform, s.os_version
+        FROM sessions s
+        WHERE s.last_used_at >= CURRENT_DATE - INTERVAL '30 days'
+          AND s.platform IS NOT NULL
+          AND (
+            (s.user_type = 'member' AND EXISTS (SELECT 1 FROM members WHERE id = s.user_id))
+            OR (s.user_type = 'community' AND EXISTS (SELECT 1 FROM communities WHERE id = s.user_id))
+            OR (s.user_type = 'sponsor' AND EXISTS (SELECT 1 FROM sponsors WHERE id = s.user_id))
+            OR (s.user_type = 'venue' AND EXISTS (SELECT 1 FROM venues WHERE id = s.user_id))
+          )
+        ORDER BY s.user_id, s.user_type, s.last_used_at DESC
+      )
+      SELECT 
+        platform,
+        os_version,
+        COUNT(*) as count
+      FROM latest_sessions
+      GROUP BY platform, os_version
+      ORDER BY count DESC
+      LIMIT 15
+    `);
+
+    res.json({
+      success: true,
+      analytics: {
+        activeUsers: {
+          dau: parseInt(dauResult.rows[0].count, 10),
+          wau: parseInt(wauResult.rows[0].count, 10),
+          mau: parseInt(mauResult.rows[0].count, 10),
+          trend: activeUsersTrend.rows.map((row) => ({
+            date: row.date.toISOString().split("T")[0],
+            activeUsers: parseInt(row.active_users, 10),
+          })),
+        },
+        retention: {
+          d1: {
+            cohortSize: parseInt(d1.cohort_size, 10),
+            retainedCount: parseInt(d1.retained_count, 10),
+            rate:
+              d1.cohort_size > 0
+                ? Math.round((d1.retained_count / d1.cohort_size) * 100)
+                : 0,
+          },
+          d7: {
+            cohortSize: parseInt(d7.cohort_size, 10),
+            retainedCount: parseInt(d7.retained_count, 10),
+            rate:
+              d7.cohort_size > 0
+                ? Math.round((d7.retained_count / d7.cohort_size) * 100)
+                : 0,
+          },
+          d30: {
+            cohortSize: parseInt(d30.cohort_size, 10),
+            retainedCount: parseInt(d30.retained_count, 10),
+            rate:
+              d30.cohort_size > 0
+                ? Math.round((d30.retained_count / d30.cohort_size) * 100)
+                : 0,
+          },
+        },
+        geographic: {
+          byLocation: geoResult.rows.map((row) => ({
+            country: row.country,
+            city: row.city,
+            count: parseInt(row.count, 10),
+          })),
+          byCountry: countryResult.rows.map((row) => ({
+            country: row.country,
+            count: parseInt(row.count, 10),
+          })),
+        },
+        devices: {
+          byPlatform: deviceResult.rows.map((row) => ({
+            platform: row.platform,
+            userCount: parseInt(row.user_count, 10),
+          })),
+          byOS: osResult.rows.map((row) => ({
+            platform: row.platform,
+            osVersion: row.os_version,
+            count: parseInt(row.count, 10),
+          })),
+        },
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Error fetching advanced analytics:",
+      error.message,
+      error.stack
+    );
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch advanced analytics",
+      details: error.message,
+    });
+  }
+}
+
 module.exports = {
   getOverview,
   getUserAnalytics,
   getEventAnalytics,
   getEngagementAnalytics,
+  getAdvancedAnalytics,
 };

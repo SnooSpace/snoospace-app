@@ -814,3 +814,221 @@ export async function getEngagementAnalytics(
   }>(`/admin/analytics/engagement?period=${period}`);
   return data.analytics;
 }
+
+// Advanced Analytics Types
+export interface AdvancedAnalytics {
+  activeUsers: {
+    dau: number;
+    wau: number;
+    mau: number;
+    trend: Array<{ date: string; activeUsers: number }>;
+  };
+  retention: {
+    d1: { cohortSize: number; retainedCount: number; rate: number };
+    d7: { cohortSize: number; retainedCount: number; rate: number };
+    d30: { cohortSize: number; retainedCount: number; rate: number };
+  };
+  geographic: {
+    byLocation: Array<{ country: string; city: string; count: number }>;
+    byCountry: Array<{ country: string; count: number }>;
+  };
+  devices: {
+    byPlatform: Array<{
+      platform: string;
+      userCount: number;
+      sessionCount: number;
+    }>;
+    byOS: Array<{ platform: string; osVersion: string; count: number }>;
+  };
+}
+
+// Get advanced analytics (DAU/WAU/MAU, retention, geo, devices)
+export async function getAdvancedAnalytics(): Promise<AdvancedAnalytics> {
+  const data = await apiRequest<{
+    success: boolean;
+    analytics: AdvancedAnalytics;
+  }>("/admin/analytics/advanced");
+  return data.analytics;
+}
+
+// ============================================
+// MODERATION API
+// ============================================
+
+export interface Report {
+  id: number;
+  reporter_id: number;
+  reporter_type: string;
+  reported_id: number;
+  reported_type: string;
+  reason: string;
+  description: string | null;
+  status: "pending" | "reviewed" | "resolved" | "dismissed";
+  resolved_by: number | null;
+  resolution_notes: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  reporter_name: string | null;
+  resolved_by_email: string | null;
+}
+
+export interface ReportStats {
+  pending: number;
+  reviewed: number;
+  resolved: number;
+  dismissed: number;
+  total: number;
+}
+
+export interface UserRestriction {
+  id: number;
+  user_id: number;
+  user_type: string;
+  restriction_type: "ban" | "suspend" | "warn";
+  reason: string;
+  expires_at: string | null;
+  created_by: number;
+  created_at: string;
+  revoked_at: string | null;
+  revoked_by: number | null;
+  user_name: string | null;
+  created_by_email: string | null;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  admin_id: number;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+  admin_email: string;
+}
+
+export interface PaginatedResponse<T> {
+  success: boolean;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+// Reports
+export async function getReports(params?: {
+  status?: string;
+  type?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{
+  reports: Report[];
+  pagination: PaginatedResponse<Report>["pagination"];
+}> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.type) query.set("type", params.type);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const data = await apiRequest<{
+    success: boolean;
+    reports: Report[];
+    pagination: PaginatedResponse<Report>["pagination"];
+  }>(`/admin/reports?${query.toString()}`);
+  return { reports: data.reports, pagination: data.pagination };
+}
+
+export async function getReportStats(): Promise<ReportStats> {
+  const data = await apiRequest<{ success: boolean; stats: ReportStats }>(
+    "/admin/reports/stats"
+  );
+  return data.stats;
+}
+
+export async function resolveReport(
+  id: number,
+  status: "resolved" | "dismissed",
+  notes?: string
+): Promise<Report> {
+  const data = await apiRequest<{ success: boolean; report: Report }>(
+    `/admin/reports/${id}/resolve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status, resolution_notes: notes }),
+    }
+  );
+  return data.report;
+}
+
+// Restrictions
+export async function getRestrictions(params?: {
+  user_type?: string;
+  active_only?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<{
+  restrictions: UserRestriction[];
+  pagination: PaginatedResponse<UserRestriction>["pagination"];
+}> {
+  const query = new URLSearchParams();
+  if (params?.user_type) query.set("user_type", params.user_type);
+  if (params?.active_only !== undefined)
+    query.set("active_only", String(params.active_only));
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const data = await apiRequest<{
+    success: boolean;
+    restrictions: UserRestriction[];
+    pagination: PaginatedResponse<UserRestriction>["pagination"];
+  }>(`/admin/restrictions?${query.toString()}`);
+  return { restrictions: data.restrictions, pagination: data.pagination };
+}
+
+export async function restrictUser(data: {
+  user_id: number;
+  user_type: string;
+  restriction_type: "ban" | "suspend" | "warn";
+  reason: string;
+  expires_at?: string;
+}): Promise<UserRestriction> {
+  const result = await apiRequest<{
+    success: boolean;
+    restriction: UserRestriction;
+  }>("/admin/restrictions", { method: "POST", body: JSON.stringify(data) });
+  return result.restriction;
+}
+
+export async function revokeRestriction(id: number): Promise<UserRestriction> {
+  const data = await apiRequest<{
+    success: boolean;
+    restriction: UserRestriction;
+  }>(`/admin/restrictions/${id}/revoke`, { method: "POST" });
+  return data.restriction;
+}
+
+// Audit Log
+export async function getAuditLog(params?: {
+  admin_id?: number;
+  action?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{
+  logs: AuditLogEntry[];
+  pagination: PaginatedResponse<AuditLogEntry>["pagination"];
+}> {
+  const query = new URLSearchParams();
+  if (params?.admin_id) query.set("admin_id", String(params.admin_id));
+  if (params?.action) query.set("action", params.action);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const data = await apiRequest<{
+    success: boolean;
+    logs: AuditLogEntry[];
+    pagination: PaginatedResponse<AuditLogEntry>["pagination"];
+  }>(`/admin/audit-log?${query.toString()}`);
+  return { logs: data.logs, pagination: data.pagination };
+}

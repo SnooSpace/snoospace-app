@@ -84,7 +84,7 @@ async function sendOtp(req, res) {
  */
 async function verifyOtp(req, res) {
   try {
-    const { email, token, deviceId } = req.body;
+    const { email, token, deviceId, deviceInfo } = req.body;
     if (!email || !token) {
       return res
         .status(400)
@@ -140,7 +140,8 @@ async function verifyOtp(req, res) {
           account.id,
           account.type,
           deviceId,
-          email
+          email,
+          deviceInfo || {}
         );
         return res.json({
           emailVerified: true,
@@ -177,7 +178,7 @@ async function verifyOtp(req, res) {
  */
 async function createSessionEndpoint(req, res) {
   try {
-    const { userId, userType, deviceId, email } = req.body;
+    const { userId, userType, deviceId, email, deviceInfo } = req.body;
 
     if (!userId || !userType || !deviceId) {
       return res
@@ -201,7 +202,8 @@ async function createSessionEndpoint(req, res) {
       userId,
       userType,
       deviceId,
-      email || account.email
+      email || account.email,
+      deviceInfo || {}
     );
 
     res.json({
@@ -486,26 +488,52 @@ async function getAccountById(pool, userId, userType) {
 
 /**
  * Create session in database
+ * @param {Object} deviceInfo - Optional device info { platform, osVersion, deviceModel }
  */
-async function createSession(pool, userId, userType, deviceId, email) {
+async function createSession(
+  pool,
+  userId,
+  userType,
+  deviceId,
+  email,
+  deviceInfo = {}
+) {
   const accessToken = generateAccessToken(userId, userType, email);
   const refreshToken = generateRefreshToken();
   const expiresAt = new Date(
     Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000
   );
 
+  // Extract device info
+  const platform = deviceInfo.platform || null;
+  const osVersion = deviceInfo.osVersion || null;
+  const deviceModel = deviceInfo.deviceModel || null;
+
   // Upsert session (replace existing session for same user+device)
   const result = await pool.query(
-    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at, platform, os_version, device_model)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (user_id, user_type, device_id) 
      DO UPDATE SET 
        access_token = EXCLUDED.access_token,
        refresh_token = EXCLUDED.refresh_token,
        expires_at = EXCLUDED.expires_at,
-       last_used_at = NOW()
+       last_used_at = NOW(),
+       platform = COALESCE(EXCLUDED.platform, sessions.platform),
+       os_version = COALESCE(EXCLUDED.os_version, sessions.os_version),
+       device_model = COALESCE(EXCLUDED.device_model, sessions.device_model)
      RETURNING *`,
-    [userId, userType, deviceId, accessToken, refreshToken, expiresAt]
+    [
+      userId,
+      userType,
+      deviceId,
+      accessToken,
+      refreshToken,
+      expiresAt,
+      platform,
+      osVersion,
+      deviceModel,
+    ]
   );
 
   return {
