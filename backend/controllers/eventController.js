@@ -2116,6 +2116,7 @@ const getEventById = async (req, res) => {
     // Check if current user has bookmarked this event (members only)
     let isInterested = false;
     let isRegistered = false;
+    let registrationData = null; // For attendance tracking
     const userId = req.user?.id;
     const userType = req.user?.type;
 
@@ -2135,12 +2136,13 @@ const getEventById = async (req, res) => {
       );
       isInterested = interestCheck.rows.length > 0;
 
-      // Check if user is registered for this event
+      // Check if user is registered for this event and get attendance data
       const registrationCheck = await pool.query(
-        "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
+        "SELECT id, attendance_status, attendance_confirmed_at FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
         [eventId, userId]
       );
       isRegistered = registrationCheck.rows.length > 0;
+      registrationData = registrationCheck.rows[0] || null;
 
       // Check if user has requested an invite for this event
       const inviteRequestCheck = await pool.query(
@@ -2232,6 +2234,15 @@ const getEventById = async (req, res) => {
     res.json({
       success: true,
       event: responseEvent,
+      server_time: new Date().toISOString(),
+      attendance_status:
+        isRegistered && userId && userType === "member"
+          ? registrationData?.attendance_status || null
+          : null,
+      attendance_confirmed_at:
+        isRegistered && userId && userType === "member"
+          ? registrationData?.attendance_confirmed_at || null
+          : null,
     });
   } catch (error) {
     console.error("Error getting event:", error);
@@ -4487,6 +4498,82 @@ const getCommunityPublicEvents = async (req, res) => {
   }
 };
 
+/**
+ * Confirm attendance for an event
+ * Called when user responds to "Did you attend this event?" modal
+ */
+const confirmAttendance = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const { attended } = req.body; // true or false
+
+    // Only members can confirm attendance
+    if (!userId || userType !== "member") {
+      return res
+        .status(403)
+        .json({ error: "Only members can confirm attendance" });
+    }
+
+    if (typeof attended !== "boolean") {
+      return res.status(400).json({ error: "attended must be true or false" });
+    }
+
+    // Check if event exists and is not cancelled
+    const eventCheck = await pool.query(
+      "SELECT id, is_cancelled FROM events WHERE id = $1",
+      [eventId]
+    );
+
+    if (eventCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    if (eventCheck.rows[0].is_cancelled) {
+      return res
+        .status(400)
+        .json({ error: "Cannot confirm attendance for cancelled event" });
+    }
+
+    // Check if user is registered for this event
+    const registrationCheck = await pool.query(
+      "SELECT id, attendance_status FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
+      [eventId, userId]
+    );
+
+    if (registrationCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    // Check if already confirmed
+    if (registrationCheck.rows[0].attendance_status) {
+      return res.status(400).json({
+        error: "Attendance already confirmed",
+        attendance_status: registrationCheck.rows[0].attendance_status,
+      });
+    }
+
+    // Update attendance status
+    const attendanceStatus = attended ? "attended" : "did_not_attend";
+    await pool.query(
+      `UPDATE event_registrations 
+       SET attendance_status = $1, attendance_confirmed_at = NOW(), updated_at = NOW()
+       WHERE event_id = $2 AND member_id = $3`,
+      [attendanceStatus, eventId, userId]
+    );
+
+    res.json({
+      success: true,
+      attendance_status: attendanceStatus,
+      attendance_confirmed_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error confirming attendance:", error);
+    res.status(500).json({ error: "Failed to confirm attendance" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -4520,4 +4607,6 @@ module.exports = {
   getInviteRequests,
   respondToInviteRequest,
   getCommunityPublicEvents,
+  // Attendance confirmation
+  confirmAttendance,
 };

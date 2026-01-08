@@ -952,6 +952,12 @@ router.patch(
   authMiddleware,
   EventController.cancelEvent
 );
+// Attendance confirmation
+router.post(
+  "/events/:eventId/confirm-attendance",
+  authMiddleware,
+  EventController.confirmAttendance
+);
 
 // ============================================
 // TICKET GIFTING SYSTEM

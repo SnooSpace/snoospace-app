@@ -21,6 +21,7 @@ import CommunityCreatePostScreen from "../screens/home/community/CommunityCreate
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
+import TicketViewScreen from "../screens/events/TicketViewScreen";
 import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
@@ -88,6 +89,11 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="Checkout"
         component={CheckoutScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TicketView"
+        component={TicketViewScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

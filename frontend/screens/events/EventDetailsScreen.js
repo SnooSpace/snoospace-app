@@ -19,6 +19,7 @@ import {
   getEventDetails,
   toggleEventInterest,
   requestEventInvite,
+  confirmAttendance,
 } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS } from "../../constants/theme";
@@ -27,6 +28,13 @@ import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import { Alert } from "react-native";
+import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
+import {
+  getEventState,
+  shouldShowViewAttendees,
+  shouldAskAttendance,
+  EVENT_STATES,
+} from "../../utils/eventStateUtils";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -59,6 +67,11 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [requestingInvite, setRequestingInvite] = useState(false);
   const [inviteRequestStatus, setInviteRequestStatus] = useState(null); // null, 'pending', 'approved', 'rejected'
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  // Event state and attendance
+  const [serverTime, setServerTime] = useState(null);
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -88,6 +101,23 @@ const EventDetailsScreen = ({ route, navigation }) => {
         setIsInvited(response.event.is_invited || false);
         setLocationHidden(response.event.location_hidden || false);
         setInviteRequestStatus(response.event.invite_request_status || null);
+        // Set server time and attendance data
+        if (response.server_time) {
+          setServerTime(response.server_time);
+        }
+        if (response.attendance_status) {
+          setAttendanceStatus(response.attendance_status);
+        }
+        // Check if we should ask for attendance confirmation
+        const shouldAsk = shouldAskAttendance(
+          response.event,
+          response.server_time || new Date().toISOString(),
+          response.event.is_registered || false,
+          response.attendance_status
+        );
+        if (shouldAsk) {
+          setShowAttendanceModal(true);
+        }
       } else {
         // If API fails but we have initialData, use it
         if (!initialData) {
@@ -209,22 +239,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
         event?.id
       );
 
-      // Use root navigation to ensure it works from any navigator context
-      // Search for the top-most navigator that has MemberHome
-      let rootNav = navigation;
-      while (rootNav.getParent()) {
-        rootNav = rootNav.getParent();
-      }
-
-      console.log("[EventDetails] Using rootNav for navigation");
-
-      rootNav.navigate("MemberHome", {
-        screen: "YourEvents",
-        params: {
-          screen: "TicketView",
-          params: { eventId: event?.id },
-        },
-      });
+      // Navigate directly to TicketView at the same stack level as EventDetails
+      // This maintains proper back navigation to EventDetailsScreen
+      navigation.navigate("TicketView", { eventId: event?.id });
       return;
     }
     // Only members can book tickets
@@ -338,6 +355,44 @@ const EventDetailsScreen = ({ route, navigation }) => {
       navigation.navigate("MemberPublicProfile", { memberId: head.member_id });
     }
   };
+
+  // Handle attendance confirmation from modal
+  const handleConfirmAttendance = async (attended) => {
+    if (!event?.id) return;
+
+    try {
+      setAttendanceLoading(true);
+      HapticsService.triggerImpactMedium();
+
+      const response = await confirmAttendance(event.id, attended);
+
+      if (response?.success) {
+        setAttendanceStatus(response.attendance_status);
+        setShowAttendanceModal(false);
+      }
+    } catch (error) {
+      console.error("Error confirming attendance:", error);
+      Alert.alert("Error", "Failed to confirm attendance. Please try again.");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  // Navigate to Matching Screen for View Attendees
+  const handleViewAttendees = () => {
+    navigation.navigate("Matching", {
+      screen: "MatchingScreen",
+      params: { eventId: event?.id },
+    });
+  };
+
+  // Get event state for conditional rendering
+  const eventState = getEventState(event, serverTime);
+  const showViewAttendeesButton = shouldShowViewAttendees(
+    event,
+    serverTime,
+    currentUser?.type
+  );
 
   if (loading) {
     return (
@@ -750,6 +805,20 @@ const EventDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
+          {/* View Attendees CTA - shown below Organised By, only for members */}
+          {showViewAttendeesButton && isRegistered && (
+            <TouchableOpacity
+              style={styles.viewAttendeesButton}
+              onPress={handleViewAttendees}
+            >
+              <View style={styles.viewAttendeesContent}>
+                <Ionicons name="people" size={20} color={COLORS.primary} />
+                <Text style={styles.viewAttendeesText}>View Attendees</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
+            </TouchableOpacity>
+          )}
+
           {/* Gallery Section */}
           {event.gallery?.length > 0 && (
             <View style={styles.section}>
@@ -791,108 +860,150 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
       {/* Sticky Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
-        <View style={styles.priceContainer}>
-          {isRegistered ? (
-            <Text style={[styles.priceText, { color: "#16A34A" }]}>
-              ✓ Registered
+        {/* CANCELLED STATE: Static text, no buttons */}
+        {eventState === EVENT_STATES.CANCELLED ? (
+          <View style={styles.cancelledBarContent}>
+            <Ionicons name="close-circle" size={20} color="#DC2626" />
+            <Text style={styles.cancelledText}>Event cancelled</Text>
+          </View>
+        ) : eventState === EVENT_STATES.COMPLETED && !isRegistered ? (
+          /* COMPLETED + NOT REGISTERED: Event has ended, can't register */
+          <View style={styles.cancelledBarContent}>
+            <Ionicons name="time" size={20} color={MUTED_TEXT} />
+            <Text style={[styles.cancelledText, { color: MUTED_TEXT }]}>
+              Event ended
             </Text>
-          ) : (
-            (() => {
-              // Calculate lowest price from ticket_types
-              const hasTicketTypes = event.ticket_types?.length > 0;
-              const lowestPrice = hasTicketTypes
-                ? Math.min(
-                    ...event.ticket_types.map(
-                      (t) => parseFloat(t.base_price) || 0
-                    )
-                  )
-                : event.ticket_price
-                ? parseFloat(event.ticket_price)
-                : 0;
-              const isFree = lowestPrice === 0;
+          </View>
+        ) : (
+          <>
+            <View style={styles.priceContainer}>
+              {/* Show attendance status if confirmed */}
+              {attendanceStatus === "attended" ? (
+                <Text style={[styles.priceText, { color: "#16A34A" }]}>
+                  ✓ Attended
+                </Text>
+              ) : attendanceStatus === "did_not_attend" ? (
+                <Text style={[styles.priceText, { color: MUTED_TEXT }]}>
+                  Did not attend
+                </Text>
+              ) : isRegistered ? (
+                <Text style={[styles.priceText, { color: "#16A34A" }]}>
+                  ✓ Registered
+                </Text>
+              ) : (
+                (() => {
+                  // Calculate lowest price from ticket_types
+                  const hasTicketTypes = event.ticket_types?.length > 0;
+                  const lowestPrice = hasTicketTypes
+                    ? Math.min(
+                        ...event.ticket_types.map(
+                          (t) => parseFloat(t.base_price) || 0
+                        )
+                      )
+                    : event.ticket_price
+                    ? parseFloat(event.ticket_price)
+                    : 0;
+                  const isFree = lowestPrice === 0;
 
-              // Show "Invite Only" badge for non-invited users
-              if (isInviteOnlyNotInvited) {
-                return (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Ionicons name="lock-closed" size={16} color="#FF6B6B" />
-                    <Text style={[styles.priceText, { color: "#FF6B6B" }]}>
-                      Invite Only
-                    </Text>
-                  </View>
-                );
+                  // Show "Invite Only" badge for non-invited users
+                  if (isInviteOnlyNotInvited) {
+                    return (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <Ionicons
+                          name="lock-closed"
+                          size={16}
+                          color="#FF6B6B"
+                        />
+                        <Text style={[styles.priceText, { color: "#FF6B6B" }]}>
+                          Invite Only
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <Text style={styles.priceText}>
+                        {isFree
+                          ? "Free"
+                          : `₹${lowestPrice.toLocaleString("en-IN")}`}
+                      </Text>
+                      {!isFree && (
+                        <Text style={styles.priceSubtext}>onwards</Text>
+                      )}
+                    </>
+                  );
+                })()
+              )}
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.registerButtonWrapper,
+                isRestrictedRole &&
+                  !isInviteOnlyNotInvited &&
+                  styles.registerButtonDisabled,
+              ]}
+              onPress={
+                isInviteOnlyNotInvited && !inviteRequestStatus
+                  ? handleRequestInvite
+                  : handleRegister
               }
-
-              return (
-                <>
-                  <Text style={styles.priceText}>
-                    {isFree
-                      ? "Free"
-                      : `₹${lowestPrice.toLocaleString("en-IN")}`}
+              activeOpacity={
+                (isRestrictedRole && !isInviteOnlyNotInvited) ||
+                inviteRequestStatus
+                  ? 1
+                  : 0.8
+              }
+              disabled={requestingInvite || !!inviteRequestStatus}
+            >
+              <LinearGradient
+                colors={
+                  inviteRequestStatus === "pending"
+                    ? ["#9CA3AF", "#9CA3AF"] // Gray for "Requested"
+                    : isInviteOnlyNotInvited
+                    ? ["#FF6B6B", "#FF8E8E"]
+                    : isRestrictedRole
+                    ? ["#9CA3AF", "#9CA3AF"]
+                    : COLORS.primaryGradient
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.registerButtonGradient}
+              >
+                {requestingInvite ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.registerButtonText}>
+                    {isRegistered
+                      ? "View Your Ticket"
+                      : inviteRequestStatus === "pending"
+                      ? "Requested"
+                      : isInviteOnlyNotInvited
+                      ? "Request Invite"
+                      : event.ticket_types?.length > 0 || event.ticket_price
+                      ? "Book tickets"
+                      : "Register"}
                   </Text>
-                  {!isFree && <Text style={styles.priceSubtext}>onwards</Text>}
-                </>
-              );
-            })()
-          )}
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.registerButtonWrapper,
-            isRestrictedRole &&
-              !isInviteOnlyNotInvited &&
-              styles.registerButtonDisabled,
-          ]}
-          onPress={
-            isInviteOnlyNotInvited && !inviteRequestStatus
-              ? handleRequestInvite
-              : handleRegister
-          }
-          activeOpacity={
-            (isRestrictedRole && !isInviteOnlyNotInvited) || inviteRequestStatus
-              ? 1
-              : 0.8
-          }
-          disabled={requestingInvite || !!inviteRequestStatus}
-        >
-          <LinearGradient
-            colors={
-              inviteRequestStatus === "pending"
-                ? ["#9CA3AF", "#9CA3AF"] // Gray for "Requested"
-                : isInviteOnlyNotInvited
-                ? ["#FF6B6B", "#FF8E8E"]
-                : isRestrictedRole
-                ? ["#9CA3AF", "#9CA3AF"]
-                : COLORS.primaryGradient
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.registerButtonGradient}
-          >
-            {requestingInvite ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.registerButtonText}>
-                {isRegistered
-                  ? "View Your Ticket"
-                  : inviteRequestStatus === "pending"
-                  ? "Requested"
-                  : isInviteOnlyNotInvited
-                  ? "Request Invite"
-                  : event.ticket_types?.length > 0 || event.ticket_price
-                  ? "Book tickets"
-                  : "Register"}
-              </Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
+
+      {/* Attendance Confirmation Modal */}
+      <AttendanceConfirmationModal
+        visible={showAttendanceModal}
+        eventTitle={event.title}
+        onConfirmAttendance={handleConfirmAttendance}
+        loading={attendanceLoading}
+      />
     </View>
   );
 };
@@ -1396,6 +1507,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     textAlign: "center",
+  },
+  viewAttendeesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: CARD_BACKGROUND,
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+  },
+  viewAttendeesContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  viewAttendeesText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+  },
+  cancelledBarContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  cancelledText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#DC2626",
   },
 });
 

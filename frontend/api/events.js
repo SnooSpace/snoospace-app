@@ -241,3 +241,19 @@ export async function getCommunityPublicEvents(communityId, options = {}) {
     token
   );
 }
+
+/**
+ * Confirm attendance for an event
+ * @param {string|number} eventId - Event ID
+ * @param {boolean} attended - true if attended, false if didn't attend
+ * @returns {Promise<Object>} { success: boolean, attendance_status: string }
+ */
+export async function confirmAttendance(eventId, attended) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/confirm-attendance`,
+    { attended },
+    15000,
+    token
+  );
+}
