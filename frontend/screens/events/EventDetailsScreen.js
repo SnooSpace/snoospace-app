@@ -27,12 +27,15 @@ import { useLocationName } from "../../utils/locationNameCache";
 import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
-import { Alert } from "react-native";
+import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
 import {
   getEventState,
   shouldShowViewAttendees,
   shouldAskAttendance,
+  getViewAttendeesState,
+  getRegistrationProgress,
+  getProgressBarColor,
   EVENT_STATES,
 } from "../../utils/eventStateUtils";
 
@@ -72,6 +75,15 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  // Registration progress for View Attendees
+  const [registrationCount, setRegistrationCount] = useState(0);
+  const [totalPublicCapacity, setTotalPublicCapacity] = useState(null);
+  const [totalCapacity, setTotalCapacity] = useState(null);
+  const [isMostlyInviteOnly, setIsMostlyInviteOnly] = useState(false);
+  // Custom toast for locked View Attendees
+  const [lockedToastVisible, setLockedToastVisible] = useState(false);
+  const lockedToastOpacity = useRef(new Animated.Value(0)).current;
+  const lockedToastTranslateY = useRef(new Animated.Value(20)).current;
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -108,6 +120,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
         if (response.attendance_status) {
           setAttendanceStatus(response.attendance_status);
         }
+        // Set registration progress data
+        setRegistrationCount(response.registration_count || 0);
+        setTotalPublicCapacity(response.total_public_capacity);
+        setTotalCapacity(response.total_capacity);
+        setIsMostlyInviteOnly(response.is_mostly_invite_only || false);
+
         // Check if we should ask for attendance confirmation
         const shouldAsk = shouldAskAttendance(
           response.event,
@@ -290,8 +308,11 @@ const EventDetailsScreen = ({ route, navigation }) => {
   };
 
   // Check if this is an invite-only event where user needs to request access
+  // This includes both event-level invite_only AND when all tickets are invite-only visibility
   const isInviteOnlyNotInvited =
-    event?.access_type === "invite_only" && !isInvited && !isRegistered;
+    (event?.access_type === "invite_only" || event?.all_tickets_invite_only) &&
+    !isInvited &&
+    !isRegistered;
 
   // Handle bookmark/interest toggle
   const handleBookmark = async () => {
@@ -380,19 +401,78 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
   // Navigate to Matching Screen for View Attendees
   const handleViewAttendees = () => {
-    navigation.navigate("Matching", {
-      screen: "MatchingScreen",
+    // Matching is a tab in MemberHome's BottomTabNavigator
+    // Navigate to MemberHome, then to the Matching tab with eventId
+    navigation.navigate("MemberHome", {
+      screen: "Matching",
       params: { eventId: event?.id },
     });
   };
 
+  // Trigger custom animated toast for locked View Attendees
+  const triggerLockedToast = () => {
+    if (lockedToastVisible) return; // Prevent multiple toasts
+
+    setLockedToastVisible(true);
+    HapticsService.triggerImpactLight();
+
+    // Reset animation values
+    lockedToastOpacity.setValue(0);
+    lockedToastTranslateY.setValue(20);
+
+    // Fade up animation
+    Animated.parallel([
+      Animated.timing(lockedToastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(lockedToastTranslateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(lockedToastOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(lockedToastTranslateY, {
+          toValue: 20,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setLockedToastVisible(false);
+      });
+    }, 4000);
+  };
+
   // Get event state for conditional rendering
   const eventState = getEventState(event, serverTime);
-  const showViewAttendeesButton = shouldShowViewAttendees(
+
+  // Get View Attendees state (always visible for members, but may be locked)
+  const viewAttendeesState = getViewAttendeesState(
     event,
     serverTime,
     currentUser?.type
   );
+
+  // Get registration progress for the progress bar
+  const registrationProgress = getRegistrationProgress(
+    registrationCount,
+    totalPublicCapacity,
+    totalCapacity,
+    isMostlyInviteOnly
+  );
+
+  // Get progress bar color based on percentage
+  const progressBarColor = getProgressBarColor(registrationProgress.percentage);
 
   if (loading) {
     return (
@@ -805,18 +885,98 @@ const EventDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* View Attendees CTA - shown below Organised By, only for members */}
-          {showViewAttendeesButton && isRegistered && (
-            <TouchableOpacity
-              style={styles.viewAttendeesButton}
-              onPress={handleViewAttendees}
-            >
-              <View style={styles.viewAttendeesContent}>
-                <Ionicons name="people" size={20} color={COLORS.primary} />
-                <Text style={styles.viewAttendeesText}>View Attendees</Text>
+          {/* Enhanced View Attendees Section - always visible for members */}
+          {viewAttendeesState.visible && (
+            <View style={styles.viewAttendeesSection}>
+              {/* View Attendees Button */}
+              <TouchableOpacity
+                style={[
+                  styles.viewAttendeesButton,
+                  viewAttendeesState.locked && styles.viewAttendeesButtonLocked,
+                ]}
+                onPress={
+                  viewAttendeesState.locked
+                    ? triggerLockedToast
+                    : handleViewAttendees
+                }
+                activeOpacity={0.7}
+              >
+                <View style={styles.viewAttendeesContent}>
+                  <Ionicons
+                    name={viewAttendeesState.locked ? "lock-closed" : "people"}
+                    size={20}
+                    color={
+                      viewAttendeesState.locked ? MUTED_TEXT : COLORS.primary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.viewAttendeesText,
+                      viewAttendeesState.locked && { color: MUTED_TEXT },
+                    ]}
+                  >
+                    View Attendees
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
+              </TouchableOpacity>
+
+              {/* Registration Progress */}
+              <View style={styles.registrationProgress}>
+                {/* Badges */}
+                {registrationProgress.soldOut ? (
+                  <View
+                    style={[
+                      styles.progressBadge,
+                      { backgroundColor: "#FEE2E2" },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.progressBadgeText, { color: "#DC2626" }]}
+                    >
+                      Sold Out
+                    </Text>
+                  </View>
+                ) : registrationProgress.almostFull ? (
+                  <View
+                    style={[
+                      styles.progressBadge,
+                      { backgroundColor: "#FEF3C7" },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.progressBadgeText, { color: "#D97706" }]}
+                    >
+                      Almost Full
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* Progress Text */}
+                <Text style={styles.progressText}>
+                  {registrationProgress.registered === 0
+                    ? "Be the first to join! 🎉"
+                    : registrationProgress.unlimited
+                    ? `${registrationProgress.registered} registered`
+                    : `${registrationProgress.registered} of ${registrationProgress.capacity} registered`}
+                </Text>
+
+                {/* Progress Bar - only show if not unlimited */}
+                {!registrationProgress.unlimited && (
+                  <View style={styles.progressBarContainer}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${registrationProgress.percentage}%`,
+                          backgroundColor: progressBarColor,
+                        },
+                      ]}
+                    />
+                  </View>
+                )}
               </View>
-              <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
-            </TouchableOpacity>
+            </View>
           )}
 
           {/* Gallery Section */}
@@ -892,17 +1052,21 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 </Text>
               ) : (
                 (() => {
-                  // Calculate lowest price from ticket_types
+                  // Calculate lowest price - prioritize min_price from backend (includes hidden tickets)
+                  // This ensures correct price display even when tickets are filtered by visibility
                   const hasTicketTypes = event.ticket_types?.length > 0;
-                  const lowestPrice = hasTicketTypes
-                    ? Math.min(
-                        ...event.ticket_types.map(
-                          (t) => parseFloat(t.base_price) || 0
+                  const lowestPrice =
+                    event.min_price !== null && event.min_price !== undefined
+                      ? event.min_price // Use backend-provided min_price (includes all tickets)
+                      : hasTicketTypes
+                      ? Math.min(
+                          ...event.ticket_types.map(
+                            (t) => parseFloat(t.base_price) || 0
+                          )
                         )
-                      )
-                    : event.ticket_price
-                    ? parseFloat(event.ticket_price)
-                    : 0;
+                      : event.ticket_price
+                      ? parseFloat(event.ticket_price)
+                      : 0;
                   const isFree = lowestPrice === 0;
 
                   // Show "Invite Only" badge for non-invited users
@@ -1004,6 +1168,25 @@ const EventDetailsScreen = ({ route, navigation }) => {
         onConfirmAttendance={handleConfirmAttendance}
         loading={attendanceLoading}
       />
+
+      {/* Locked View Attendees Toast */}
+      {lockedToastVisible && (
+        <Animated.View
+          style={[
+            styles.lockedToast,
+            {
+              opacity: lockedToastOpacity,
+              transform: [{ translateY: lockedToastTranslateY }],
+            },
+          ]}
+        >
+          <Ionicons name="lock-closed" size={18} color="#FFFFFF" />
+          <Text style={styles.lockedToastText}>
+            Come back within 24 hours of the event to view attendees and connect
+            with them
+          </Text>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -1513,8 +1696,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: CARD_BACKGROUND,
-    marginHorizontal: 20,
-    marginTop: 16,
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1543,6 +1724,72 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#DC2626",
+  },
+  // Enhanced View Attendees Section
+  viewAttendeesSection: {
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  viewAttendeesButtonLocked: {
+    opacity: 0.6,
+    borderStyle: "dashed",
+  },
+  registrationProgress: {
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  progressBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  progressBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  progressText: {
+    fontSize: 14,
+    color: MUTED_TEXT,
+    marginBottom: 8,
+  },
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  // Custom animated locked toast
+  lockedToast: {
+    position: "absolute",
+    bottom: 120,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    zIndex: 300,
+    elevation: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  lockedToastText: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,26 +8,30 @@ import {
   Dimensions,
   ScrollView,
   Animated,
-} from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { PanGestureHandler, State } from "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const PRIMARY_COLOR = "#6A0DAD";
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
-const AttendeeCard = ({ 
-  attendee, 
-  onSwipeLeft, 
-  onSwipeRight, 
-  onUndo, 
+// Swipe thresholds
+const SWIPE_THRESHOLD = screenWidth * 0.2; // 20% of screen width
+const VELOCITY_THRESHOLD = 500;
+
+const AttendeeCard = ({
+  attendee,
+  onSwipeLeft,
+  onSwipeRight,
+  onUndo,
   onRequestNextEvent,
-  canUndo = false 
+  canUndo = false,
 }) => {
   const [isAnimating, setIsAnimating] = useState(false);
-  
+
   // Animation values
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -35,7 +39,9 @@ const AttendeeCard = ({
   const rotate = useRef(new Animated.Value(0)).current;
 
   const photos = attendee.photos || [];
-  const firstPhoto = photos[0] || { photo_url: 'https://via.placeholder.com/300' };
+  const firstPhoto = photos[0] || {
+    photo_url: "https://via.placeholder.com/300",
+  };
   const remainingPhotos = photos.slice(1);
 
   // Reset animation values when attendee changes
@@ -50,72 +56,49 @@ const AttendeeCard = ({
   // Animation functions
   const animateSwipe = (direction, callback) => {
     if (isAnimating) return;
-    
+
     setIsAnimating(true);
-    const targetX = direction === 'left' ? -screenWidth : screenWidth;
-    
+    const targetX =
+      direction === "left" ? -screenWidth * 1.5 : screenWidth * 1.5;
+
+    // Use spring for smoother, more natural dismiss
     Animated.parallel([
-      Animated.timing(translateX, {
+      Animated.spring(translateX, {
         toValue: targetX,
-        duration: 300,
+        stiffness: 100,
+        damping: 15,
+        mass: 0.5,
         useNativeDriver: true,
       }),
-      Animated.timing(scale, {
-        toValue: 0.8,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
+      Animated.spring(opacity, {
         toValue: 0,
-        duration: 300,
+        stiffness: 100,
+        damping: 15,
+        mass: 0.5,
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Call the callback to move to next card
       callback();
     });
   };
 
   const animateReturnToCenter = () => {
-    if (isAnimating) return;
-    
-    setIsAnimating(true);
-    Animated.parallel([
-      Animated.spring(translateX, {
-        toValue: 0,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.spring(opacity, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.spring(rotate, {
-        toValue: 0,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsAnimating(false);
-    });
+    // Smooth spring for natural bounce-back
+    Animated.spring(translateX, {
+      toValue: 0,
+      stiffness: 200,
+      damping: 20,
+      mass: 0.8,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handleSwipeLeft = () => {
-    animateSwipe('left', onSwipeLeft);
+    animateSwipe("left", onSwipeLeft);
   };
 
   const handleSwipeRight = () => {
-    animateSwipe('right', onSwipeRight);
+    animateSwipe("right", onSwipeRight);
   };
 
   const handleUndo = () => {
@@ -131,35 +114,49 @@ const AttendeeCard = ({
     { useNativeDriver: true }
   );
 
-  // Update rotation based on translation
-  useEffect(() => {
-    const listener = translateX.addListener(({ value }) => {
-      const rotation = value / 10; // Adjust rotation sensitivity
-      rotate.setValue(rotation);
-    });
+  // Interpolated opacity values for Like/Nope indicators
+  const likeOpacity = translateX.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
 
-    return () => {
-      translateX.removeListener(listener);
-    };
-  }, []);
+  const nopeOpacity = translateX.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+
+  // Rotation interpolation (no longer need listener)
+  const cardRotation = translateX.interpolate({
+    inputRange: [-screenWidth, 0, screenWidth],
+    outputRange: ["-15deg", "0deg", "15deg"],
+    extrapolate: "clamp",
+  });
 
   const handleGestureStateChange = (event) => {
     const { state, translationX, velocityX, translationY } = event.nativeEvent;
-    
-    if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
+
+    if (
+      state === State.END ||
+      state === State.CANCELLED ||
+      state === State.FAILED
+    ) {
       // Check if this is primarily a horizontal swipe (not vertical)
       const isHorizontalSwipe = Math.abs(translationX) > Math.abs(translationY);
-      
+
       if (!isHorizontalSwipe) {
         // If it's more vertical than horizontal, return to center
         animateReturnToCenter();
         return;
       }
 
-      // Determine if swipe is strong enough
-      const isStrongSwipe = Math.abs(translationX) > screenWidth * 0.3 || Math.abs(velocityX) > 500;
-      
-      if (isStrongSwipe && (state === State.END)) {
+      // Determine if swipe is strong enough (lowered threshold for easier swiping)
+      const isStrongSwipe =
+        Math.abs(translationX) > SWIPE_THRESHOLD ||
+        Math.abs(velocityX) > VELOCITY_THRESHOLD;
+
+      if (isStrongSwipe && state === State.END) {
         if (translationX > 0) {
           // Swipe right - like
           handleSwipeRight();
@@ -178,43 +175,51 @@ const AttendeeCard = ({
     <PanGestureHandler
       onGestureEvent={handleGestureEvent}
       onHandlerStateChange={handleGestureStateChange}
-      activeOffsetX={[-15, 15]}
-      failOffsetY={[-30, 30]}
-      shouldCancelWhenOutside={true}
+      activeOffsetX={[-10, 10]}
+      failOffsetY={[-50, 50]}
       minPointers={1}
       maxPointers={1}
     >
-      <Animated.View style={[
-        styles.card,
-        {
-          transform: [
-            { translateX },
-            { scale },
-            { rotate: rotate.interpolate({
-              inputRange: [-screenWidth, 0, screenWidth],
-              outputRange: ['-15deg', '0deg', '15deg'],
-              extrapolate: 'clamp',
-            })}
-          ],
-          opacity
-        }
-      ]}>
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            transform: [{ translateX }, { scale }, { rotate: cardRotation }],
+            opacity,
+          },
+        ]}
+      >
+        {/* Like/Nope Overlay Indicators */}
+        <Animated.View style={[styles.likeIndicator, { opacity: likeOpacity }]}>
+          <Ionicons name="heart" size={60} color="#4CD964" />
+          <Text style={styles.likeText}>LIKE</Text>
+        </Animated.View>
+
+        <Animated.View style={[styles.nopeIndicator, { opacity: nopeOpacity }]}>
+          <Ionicons name="close" size={60} color="#FF3B30" />
+          <Text style={styles.nopeText}>NOPE</Text>
+        </Animated.View>
+
         {/* Header Bar */}
         <View style={styles.headerBar}>
           <Text style={styles.headerName}>{attendee.name}</Text>
           {canUndo && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerUndoButton}
               onPress={handleUndo}
               disabled={isAnimating}
             >
-              <Ionicons name="arrow-undo" size={24} color={isAnimating ? "#CCCCCC" : "#FFFFFF"} />
+              <Ionicons
+                name="arrow-undo"
+                size={24}
+                color={isAnimating ? "#CCCCCC" : "#FFFFFF"}
+              />
             </TouchableOpacity>
           )}
         </View>
 
         {/* Scrollable Content */}
-        <ScrollView 
+        <ScrollView
           style={styles.verticalScrollView}
           showsVerticalScrollIndicator={true}
           scrollEnabled={true}
@@ -228,11 +233,15 @@ const AttendeeCard = ({
             />
             <View style={styles.ageLocationBadge}>
               <Text style={styles.badgePronounsAge}>
-                {attendee.pronouns || 'they/them'}, {attendee.age}
+                {attendee.pronouns || "they/them"}, {attendee.age}
               </Text>
               {attendee.city && (
                 <View style={styles.badgeLocation}>
-                  <Ionicons name="location-outline" size={14} color={LIGHT_TEXT_COLOR} />
+                  <Ionicons
+                    name="location-outline"
+                    size={14}
+                    color={LIGHT_TEXT_COLOR}
+                  />
                   <Text style={styles.badgeLocationText}>{attendee.city}</Text>
                 </View>
               )}
@@ -277,40 +286,52 @@ const AttendeeCard = ({
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.actionButton, 
+              styles.actionButton,
               styles.passButton,
-              isAnimating && styles.disabledButton
+              isAnimating && styles.disabledButton,
             ]}
             onPress={handleSwipeLeft}
             disabled={isAnimating}
           >
-            <Ionicons name="close" size={30} color={isAnimating ? "#CCCCCC" : "#FFFFFF"} />
+            <Ionicons
+              name="close"
+              size={30}
+              color={isAnimating ? "#CCCCCC" : "#FFFFFF"}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.actionButton, 
+              styles.actionButton,
               styles.likeButton,
-              isAnimating && styles.disabledButton
+              isAnimating && styles.disabledButton,
             ]}
             onPress={handleSwipeRight}
             disabled={isAnimating}
           >
-            <Ionicons name="heart" size={30} color={isAnimating ? "#CCCCCC" : "#FFFFFF"} />
+            <Ionicons
+              name="heart"
+              size={30}
+              color={isAnimating ? "#CCCCCC" : "#FFFFFF"}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.actionButton, 
+              styles.actionButton,
               styles.requestButton,
-              isAnimating && styles.disabledButton
+              isAnimating && styles.disabledButton,
             ]}
             onPress={onRequestNextEvent}
             disabled={isAnimating}
           >
-            <Ionicons name="calendar-outline" size={24} color={isAnimating ? "#CCCCCC" : "#FFFFFF"} />
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={isAnimating ? "#CCCCCC" : "#FFFFFF"}
+            />
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -321,62 +342,62 @@ const AttendeeCard = ({
 const styles = StyleSheet.create({
   card: {
     width: screenWidth - 40,
-    height: screenHeight * 0.8,
-    backgroundColor: '#FFFFFF',
+    height: screenHeight * 0.7, // Reduced from 0.8 to prevent action buttons being cut off by bottom tab bar
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   headerBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   headerName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   headerUndoButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8E8E93',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#8E8E93",
+    justifyContent: "center",
+    alignItems: "center",
   },
   verticalScrollView: {
     flex: 1,
   },
   firstPhoto: {
-    position: 'relative',
-    height: screenHeight * 0.65,
+    position: "relative",
+    height: screenHeight * 0.5, // Reduced from 0.65 to fit new card height
   },
   photoItem: {
-    height: screenHeight * 0.65,
+    height: screenHeight * 0.5, // Reduced from 0.65 to fit new card height
   },
   photo: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   ageLocationBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 15,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -384,13 +405,13 @@ const styles = StyleSheet.create({
   },
   badgePronounsAge: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
     marginBottom: 5,
   },
   badgeLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   badgeLocationText: {
     fontSize: 14,
@@ -398,10 +419,10 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   bioSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   bioText: {
     fontSize: 16,
@@ -409,20 +430,20 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   interestsSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 15,
   },
   interestsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   interestTag: {
@@ -433,47 +454,84 @@ const styles = StyleSheet.create({
   },
   interestText: {
     fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
   },
   bottomPadding: {
     height: 100, // Space for action buttons
   },
   actionButtons: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     paddingVertical: 10,
   },
   actionButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
   passButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: "#FF3B30",
   },
   likeButton: {
     backgroundColor: PRIMARY_COLOR,
   },
   requestButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: "#34C759",
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  // Like/Nope overlay indicators
+  likeIndicator: {
+    position: "absolute",
+    top: 60,
+    right: 20,
+    zIndex: 100,
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 4,
+    borderColor: "#4CD964",
+    backgroundColor: "rgba(76, 217, 100, 0.1)",
+  },
+  nopeIndicator: {
+    position: "absolute",
+    top: 60,
+    left: 20,
+    zIndex: 100,
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 4,
+    borderColor: "#FF3B30",
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+  },
+  likeText: {
+    color: "#4CD964",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginTop: 5,
+  },
+  nopeText: {
+    color: "#FF3B30",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginTop: 5,
   },
 });
 

@@ -684,7 +684,6 @@ const getEventAttendees = async (req, res) => {
         m.name,
         m.dob,
         m.gender,
-        m.city,
         m.bio,
         m.interests,
         m.profile_photo_url,
@@ -704,8 +703,8 @@ const getEventAttendees = async (req, res) => {
       LEFT JOIN member_photos mp ON m.id = mp.member_id
       WHERE er.event_id = $1 
         AND er.member_id != $2 
-        AND er.registration_status = 'attended'
-      GROUP BY m.id, m.name, m.dob, m.gender, m.city, m.bio, m.interests, m.profile_photo_url, m.username
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username
       ORDER BY m.name
     `;
 
@@ -2100,6 +2099,49 @@ const getEventById = async (req, res) => {
     );
     const categories = categoriesResult.rows.map((c) => c.name);
 
+    // Get registration count for this event
+    const registrationCountResult = await pool.query(
+      `SELECT COUNT(*) as count FROM event_registrations 
+       WHERE event_id = $1 AND registration_status IN ('registered', 'attended', 'confirmed')`,
+      [eventId]
+    );
+    const registrationCount = parseInt(
+      registrationCountResult.rows[0]?.count || 0
+    );
+
+    // Calculate ticket capacities
+    // Public tickets: access_type is null, 'open', or anything other than 'invite_only'
+    // limit_per_event NULL means unlimited
+    let totalPublicCapacity = 0;
+    let totalCapacity = 0;
+    let hasUnlimitedPublic = false;
+    let hasUnlimited = false;
+    let inviteOnlyCapacity = 0;
+
+    for (const ticket of ticketTypesResult.rows) {
+      const limit = ticket.limit_per_event;
+      const isInviteOnly = ticket.access_type === "invite_only";
+
+      if (limit === null || limit === undefined) {
+        hasUnlimited = true;
+        if (!isInviteOnly) {
+          hasUnlimitedPublic = true;
+        }
+      } else {
+        totalCapacity += parseInt(limit);
+        if (isInviteOnly) {
+          inviteOnlyCapacity += parseInt(limit);
+        } else {
+          totalPublicCapacity += parseInt(limit);
+        }
+      }
+    }
+
+    // is_mostly_invite_only: true if invite-only tickets are > 50% of total or whole event is invite-only
+    const isMostlyInviteOnly =
+      event.access_type === "invite_only" ||
+      (totalCapacity > 0 && inviteOnlyCapacity > totalCapacity * 0.5);
+
     console.log(`[getEventById] Event ${eventId}:`, {
       banner_count: bannerCarousel.length,
       gallery_count: gallery.length,
@@ -2197,7 +2239,25 @@ const getEventById = async (req, res) => {
       }
     }
 
+    // Calculate min_price from ALL tickets (before visibility filtering) for display
+    // This ensures frontend always shows the correct price even when tickets are hidden
+    const allTicketPrices = ticketTypesResult.rows.map(
+      (t) => parseFloat(t.base_price) || 0
+    );
+    const minPrice =
+      allTicketPrices.length > 0 ? Math.min(...allTicketPrices) : null;
+
+    // Check if there are tickets hidden from this user
+    const hasHiddenTickets =
+      ticketTypesResult.rows.length > filteredTicketTypes.length;
+
+    // Check if ALL tickets are invite-only (user needs invite to purchase any ticket)
+    const allTicketsInviteOnly =
+      ticketTypesResult.rows.length > 0 &&
+      ticketTypesResult.rows.every((t) => t.visibility === "invite_only");
+
     // Build response event with conditional location
+
     const responseEvent = {
       ...event,
       banner_carousel: bannerCarousel,
@@ -2216,6 +2276,10 @@ const getEventById = async (req, res) => {
       is_invited: isInvited,
       invite_request_status: inviteRequestStatus, // null, 'pending', 'approved', 'rejected'
       location_hidden: shouldHideLocation,
+      // Pricing info for display (even when tickets are hidden)
+      min_price: minPrice,
+      has_hidden_tickets: hasHiddenTickets,
+      all_tickets_invite_only: allTicketsInviteOnly,
     };
 
     // Hide location details if user is not invited to invite_only public event
@@ -2235,6 +2299,7 @@ const getEventById = async (req, res) => {
       success: true,
       event: responseEvent,
       server_time: new Date().toISOString(),
+      // Attendance data
       attendance_status:
         isRegistered && userId && userType === "member"
           ? registrationData?.attendance_status || null
@@ -2243,6 +2308,11 @@ const getEventById = async (req, res) => {
         isRegistered && userId && userType === "member"
           ? registrationData?.attendance_confirmed_at || null
           : null,
+      // Registration progress data for View Attendees
+      registration_count: registrationCount,
+      total_public_capacity: hasUnlimitedPublic ? null : totalPublicCapacity,
+      total_capacity: hasUnlimited ? null : totalCapacity,
+      is_mostly_invite_only: isMostlyInviteOnly,
     });
   } catch (error) {
     console.error("Error getting event:", error);

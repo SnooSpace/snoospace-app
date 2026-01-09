@@ -464,7 +464,69 @@ export default function MatchingScreen({ navigation, route }) {
     </TouchableOpacity>
   );
 
-  if (selectedEvent && attendees.length > 0) {
+  // Show attendees view when event is selected
+  if (selectedEvent) {
+    // Handle case when loading or no attendees
+    if (loading) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setSelectedEvent(null)}
+            >
+              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>
+              {selectedEvent.title || selectedEvent.name || "Event"}
+            </Text>
+            <View style={styles.headerRight} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+            <Text style={styles.loadingText}>Loading attendees...</Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    // No attendees for this event
+    if (attendees.length === 0) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setSelectedEvent(null)}
+            >
+              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>
+              {selectedEvent.title || selectedEvent.name || "Event"}
+            </Text>
+            <View style={styles.headerRight} />
+          </View>
+          <View style={styles.completeContainer}>
+            <Ionicons
+              name="people-outline"
+              size={80}
+              color={LIGHT_TEXT_COLOR}
+            />
+            <Text style={styles.completeTitle}>No Attendees Yet</Text>
+            <Text style={styles.completeText}>
+              No one else has registered for this event yet. Check back later!
+            </Text>
+            <TouchableOpacity
+              style={styles.backToEventsButton}
+              onPress={() => setSelectedEvent(null)}
+            >
+              <Text style={styles.backToEventsButtonText}>Back to Events</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
     const currentAttendee = attendees[currentIndex];
 
     if (currentIndex >= attendees.length) {
