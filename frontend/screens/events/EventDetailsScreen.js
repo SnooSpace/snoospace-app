@@ -1120,16 +1120,18 @@ const EventDetailsScreen = ({ route, navigation }) => {
               }
               activeOpacity={
                 (isRestrictedRole && !isInviteOnlyNotInvited) ||
-                inviteRequestStatus
+                (inviteRequestStatus && !isInvited)
                   ? 1
                   : 0.8
               }
-              disabled={requestingInvite || !!inviteRequestStatus}
+              disabled={
+                requestingInvite || (!!inviteRequestStatus && !isInvited)
+              }
             >
               <LinearGradient
                 colors={
-                  inviteRequestStatus === "pending"
-                    ? ["#9CA3AF", "#9CA3AF"] // Gray for "Requested"
+                  inviteRequestStatus === "pending" && !isInvited
+                    ? ["#9CA3AF", "#9CA3AF"] // Gray for "Requested" only if not yet invited
                     : isInviteOnlyNotInvited
                     ? ["#FF6B6B", "#FF8E8E"]
                     : isRestrictedRole
@@ -1146,7 +1148,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   <Text style={styles.registerButtonText}>
                     {isRegistered
                       ? "View Your Ticket"
-                      : inviteRequestStatus === "pending"
+                      : inviteRequestStatus === "pending" && !isInvited
                       ? "Requested"
                       : isInviteOnlyNotInvited
                       ? "Request Invite"

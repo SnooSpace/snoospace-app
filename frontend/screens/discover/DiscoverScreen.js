@@ -254,6 +254,14 @@ export default function DiscoverScreen({ navigation }) {
             {!profileComplete && <View style={styles.incompleteDot} />}
           </TouchableOpacity>
         </Animated.View>
+
+        {/* Activity Button */}
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={() => navigation.navigate("ActivityInsights")}
+        >
+          <Ionicons name="pulse-outline" size={22} color={TEXT_COLOR} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -421,6 +429,17 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#E65100",
+  },
+  activityButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
   incompleteBanner: {
     flexDirection: "row",

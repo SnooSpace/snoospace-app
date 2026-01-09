@@ -105,6 +105,19 @@ const TicketTypesEditor = ({ ticketTypes = [], onChange }) => {
   };
 
   const handleDelete = (index) => {
+    const ticket = ticketTypes[index];
+    const hasSoldTickets = (ticket.sold_count || 0) > 0 || ticket.id;
+
+    // If ticket has sold tickets, show a different warning
+    if (hasSoldTickets && (ticket.sold_count || 0) > 0) {
+      Alert.alert(
+        "Cannot Delete Ticket",
+        `This ticket type has ${ticket.sold_count} sold ticket(s). You cannot delete a ticket type that has been purchased by users.\n\nYou can edit the ticket details instead.`,
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     Alert.alert(
       "Delete Ticket Type",
       "Are you sure you want to delete this ticket type?",
@@ -195,7 +208,17 @@ const TicketTypesEditor = ({ ticketTypes = [], onChange }) => {
               style={styles.deleteButton}
               onPress={() => handleDelete(index)}
             >
-              <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+              <Ionicons
+                name={
+                  (ticket.sold_count || 0) > 0
+                    ? "lock-closed-outline"
+                    : "trash-outline"
+                }
+                size={20}
+                color={
+                  (ticket.sold_count || 0) > 0 ? LIGHT_TEXT_COLOR : "#FF3B30"
+                }
+              />
             </TouchableOpacity>
             <Ionicons
               name="chevron-forward"

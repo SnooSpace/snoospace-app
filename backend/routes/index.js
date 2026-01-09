@@ -542,6 +542,35 @@ router.get(
   DiscoverController.getSuggestedCommunities
 );
 
+// Activity & Insights
+const ActivityController = require("../controllers/activityController");
+router.post(
+  "/activity/view",
+  authMiddleware,
+  ActivityController.logProfileView
+);
+router.get(
+  "/activity/insights",
+  authMiddleware,
+  ActivityController.getActivityInsights
+);
+router.get(
+  "/connections/pending",
+  authMiddleware,
+  ActivityController.getPendingRequests
+);
+router.get("/connections", authMiddleware, ActivityController.getConnections);
+router.post(
+  "/connections/request",
+  authMiddleware,
+  ActivityController.sendConnectionRequest
+);
+router.post(
+  "/connections/:requestId/respond",
+  authMiddleware,
+  ActivityController.respondToRequest
+);
+
 // Discover Feed V2 (Category-based)
 router.get(
   "/discover/v2/feed",

@@ -661,6 +661,9 @@ const getEventAttendees = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
+    // Filter parameters
+    const { badges, interests, ageMin, ageMax } = req.query;
+
     if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
     }
@@ -677,6 +680,48 @@ const getEventAttendees = async (req, res) => {
         .json({ error: "You are not registered for this event" });
     }
 
+    // Build dynamic WHERE clause for filters
+    let filterConditions = [];
+    let filterParams = [eventId, userId];
+    let paramIndex = 3;
+
+    // Age filter (calculate from dob)
+    if (ageMin) {
+      filterConditions.push(
+        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) >= $${paramIndex}`
+      );
+      filterParams.push(parseInt(ageMin));
+      paramIndex++;
+    }
+    if (ageMax) {
+      filterConditions.push(
+        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) <= $${paramIndex}`
+      );
+      filterParams.push(parseInt(ageMax));
+      paramIndex++;
+    }
+
+    // Badges filter (intent_badges array overlap)
+    if (badges) {
+      const badgeArray = badges.split(",").map((b) => b.trim());
+      filterConditions.push(`m.intent_badges && $${paramIndex}::text[]`);
+      filterParams.push(badgeArray);
+      paramIndex++;
+    }
+
+    // Interests filter (interests array overlap)
+    if (interests) {
+      const interestArray = interests.split(",").map((i) => i.trim());
+      filterConditions.push(`m.interests && $${paramIndex}::text[]`);
+      filterParams.push(interestArray);
+      paramIndex++;
+    }
+
+    const filterClause =
+      filterConditions.length > 0
+        ? `AND ${filterConditions.join(" AND ")}`
+        : "";
+
     // Get attendees with their photos and exclude the current user
     const query = `
       SELECT 
@@ -688,6 +733,9 @@ const getEventAttendees = async (req, res) => {
         m.interests,
         m.profile_photo_url,
         m.username,
+        m.intent_badges,
+        m.pronouns,
+        m.show_pronouns,
         COALESCE(
           json_agg(
             json_build_object(
@@ -704,13 +752,14 @@ const getEventAttendees = async (req, res) => {
       WHERE er.event_id = $1 
         AND er.member_id != $2 
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
-      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username
+        ${filterClause}
+      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns
       ORDER BY m.name
     `;
 
-    const result = await pool.query(query, [eventId, userId]);
+    const result = await pool.query(query, filterParams);
 
-    // Calculate age for each member
+    // Calculate age for each member and format pronouns
     const attendees = result.rows.map((attendee) => {
       const birthDate = new Date(attendee.dob);
       const today = new Date();
@@ -723,9 +772,27 @@ const getEventAttendees = async (req, res) => {
         age--;
       }
 
+      // Format pronouns if visible
+      let pronounsDisplay = null;
+      if (attendee.show_pronouns !== false && attendee.pronouns) {
+        if (typeof attendee.pronouns === "string") {
+          // Parse Postgres array format
+          const match = attendee.pronouns.match(/\{([^}]*)\}/);
+          if (match) {
+            pronounsDisplay = match[1].split(",").join("/");
+          } else {
+            pronounsDisplay = attendee.pronouns;
+          }
+        } else if (Array.isArray(attendee.pronouns)) {
+          pronounsDisplay = attendee.pronouns.join("/");
+        }
+      }
+
       return {
         ...attendee,
         age,
+        pronouns: pronounsDisplay,
+        intent_badges: attendee.intent_badges || [],
         photos:
           attendee.photos.length > 0
             ? attendee.photos
@@ -744,6 +811,12 @@ const getEventAttendees = async (req, res) => {
     res.json({
       success: true,
       attendees,
+      filters: {
+        badges: badges ? badges.split(",") : null,
+        interests: interests ? interests.split(",") : null,
+        ageMin: ageMin ? parseInt(ageMin) : null,
+        ageMax: ageMax ? parseInt(ageMax) : null,
+      },
     });
   } catch (error) {
     console.error("Error getting event attendees:", error);
@@ -1671,15 +1744,68 @@ const updateEvent = async (req, res) => {
         `[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`
       );
 
-      // Delete existing ticket types
-      await pool.query("DELETE FROM ticket_types WHERE event_id = $1", [
-        eventId,
-      ]);
+      // Get existing ticket type IDs to track which ones to keep
+      // Convert to Number to ensure consistent comparison (database may return BigInt)
+      const existingTicketsResult = await pool.query(
+        "SELECT id FROM ticket_types WHERE event_id = $1",
+        [eventId]
+      );
+      const existingIds = new Set(
+        existingTicketsResult.rows.map((r) => parseInt(r.id))
+      );
+      const incomingIds = new Set();
 
-      // Insert new ticket types
-      if (ticket_types.length > 0) {
-        const ticketInserts = ticket_types.map((ticket, index) =>
-          pool.query(
+      console.log(`[updateEvent] Existing ticket IDs:`, [...existingIds]);
+
+      // Upsert ticket types (update existing, insert new)
+      for (let index = 0; index < ticket_types.length; index++) {
+        const ticket = ticket_types[index];
+
+        if (ticket.id) {
+          // Update existing ticket type
+          const ticketId = parseInt(ticket.id);
+          incomingIds.add(ticketId);
+          console.log(
+            `[updateEvent] Updating existing ticket type ${ticketId}`
+          );
+          await pool.query(
+            `UPDATE ticket_types SET 
+              name = $1, description = $2, base_price = $3, total_quantity = $4,
+              sale_start_at = $5, sale_end_at = $6, visibility = $7, access_code = $8,
+              min_per_order = $9, max_per_order = $10, max_per_user = $11, refund_policy = $12,
+              display_order = $13, is_active = $14, updated_at = NOW()
+            WHERE id = $15 AND event_id = $16`,
+            [
+              ticket.name,
+              ticket.description || null,
+              ticket.base_price || 0,
+              ticket.total_quantity || null,
+              ticket.sale_start_at || null,
+              ticket.sale_end_at || null,
+              ticket.visibility || "public",
+              ticket.access_code || null,
+              ticket.min_per_order || 1,
+              ticket.max_per_order || 10,
+              ticket.max_per_user || null,
+              JSON.stringify(
+                ticket.refund_policy || {
+                  allowed: true,
+                  deadline_hours_before: 24,
+                  percentage: 100,
+                }
+              ),
+              index,
+              ticket.is_active !== false,
+              ticketId,
+              eventId,
+            ]
+          );
+        } else {
+          // Insert new ticket type
+          console.log(
+            `[updateEvent] Inserting new ticket type: ${ticket.name}`
+          );
+          await pool.query(
             `INSERT INTO ticket_types (
               event_id, name, description, base_price, total_quantity,
               sale_start_at, sale_end_at, visibility, access_code,
@@ -1709,13 +1835,54 @@ const updateEvent = async (req, res) => {
               index,
               ticket.is_active !== false,
             ]
-          )
-        );
-        await Promise.all(ticketInserts);
-        console.log(
-          `[updateEvent] Successfully saved ${ticket_types.length} ticket types`
-        );
+          );
+        }
       }
+
+      console.log(`[updateEvent] Incoming ticket IDs:`, [...incomingIds]);
+
+      // Delete ticket types that are no longer in the list
+      // Only delete if they have no sold tickets or active gifts
+      const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+      console.log(`[updateEvent] IDs to delete:`, idsToDelete);
+      if (idsToDelete.length > 0) {
+        // Check for dependencies before deleting
+        for (const id of idsToDelete) {
+          // Check if ticket has any sold tickets or active gifts
+          const hasDependencies = await pool.query(
+            `SELECT 
+              (SELECT COALESCE(sold_count, 0) FROM ticket_types WHERE id = $1) as sold_count,
+              EXISTS(SELECT 1 FROM ticket_gifts WHERE ticket_type_id = $1 AND status = 'active') as has_gifts,
+              EXISTS(SELECT 1 FROM registration_tickets WHERE ticket_type_id = $1) as has_registrations`,
+            [id]
+          );
+
+          const { sold_count, has_gifts, has_registrations } =
+            hasDependencies.rows[0] || {};
+          const hasSoldTickets =
+            parseInt(sold_count || 0) > 0 || has_gifts || has_registrations;
+
+          if (!hasSoldTickets) {
+            await pool.query("DELETE FROM ticket_types WHERE id = $1", [id]);
+            console.log(
+              `[updateEvent] Deleted ticket type ${id} (no dependencies)`
+            );
+          } else {
+            // Mark as inactive instead of deleting - ticket has sold tickets
+            await pool.query(
+              "UPDATE ticket_types SET is_active = false WHERE id = $1",
+              [id]
+            );
+            console.log(
+              `[updateEvent] Deactivated ticket type ${id} (has sold tickets: sold_count=${sold_count}, gifts=${has_gifts}, registrations=${has_registrations})`
+            );
+          }
+        }
+      }
+
+      console.log(
+        `[updateEvent] Successfully saved ${ticket_types.length} ticket types`
+      );
     }
 
     // Update discount_codes if provided
@@ -4187,7 +4354,7 @@ const requestInvite = async (req, res) => {
       return res.status(403).json({ error: "Members only" });
     }
 
-    // Check event exists and is invite_only
+    // Check event exists and is invite_only (either event-level or has invite_only ticket types)
     const eventResult = await pool.query(
       "SELECT id, title, access_type, creator_id FROM events WHERE id = $1",
       [eventId]
@@ -4197,7 +4364,17 @@ const requestInvite = async (req, res) => {
     }
     const event = eventResult.rows[0];
 
-    if (event.access_type !== "invite_only") {
+    // Check if event has invite_only ticket types
+    const inviteOnlyTicketsResult = await pool.query(
+      `SELECT id FROM ticket_types 
+       WHERE event_id = $1 AND visibility = 'invite_only' AND is_active = true 
+       LIMIT 1`,
+      [eventId]
+    );
+    const hasInviteOnlyTickets = inviteOnlyTicketsResult.rows.length > 0;
+
+    // Allow invite request if either event-level is invite_only OR has invite_only ticket types
+    if (event.access_type !== "invite_only" && !hasInviteOnlyTickets) {
       return res
         .status(400)
         .json({ error: "This event doesn't require an invite" });
@@ -4233,6 +4410,8 @@ const requestInvite = async (req, res) => {
       await notificationService.createNotification({
         recipientId: event.creator_id,
         recipientType: "community",
+        actorId: userId,
+        actorType: "member",
         type: "invite_request",
         title: "Invite Request",
         message: `${memberName} wants to join "${event.title}"`,

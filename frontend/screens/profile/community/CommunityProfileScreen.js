@@ -822,7 +822,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
   if (authError) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <StatusBar translucent backgroundColor="transparent" style="dark" />
         <View style={styles.errorContainer}>
           <Ionicons
@@ -840,7 +840,7 @@ export default function CommunityProfileScreen({ navigation }) {
             <Text style={styles.reloginButtonText}>Re-login</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 

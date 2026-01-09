@@ -11,9 +11,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { apiGet } from "../../api/client";
+import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
+import HapticsService from "../../services/HapticsService";
 
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
@@ -25,20 +27,39 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [skippedIds, setSkippedIds] = useState(new Set());
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({});
 
   useEffect(() => {
     if (event) {
       loadAttendees();
     }
-  }, [event]);
+  }, [event, activeFilters]);
 
-  const loadAttendees = async () => {
+  const loadAttendees = async (filters = activeFilters) => {
     try {
       setLoading(true);
       const token = await getAuthToken();
       if (token) {
+        // Build query string with filters
+        let queryParams = [];
+        if (filters.badges && filters.badges.length > 0) {
+          queryParams.push(`badges=${filters.badges.join(",")}`);
+        }
+        if (filters.interests && filters.interests.length > 0) {
+          queryParams.push(`interests=${filters.interests.join(",")}`);
+        }
+        if (filters.ageMin) {
+          queryParams.push(`ageMin=${filters.ageMin}`);
+        }
+        if (filters.ageMax) {
+          queryParams.push(`ageMax=${filters.ageMax}`);
+        }
+        const queryString =
+          queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
+
         const response = await apiGet(
-          `/events/${event.id}/attendees`,
+          `/events/${event.id}/attendees${queryString}`,
           15000,
           token
         );
@@ -97,15 +118,19 @@ export default function ProfileFeedScreen({ route, navigation }) {
   };
 
   const handleFilterPress = () => {
-    Alert.alert(
-      "Discovery Filters",
-      "Filter by goals, interests, or view skipped profiles",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "View Skipped", onPress: () => {} },
-      ]
-    );
+    HapticsService.triggerImpactLight();
+    setFilterSheetVisible(true);
   };
+
+  const handleApplyFilters = (filters) => {
+    setActiveFilters(filters);
+  };
+
+  // Count active filter groups
+  const activeFilterCount =
+    (activeFilters.badges?.length > 0 ? 1 : 0) +
+    (activeFilters.interests?.length > 0 ? 1 : 0) +
+    (activeFilters.ageMin || activeFilters.ageMax ? 1 : 0);
 
   if (loading) {
     return (
@@ -161,15 +186,24 @@ export default function ProfileFeedScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.feedHeaderCenter}>
           <Text style={styles.feedHeaderTitle}>{event?.title}</Text>
-          <Text style={styles.feedHeaderSubtitle}>
-            {currentIndex + 1} of {attendees.length}
-          </Text>
         </View>
         <TouchableOpacity
-          style={styles.filterButton}
+          style={[
+            styles.filterButton,
+            activeFilterCount > 0 && styles.filterButtonActive,
+          ]}
           onPress={handleFilterPress}
         >
-          <Ionicons name="options-outline" size={24} color={TEXT_COLOR} />
+          <Ionicons
+            name="options-outline"
+            size={24}
+            color={activeFilterCount > 0 ? PRIMARY_COLOR : TEXT_COLOR}
+          />
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -191,11 +225,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
         {/* Name */}
         <Text style={styles.profileName}>{currentAttendee.name}</Text>
 
-        {/* College/Organization */}
-        <Text style={styles.profileCollege}>
-          {currentAttendee.college || event?.title}
-        </Text>
-
         {/* Photo */}
         <View style={styles.profilePhotoContainer}>
           <Image
@@ -204,6 +233,21 @@ export default function ProfileFeedScreen({ route, navigation }) {
             resizeMode="cover"
           />
         </View>
+
+        {/* Age - between photo and interests */}
+        {currentAttendee.age && (
+          <View style={styles.ageRow}>
+            <Text style={styles.ageText}>
+              🎂 <Text style={styles.ageBold}>{currentAttendee.age}</Text>
+            </Text>
+            {currentAttendee.pronouns && (
+              <Text style={styles.pronounsText}>
+                {" "}
+                · {currentAttendee.pronouns}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Interests */}
         {currentAttendee.interests && currentAttendee.interests.length > 0 && (
@@ -217,15 +261,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
               ))}
             </View>
           </View>
-        )}
-
-        {/* Age/Pronouns - SECONDARY (muted) */}
-        {(currentAttendee.age || currentAttendee.pronouns) && (
-          <Text style={styles.secondaryInfo}>
-            {currentAttendee.age ? `${currentAttendee.age}` : ""}
-            {currentAttendee.age && currentAttendee.pronouns ? " · " : ""}
-            {currentAttendee.pronouns || ""}
-          </Text>
         )}
 
         {/* Bottom padding */}
@@ -258,6 +293,14 @@ export default function ProfileFeedScreen({ route, navigation }) {
           <Text style={styles.messageButtonText}>Message</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Filter Sheet */}
+      <DiscoverFilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
+        onApply={handleApplyFilters}
+        initialFilters={activeFilters}
+      />
     </SafeAreaView>
   );
 }
@@ -316,6 +359,27 @@ const styles = StyleSheet.create({
   },
   filterButton: {
     padding: SPACING.s,
+    position: "relative",
+  },
+  filterButtonActive: {
+    backgroundColor: "#F0F7FF",
+    borderRadius: 8,
+  },
+  filterBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   profileScroll: {
     flex: 1,
@@ -357,11 +421,28 @@ const styles = StyleSheet.create({
     aspectRatio: 4 / 5,
     borderRadius: BORDER_RADIUS.xl,
     overflow: "hidden",
-    marginBottom: SPACING.l,
+    marginBottom: SPACING.m,
   },
   profilePhoto: {
     width: "100%",
     height: "100%",
+  },
+  ageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.m,
+  },
+  ageText: {
+    fontSize: 15,
+    color: LIGHT_TEXT_COLOR,
+  },
+  ageBold: {
+    fontWeight: "700",
+    color: TEXT_COLOR,
+  },
+  pronounsText: {
+    fontSize: 15,
+    color: LIGHT_TEXT_COLOR,
   },
   interestsSection: {
     marginBottom: SPACING.m,
