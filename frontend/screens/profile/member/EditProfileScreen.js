@@ -80,6 +80,30 @@ export default function EditProfileScreen({ route, navigation }) {
         profile?.name || "Member"
       )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`
   );
+
+  // Networking extension states
+  const [intentBadges, setIntentBadges] = useState(
+    profile?.intent_badges || []
+  );
+  const [availableToday, setAvailableToday] = useState(
+    profile?.available_today || false
+  );
+  const [availableThisWeek, setAvailableThisWeek] = useState(
+    profile?.available_this_week || false
+  );
+  const [promptQuestion, setPromptQuestion] = useState(
+    profile?.prompt_question || ""
+  );
+  const [promptAnswer, setPromptAnswer] = useState(
+    profile?.prompt_answer || ""
+  );
+  const [appearInDiscover, setAppearInDiscover] = useState(
+    profile?.appear_in_discover !== false
+  );
+  const [showAvailability, setShowAvailability] = useState(
+    profile?.show_availability !== false
+  );
+
   const allowLeaveRef = useRef(false);
 
   useEffect(() => {
@@ -495,8 +519,8 @@ export default function EditProfileScreen({ route, navigation }) {
               variant="gradient-pastel"
             />
           </View>
-
-          {/* Location is managed automatically while the app is in use */}
+          
+          
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -643,5 +667,107 @@ const styles = StyleSheet.create({
   },
   locationInput: {
     marginBottom: 0,
+  },
+  // Networking extension styles
+  sectionHint: {
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 12,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F2F2F7",
+  },
+  toggleLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    color: TEXT_COLOR,
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 2,
+  },
+  toggle: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#E5E5EA",
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: PRIMARY_COLOR,
+  },
+  toggleKnob: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+  },
+  toggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  promptSelector: {
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 12,
+  },
+  promptOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    backgroundColor: "#FAFAFA",
+  },
+  promptOptionActive: {
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: "#F8F5FF",
+  },
+  promptOptionText: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+  },
+  promptOptionTextActive: {
+    color: PRIMARY_COLOR,
+    fontWeight: "500",
+  },
+  promptAnswerInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  // New styles for Goal Badges section
+  highlightedSection: {
+    backgroundColor: "#F8FFF8",
+    borderLeftWidth: 3,
+    borderLeftColor: "#2E7D32",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  requiredBadge: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    backgroundColor: "#2E7D32",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  warningText: {
+    fontSize: 13,
+    color: "#E65100",
+    marginTop: 8,
   },
 });

@@ -139,7 +139,8 @@ async function getProfile(req, res) {
 
     // Get member profile
     const memberResult = await pool.query(
-      `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at
+      `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
+              intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -170,21 +171,80 @@ async function getProfile(req, res) {
       [userId]
     );
 
-    const posts = postsResult.rows.map((post) => ({
-      ...post,
-      image_urls: JSON.parse(post.image_urls),
-    }));
+    const posts = postsResult.rows.map((post) => {
+      let imageUrls = post.image_urls;
+      // Safely parse image_urls - only if it's a JSON-formatted string
+      if (typeof imageUrls === "string") {
+        try {
+          // Only parse if it looks like JSON (starts with [ or {)
+          if (imageUrls.startsWith("[") || imageUrls.startsWith("{")) {
+            imageUrls = JSON.parse(imageUrls);
+          } else {
+            // It's a plain URL string, wrap in array
+            imageUrls = [imageUrls];
+          }
+        } catch (e) {
+          // If parsing fails, treat as single URL
+          imageUrls = imageUrls ? [imageUrls] : [];
+        }
+      } else if (!Array.isArray(imageUrls)) {
+        imageUrls = imageUrls ? [imageUrls] : [];
+      }
+      return {
+        ...post,
+        image_urls: imageUrls,
+      };
+    });
+
+    // Safely parse interests
+    let interests = member.interests;
+    if (typeof interests === "string") {
+      try {
+        if (interests.startsWith("[") || interests.startsWith("{")) {
+          interests = JSON.parse(interests);
+        } else {
+          // It's a comma-separated string, split it
+          interests = interests
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+        }
+      } catch (e) {
+        interests = interests
+          ? interests
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0)
+          : [];
+      }
+    } else if (!Array.isArray(interests)) {
+      interests = [];
+    }
+
+    // Safely parse location
+    let location = member.location;
+    if (typeof location === "string") {
+      try {
+        location = JSON.parse(location);
+      } catch (e) {
+        location = null;
+      }
+    }
 
     const profileData = {
       ...member,
-      interests: JSON.parse(member.interests),
+      interests,
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
       pronouns: parsePgTextArray(member.pronouns),
-      location:
-        typeof member.location === "string"
-          ? JSON.parse(member.location)
-          : member.location,
+      location,
+      // Discover profile fields
+      intent_badges: parsePgTextArray(member.intent_badges) || [],
+      available_today: member.available_today || false,
+      available_this_week: member.available_this_week || false,
+      prompt_question: member.prompt_question || "",
+      prompt_answer: member.prompt_answer || "",
+      appear_in_discover: member.appear_in_discover !== false,
     };
 
     res.json({
@@ -371,7 +431,21 @@ async function patchProfile(req, res) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const { name, bio, phone, pronouns, interests, location } = req.body || {};
+    const {
+      name,
+      bio,
+      phone,
+      pronouns,
+      interests,
+      location,
+      // Discovery profile fields
+      intent_badges,
+      available_today,
+      available_this_week,
+      prompt_question,
+      prompt_answer,
+      appear_in_discover,
+    } = req.body || {};
 
     const updates = [];
     const values = [];
@@ -473,6 +547,50 @@ async function patchProfile(req, res) {
       } else if (location === null) {
         updates.push(`location = NULL`);
       }
+    }
+
+    // Discovery profile fields
+    if (intent_badges !== undefined) {
+      if (Array.isArray(intent_badges)) {
+        const sanitized = intent_badges
+          .filter((b) => typeof b === "string" && b.trim().length > 0)
+          .slice(0, 3); // Max 3 badges
+        updates.push(`intent_badges = $${paramIndex++}::text[]`);
+        values.push(sanitized);
+      }
+    }
+
+    if (available_today !== undefined) {
+      updates.push(`available_today = $${paramIndex++}`);
+      values.push(!!available_today);
+    }
+
+    if (available_this_week !== undefined) {
+      updates.push(`available_this_week = $${paramIndex++}`);
+      values.push(!!available_this_week);
+    }
+
+    if (prompt_question !== undefined) {
+      const sanitized =
+        typeof prompt_question === "string"
+          ? prompt_question.trim().substring(0, 200)
+          : null;
+      updates.push(`prompt_question = $${paramIndex++}`);
+      values.push(sanitized);
+    }
+
+    if (prompt_answer !== undefined) {
+      const sanitized =
+        typeof prompt_answer === "string"
+          ? prompt_answer.trim().substring(0, 200)
+          : null;
+      updates.push(`prompt_answer = $${paramIndex++}`);
+      values.push(sanitized);
+    }
+
+    if (appear_in_discover !== undefined) {
+      updates.push(`appear_in_discover = $${paramIndex++}`);
+      values.push(!!appear_in_discover);
     }
 
     if (updates.length === 0) {

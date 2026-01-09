@@ -14,8 +14,7 @@ import Animated, {
 import HomeStackNavigator from "./HomeStackNavigator";
 import SearchStackNavigator from "./SearchStackNavigator";
 import ProfileStackNavigator from "./ProfileStackNavigator";
-// Import screens
-import MatchingScreen from "../screens/matching/MatchingScreen";
+import DiscoverStackNavigator from "./DiscoverStackNavigator";
 import EventsStackNavigator from "./EventsStackNavigator";
 
 const Tab = createBottomTabNavigator();
@@ -66,8 +65,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
             iconName = focused ? "home" : "home-outline";
           } else if (route.name === "Search") {
             iconName = focused ? "search" : "search-outline";
-          } else if (route.name === "Matching") {
-            iconName = focused ? "heart" : "heart-outline";
+          } else if (route.name === "Discover") {
+            iconName = focused ? "compass" : "compass-outline";
           } else if (route.name === "YourEvents") {
             iconName = focused ? "calendar" : "calendar-outline";
           } else if (route.name === "Profile") {
@@ -173,9 +172,36 @@ const BottomTabNavigator = ({ navigation, route }) => {
         options={{ tabBarLabel: "Search" }}
       />
       <Tab.Screen
-        name="Matching"
-        component={MatchingScreen}
-        options={{ tabBarLabel: "Matching" }}
+        name="Discover"
+        component={DiscoverStackNavigator}
+        options={({ route }) => ({
+          tabBarLabel: "Discover",
+          tabBarStyle: (() => {
+            const routeName =
+              getFocusedRouteNameFromRoute(route) ?? "DiscoverHome";
+            if (
+              routeName === "ProfileFeed" ||
+              routeName === "Chat" ||
+              routeName === "EditDiscoverProfile"
+            ) {
+              return { display: "none" };
+            }
+            return {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: "transparent",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              height: 85,
+              borderTopWidth: 0,
+              elevation: 0,
+              shadowOpacity: 0,
+              paddingBottom: 0,
+            };
+          })(),
+        })}
       />
       <Tab.Screen
         name="YourEvents"
