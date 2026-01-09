@@ -140,7 +140,8 @@ async function getProfile(req, res) {
     // Get member profile
     const memberResult = await pool.query(
       `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
-              intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover
+              intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
+              discover_photos, openers, show_pronouns
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -245,6 +246,33 @@ async function getProfile(req, res) {
       prompt_question: member.prompt_question || "",
       prompt_answer: member.prompt_answer || "",
       appear_in_discover: member.appear_in_discover !== false,
+      // New discover profile fields
+      discover_photos: (() => {
+        if (!member.discover_photos) return [];
+        if (Array.isArray(member.discover_photos))
+          return member.discover_photos;
+        if (typeof member.discover_photos === "string") {
+          try {
+            return JSON.parse(member.discover_photos);
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      })(),
+      openers: (() => {
+        if (!member.openers) return [];
+        if (Array.isArray(member.openers)) return member.openers;
+        if (typeof member.openers === "string") {
+          try {
+            return JSON.parse(member.openers);
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      })(),
+      show_pronouns: member.show_pronouns !== false,
     };
 
     res.json({
@@ -445,6 +473,10 @@ async function patchProfile(req, res) {
       prompt_question,
       prompt_answer,
       appear_in_discover,
+      // New discover profile fields
+      discover_photos,
+      openers,
+      show_pronouns,
     } = req.body || {};
 
     const updates = [];
@@ -591,6 +623,40 @@ async function patchProfile(req, res) {
     if (appear_in_discover !== undefined) {
       updates.push(`appear_in_discover = $${paramIndex++}`);
       values.push(!!appear_in_discover);
+    }
+
+    // New discover profile fields
+    if (discover_photos !== undefined) {
+      if (Array.isArray(discover_photos)) {
+        // Store as JSONB array of photo URLs/objects
+        updates.push(`discover_photos = $${paramIndex++}::jsonb`);
+        values.push(JSON.stringify(discover_photos.slice(0, 4))); // Max 4 photos
+      }
+    }
+
+    if (openers !== undefined) {
+      if (Array.isArray(openers)) {
+        // Store as JSONB array of {prompt, response} objects
+        const sanitized = openers
+          .filter(
+            (o) =>
+              o &&
+              typeof o.prompt === "string" &&
+              typeof o.response === "string"
+          )
+          .slice(0, 3) // Max 3 openers
+          .map((o) => ({
+            prompt: o.prompt.trim().substring(0, 200),
+            response: o.response.trim().substring(0, 200),
+          }));
+        updates.push(`openers = $${paramIndex++}::jsonb`);
+        values.push(JSON.stringify(sanitized));
+      }
+    }
+
+    if (show_pronouns !== undefined) {
+      updates.push(`show_pronouns = $${paramIndex++}`);
+      values.push(!!show_pronouns);
     }
 
     if (updates.length === 0) {

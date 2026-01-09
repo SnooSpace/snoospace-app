@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  TextInput,
+  Image,
   Alert,
   ActivityIndicator,
 } from "react-native";
@@ -14,52 +14,99 @@ import { Ionicons } from "@expo/vector-icons";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
 import { updateMemberProfile } from "../../api/members";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import ChipSelector from "../../components/ChipSelector";
 import HapticsService from "../../services/HapticsService";
-import GradientButton from "../../components/GradientButton";
+import ImageUploader from "../../components/ImageUploader";
 
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 const PRIMARY_COLOR = COLORS.primary;
 
+// Goal Badge Presets
+const GOAL_BADGE_PRESETS = [
+  // Networking Intent
+  "Looking for a co-founder",
+  "Seeking mentorship",
+  "Open to collaborations",
+  "Exploring opportunities",
+  // Social Intent
+  "Open to friendships",
+  "New to the city",
+  "Wants to play sports",
+  "Looking for study partners",
+  // Event-Specific
+  "Here to learn",
+  "Just curious",
+  "Looking for teammates",
+];
+
 export default function EditDiscoverProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Profile data
+  const [name, setName] = useState("");
+  const [age, setAge] = useState(null);
+  const [pronouns, setPronouns] = useState([]);
+  const [showPronouns, setShowPronouns] = useState(true);
+  const [photos, setPhotos] = useState([]);
   const [goalBadges, setGoalBadges] = useState([]);
-  const [availableToday, setAvailableToday] = useState(false);
-  const [availableThisWeek, setAvailableThisWeek] = useState(false);
-  const [promptQuestion, setPromptQuestion] = useState("");
-  const [promptAnswer, setPromptAnswer] = useState("");
+  const [openers, setOpeners] = useState([]);
   const [appearInDiscover, setAppearInDiscover] = useState(true);
 
-  // Track initial values for change detection
+  // Initial state for change detection
   const [initialState, setInitialState] = useState(null);
+  const imageUploaderRef = useRef(null);
+  const hasLoadedRef = useRef(false);
 
+  // Only load profile once on mount, not on every focus
   useEffect(() => {
-    loadProfile();
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadProfile();
+    }
   }, []);
 
   const loadProfile = async () => {
     try {
+      setLoading(true);
       const token = await getAuthToken();
       if (token) {
         const response = await apiGet("/members/profile", 15000, token);
         const profile = response.profile || response;
+
+        // Calculate age from DOB
+        let calculatedAge = null;
+        if (profile.dob) {
+          const dob = new Date(profile.dob);
+          const today = new Date();
+          calculatedAge = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+            calculatedAge--;
+          }
+        }
+
         const loadedState = {
+          name: profile.name || "",
+          age: calculatedAge,
+          pronouns: profile.pronouns || [],
+          showPronouns: profile.show_pronouns !== false,
+          photos: profile.discover_photos || [],
           goalBadges: profile.intent_badges || [],
-          availableToday: profile.available_today || false,
-          availableThisWeek: profile.available_this_week || false,
-          promptQuestion: profile.prompt_question || "",
-          promptAnswer: profile.prompt_answer || "",
+          openers: profile.openers || [],
           appearInDiscover: profile.appear_in_discover !== false,
         };
+
+        setName(loadedState.name);
+        setAge(loadedState.age);
+        setPronouns(loadedState.pronouns);
+        setShowPronouns(loadedState.showPronouns);
+        setPhotos(loadedState.photos);
         setGoalBadges(loadedState.goalBadges);
-        setAvailableToday(loadedState.availableToday);
-        setAvailableThisWeek(loadedState.availableThisWeek);
-        setPromptQuestion(loadedState.promptQuestion);
-        setPromptAnswer(loadedState.promptAnswer);
+        setOpeners(loadedState.openers);
         setAppearInDiscover(loadedState.appearInDiscover);
         setInitialState(loadedState);
       }
@@ -70,20 +117,26 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
   };
 
-  // Check if any changes have been made
   const hasChanges = () => {
     if (!initialState) return false;
     return (
+      JSON.stringify(photos) !== JSON.stringify(initialState.photos) ||
       JSON.stringify(goalBadges) !== JSON.stringify(initialState.goalBadges) ||
-      availableToday !== initialState.availableToday ||
-      availableThisWeek !== initialState.availableThisWeek ||
-      promptQuestion !== initialState.promptQuestion ||
-      promptAnswer !== initialState.promptAnswer ||
+      JSON.stringify(openers) !== JSON.stringify(initialState.openers) ||
+      showPronouns !== initialState.showPronouns ||
       appearInDiscover !== initialState.appearInDiscover
     );
   };
 
   const handleSave = async () => {
+    // Validation
+    if (photos.length === 0) {
+      Alert.alert(
+        "Required",
+        "Please add at least 1 photo so people can recognize you at events"
+      );
+      return;
+    }
     if (goalBadges.length === 0) {
       Alert.alert(
         "Required",
@@ -91,30 +144,33 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       );
       return;
     }
+    if (openers.length === 0) {
+      Alert.alert("Required", "Please add at least 1 conversation starter");
+      return;
+    }
 
     try {
       setSaving(true);
       await updateMemberProfile({
+        discover_photos: photos,
         intent_badges: goalBadges,
-        available_today: availableToday,
-        available_this_week: availableThisWeek,
-        prompt_question: promptQuestion,
-        prompt_answer: promptAnswer,
+        openers: openers,
+        show_pronouns: showPronouns,
         appear_in_discover: appearInDiscover,
       });
       HapticsService.triggerNotificationSuccess();
 
-      // Update initial state to current (so hasChanges becomes false)
       setInitialState({
+        name,
+        age,
+        pronouns,
+        showPronouns,
+        photos,
         goalBadges,
-        availableToday,
-        availableThisWeek,
-        promptQuestion,
-        promptAnswer,
+        openers,
         appearInDiscover,
       });
 
-      // Show success toast
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -128,15 +184,46 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
   };
 
+  // ImageUploader callback - receives array of image URIs
+  const handlePhotosChange = (newPhotos) => {
+    setPhotos(newPhotos);
+    HapticsService.triggerSelection();
+  };
+
+  const handleAddOpener = () => {
+    if (openers.length >= 3) {
+      Alert.alert(
+        "Maximum Openers",
+        "You can add up to 3 conversation starters"
+      );
+      return;
+    }
+    navigation.navigate("OpenerSelection", {
+      onSelect: (opener) => {
+        setOpeners([...openers, opener]);
+      },
+    });
+  };
+
+  const handleRemoveOpener = (index) => {
+    const newOpeners = [...openers];
+    newOpeners.splice(index, 1);
+    setOpeners(newOpeners);
+    HapticsService.triggerSelection();
+  };
+
   const getCompletionPercentage = () => {
     let score = 0;
-    if (goalBadges.length > 0) score += 50;
-    if (promptQuestion && promptAnswer) score += 30;
-    if (availableToday || availableThisWeek) score += 20;
-    return score;
+    if (photos.length > 0) score += 25;
+    if (goalBadges.length > 0) score += 25;
+    if (openers.length > 0) score += 25;
+    if (photos.length >= 2) score += 15;
+    if (openers.length >= 2) score += 10;
+    return Math.min(score, 100);
   };
 
   const changesExist = hasChanges();
+  const completion = getCompletionPercentage();
 
   if (loading) {
     return (
@@ -147,8 +234,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       </SafeAreaView>
     );
   }
-
-  const completion = getCompletionPercentage();
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -188,49 +273,122 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         </View>
       )}
 
-      {/* Completion Indicator */}
+      {/* Completion Bar */}
       <View style={styles.completionBar}>
         <View style={styles.completionTrack}>
           <View style={[styles.completionFill, { width: `${completion}%` }]} />
         </View>
         <Text style={styles.completionText}>
           {completion}% complete{" "}
-          {completion < 50 && "· Add goals to appear in discovery"}
+          {completion < 75 && "· Complete your profile to be discovered"}
         </Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Goal Badges - MANDATORY */}
+        {/* SECTION 1: Photos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <Text style={styles.requiredBadge}>Required</Text>
+          </View>
+          <Text style={styles.sectionHint}>
+            Add 1-4 photos so people can recognize you at events
+          </Text>
+
+          <ImageUploader
+            ref={imageUploaderRef}
+            onImagesChange={handlePhotosChange}
+            maxImages={4}
+            enableCrop={true}
+            cropPreset="feed_portrait"
+            initialImages={photos}
+            style={{ marginBottom: 0 }}
+          />
+
+          {photos.length === 0 && (
+            <Text style={styles.warningText}>
+              ⚠️ Add at least 1 photo to appear in discovery
+            </Text>
+          )}
+        </View>
+
+        {/* SECTION 2: Identity */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Identity</Text>
+          <Text style={styles.sectionHint}>
+            Auto-imported from your profile
+          </Text>
+
+          <View style={styles.identityRow}>
+            <Text style={styles.identityLabel}>Name</Text>
+            <View style={styles.identityValueRow}>
+              <Text style={styles.identityValue}>{name}</Text>
+              <Ionicons name="lock-closed" size={14} color={LIGHT_TEXT_COLOR} />
+            </View>
+          </View>
+
+          <View style={styles.identityRow}>
+            <Text style={styles.identityLabel}>Age</Text>
+            <View style={styles.identityValueRow}>
+              <Text style={styles.identityValue}>{age || "—"}</Text>
+              <Ionicons name="lock-closed" size={14} color={LIGHT_TEXT_COLOR} />
+            </View>
+          </View>
+
+          <View style={styles.identityRow}>
+            <View style={styles.identityLabelRow}>
+              <Text style={styles.identityLabel}>Pronouns</Text>
+              {pronouns.length > 0 && (
+                <Text style={styles.pronounsPreview}>
+                  {pronouns.join(", ")}
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.toggle, showPronouns && styles.toggleActive]}
+              onPress={() => {
+                HapticsService.triggerSelection();
+                setShowPronouns(!showPronouns);
+              }}
+            >
+              <View
+                style={[
+                  styles.toggleKnob,
+                  showPronouns && styles.toggleKnobActive,
+                ]}
+              />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.toggleHintText}>
+            {showPronouns
+              ? "Pronouns visible on your profile"
+              : "Pronouns hidden from your profile"}
+          </Text>
+        </View>
+
+        {/* SECTION 3: Goal Badges */}
         <View style={[styles.section, styles.highlightedSection]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Goal Badges</Text>
             <Text style={styles.requiredBadge}>Required</Text>
           </View>
           <Text style={styles.sectionHint}>
-            What are you looking for? Select 1-3 goals that drive your
-            networking.
+            What are you looking for? Select 1-3 goals that show your intent.
           </Text>
+
           <ChipSelector
             selected={goalBadges}
             onSelectionChange={(newVal) => {
               HapticsService.triggerSelection();
               setGoalBadges(newVal.slice(0, 3));
             }}
-            presets={[
-              "Looking for a co-founder",
-              "New to the city",
-              "Wants to play sports",
-              "Exploring opportunities",
-              "Open to friendships",
-              "Looking for study partners",
-              "Seeking mentorship",
-              "Open to collaborations",
-            ]}
+            presets={GOAL_BADGE_PRESETS}
             allowCustom={true}
             maxSelections={3}
             placeholder="Select your networking goals"
             variant="glass"
           />
+
           {goalBadges.length === 0 && (
             <Text style={styles.warningText}>
               ⚠️ Add at least 1 goal badge to appear in discovery
@@ -238,102 +396,64 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           )}
         </View>
 
-        {/* Conversation Prompt */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Conversation Starter</Text>
+        {/* SECTION 4: Conversation Starters */}
+        <View style={[styles.section, styles.highlightedSection]}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Conversation Starters</Text>
+            <Text style={styles.requiredBadge}>Required</Text>
+          </View>
           <Text style={styles.sectionHint}>
-            Help others start a conversation with you
+            Help others start a conversation with you. Add 1-3 openers.
           </Text>
-          <View style={styles.promptSelector}>
-            {[
-              "Something I'm currently curious about...",
-              "Ask me about...",
-              "A project I'd love help with...",
-            ].map((prompt) => (
+
+          {openers.map((opener, index) => (
+            <View key={index} style={styles.openerCard}>
+              <View style={styles.openerContent}>
+                <Text style={styles.openerPrompt}>{opener.prompt}</Text>
+                <Text style={styles.openerResponse}>{opener.response}</Text>
+              </View>
               <TouchableOpacity
-                key={prompt}
-                style={[
-                  styles.promptOption,
-                  promptQuestion === prompt && styles.promptOptionActive,
-                ]}
-                onPress={() => {
-                  HapticsService.triggerSelection();
-                  setPromptQuestion(prompt);
-                }}
+                style={styles.openerRemove}
+                onPress={() => handleRemoveOpener(index)}
               >
-                <Text
-                  style={[
-                    styles.promptOptionText,
-                    promptQuestion === prompt && styles.promptOptionTextActive,
-                  ]}
-                >
-                  {prompt}
-                </Text>
+                <Ionicons
+                  name="close-circle"
+                  size={22}
+                  color={LIGHT_TEXT_COLOR}
+                />
               </TouchableOpacity>
-            ))}
-          </View>
-          <TextInput
-            style={styles.promptInput}
-            placeholder="Your answer..."
-            placeholderTextColor={LIGHT_TEXT_COLOR}
-            value={promptAnswer}
-            onChangeText={setPromptAnswer}
-            multiline
-            maxLength={200}
-          />
-          <Text style={styles.charCount}>{promptAnswer.length}/200</Text>
+            </View>
+          ))}
+
+          {openers.length < 3 && (
+            <TouchableOpacity
+              style={styles.addOpenerButton}
+              onPress={handleAddOpener}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={22}
+                color={PRIMARY_COLOR}
+              />
+              <Text style={styles.addOpenerText}>Add Opener</Text>
+            </TouchableOpacity>
+          )}
+
+          {openers.length === 0 && (
+            <Text style={styles.warningText}>
+              ⚠️ Add at least 1 conversation starter
+            </Text>
+          )}
         </View>
 
-        {/* Availability */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Availability</Text>
-          <Text style={styles.sectionHint}>
-            Let others know when you're open to connect
-          </Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Open to chat today</Text>
-            <TouchableOpacity
-              style={[styles.toggle, availableToday && styles.toggleActive]}
-              onPress={() => {
-                HapticsService.triggerSelection();
-                setAvailableToday(!availableToday);
-              }}
-            >
-              <View
-                style={[
-                  styles.toggleKnob,
-                  availableToday && styles.toggleKnobActive,
-                ]}
-              />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Available this week</Text>
-            <TouchableOpacity
-              style={[styles.toggle, availableThisWeek && styles.toggleActive]}
-              onPress={() => {
-                HapticsService.triggerSelection();
-                setAvailableThisWeek(!availableThisWeek);
-              }}
-            >
-              <View
-                style={[
-                  styles.toggleKnob,
-                  availableThisWeek && styles.toggleKnobActive,
-                ]}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Privacy */}
+        {/* SECTION 5: Privacy */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Privacy</Text>
           <View style={styles.toggleRow}>
             <View style={styles.toggleLabelContainer}>
               <Text style={styles.toggleLabel}>Appear in Discover</Text>
               <Text style={styles.toggleHint}>
-                Let others find you in events
+                Let others find you at events
               </Text>
             </View>
             <TouchableOpacity
@@ -386,152 +506,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: TEXT_COLOR,
   },
-  completionBar: {
-    paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.m,
-    backgroundColor: "#F8FFF8",
-  },
-  completionTrack: {
-    height: 6,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  completionFill: {
-    height: "100%",
-    backgroundColor: "#2E7D32",
-    borderRadius: 3,
-  },
-  completionText: {
-    fontSize: 12,
-    color: "#2E7D32",
-    marginTop: 6,
-    fontWeight: "500",
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    padding: SPACING.l,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  highlightedSection: {
-    backgroundColor: "#F8FFF8",
-    borderLeftWidth: 3,
-    borderLeftColor: "#2E7D32",
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 8,
-  },
-  sectionHint: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 12,
-  },
-  requiredBadge: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    backgroundColor: "#2E7D32",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  warningText: {
-    fontSize: 13,
-    color: "#E65100",
-    marginTop: 8,
-  },
-  promptSelector: {
-    flexDirection: "column",
-    gap: 8,
-    marginBottom: 12,
-  },
-  promptOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: "#FAFAFA",
-  },
-  promptOptionActive: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#F8F5FF",
-  },
-  promptOptionText: {
-    fontSize: 14,
-    color: TEXT_COLOR,
-  },
-  promptOptionTextActive: {
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
-  },
-  promptInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    color: TEXT_COLOR,
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  charCount: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-  },
-  toggleLabelContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  toggleLabel: {
-    fontSize: 15,
-    color: TEXT_COLOR,
-  },
-  toggleHint: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 2,
-  },
-  toggle: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#E5E5EA",
-    padding: 2,
-    justifyContent: "center",
-  },
-  toggleActive: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  toggleKnob: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#FFFFFF",
-  },
-  toggleKnobActive: {
-    alignSelf: "flex-end",
-  },
   saveButton: {
     backgroundColor: PRIMARY_COLOR,
     paddingHorizontal: 16,
@@ -563,15 +537,272 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
     zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...SHADOWS.md,
   },
   successToastText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  completionBar: {
+    paddingHorizontal: SPACING.l,
+    paddingVertical: SPACING.m,
+    backgroundColor: "#F8FFF8",
+  },
+  completionTrack: {
+    height: 6,
+    backgroundColor: "#E0E0E0",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  completionFill: {
+    height: "100%",
+    backgroundColor: "#2E7D32",
+    borderRadius: 3,
+  },
+  completionText: {
+    fontSize: 12,
+    color: "#2E7D32",
+    marginTop: 6,
+    fontWeight: "500",
+  },
+  content: {
+    flex: 1,
+  },
+  section: {
+    padding: SPACING.l,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  highlightedSection: {
+    backgroundColor: "#FAFAFA",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+    marginBottom: 4,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 16,
+  },
+  requiredBadge: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    backgroundColor: "#2E7D32",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  warningText: {
+    fontSize: 13,
+    color: "#E65100",
+    marginTop: 12,
+  },
+
+  // Photos
+  photoGrid: {
+    gap: 12,
+  },
+  heroPhotoContainer: {
+    width: "100%",
+    aspectRatio: 4 / 5,
+    borderRadius: BORDER_RADIUS.l,
+    overflow: "hidden",
+    position: "relative",
+  },
+  heroPhoto: {
+    width: "100%",
+    height: "100%",
+  },
+  heroPhotoPlaceholder: {
+    width: "100%",
+    aspectRatio: 4 / 5,
+    borderRadius: BORDER_RADIUS.l,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  addPhotoText: {
+    fontSize: 14,
+    color: LIGHT_TEXT_COLOR,
+  },
+  photoRemoveBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    padding: 4,
+  },
+  thumbnailRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  thumbnailContainer: {
+    width: 80,
+    height: 100,
+    borderRadius: BORDER_RADIUS.m,
+    overflow: "hidden",
+    position: "relative",
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbnailPlaceholder: {
+    width: 80,
+    height: 100,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  thumbnailRemoveBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 8,
+    padding: 2,
+  },
+
+  // Identity
+  identityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  identityLabel: {
+    fontSize: 15,
+    color: TEXT_COLOR,
+  },
+  identityLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  identityValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  identityValue: {
+    fontSize: 15,
+    color: LIGHT_TEXT_COLOR,
+  },
+  pronounsPreview: {
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+    fontStyle: "italic",
+  },
+  toggleHintText: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 6,
+  },
+
+  // Toggle
+  toggle: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#E5E5EA",
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleActive: {
+    backgroundColor: PRIMARY_COLOR,
+  },
+  toggleKnob: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+  },
+  toggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+  },
+  toggleLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    color: TEXT_COLOR,
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: LIGHT_TEXT_COLOR,
+    marginTop: 2,
+  },
+
+  // Openers
+  openerCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    marginBottom: 10,
+  },
+  openerContent: {
+    flex: 1,
+  },
+  openerPrompt: {
+    fontSize: 13,
+    color: PRIMARY_COLOR,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  openerResponse: {
+    fontSize: 14,
+    color: TEXT_COLOR,
+    lineHeight: 20,
+  },
+  openerRemove: {
+    padding: 4,
+  },
+  addOpenerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    borderStyle: "dashed",
+    gap: 8,
+  },
+  addOpenerText: {
+    fontSize: 15,
+    color: PRIMARY_COLOR,
+    fontWeight: "500",
   },
 });

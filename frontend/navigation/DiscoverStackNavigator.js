@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import DiscoverScreen from "../screens/discover/DiscoverScreen";
 import ProfileFeedScreen from "../screens/discover/ProfileFeedScreen";
 import EditDiscoverProfileScreen from "../screens/discover/EditDiscoverProfileScreen";
+import OpenerSelectionScreen from "../screens/discover/OpenerSelectionScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 
 const Stack = createNativeStackNavigator();
@@ -21,6 +22,7 @@ export default function DiscoverStackNavigator() {
         name="EditDiscoverProfile"
         component={EditDiscoverProfileScreen}
       />
+      <Stack.Screen name="OpenerSelection" component={OpenerSelectionScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
     </Stack.Navigator>
   );
