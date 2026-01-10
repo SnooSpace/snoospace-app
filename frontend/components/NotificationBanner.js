@@ -1,15 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Image, 
+import React, { useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
   Animated,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export default function NotificationBanner({ notification, onPress, onDismiss }) {
+export default function NotificationBanner({
+  notification,
+  onPress,
+  onDismiss,
+}) {
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -65,7 +69,7 @@ export default function NotificationBanner({ notification, onPress, onDismiss })
 
   const payload = notification.payload || {};
   const actorAvatar = payload.actorAvatar;
-  const actorName = payload.actorName || 'Someone';
+  const actorName = payload.actorName || "Someone";
 
   // Position just below the safe area
   const bannerTopPosition = insets.top + 12;
@@ -82,48 +86,48 @@ export default function NotificationBanner({ notification, onPress, onDismiss })
       ]}
       pointerEvents="box-none"
     >
+      <TouchableOpacity
+        style={styles.banner}
+        onPress={() => {
+          if (onPress) onPress();
+          handleDismiss();
+        }}
+        activeOpacity={0.95}
+      >
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          <Image
+            source={
+              actorAvatar
+                ? { uri: actorAvatar }
+                : require("../assets/adaptive-icon.png")
+            }
+            style={styles.avatar}
+          />
+        </View>
+
+        {/* Content */}
+        <View style={styles.contentContainer}>
+          <Text style={styles.text} numberOfLines={2}>
+            <Text style={styles.boldText}>{actorName}</Text>
+            {notification.type === "follow" && (
+              <Text style={styles.normalText}> started following you</Text>
+            )}
+          </Text>
+          <Text style={styles.timestamp}>
+            {formatTimestamp(notification.created_at)}
+          </Text>
+        </View>
+
+        {/* Close button */}
         <TouchableOpacity
-          style={styles.banner}
-          onPress={() => {
-            if (onPress) onPress();
-            handleDismiss();
-          }}
-          activeOpacity={0.95}
+          onPress={handleDismiss}
+          style={styles.closeButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            <Image
-              source={
-                actorAvatar
-                  ? { uri: actorAvatar }
-                  : require('../assets/icon.png')
-              }
-              style={styles.avatar}
-            />
-          </View>
-
-          {/* Content */}
-          <View style={styles.contentContainer}>
-            <Text style={styles.text} numberOfLines={2}>
-              <Text style={styles.boldText}>{actorName}</Text>
-              {notification.type === 'follow' && (
-                <Text style={styles.normalText}> started following you</Text>
-              )}
-            </Text>
-            <Text style={styles.timestamp}>
-              {formatTimestamp(notification.created_at)}
-            </Text>
-          </View>
-
-          {/* Close button */}
-          <TouchableOpacity
-            onPress={handleDismiss}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.closeIcon}>×</Text>
-          </TouchableOpacity>
+          <Text style={styles.closeIcon}>×</Text>
         </TouchableOpacity>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -136,7 +140,7 @@ function formatTimestamp(dateString) {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'now';
+  if (diffMins < 1) return "now";
   if (diffMins < 60) return `${diffMins}m`;
   if (diffHours < 24) return `${diffHours}h`;
   if (diffDays < 7) return `${diffDays}d`;
@@ -145,25 +149,25 @@ function formatTimestamp(dateString) {
 
 const styles = StyleSheet.create({
   absoluteContainer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     zIndex: 10000,
     paddingHorizontal: 16,
   },
   banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
     borderWidth: 0.5,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     minHeight: 64,
   },
   avatarContainer: {
@@ -173,40 +177,40 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: "#F0F0F0",
   },
   contentContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   text: {
     fontSize: 14,
     lineHeight: 18,
-    color: '#000000',
+    color: "#000000",
     marginBottom: 2,
   },
   boldText: {
-    fontWeight: '600',
+    fontWeight: "600",
   },
   normalText: {
-    fontWeight: '400',
-    color: '#262626',
+    fontWeight: "400",
+    color: "#262626",
   },
   timestamp: {
     fontSize: 12,
-    color: '#8E8E8E',
+    color: "#8E8E8E",
     marginTop: 1,
   },
   closeButton: {
     padding: 4,
     marginLeft: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeIcon: {
     fontSize: 22,
-    color: '#8E8E8E',
+    color: "#8E8E8E",
     lineHeight: 22,
-    fontWeight: '300',
+    fontWeight: "300",
   },
 });

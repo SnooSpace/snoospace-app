@@ -100,7 +100,7 @@ export default function NotificationsScreen({ navigation }) {
     const getAvatarSource = () =>
       payload.actorAvatar
         ? { uri: payload.actorAvatar }
-        : require("../../assets/icon.png");
+        : require("../../assets/adaptive-icon.png");
 
     if (group.type === "follow") {
       return (
