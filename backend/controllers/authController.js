@@ -48,15 +48,65 @@ async function sendOtp(req, res) {
 
 async function loginStart(req, res) {
   try {
-    const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ error: "Email is required" });
-    }
-
+    const { email: inputEmail, username: inputUsername } = req.body || {};
     const pool = req.app.locals.pool;
+
     if (!pool) {
       console.error("/auth/login/start error: pool is not initialized");
       return res.status(500).json({ error: "Server DB not ready" });
+    }
+
+    // Determine if input is email or username
+    let email = inputEmail;
+    let usernameProvided = inputUsername;
+
+    // If email looks like a username (no @ symbol), treat it as username
+    if (email && !email.includes("@")) {
+      usernameProvided = email;
+      email = null;
+    }
+
+    // If username is provided, look up the associated email
+    if (usernameProvided && !email) {
+      const usernameLower = usernameProvided.toLowerCase().trim();
+
+      // Search all user tables for this username
+      const queries = await Promise.all([
+        pool.query(
+          "SELECT email FROM members WHERE LOWER(username) = $1 LIMIT 1",
+          [usernameLower]
+        ),
+        pool.query(
+          "SELECT email FROM communities WHERE LOWER(username) = $1 LIMIT 1",
+          [usernameLower]
+        ),
+        pool.query(
+          "SELECT email FROM sponsors WHERE LOWER(username) = $1 LIMIT 1",
+          [usernameLower]
+        ),
+        pool.query(
+          "SELECT contact_email as email FROM venues WHERE LOWER(username) = $1 LIMIT 1",
+          [usernameLower]
+        ),
+      ]);
+
+      // Find the first matching email
+      for (const result of queries) {
+        if (result.rows.length > 0 && result.rows[0].email) {
+          email = result.rows[0].email;
+          break;
+        }
+      }
+
+      if (!email) {
+        return res
+          .status(404)
+          .json({ error: "No account found with this username." });
+      }
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: "Email or username is required" });
     }
 
     // Schema-safe existence checks to avoid 42703 when columns differ
@@ -96,25 +146,26 @@ async function loginStart(req, res) {
         .json({ error: "Account doesn't exist. Please sign up." });
     }
 
+    console.log("[Auth] Sending login OTP to:", email);
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false, emailRedirectTo: undefined },
     });
 
     if (error) return res.status(400).json({ error: error.message });
-    res.json({ message: "Login code sent to email", data });
+
+    // Return the email so frontend knows where OTP was sent
+    res.json({ message: "Login code sent to email", email, data });
   } catch (err) {
     console.error(
       "/auth/login/start error:",
       err && err.stack ? err.stack : err
     );
-    res
-      .status(500)
-      .json({
-        error: "Failed to initiate login",
-        message: err && err.message ? err.message : undefined,
-        code: err && err.code ? err.code : undefined,
-      });
+    res.status(500).json({
+      error: "Failed to initiate login",
+      message: err && err.message ? err.message : undefined,
+      code: err && err.code ? err.code : undefined,
+    });
   }
 }
 
@@ -164,12 +215,10 @@ async function verifyOtp(req, res) {
       "/auth/verify-otp error:",
       err && err.stack ? err.stack : err
     );
-    res
-      .status(500)
-      .json({
-        error: "Failed to verify OTP",
-        message: err && err.message ? err.message : undefined,
-      });
+    res.status(500).json({
+      error: "Failed to verify OTP",
+      message: err && err.message ? err.message : undefined,
+    });
   }
 }
 

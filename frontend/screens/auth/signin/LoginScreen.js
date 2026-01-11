@@ -26,15 +26,15 @@ import {
 
 const LoginScreen = ({ navigation, route }) => {
   const { email: preFilledEmail, isAddingAccount } = route.params || {};
-  const [email, setEmail] = useState(preFilledEmail || "");
+  const [emailOrUsername, setEmailOrUsername] = useState(preFilledEmail || "");
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleLogin = async () => {
-    if (!email) {
-      Alert.alert("Error", "Please enter your email.");
+    if (!emailOrUsername) {
+      Alert.alert("Error", "Please enter your email or username.");
       return;
     }
 
@@ -43,16 +43,27 @@ const LoginScreen = ({ navigation, route }) => {
 
     try {
       // Start login flow (sends OTP only if account exists)
-      // Increased timeout to 15000ms to handle slower email delivery
-      await apiPost("/auth/login/start", { email }, 15000);
-      await setPendingOtp("login", email, 600);
+      // Backend will resolve username to email if needed
+      const response = await apiPost(
+        "/auth/login/start",
+        { email: emailOrUsername.trim() },
+        15000
+      );
+
+      // Backend returns the resolved email (important when username was used)
+      const resolvedEmail = response.email || emailOrUsername;
+
+      await setPendingOtp("login", resolvedEmail, 600);
 
       setLoading(false);
       setIsSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       setTimeout(() => {
-        navigation.navigate("LoginOtp", { email, isAddingAccount });
+        navigation.navigate("LoginOtp", {
+          email: resolvedEmail,
+          isAddingAccount,
+        });
         setIsSuccess(false);
       }, 1000);
     } catch (e) {
@@ -60,6 +71,10 @@ const LoginScreen = ({ navigation, route }) => {
       // Even if request times out but email was sent successfully, navigate to OTP
       // Check if the error is specifically a timeout
       if (e.message && e.message.includes("timed out")) {
+        // For timeout, we can't know the resolved email, so use what was entered
+        const fallbackEmail = emailOrUsername.includes("@")
+          ? emailOrUsername
+          : null;
         Alert.alert(
           "Request Timeout",
           "The request took longer than expected. If you received the code in your email, you can enter it on the next screen.",
@@ -67,8 +82,15 @@ const LoginScreen = ({ navigation, route }) => {
             {
               text: "Enter Code Anyway",
               onPress: () => {
-                setPendingOtp("login", email, 600);
-                navigation.navigate("LoginOtp", { email });
+                if (fallbackEmail) {
+                  setPendingOtp("login", fallbackEmail, 600);
+                  navigation.navigate("LoginOtp", { email: fallbackEmail });
+                } else {
+                  Alert.alert(
+                    "Error",
+                    "Please use your email address to login when connection is slow."
+                  );
+                }
               },
             },
             {
@@ -109,16 +131,16 @@ const LoginScreen = ({ navigation, route }) => {
       <View style={styles.content}>
         <Text style={styles.title}>Welcome back!</Text>
         <Text style={styles.subtitle}>
-          Enter your email to receive a login code.
+          Enter your email or username to receive a login code.
         </Text>
 
         <View style={styles.inputContainer}>
           <TextInput
             style={[styles.input, isFocused && styles.inputFocused]}
-            placeholder="Enter your email"
+            placeholder="Email or username"
             placeholderTextColor={COLORS.textSecondary}
-            value={email}
-            onChangeText={setEmail}
+            value={emailOrUsername}
+            onChangeText={setEmailOrUsername}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             keyboardType="email-address"
