@@ -13,7 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -46,12 +51,12 @@ const VerificationScreen = ({ route, navigation }) => {
     try {
       // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
-      
+
       // For signup, we may get requiresAccountCreation or session
       // Either way, proceed to next step with tokens if available
       let accessToken = null;
       let refreshToken = null;
-      
+
       if (result.session) {
         accessToken = result.session.accessToken;
         refreshToken = result.session.refreshToken;
@@ -59,12 +64,14 @@ const VerificationScreen = ({ route, navigation }) => {
           await setAuthSession(accessToken, email, refreshToken);
         }
       }
-      
+
       await clearPendingOtp();
       navigation.navigate("MemberPhone", { email, accessToken, refreshToken });
     } catch (e) {
       if (e.message && e.message.includes("timed out")) {
-        setError("Request timed out. Please check your internet connection and try again.");
+        setError(
+          "Request timed out. Please check your internet connection and try again."
+        );
       } else {
         setError(e.message || "Verification failed");
       }
@@ -93,7 +100,19 @@ const VerificationScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              "Go Back?",
+              "You'll need to request a new code if you go back.",
+              [
+                { text: "Stay", style: "cancel" },
+                { text: "Change Email", onPress: () => navigation.goBack() },
+              ]
+            );
+          }}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -104,10 +123,7 @@ const VerificationScreen = ({ route, navigation }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused,
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             placeholder="000000"
             placeholderTextColor={COLORS.textSecondary}
             value={otp}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,22 +8,27 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as sessionManager from '../../../utils/sessionManager';
-import { setAuthSession, clearPendingOtp } from '../../../api/auth';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as sessionManager from "../../../utils/sessionManager";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
 const VenueOtpScreen = ({ navigation, route }) => {
   const { email } = route.params || {};
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
@@ -41,15 +46,15 @@ const VenueOtpScreen = ({ navigation, route }) => {
 
     setLoading(true);
     setError("");
-    
+
     try {
       // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
-      
+
       // For signup, proceed with tokens if available
       let accessToken = null;
       let refreshToken = null;
-      
+
       if (result.session) {
         accessToken = result.session.accessToken;
         refreshToken = result.session.refreshToken;
@@ -58,8 +63,8 @@ const VenueOtpScreen = ({ navigation, route }) => {
         }
       }
       await clearPendingOtp();
-      navigation.navigate("VenueName", { 
-        email, 
+      navigation.navigate("VenueName", {
+        email,
         accessToken,
         refreshToken,
       });
@@ -91,7 +96,16 @@ const VenueOtpScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Alert.alert(
+              "Go Back?",
+              "You'll need to request a new code if you go back.",
+              [
+                { text: "Stay", style: "cancel" },
+                { text: "Change Email", onPress: () => navigation.goBack() },
+              ]
+            );
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
@@ -101,9 +115,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
 
       <View style={styles.content}>
         <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to {email}
-        </Text>
+        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
         <View style={styles.inputContainer}>
           <TextInput
@@ -152,7 +164,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
             <ActivityIndicator color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
             </Text>
           )}
         </TouchableOpacity>
@@ -167,8 +179,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
@@ -178,7 +190,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
   },
   content: {
@@ -188,7 +200,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -223,7 +235,7 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 16,
     borderRadius: BORDER_RADIUS.pill,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -232,22 +244,22 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   errorText: {
     color: COLORS.error,
     fontSize: 14,
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
 

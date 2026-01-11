@@ -32,6 +32,11 @@ const init = (dbPool) => {
     await sendAttendanceConfirmations();
   });
 
+  // Run ticket reservation cleanup every minute
+  cron.schedule("* * * * *", async () => {
+    await cleanupExpiredReservations();
+  });
+
   console.log("[Scheduler] Scheduler service initialized");
 };
 
@@ -306,9 +311,70 @@ const sendAttendanceConfirmations = async () => {
   }
 };
 
+/**
+ * Clean up expired ticket reservations
+ * Runs every minute to release reserved tickets back to the pool
+ * when users abandon checkout without completing or releasing
+ */
+const cleanupExpiredReservations = async () => {
+  if (!pool) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Get all expired reservations
+    const expiredResult = await client.query(
+      `SELECT id, ticket_type_id, quantity, session_id, member_id, event_id
+       FROM ticket_reservations
+       WHERE expires_at < NOW()`
+    );
+
+    if (expiredResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return;
+    }
+
+    console.log(
+      `[Scheduler] Cleaning up ${expiredResult.rows.length} expired ticket reservations`
+    );
+
+    // Decrement reserved_count for each expired reservation
+    for (const reservation of expiredResult.rows) {
+      await client.query(
+        `UPDATE ticket_types
+         SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+         WHERE id = $2`,
+        [reservation.quantity, reservation.ticket_type_id]
+      );
+    }
+
+    // Delete all expired reservations
+    await client.query(
+      `DELETE FROM ticket_reservations WHERE expires_at < NOW()`
+    );
+
+    await client.query("COMMIT");
+
+    // Log unique sessions cleaned up
+    const uniqueSessions = [
+      ...new Set(expiredResult.rows.map((r) => r.session_id)),
+    ];
+    console.log(
+      `[Scheduler] Released ${expiredResult.rows.length} expired reservations from ${uniqueSessions.length} sessions`
+    );
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("[Scheduler] Error cleaning up expired reservations:", error);
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   init,
   sendEventReminders,
   triggerReminderCheck,
   sendAttendanceConfirmations,
+  cleanupExpiredReservations,
 };

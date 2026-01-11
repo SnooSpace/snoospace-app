@@ -520,6 +520,21 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_ticket_gifts_recipient ON ticket_gifts(recipient_id);
       CREATE INDEX IF NOT EXISTS idx_ticket_gifts_parent ON ticket_gifts(parent_gift_id);
       CREATE INDEX IF NOT EXISTS idx_ticket_gifts_status ON ticket_gifts(status);
+
+      -- Ticket reservations table (for holding tickets during checkout)
+      CREATE TABLE IF NOT EXISTS ticket_reservations (
+        id BIGSERIAL PRIMARY KEY,
+        ticket_type_id BIGINT NOT NULL REFERENCES ticket_types(id) ON DELETE CASCADE,
+        member_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL,
+        session_id TEXT NOT NULL,           -- Unique checkout session identifier
+        expires_at TIMESTAMPTZ NOT NULL,    -- When this reservation expires
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_ticket_reservations_expires ON ticket_reservations(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_ticket_reservations_session ON ticket_reservations(session_id);
+      CREATE INDEX IF NOT EXISTS idx_ticket_reservations_member ON ticket_reservations(member_id, event_id);
       
       -- Invite requests table (for "Request Invite" feature)
       CREATE TABLE IF NOT EXISTS invite_requests (

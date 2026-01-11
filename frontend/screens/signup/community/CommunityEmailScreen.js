@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,19 +11,25 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { apiPost } from '../../../api/client';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { apiPost } from "../../../api/client";
+import { checkEmailExists } from "../../../api/auth";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CommunityEmailScreen = ({ navigation, route }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isValidEmail, setIsValidEmail] = useState(false);
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -34,58 +40,95 @@ const CommunityEmailScreen = ({ navigation, route }) => {
     setIsValidEmail(emailRegex.test(text));
   };
 
-  const handleContinue = async () => {
-    if (!isValidEmail) {
-      Alert.alert('Error', 'Please enter a valid email address.');
-      return;
-    }
-
+  // Send OTP and navigate to OTP screen
+  const sendOtpAndNavigate = async () => {
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await apiPost('/auth/send-otp', { email }, 15000);
+      // Use V2 endpoint which supports multi-account
+      const response = await apiPost("/auth/v2/send-otp", { email }, 15000);
 
       if (response) {
-        console.log('OTP sent successfully, navigating to OTP screen');
+        console.log("OTP sent successfully, navigating to OTP screen");
         setRetryCount(0);
-        navigation.navigate('CommunityOtp', { email });
+        navigation.navigate("CommunityOtp", { email });
       } else {
-        setError('Failed to send verification code. Please try again.');
+        setError("Failed to send verification code. Please try again.");
       }
     } catch (e) {
-      console.error('OTP send error:', e);
-      const msg = (e.message || '').toLowerCase();
+      console.error("OTP send error:", e);
+      const msg = (e.message || "").toLowerCase();
 
-      if (msg.includes('account already exists')) {
-        Alert.alert(
-          'Email exists',
-          'An account with this email already exists.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login', { email }) }]
-        );
-      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+      if (msg.includes("timeout") || msg.includes("timed out")) {
         setRetryCount((prev) => prev + 1);
         if (retryCount < 2) {
           setError(`Request timed out. Retrying... (${retryCount + 1}/3)`);
           setTimeout(() => {
             if (retryCount < 2) {
-              handleContinue();
+              sendOtpAndNavigate();
             }
           }, 2000);
         } else {
           setError(
-            'Request timed out after multiple attempts. Please check your internet connection and try again.'
+            "Request timed out after multiple attempts. Please check your internet connection and try again."
           );
         }
-      } else if (msg.includes('network') || msg.includes('fetch')) {
-        setError('Network error. Please check your internet connection and try again.');
+      } else if (msg.includes("network") || msg.includes("fetch")) {
+        setError(
+          "Network error. Please check your internet connection and try again."
+        );
       } else {
-        setError(e.message || 'Failed to send verification code. Please try again.');
+        setError(
+          e.message || "Failed to send verification code. Please try again."
+        );
       }
     } finally {
-      if (retryCount >= 2 || !error.includes('Retrying...')) {
+      if (retryCount >= 2 || !error.includes("Retrying...")) {
         setLoading(false);
       }
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!isValidEmail) {
+      Alert.alert("Error", "Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Check if email already has accounts
+      const exists = await checkEmailExists(email);
+
+      if (exists) {
+        setLoading(false);
+        // Show confirmation dialog
+        Alert.alert(
+          "Account Exists",
+          "An account with this email already exists. Would you like to create a new account with the same email or use a different email?",
+          [
+            {
+              text: "Use Different Email",
+              style: "cancel",
+            },
+            {
+              text: "Continue Anyway",
+              onPress: () => sendOtpAndNavigate(),
+            },
+          ]
+        );
+        return;
+      }
+
+      // No existing account - proceed directly
+      await sendOtpAndNavigate();
+    } catch (e) {
+      console.error("Email check error:", e);
+      // On error, proceed anyway
+      await sendOtpAndNavigate();
     }
   };
 
@@ -114,10 +157,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={[
-                styles.input,
-                isFocused && styles.inputFocused,
-              ]}
+              style={[styles.input, isFocused && styles.inputFocused]}
               placeholder="Enter your email"
               placeholderTextColor={COLORS.textSecondary}
               value={email}
@@ -175,15 +215,15 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 25,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 15,
   },
   backButton: {
@@ -191,7 +231,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
   },
   contentContainer: {
@@ -200,7 +240,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -220,7 +260,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     color: COLORS.textPrimary,
   },
   inputFocused: {
@@ -237,7 +277,7 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 14,
     marginTop: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   buttonContainer: {
     marginTop: 150,
@@ -248,8 +288,8 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 16,
     borderRadius: BORDER_RADIUS.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -258,7 +298,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

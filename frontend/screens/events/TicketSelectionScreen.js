@@ -85,11 +85,39 @@ export default function TicketSelectionScreen({ route, navigation }) {
     return { totalItems: items, totalAmount: amount };
   }, [cart, filteredTickets, event.pricing_rules]);
 
+  // Calculate available tickets for a ticket type
+  const getAvailable = (ticket) => {
+    if (!ticket.total_quantity) return Infinity;
+    return Math.max(
+      0,
+      ticket.total_quantity -
+        (ticket.sold_count || 0) -
+        (ticket.reserved_count || 0)
+    );
+  };
+
+  // Check if add button should be disabled
+  const isAddDisabled = (ticket) => {
+    const qty = getQuantity(ticket);
+    const available = getAvailable(ticket);
+    const maxAllowed = Math.min(ticket.max_per_order || 10, available);
+    return qty >= maxAllowed;
+  };
+
   const handleAdd = (ticket) => {
     const key = ticket.id?.toString() || ticket.name;
+    const currentQty = cart[key] || 0;
+    const available = getAvailable(ticket);
+    const maxAllowed = Math.min(ticket.max_per_order || 10, available);
+
+    // Don't add if at limit
+    if (currentQty >= maxAllowed) {
+      return;
+    }
+
     setCart((prev) => ({
       ...prev,
-      [key]: (prev[key] || 0) + 1,
+      [key]: currentQty + 1,
     }));
   };
 
@@ -175,10 +203,10 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
         {filteredTickets.map((ticket, index) => {
           const qty = getQuantity(ticket);
-          const isSoldOut =
-            ticket.total_quantity &&
-            (ticket.sold_count || 0) >= ticket.total_quantity;
+          const available = getAvailable(ticket);
+          const isSoldOut = ticket.total_quantity && available <= 0;
           const price = parseFloat(ticket.base_price) || 0;
+          const addDisabled = isAddDisabled(ticket);
 
           return (
             <View
@@ -221,6 +249,14 @@ export default function TicketSelectionScreen({ route, navigation }) {
                       </Text>
                     );
                   })()}
+                  {/* Show remaining tickets when limited */}
+                  {ticket.total_quantity &&
+                    available > 0 &&
+                    available <= 10 && (
+                      <Text style={styles.remainingBadge}>
+                        {available} left
+                      </Text>
+                    )}
                 </View>
 
                 {!isSoldOut ? (
@@ -242,9 +278,20 @@ export default function TicketSelectionScreen({ route, navigation }) {
                       <Text style={styles.qtyValue}>{qty}</Text>
                       <TouchableOpacity
                         onPress={() => handleAdd(ticket)}
-                        style={styles.qtyButton}
+                        style={[
+                          styles.qtyButton,
+                          addDisabled && styles.qtyButtonDisabled,
+                        ]}
+                        disabled={addDisabled}
                       >
-                        <Text style={styles.qtyButtonText}>+</Text>
+                        <Text
+                          style={[
+                            styles.qtyButtonText,
+                            addDisabled && styles.qtyButtonTextDisabled,
+                          ]}
+                        >
+                          +
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )
@@ -451,6 +498,18 @@ const styles = StyleSheet.create({
     color: "#FF3B30",
     fontWeight: "600",
     fontSize: 12,
+  },
+  remainingBadge: {
+    fontSize: 12,
+    color: "#FF9500",
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  qtyButtonDisabled: {
+    opacity: 0.4,
+  },
+  qtyButtonTextDisabled: {
+    color: MUTED_TEXT,
   },
   ticketDesc: {
     marginTop: 12,

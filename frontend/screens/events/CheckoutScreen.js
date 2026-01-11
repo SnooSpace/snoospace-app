@@ -20,7 +20,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
-import { registerForEvent } from "../../api/events";
+import {
+  registerForEvent,
+  reserveTickets,
+  releaseReservation,
+} from "../../api/events";
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/CelebrationModal";
 
@@ -45,6 +49,70 @@ export default function CheckoutScreen({ route, navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // Reservation state
+  const [sessionId, setSessionId] = useState(null);
+  const [reservationError, setReservationError] = useState(null);
+  const [isReserving, setIsReserving] = useState(true);
+
+  // Reserve tickets on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const doReserve = async () => {
+      try {
+        const tickets = cartItems.map((item) => ({
+          ticketTypeId: item.ticket.id,
+          quantity: item.quantity,
+        }));
+
+        const response = await reserveTickets(event.id, tickets);
+
+        if (!isMounted) return;
+
+        if (response.success) {
+          setSessionId(response.sessionId);
+          setReservationError(null);
+        } else {
+          setReservationError(response.error || "Failed to reserve tickets");
+          Alert.alert(
+            "Reservation Failed",
+            response.error || "Unable to reserve tickets. Please try again.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setReservationError(error.message);
+        Alert.alert(
+          "Reservation Failed",
+          error.message || "Unable to reserve tickets. Please try again.",
+          [{ text: "OK", onPress: () => navigation.goBack() }]
+        );
+      } finally {
+        if (isMounted) setIsReserving(false);
+      }
+    };
+
+    doReserve();
+
+    // Cleanup: release reservation if not completed
+    return () => {
+      isMounted = false;
+      // Note: We'll handle release in handleGoBack and timer expiry
+    };
+  }, []);
+
+  // Release reservation when leaving without completing
+  const handleReleaseReservation = async () => {
+    if (sessionId && !isConfirmed) {
+      try {
+        await releaseReservation(event.id, sessionId);
+      } catch (err) {
+        console.warn("Failed to release reservation:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     if (timeLeft <= 0 || isConfirmed) return;
 
@@ -52,6 +120,8 @@ export default function CheckoutScreen({ route, navigation }) {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          // Release reservation on timeout
+          handleReleaseReservation();
           Alert.alert(
             "Session Expired",
             "Your booking session has expired. Please try again.",
@@ -64,7 +134,7 @@ export default function CheckoutScreen({ route, navigation }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, isConfirmed]);
+  }, [timeLeft, isConfirmed, sessionId]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -160,6 +230,7 @@ export default function CheckoutScreen({ route, navigation }) {
         promoCode: appliedDiscount?.code || null,
         totalAmount: finalAmount,
         discountAmount: discountAmount,
+        sessionId: sessionId, // Pass reservation session for consumption
       };
 
       const response = await registerForEvent(event.id, bookingData);
@@ -200,8 +271,22 @@ export default function CheckoutScreen({ route, navigation }) {
     navigation.popToTop();
   };
 
+  // Handle back button - release reservation before going back
+  const handleGoBack = async () => {
+    await handleReleaseReservation();
+    navigation.goBack();
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Reservation loading overlay */}
+      {isReserving && (
+        <View style={styles.reservingOverlay}>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={styles.reservingText}>Reserving your tickets...</Text>
+        </View>
+      )}
+
       <CelebrationModal
         visible={showCelebration}
         onClose={handleCelebrationClose}
@@ -212,10 +297,7 @@ export default function CheckoutScreen({ route, navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review your booking</Text>
@@ -710,5 +792,18 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  reservingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  reservingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: TEXT_COLOR,
+    fontWeight: "500",
   },
 });

@@ -2990,7 +2990,8 @@ const registerForEvent = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
     const { eventId } = req.params;
-    const { tickets, promoCode, totalAmount, discountAmount } = req.body;
+    const { tickets, promoCode, totalAmount, discountAmount, sessionId } =
+      req.body;
 
     // 1. Validate user is a member
     if (!userId || userType !== "member") {
@@ -3066,7 +3067,7 @@ const registerForEvent = async (req, res) => {
     // 7. Validate each ticket type
     for (const item of tickets) {
       const ticketResult = await client.query(
-        `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2 AND is_active = true`,
+        `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2 AND is_active = true FOR UPDATE`,
         [item.ticketTypeId, eventId]
       );
       if (ticketResult.rows.length === 0) {
@@ -3074,12 +3075,22 @@ const registerForEvent = async (req, res) => {
       }
       const ticket = ticketResult.rows[0];
 
-      // Check availability
-      if (
-        ticket.total_quantity &&
-        ticket.sold_count + item.quantity > ticket.total_quantity
-      ) {
-        throw new Error(`Sold out: ${ticket.name}`);
+      // Check availability (total_quantity - sold_count - reserved_count)
+      // Note: If user has a reservation (sessionId), their reserved tickets are already counted
+      if (ticket.total_quantity) {
+        const available =
+          ticket.total_quantity -
+          (ticket.sold_count || 0) -
+          (ticket.reserved_count || 0);
+        // If user has a reservation, their quantity is already in reserved_count, so add it back
+        const userReserved = sessionId ? item.quantity : 0;
+        if (item.quantity > available + userReserved) {
+          throw new Error(
+            available <= 0
+              ? `Sold out: ${ticket.name}`
+              : `Only ${available} tickets left for ${ticket.name}`
+          );
+        }
       }
 
       // Check sale window
@@ -3247,6 +3258,35 @@ const registerForEvent = async (req, res) => {
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);
       // Don't fail registration if notification fails
+    }
+
+    // 12a. Consume reservation if sessionId was provided
+    if (sessionId) {
+      // Get all reservations for this session to decrement reserved_count
+      const reservations = await client.query(
+        `SELECT ticket_type_id, quantity FROM ticket_reservations WHERE session_id = $1`,
+        [sessionId]
+      );
+
+      // Decrement reserved_count for each (since we're converting to sold)
+      for (const reservation of reservations.rows) {
+        await client.query(
+          `UPDATE ticket_types 
+           SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1) 
+           WHERE id = $2`,
+          [reservation.quantity, reservation.ticket_type_id]
+        );
+      }
+
+      // Delete the reservation records
+      await client.query(
+        `DELETE FROM ticket_reservations WHERE session_id = $1`,
+        [sessionId]
+      );
+
+      console.log(
+        `[registerForEvent] Consumed reservation ${sessionId} for user ${userId}`
+      );
     }
 
     await client.query("COMMIT");
@@ -4823,6 +4863,266 @@ const confirmAttendance = async (req, res) => {
   }
 };
 
+/**
+ * Get events awaiting attendance confirmation
+ * GET /events/pending-attendance
+ * Returns registered events that started 2+ hours ago with no attendance response
+ */
+const getPendingAttendanceEvents = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Query for events where:
+    // - User is registered (status: registered, attended, or confirmed)
+    // - Event is not cancelled
+    // - No attendance response yet (attendance_status IS NULL)
+    // - Event started 2+ hours ago
+    const query = `
+      SELECT 
+        e.id,
+        e.title,
+        COALESCE(e.start_datetime, e.event_date) as start_datetime,
+        e.is_cancelled,
+        er.attendance_status
+      FROM events e
+      INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1
+      WHERE er.registration_status IN ('registered', 'attended', 'confirmed')
+        AND e.is_cancelled = false
+        AND er.attendance_status IS NULL
+        AND COALESCE(e.start_datetime, e.event_date) + interval '2 hours' <= NOW()
+      ORDER BY COALESCE(e.start_datetime, e.event_date) ASC
+      LIMIT 1
+    `;
+
+    const result = await pool.query(query, [userId]);
+
+    res.json({
+      success: true,
+      event: result.rows.length > 0 ? result.rows[0] : null,
+      server_time: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error getting pending attendance events:", error);
+    res.status(500).json({ error: "Failed to get pending events" });
+  }
+};
+
+// ============================================================
+// TICKET RESERVATION SYSTEM
+// ============================================================
+
+/**
+ * Reserve tickets for checkout session
+ * POST /events/:eventId/reserve-tickets
+ * Members only
+ *
+ * Creates a temporary reservation that expires after 10 minutes.
+ * This prevents overbooking when multiple users are in checkout.
+ *
+ * @body {Array} tickets - [{ticketTypeId, quantity}]
+ * @returns {string} sessionId - Unique session to use for completion
+ */
+const reserveTickets = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId } = req.params;
+    const { tickets } = req.body;
+
+    // Validate user is a member
+    if (!userId || userType !== "member") {
+      await client.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({ error: "Only members can reserve tickets" });
+    }
+
+    // Validate tickets array
+    if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "No tickets to reserve" });
+    }
+
+    // Check if user already has an active reservation for this event
+    const existingReservation = await client.query(
+      `SELECT session_id FROM ticket_reservations 
+       WHERE member_id = $1 AND event_id = $2 AND expires_at > NOW()
+       LIMIT 1`,
+      [userId, eventId]
+    );
+
+    if (existingReservation.rows.length > 0) {
+      // Return existing session instead of creating new one
+      await client.query("ROLLBACK");
+      return res.json({
+        success: true,
+        sessionId: existingReservation.rows[0].session_id,
+        message: "Using existing reservation",
+      });
+    }
+
+    // Generate unique session ID
+    const sessionId = crypto.randomBytes(16).toString("hex");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    for (const item of tickets) {
+      // Lock and check availability with FOR UPDATE
+      const ticketResult = await client.query(
+        `SELECT * FROM ticket_types 
+         WHERE id = $1 AND event_id = $2 AND is_active = true 
+         FOR UPDATE`,
+        [item.ticketTypeId, eventId]
+      );
+
+      if (ticketResult.rows.length === 0) {
+        throw new Error(`Invalid ticket type: ${item.ticketTypeId}`);
+      }
+
+      const ticket = ticketResult.rows[0];
+
+      // Check availability (total_quantity - sold_count - reserved_count)
+      if (ticket.total_quantity) {
+        const available =
+          ticket.total_quantity -
+          (ticket.sold_count || 0) -
+          (ticket.reserved_count || 0);
+        if (item.quantity > available) {
+          throw new Error(
+            available <= 0
+              ? `Sold out: ${ticket.name}`
+              : `Only ${available} tickets left for ${ticket.name}`
+          );
+        }
+      }
+
+      // Check max_per_order
+      if (ticket.max_per_order && item.quantity > ticket.max_per_order) {
+        throw new Error(
+          `Maximum ${ticket.max_per_order} tickets allowed per order for ${ticket.name}`
+        );
+      }
+
+      // Create reservation record
+      await client.query(
+        `INSERT INTO ticket_reservations 
+         (ticket_type_id, member_id, event_id, quantity, session_id, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          item.ticketTypeId,
+          userId,
+          eventId,
+          item.quantity,
+          sessionId,
+          expiresAt,
+        ]
+      );
+
+      // Increment reserved_count
+      await client.query(
+        `UPDATE ticket_types SET reserved_count = COALESCE(reserved_count, 0) + $1 WHERE id = $2`,
+        [item.quantity, item.ticketTypeId]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    console.log(
+      `[reserveTickets] Created reservation ${sessionId} for user ${userId}, event ${eventId}`
+    );
+
+    res.json({
+      success: true,
+      sessionId,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("[reserveTickets] Error:", error.message);
+    res
+      .status(400)
+      .json({ error: error.message || "Failed to reserve tickets" });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Release ticket reservation
+ * POST /events/:eventId/release-reservation
+ * Called when user leaves checkout without completing, or on timeout
+ *
+ * @body {string} sessionId - The checkout session to release
+ */
+const releaseReservation = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { sessionId } = req.body;
+    const { eventId } = req.params;
+
+    if (!sessionId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Session ID required" });
+    }
+
+    // Get all reservations for this session
+    const reservations = await client.query(
+      `SELECT id, ticket_type_id, quantity 
+       FROM ticket_reservations 
+       WHERE session_id = $1 AND event_id = $2`,
+      [sessionId, eventId]
+    );
+
+    if (reservations.rows.length === 0) {
+      // No reservations found - might already be released or completed
+      await client.query("ROLLBACK");
+      return res.json({ success: true, message: "No reservations to release" });
+    }
+
+    // Decrement reserved_count for each ticket type
+    for (const reservation of reservations.rows) {
+      await client.query(
+        `UPDATE ticket_types 
+         SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1) 
+         WHERE id = $2`,
+        [reservation.quantity, reservation.ticket_type_id]
+      );
+    }
+
+    // Delete the reservations
+    await client.query(
+      `DELETE FROM ticket_reservations WHERE session_id = $1 AND event_id = $2`,
+      [sessionId, eventId]
+    );
+
+    await client.query("COMMIT");
+
+    console.log(
+      `[releaseReservation] Released ${reservations.rows.length} reservations for session ${sessionId}`
+    );
+
+    res.json({
+      success: true,
+      releasedCount: reservations.rows.length,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("[releaseReservation] Error:", error);
+    res.status(500).json({ error: "Failed to release reservation" });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -4858,4 +5158,8 @@ module.exports = {
   getCommunityPublicEvents,
   // Attendance confirmation
   confirmAttendance,
+  getPendingAttendanceEvents,
+  // Ticket reservations
+  reserveTickets,
+  releaseReservation,
 };

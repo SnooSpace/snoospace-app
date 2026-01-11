@@ -20,10 +20,15 @@ import { useNotifications } from "../context/NotificationsContext";
 import { apiGet, apiPost } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { getUnreadCount as getMessageUnreadCount } from "../api/messages";
-import { discoverEvents } from "../api/events";
+import {
+  discoverEvents,
+  getPendingAttendanceEvent,
+  confirmAttendance,
+} from "../api/events";
 import PostCard from "./PostCard";
 import EventCard from "./EventCard";
 import CommentsModal from "./CommentsModal";
+import AttendanceConfirmationModal from "./AttendanceConfirmationModal";
 import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
 import { useMessagePolling } from "../hooks/useMessagePolling";
@@ -109,6 +114,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [greetingName, setGreetingName] = useState(null);
   const [messageUnread, setMessageUnread] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Attendance confirmation state
+  const [pendingAttendanceEvent, setPendingAttendanceEvent] = useState(null);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   // Refs for collapsible header animation
   const flatListRef = useRef(null);
@@ -321,12 +331,47 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }, [loadNotifications])
   );
 
+  // Check for pending attendance confirmation on focus
+  useFocusEffect(
+    React.useCallback(() => {
+      checkPendingAttendance();
+    }, [])
+  );
+
+  const checkPendingAttendance = async () => {
+    try {
+      const response = await getPendingAttendanceEvent();
+      if (response?.event) {
+        setPendingAttendanceEvent(response.event);
+        setShowAttendanceModal(true);
+      }
+    } catch (error) {
+      console.warn("[HomeFeed] Error checking pending attendance:", error);
+    }
+  };
+
   const loadMessageUnreadCount = async () => {
     try {
       const response = await getMessageUnreadCount();
       setMessageUnread(response.unreadCount || 0);
     } catch (error) {
       console.error("Error loading message unread count:", error);
+    }
+  };
+
+  const handleConfirmAttendance = async (attended) => {
+    if (!pendingAttendanceEvent?.id) return;
+    try {
+      setAttendanceLoading(true);
+      HapticsService.triggerImpactMedium();
+      await confirmAttendance(pendingAttendanceEvent.id, attended);
+      setShowAttendanceModal(false);
+      setPendingAttendanceEvent(null);
+    } catch (error) {
+      console.error("Error confirming attendance:", error);
+      Alert.alert("Error", "Failed to confirm attendance. Please try again.");
+    } finally {
+      setAttendanceLoading(false);
     }
   };
 
@@ -687,6 +732,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
         }
         navigation={navigation}
+      />
+
+      {/* Attendance Confirmation Modal */}
+      <AttendanceConfirmationModal
+        visible={showAttendanceModal}
+        eventTitle={pendingAttendanceEvent?.title}
+        onConfirmAttendance={handleConfirmAttendance}
+        loading={attendanceLoading}
       />
     </SafeAreaView>
   );

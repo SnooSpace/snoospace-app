@@ -13,7 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import ProgressBar from "../../../components/Progressbar";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
@@ -46,11 +51,11 @@ const SponsorOtpScreen = ({ navigation, route }) => {
     try {
       // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
-      
+
       // For signup, proceed with tokens if available
       let accessToken = null;
       let refreshToken = null;
-      
+
       if (result.session) {
         accessToken = result.session.accessToken;
         refreshToken = result.session.refreshToken;
@@ -92,7 +97,16 @@ const SponsorOtpScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Alert.alert(
+              "Go Back?",
+              "You'll need to request a new code if you go back.",
+              [
+                { text: "Stay", style: "cancel" },
+                { text: "Change Email", onPress: () => navigation.goBack() },
+              ]
+            );
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color="#1D2A32" />
@@ -105,13 +119,19 @@ const SponsorOtpScreen = ({ navigation, route }) => {
         <View style={styles.progressBarContainer}>
           <ProgressBar progress={25} />
         </View>
-        
+
         <Text style={styles.title}>Enter verification code</Text>
         <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={[styles.input, isFocused && { borderColor: COLORS.primary, backgroundColor: '#fff' }]}
+            style={[
+              styles.input,
+              isFocused && {
+                borderColor: COLORS.primary,
+                backgroundColor: "#fff",
+              },
+            ]}
             placeholder="000000"
             placeholderTextColor={COLORS.textSecondary}
             value={otp}
@@ -133,18 +153,18 @@ const SponsorOtpScreen = ({ navigation, route }) => {
           onPress={handleVerify}
           disabled={loading}
         >
-            <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.button}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.textInverted} />
-              ) : (
-                <Text style={styles.buttonText}>Verify</Text>
-              )}
-            </LinearGradient>
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.button}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textInverted} />
+            ) : (
+              <Text style={styles.buttonText}>Verify</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity

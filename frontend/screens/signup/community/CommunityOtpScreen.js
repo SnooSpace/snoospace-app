@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,23 +11,28 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as sessionManager from '../../../utils/sessionManager';
-import { setAuthSession, clearPendingOtp } from '../../../api/auth';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as sessionManager from "../../../utils/sessionManager";
+import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
 const CommunityOtpScreen = ({ navigation, route }) => {
   const { email } = route.params || {};
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
@@ -39,21 +44,21 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert('Error', 'Please enter the 6-digit code.');
+      Alert.alert("Error", "Please enter the 6-digit code.");
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
-      
+
       // For signup, proceed with tokens if available
       let accessToken = null;
       let refreshToken = null;
-      
+
       if (result.session) {
         accessToken = result.session.accessToken;
         refreshToken = result.session.refreshToken;
@@ -62,20 +67,20 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         }
       }
       await clearPendingOtp();
-      
-      console.log('[CommunityOtp] OTP verified, navigating with:', {
+
+      console.log("[CommunityOtp] OTP verified, navigating with:", {
         email,
         accessTokenLength: accessToken?.length,
-        refreshTokenLength: refreshToken?.length
+        refreshTokenLength: refreshToken?.length,
       });
-      
-      navigation.navigate('CommunityName', {
+
+      navigation.navigate("CommunityName", {
         email,
         accessToken,
         refreshToken,
       });
     } catch (e) {
-      setError(e.message || 'Invalid verification code.');
+      setError(e.message || "Invalid verification code.");
     } finally {
       setLoading(false);
     }
@@ -85,14 +90,14 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     if (resendTimer > 0) return;
 
     setResendLoading(true);
-    setError('');
+    setError("");
     try {
       // Use V2 endpoint for sending OTP
       await sessionManager.sendOtp(email);
-      Alert.alert('Success', `Code resent to ${email}.`);
+      Alert.alert("Success", `Code resent to ${email}.`);
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
-      setError(e.message || 'Failed to resend code');
+      setError(e.message || "Failed to resend code");
     } finally {
       setResendLoading(false);
     }
@@ -107,27 +112,30 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         {/* Header Section */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              Alert.alert(
+                "Go Back?",
+                "You'll need to request a new code if you go back.",
+                [
+                  { text: "Stay", style: "cancel" },
+                  { text: "Change Email", onPress: () => navigation.goBack() },
+                ]
+              );
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          
         </View>
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Enter verification code</Text>
-          <Text style={styles.subtitle}>
-            We sent a 6-digit code to {email}
-          </Text>
+          <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={[
-                styles.input,
-                isFocused && styles.inputFocused,
-              ]}
+              style={[styles.input, isFocused && styles.inputFocused]}
               placeholder="000000"
               placeholderTextColor={COLORS.textSecondary}
               value={otp}
@@ -151,10 +159,10 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             activeOpacity={0.8}
           >
             <LinearGradient
-               colors={COLORS.primaryGradient}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 0 }}
-               style={styles.button}
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.button}
             >
               {loading ? (
                 <ActivityIndicator color={COLORS.textInverted} />
@@ -175,10 +183,10 @@ const CommunityOtpScreen = ({ navigation, route }) => {
               <Text
                 style={[
                   styles.resendText,
-                  (resendTimer > 0) && styles.resendTextDisabled
+                  resendTimer > 0 && styles.resendTextDisabled,
                 ]}
               >
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
               </Text>
             )}
           </TouchableOpacity>
@@ -194,15 +202,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     // Add padding for Android status bar
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 25,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 15,
   },
   backButton: {
@@ -210,7 +218,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
   },
   contentContainer: {
@@ -219,7 +227,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -229,19 +237,19 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   inputContainer: {
-    marginBottom: 5, 
+    marginBottom: 5,
   },
   input: {
-    height: 55, 
+    height: 55,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 24,
-    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     letterSpacing: 8,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
   },
   inputFocused: {
@@ -256,7 +264,7 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 16,
     borderRadius: BORDER_RADIUS.pill,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -265,17 +273,17 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
     paddingVertical: 10,
   },
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   resendTextDisabled: {
     color: COLORS.textSecondary,
@@ -284,7 +292,7 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 14,
     marginTop: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
 

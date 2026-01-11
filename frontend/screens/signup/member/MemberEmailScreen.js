@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,20 +11,25 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme"; 
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 import { apiPost } from "../../../api/client";
-import { setPendingOtp } from "../../../api/auth";
+import { setPendingOtp, checkEmailExists } from "../../../api/auth";
 
 const EmailInputScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isValidEmail, setIsValidEmail] = useState(false);
   const [touched, setTouched] = useState(false); // track if user has typed
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -35,20 +40,16 @@ const EmailInputScreen = ({ navigation }) => {
     setIsValidEmail(emailRegex.test(text));
   };
 
-  const handleContinue = async () => {
-    if (!isValidEmail) {
-      Alert.alert("Error", "Please enter a valid email address.");
-      return;
-    }
-
+  // Send OTP and navigate to OTP screen
+  const sendOtpAndNavigate = async () => {
     setLoading(true);
     setError("");
-    
+
     try {
-      // Increased timeout to 15 seconds for better reliability
-      const response = await apiPost("/auth/send-otp", { email }, 15000);
-      await setPendingOtp('signup_member', email, 600);
-      
+      // Use V2 endpoint which supports multi-account
+      const response = await apiPost("/auth/v2/send-otp", { email }, 15000);
+      await setPendingOtp("signup_member", email, 600);
+
       // Only navigate if we get a successful response
       if (response) {
         console.log("OTP sent successfully, navigating to OTP screen");
@@ -59,37 +60,82 @@ const EmailInputScreen = ({ navigation }) => {
       }
     } catch (e) {
       console.error("OTP send error:", e);
-      const msg = (e.message || '').toLowerCase();
-      
-      if (msg.includes('account already exists')) {
-        Alert.alert(
-          "Email exists",
-          "An account with this email already exists.",
-          [
-            { text: "OK", onPress: () => navigation.navigate("Login", { email }) }
-          ]
-        );
-        return;
-      } else if (msg.includes('timeout') || msg.includes('timed out')) {
-        setRetryCount(prev => prev + 1);
+      const msg = (e.message || "").toLowerCase();
+
+      if (msg.includes("timeout") || msg.includes("timed out")) {
+        setRetryCount((prev) => prev + 1);
         if (retryCount < 2) {
           setError(`Request timed out. Retrying... (${retryCount + 1}/3)`);
           // Auto retry after 2 seconds
           setTimeout(() => {
             if (retryCount < 2) {
-              handleContinue();
+              sendOtpAndNavigate();
             }
           }, 2000);
         } else {
-          setError("Request timed out after multiple attempts. Please check your internet connection and try again.");
+          setError(
+            "Request timed out after multiple attempts. Please check your internet connection and try again."
+          );
         }
-      } else if (msg.includes('network') || msg.includes('fetch')) {
-        setError("Network error. Please check your internet connection and try again.");
+      } else if (msg.includes("network") || msg.includes("fetch")) {
+        setError(
+          "Network error. Please check your internet connection and try again."
+        );
       } else {
-        setError(e.message || "Failed to send verification code. Please try again.");
+        setError(
+          e.message || "Failed to send verification code. Please try again."
+        );
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!isValidEmail) {
+      Alert.alert("Error", "Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Check if email already has accounts
+      console.log("[MemberEmailScreen] Checking if email exists:", email);
+      const exists = await checkEmailExists(email);
+      console.log("[MemberEmailScreen] Email exists result:", exists);
+
+      if (exists) {
+        setLoading(false);
+        console.log("[MemberEmailScreen] Showing confirmation dialog");
+        // Show confirmation dialog
+        Alert.alert(
+          "Account Exists",
+          "An account with this email already exists. Would you like to create a new account with the same email or use a different email?",
+          [
+            {
+              text: "Use Different Email",
+              style: "cancel",
+            },
+            {
+              text: "Continue Anyway",
+              onPress: () => sendOtpAndNavigate(),
+            },
+          ]
+        );
+        return;
+      }
+
+      // No existing account - proceed directly
+      console.log(
+        "[MemberEmailScreen] No existing account, proceeding to send OTP"
+      );
+      await sendOtpAndNavigate();
+    } catch (e) {
+      console.error("Email check error:", e);
+      // On error, proceed anyway
+      await sendOtpAndNavigate();
     }
   };
 
@@ -101,7 +147,17 @@ const EmailInputScreen = ({ navigation }) => {
       >
         {/* Header Section */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => {
+              // Use parent navigator since this is the first screen of nested navigator
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.getParent()?.goBack();
+              }
+            }}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
@@ -114,10 +170,7 @@ const EmailInputScreen = ({ navigation }) => {
           </Text>
 
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused,
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             onChangeText={validateEmail}
             value={email}
             onFocus={() => setIsFocused(true)}
@@ -132,7 +185,9 @@ const EmailInputScreen = ({ navigation }) => {
 
           {/* Error message if invalid */}
           {touched && email.length > 0 && !isValidEmail && (
-            <Text style={styles.errorText}>Please enter a valid email address</Text>
+            <Text style={styles.errorText}>
+              Please enter a valid email address
+            </Text>
           )}
 
           <Text style={styles.infoText}>
@@ -144,7 +199,10 @@ const EmailInputScreen = ({ navigation }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.continueButtonContainer, (!isValidEmail || loading) && styles.disabledButton]}
+          style={[
+            styles.continueButtonContainer,
+            (!isValidEmail || loading) && styles.disabledButton,
+          ]}
           onPress={handleContinue}
           disabled={!isValidEmail || loading}
           activeOpacity={0.8}
@@ -172,15 +230,15 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 15,
   },
   backButton: {
@@ -193,7 +251,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -204,7 +262,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 10,
     paddingHorizontal: 15,
     fontSize: 16,
@@ -214,7 +272,7 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: COLORS.primary,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   errorText: {
     fontSize: 12,
@@ -240,8 +298,8 @@ const styles = StyleSheet.create({
   continueButton: {
     paddingVertical: 15,
     borderRadius: BORDER_RADIUS.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   disabledButton: {
     opacity: 0.6,
@@ -250,7 +308,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '600'
+    fontWeight: "600",
   },
 });
 

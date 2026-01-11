@@ -92,7 +92,14 @@ const LoginScreen = ({ navigation, route }) => {
       {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            // Try to go back, if not possible navigate to Landing
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("Landing");
+            }
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />

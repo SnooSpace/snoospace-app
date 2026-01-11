@@ -257,3 +257,47 @@ export async function confirmAttendance(eventId, attended) {
     token
   );
 }
+
+/**
+ * Get event pending attendance confirmation
+ * Returns the first event that needs attendance confirmation (2+ hours after start)
+ * @returns {Promise<Object>} { success: boolean, event: Object|null, server_time: string }
+ */
+export async function getPendingAttendanceEvent() {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet("/events/pending-attendance", 15000, token);
+}
+
+/**
+ * Reserve tickets during checkout
+ * Creates a temporary 10-minute reservation to prevent overbooking
+ * @param {string|number} eventId - Event ID
+ * @param {Array} tickets - [{ticketTypeId, quantity}]
+ * @returns {Promise<Object>} { success: boolean, sessionId: string, expiresAt: string }
+ */
+export async function reserveTickets(eventId, tickets) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/reserve-tickets`,
+    { tickets },
+    15000,
+    token
+  );
+}
+
+/**
+ * Release ticket reservation
+ * Called when user leaves checkout without completing or on timeout
+ * @param {string|number} eventId - Event ID
+ * @param {string} sessionId - The checkout session to release
+ * @returns {Promise<Object>} { success: boolean }
+ */
+export async function releaseReservation(eventId, sessionId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/release-reservation`,
+    { sessionId },
+    15000,
+    token
+  );
+}

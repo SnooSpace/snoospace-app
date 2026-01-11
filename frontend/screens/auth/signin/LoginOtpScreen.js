@@ -13,10 +13,18 @@ import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
-import { startForegroundWatch, attachAppStateListener } from "../../../services/LocationTracker";
+import {
+  startForegroundWatch,
+  attachAppStateListener,
+} from "../../../services/LocationTracker";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -29,7 +37,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  
+
   // Account picker state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [accounts, setAccounts] = useState([]);
@@ -88,12 +96,12 @@ const LoginOtpScreen = ({ navigation, route }) => {
     await clearPendingOtp();
 
     // Start location tracking
-    console.log('[LoginOtpV2] Starting location tracking...');
+    console.log("[LoginOtpV2] Starting location tracking...");
     await startForegroundWatch();
     attachAppStateListener();
 
     if (isAddingAccount) {
-      Alert.alert('Account Added', 'Switching to new account...');
+      Alert.alert("Account Added", "Switching to new account...");
     }
 
     navigateToHome(user.type);
@@ -105,15 +113,23 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const handleAccountSelected = async (account) => {
     setPickerLoading(true);
     try {
-      console.log('[LoginOtpV2] Creating session for selected account:', account.type, account.id);
-      
-      const result = await sessionManager.createSession(account.id, account.type, account.email || email);
-      
+      console.log(
+        "[LoginOtpV2] Creating session for selected account:",
+        account.type,
+        account.id
+      );
+
+      const result = await sessionManager.createSession(
+        account.id,
+        account.type,
+        account.email || email
+      );
+
       await completeLogin(result.user, result.session);
       setShowAccountPicker(false);
     } catch (e) {
-      console.error('[LoginOtpV2] Account selection error:', e);
-      Alert.alert('Error', e.message || 'Failed to login to selected account');
+      console.error("[LoginOtpV2] Account selection error:", e);
+      Alert.alert("Error", e.message || "Failed to login to selected account");
     } finally {
       setPickerLoading(false);
     }
@@ -132,23 +148,23 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setError("");
 
     try {
-      console.log('[LoginOtpV2] Verifying OTP for:', email);
-      
+      console.log("[LoginOtpV2] Verifying OTP for:", email);
+
       // Verify OTP with V2 endpoint
       const result = await sessionManager.verifyOtp(email, otp);
 
       // Handle different response scenarios
       if (result.requiresAccountCreation) {
         // No accounts found - redirect to account type selection
-        console.log('[LoginOtpV2] No accounts found, redirecting to signup');
+        console.log("[LoginOtpV2] No accounts found, redirecting to signup");
         Alert.alert(
-          'No Account Found',
-          'No account exists with this email. Would you like to create one?',
+          "No Account Found",
+          "No account exists with this email. Would you like to create one?",
           [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Create Account', 
-              onPress: () => navigation.navigate('Landing')
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Create Account",
+              onPress: () => navigation.navigate("Landing"),
             },
           ]
         );
@@ -157,7 +173,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
       if (result.requiresAccountSelection) {
         // Multiple accounts - show picker
-        console.log('[LoginOtpV2] Multiple accounts found, showing picker');
+        console.log("[LoginOtpV2] Multiple accounts found, showing picker");
         setAccounts(result.accounts);
         setShowAccountPicker(true);
         return;
@@ -165,19 +181,20 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
       if (result.autoLogin && result.session) {
         // Single account - auto-logged in
-        console.log('[LoginOtpV2] Single account, auto-login successful');
+        console.log("[LoginOtpV2] Single account, auto-login successful");
         await completeLogin(result.user, result.session);
         return;
       }
 
       // Unexpected response
-      console.warn('[LoginOtpV2] Unexpected response:', result);
-      throw new Error('Unexpected server response');
-
+      console.warn("[LoginOtpV2] Unexpected response:", result);
+      throw new Error("Unexpected server response");
     } catch (e) {
       console.error("[LoginOtpV2] OTP verification error:", e);
       if (e.message && e.message.includes("timed out")) {
-        setError("Request timed out. Please check your internet connection and try again.");
+        setError(
+          "Request timed out. Please check your internet connection and try again."
+        );
       } else {
         setError(e.message || "Invalid verification code.");
       }
@@ -207,7 +224,16 @@ const LoginOtpScreen = ({ navigation, route }) => {
       {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Alert.alert(
+              "Go Back?",
+              "You'll need to request a new code if you go back.",
+              [
+                { text: "Stay", style: "cancel" },
+                { text: "Change Email", onPress: () => navigation.goBack() },
+              ]
+            );
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
@@ -220,10 +246,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused,
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             placeholder="000000"
             placeholderTextColor={COLORS.textSecondary}
             value={otp}

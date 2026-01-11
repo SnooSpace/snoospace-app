@@ -909,6 +909,11 @@ router.delete("/account", authMiddleware, AccountController.deleteAccount);
 // Events and matching
 router.post("/events", authMiddleware, EventController.createEvent);
 router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
+router.get(
+  "/events/pending-attendance",
+  authMiddleware,
+  EventController.getPendingAttendanceEvents
+);
 router.get("/events/discover", authMiddleware, EventController.discoverEvents);
 router.get("/events/search", authMiddleware, EventController.searchEvents);
 router.get(
@@ -957,6 +962,17 @@ router.post(
   "/events/:eventId/cancel-registration",
   authMiddleware,
   EventController.cancelRegistration
+);
+// Ticket reservation routes (for checkout flow)
+router.post(
+  "/events/:eventId/reserve-tickets",
+  authMiddleware,
+  EventController.reserveTickets
+);
+router.post(
+  "/events/:eventId/release-reservation",
+  authMiddleware,
+  EventController.releaseReservation
 );
 router.get(
   "/events/:eventId/registrations",
