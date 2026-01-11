@@ -30,7 +30,8 @@ import {
 const RESEND_COOLDOWN = 60;
 
 const LoginOtpScreen = ({ navigation, route }) => {
-  const { email, isAddingAccount } = route.params || {};
+  const { email, isAddingAccount, loginViaUsername, targetAccount } =
+    route.params || {};
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -136,6 +137,85 @@ const LoginOtpScreen = ({ navigation, route }) => {
   };
 
   /**
+   * Handle multiple accounts selection - login to all selected accounts
+   */
+  const handleMultipleAccountsSelected = async (selectedAccounts) => {
+    setPickerLoading(true);
+    try {
+      console.log(
+        "[LoginOtpV2] Logging into multiple accounts:",
+        selectedAccounts.length
+      );
+
+      // Login to each account and save them
+      let primaryUser = null;
+      let primarySession = null;
+
+      for (let i = 0; i < selectedAccounts.length; i++) {
+        const account = selectedAccounts[i];
+        console.log(
+          `[LoginOtpV2] Processing account ${i + 1}/${
+            selectedAccounts.length
+          }:`,
+          account.type
+        );
+
+        const result = await sessionManager.createSession(
+          account.id,
+          account.type,
+          account.email || email
+        );
+
+        // Save account to account manager
+        await addAccount({
+          id: result.user.id,
+          type: result.user.type,
+          username: result.user.username,
+          email: result.user.email || email,
+          name: result.user.name || result.user.username,
+          profilePicture: result.user.avatar || null,
+          authToken: result.session.accessToken,
+          refreshToken: result.session.refreshToken,
+          isLoggedIn: true,
+        });
+
+        // First account becomes the primary (active) account
+        if (i === 0) {
+          primaryUser = result.user;
+          primarySession = result.session;
+        }
+      }
+
+      // Complete login with the first account
+      if (primaryUser && primarySession) {
+        await setAuthSession(
+          primarySession.accessToken,
+          email,
+          primarySession.refreshToken
+        );
+        await clearPendingOtp();
+
+        console.log("[LoginOtpV2] Starting location tracking...");
+        await startForegroundWatch();
+        attachAppStateListener();
+
+        Alert.alert(
+          "Accounts Logged In",
+          `Successfully logged into ${selectedAccounts.length} accounts. You can switch between them from your profile.`
+        );
+
+        setShowAccountPicker(false);
+        navigateToHome(primaryUser.type);
+      }
+    } catch (e) {
+      console.error("[LoginOtpV2] Multiple account selection error:", e);
+      Alert.alert("Error", e.message || "Failed to login to selected accounts");
+    } finally {
+      setPickerLoading(false);
+    }
+  };
+
+  /**
    * Handle OTP verification using V2 endpoints
    */
   const handleVerify = async () => {
@@ -148,7 +228,12 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setError("");
 
     try {
-      console.log("[LoginOtpV2] Verifying OTP for:", email);
+      console.log(
+        "[LoginOtpV2] Verifying OTP for:",
+        email,
+        "viaUsername:",
+        loginViaUsername
+      );
 
       // Verify OTP with V2 endpoint
       const result = await sessionManager.verifyOtp(email, otp);
@@ -171,6 +256,23 @@ const LoginOtpScreen = ({ navigation, route }) => {
         return;
       }
 
+      // If logged in via username, skip account picker and login directly
+      if (loginViaUsername && targetAccount) {
+        console.log(
+          "[LoginOtpV2] Username login - direct login to account:",
+          targetAccount.type,
+          targetAccount.id
+        );
+        const sessionResult = await sessionManager.createSession(
+          targetAccount.id,
+          targetAccount.type,
+          email
+        );
+        await completeLogin(sessionResult.user, sessionResult.session);
+        return;
+      }
+
+      // Email login flow - show account picker if multiple accounts
       if (result.requiresAccountSelection) {
         // Multiple accounts - show picker
         console.log("[LoginOtpV2] Multiple accounts found, showing picker");
@@ -302,6 +404,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         onClose={() => setShowAccountPicker(false)}
         accounts={accounts}
         onSelectAccount={handleAccountSelected}
+        onSelectMultiple={handleMultipleAccountsSelected}
         loading={pickerLoading}
         email={email}
       />

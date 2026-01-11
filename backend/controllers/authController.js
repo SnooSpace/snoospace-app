@@ -59,6 +59,8 @@ async function loginStart(req, res) {
     // Determine if input is email or username
     let email = inputEmail;
     let usernameProvided = inputUsername;
+    let loginViaUsername = false;
+    let targetAccount = null; // The specific account when logging in via username
 
     // If email looks like a username (no @ symbol), treat it as username
     if (email && !email.includes("@")) {
@@ -66,33 +68,35 @@ async function loginStart(req, res) {
       email = null;
     }
 
-    // If username is provided, look up the associated email
+    // If username is provided, look up the associated email AND account info
     if (usernameProvided && !email) {
       const usernameLower = usernameProvided.toLowerCase().trim();
+      loginViaUsername = true;
 
-      // Search all user tables for this username
+      // Search all user tables for this username - include account details
       const queries = await Promise.all([
         pool.query(
-          "SELECT email FROM members WHERE LOWER(username) = $1 LIMIT 1",
+          "SELECT id, 'member' as type, name, username, profile_photo_url as avatar, email FROM members WHERE LOWER(username) = $1 LIMIT 1",
           [usernameLower]
         ),
         pool.query(
-          "SELECT email FROM communities WHERE LOWER(username) = $1 LIMIT 1",
+          "SELECT id, 'community' as type, name, username, logo_url as avatar, email FROM communities WHERE LOWER(username) = $1 LIMIT 1",
           [usernameLower]
         ),
         pool.query(
-          "SELECT email FROM sponsors WHERE LOWER(username) = $1 LIMIT 1",
+          "SELECT id, 'sponsor' as type, brand_name as name, username, logo_url as avatar, email FROM sponsors WHERE LOWER(username) = $1 LIMIT 1",
           [usernameLower]
         ),
         pool.query(
-          "SELECT contact_email as email FROM venues WHERE LOWER(username) = $1 LIMIT 1",
+          "SELECT id, 'venue' as type, name, username, logo_url as avatar, contact_email as email FROM venues WHERE LOWER(username) = $1 LIMIT 1",
           [usernameLower]
         ),
       ]);
 
-      // Find the first matching email
+      // Find the first matching account
       for (const result of queries) {
         if (result.rows.length > 0 && result.rows[0].email) {
+          targetAccount = result.rows[0];
           email = result.rows[0].email;
           break;
         }
@@ -146,7 +150,12 @@ async function loginStart(req, res) {
         .json({ error: "Account doesn't exist. Please sign up." });
     }
 
-    console.log("[Auth] Sending login OTP to:", email);
+    console.log(
+      "[Auth] Sending login OTP to:",
+      email,
+      "viaUsername:",
+      loginViaUsername
+    );
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false, emailRedirectTo: undefined },
@@ -154,8 +163,14 @@ async function loginStart(req, res) {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    // Return the email so frontend knows where OTP was sent
-    res.json({ message: "Login code sent to email", email, data });
+    // Return the email and login method info so frontend can handle appropriately
+    res.json({
+      message: "Login code sent to email",
+      email,
+      loginViaUsername,
+      targetAccount, // Only set when logging in via username - allows direct login
+      data,
+    });
   } catch (err) {
     console.error(
       "/auth/login/start error:",

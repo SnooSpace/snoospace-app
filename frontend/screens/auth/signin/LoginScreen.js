@@ -52,6 +52,10 @@ const LoginScreen = ({ navigation, route }) => {
 
       // Backend returns the resolved email (important when username was used)
       const resolvedEmail = response.email || emailOrUsername;
+      // Track if login was via username (for direct login without account picker)
+      const loginViaUsername = response.loginViaUsername || false;
+      // The specific account if logged in via username
+      const targetAccount = response.targetAccount || null;
 
       await setPendingOtp("login", resolvedEmail, 600);
 
@@ -63,6 +67,8 @@ const LoginScreen = ({ navigation, route }) => {
         navigation.navigate("LoginOtp", {
           email: resolvedEmail,
           isAddingAccount,
+          loginViaUsername,
+          targetAccount,
         });
         setIsSuccess(false);
       }, 1000);
