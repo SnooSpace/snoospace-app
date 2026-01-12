@@ -131,10 +131,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
   const handleSave = async () => {
     // Validation
-    if (photos.length === 0) {
+    if (photos.length < 3) {
       Alert.alert(
-        "Required",
-        "Please add at least 1 photo so people can recognize you at events"
+        "Photos Required",
+        "Please add at least 3 photos to appear in discovery"
       );
       return;
     }
@@ -248,10 +248,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
   const getCompletionPercentage = () => {
     let score = 0;
-    if (photos.length > 0) score += 25;
+    if (photos.length >= 3) score += 40; // 3+ photos required
+    else if (photos.length > 0) score += Math.floor((photos.length / 3) * 40);
     if (goalBadges.length > 0) score += 25;
     if (openers.length > 0) score += 25;
-    if (photos.length >= 2) score += 15;
     if (openers.length >= 2) score += 10;
     return Math.min(score, 100);
   };
@@ -322,28 +322,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         {/* SECTION 1: Photos */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Photos</Text>
-            <Text style={styles.requiredBadge}>Required</Text>
+            <Text style={styles.sectionTitle}>My photos & videos</Text>
           </View>
-          <Text style={styles.sectionHint}>
-            Add 1-4 photos so people can recognize you at events
-          </Text>
 
           <ImageUploader
             ref={imageUploaderRef}
             onImagesChange={handlePhotosChange}
-            maxImages={4}
+            maxImages={6}
+            minRequired={3}
             enableCrop={true}
             cropPreset="feed_portrait"
             initialImages={photos}
+            hingeStyle={true}
             style={{ marginBottom: 0 }}
           />
-
-          {photos.length === 0 && (
-            <Text style={styles.warningText}>
-              ⚠️ Add at least 1 photo to appear in discovery
-            </Text>
-          )}
         </View>
 
         {/* SECTION 2: Identity */}

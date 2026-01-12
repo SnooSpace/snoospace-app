@@ -50,6 +50,7 @@ const ImageUploader = forwardRef(
   (
     {
       maxImages = 10,
+      minRequired = 0, // Minimum required photos
       onImagesChange,
       onAspectRatiosChange, // NEW: Callback to pass aspect ratios to parent
       initialImages = [],
@@ -58,6 +59,7 @@ const ImageUploader = forwardRef(
       enableCrop = true, // Enable crop by default for feed posts
       cropPreset = "feed_portrait", // Default to 4:5 with toggle to 1:1
       horizontal = false, // Support horizontal media tray
+      hingeStyle = false, // Enable Hinge-style 2x3 grid
     },
     ref
   ) => {
@@ -69,20 +71,114 @@ const ImageUploader = forwardRef(
       },
     }));
 
-    const [images, setImages] = useState(initialImages); // Cropped URIs for display/upload
-    const [originalUris, setOriginalUris] = useState([]); // Original URIs for re-editing
-    const [aspectRatios, setAspectRatios] = useState(initialAspectRatios); // Track aspect ratios
-    const [presetKeys, setPresetKeys] = useState([]); // Track preset keys (e.g., 'feed_portrait', 'feed_square')
-    const [cropMetadata, setCropMetadata] = useState([]); // Full crop data (scale, translateX, translateY) for re-edit
+    // Initialize state with fixed-size arrays for Hinge mode (sparse), or dense for normal mode
+    const initializeState = (items, totalSlots) => {
+      if (hingeStyle) {
+        // Create full array of length maxImages, filled with items + nulls
+        const arr = new Array(totalSlots).fill(null);
+        items.forEach((item, i) => {
+          if (i < totalSlots) arr[i] = item;
+        });
+        return arr;
+      }
+      return items;
+    };
+
+    const [images, setImages] = useState(() =>
+      initializeState(initialImages, maxImages)
+    );
+    // For auxiliary arrays in Hinge mode, we need to ensure they match images format
+    // But since they start empty, we just init with empty or null-filled based on mode
+    const [originalUris, setOriginalUris] = useState(() =>
+      hingeStyle ? new Array(maxImages).fill(null) : []
+    );
+    const [aspectRatios, setAspectRatios] = useState(() => {
+      if (hingeStyle) {
+        const arr = new Array(maxImages).fill(null);
+        initialAspectRatios.forEach((r, i) => {
+          if (i < maxImages) arr[i] = r;
+        });
+        return arr;
+      }
+      return initialAspectRatios;
+    });
+    const [presetKeys, setPresetKeys] = useState(() =>
+      hingeStyle ? new Array(maxImages).fill(null) : []
+    );
+    const [cropMetadata, setCropMetadata] = useState(() =>
+      hingeStyle ? new Array(maxImages).fill(null) : []
+    );
+
     const [uploading, setUploading] = useState(false);
     const [progressByIndex, setProgressByIndex] = useState({});
+    const [selectedForReorder, setSelectedForReorder] = useState(null); // Index of photo selected for reordering
     const { cropImage } = useCrop();
     const navigation = useNavigation();
     const resolveRef = useRef(null);
 
-    // Add multiple images with batch crop
-    const handleAddMultipleWithCrop = async () => {
-      const remainingSlots = maxImages - images.length;
+    // Swap two images for reordering (works for both dense and sparse/fixed arrays)
+    const swapImages = (indexA, indexB) => {
+      const swap = (arr) => {
+        const newArr = [...arr];
+        // Ensure indices exist if array was shorter (though ideally shouldn't happen in fixed mode)
+        if (hingeStyle) {
+          // Fixed mode: indices are always valid
+          [newArr[indexA], newArr[indexB]] = [newArr[indexB], newArr[indexA]];
+        } else {
+          // Dense mode: normal swap
+          [newArr[indexA], newArr[indexB]] = [newArr[indexB], newArr[indexA]];
+        }
+        return newArr;
+      };
+
+      const newImages = swap(images);
+      const newOriginalUris = swap(originalUris);
+      const newAspectRatios = swap(aspectRatios);
+      const newPresetKeys = swap(presetKeys);
+      const newCropMetadata = swap(cropMetadata);
+
+      setImages(newImages);
+      setOriginalUris(newOriginalUris);
+      setAspectRatios(newAspectRatios);
+      setPresetKeys(newPresetKeys);
+      setCropMetadata(newCropMetadata);
+      setSelectedForReorder(null);
+
+      if (onImagesChange) {
+        // Filter out nulls for parent if in Hinge mode
+        onImagesChange(hingeStyle ? newImages.filter(Boolean) : newImages);
+      }
+      if (onAspectRatiosChange) {
+        onAspectRatiosChange(
+          hingeStyle
+            ? newAspectRatios.filter((r, i) => newImages[i])
+            : newAspectRatios
+        );
+      }
+    };
+
+    // Handle photo tap for reordering
+    const handlePhotoTapForReorder = (index) => {
+      if (selectedForReorder === null) {
+        // First tap - select this photo
+        setSelectedForReorder(index);
+      } else if (selectedForReorder === index) {
+        // Tapped same photo - deselect
+        setSelectedForReorder(null);
+      } else {
+        // Tapped different photo - swap them
+        swapImages(selectedForReorder, index);
+      }
+    };
+
+    // Unified Add Function
+    // Can be called with specific targetIndex (for Hinge mode) or auto-find (default)
+    const handleAddImages = async (targetIndex = null) => {
+      // In Hinge mode, we count non-null images
+      const currentCount = hingeStyle
+        ? images.filter(Boolean).length
+        : images.length;
+      const remainingSlots = maxImages - currentCount;
 
       if (remainingSlots <= 0) {
         Alert.alert(
@@ -92,6 +188,13 @@ const ImageUploader = forwardRef(
         return;
       }
 
+      const isCropEnabled = enableCrop;
+
+      // ... logic continues in helper functions, but we refactor here to support targetIndex
+      await launchPicker(targetIndex, remainingSlots, isCropEnabled);
+    };
+
+    const launchPicker = async (targetIndex, remainingSlots, isCropEnabled) => {
       try {
         const { status } =
           await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -103,67 +206,138 @@ const ImageUploader = forwardRef(
           return;
         }
 
-        // Multi-select images
+        // For hinge mode "replace/fill specific slot", we only pick 1 image
+        // Otherwise pick up to remaining
+        const isSingleReplace =
+          targetIndex !== null && typeof targetIndex === "number";
+        const selectionLimit = isSingleReplace
+          ? 1
+          : Math.min(remainingSlots, 10);
+
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsMultipleSelection: true,
+          allowsMultipleSelection: !isSingleReplace,
           quality: 1,
-          selectionLimit: Math.min(remainingSlots, 10),
+          selectionLimit: selectionLimit,
         });
 
         if (result.canceled || result.assets.length === 0) return;
 
-        // Get image URIs and normalize orientation
-        // This ensures EXIF orientation is baked into pixels so crop coordinates match
-        const rawImageUris = result.assets.map((asset) => asset.uri);
-        const imageUris = await Promise.all(
-          rawImageUris.map((uri) => normalizeImageOrientation(uri))
-        );
+        const rawAssets = result.assets;
 
-        console.log(
-          "[ImageUploader] Normalized",
-          imageUris.length,
-          "images for crop"
-        );
+        if (isCropEnabled) {
+          processWithCrop(rawAssets, targetIndex);
+        } else {
+          processWithoutCrop(rawAssets, targetIndex);
+        }
+      } catch (error) {
+        console.error("Error picking images:", error);
+      }
+    };
 
-        // Navigate to BatchCropScreen for cropping
-        const croppedResults = await new Promise((resolve) => {
-          resolveRef.current = resolve;
+    // Process images WITH crop
+    const processWithCrop = async (assets, targetIndex) => {
+      // Get image URIs and normalize orientation
+      const rawImageUris = assets.map((asset) => asset.uri);
+      const imageUris = await Promise.all(
+        rawImageUris.map((uri) => normalizeImageOrientation(uri))
+      );
 
-          navigation.navigate("BatchCropScreen", {
-            imageUris: imageUris,
-            defaultPreset: cropPreset, // Default to feed_portrait (4:5) with toggle
-            onComplete: (results) => {
-              if (resolveRef.current) {
-                resolveRef.current(results);
-                resolveRef.current = null;
-              }
-            },
-            onCancel: () => {
-              if (resolveRef.current) {
-                resolveRef.current(null);
-                resolveRef.current = null;
-              }
-            },
-          });
+      // Navigate to BatchCropScreen
+      const croppedResults = await new Promise((resolve) => {
+        resolveRef.current = resolve;
+        navigation.navigate("BatchCropScreen", {
+          imageUris: imageUris,
+          defaultPreset: cropPreset,
+          onComplete: (results) => {
+            if (resolveRef.current) {
+              resolveRef.current(results);
+              resolveRef.current = null;
+            }
+          },
+          onCancel: () => {
+            if (resolveRef.current) {
+              resolveRef.current(null);
+              resolveRef.current = null;
+            }
+          },
         });
+      });
 
-        // User cancelled cropping
-        if (!croppedResults || croppedResults.length === 0) return;
+      if (!croppedResults || croppedResults.length === 0) return;
+      updateStateWithResults(croppedResults, targetIndex);
+    };
 
-        // Extract data from crop results
-        const newImageUris = croppedResults.map((r) => r.uri);
-        const newOriginalUris = croppedResults.map(
-          (r) => r.metadata?.originalUri || r.uri
-        );
-        const newAspectRatios = croppedResults.map(
-          (r) => r.metadata?.aspectRatio || 0.8
-        );
-        const newPresetKeys = croppedResults.map(
-          (r) => r.metadata?.preset || cropPreset
-        );
+    // Process images WITHOUT crop
+    const processWithoutCrop = (assets, targetIndex) => {
+      const results = assets.map((a) => ({
+        uri: a.uri,
+        metadata: { originalUri: a.uri },
+      }));
+      updateStateWithResults(results, targetIndex);
+    };
 
-        // Update all state arrays
+    const updateStateWithResults = (results, targetIndex) => {
+      const newImageUris = results.map((r) => r.uri);
+      const newOriginalUris = results.map(
+        (r) => r.metadata?.originalUri || r.uri
+      );
+      const newAspectRatios = results.map(
+        (r) => r.metadata?.aspectRatio || 0.8
+      );
+      const newPresetKeys = results.map(
+        (r) => r.metadata?.preset || cropPreset
+      );
+      const newCropMetadata = results.map((r) => r.metadata || {});
+
+      if (hingeStyle) {
+        // Sparse update
+        const nextImages = [...images];
+        const nextOriginals = [...originalUris];
+        const nextRatios = [...aspectRatios];
+        const nextPresets = [...presetKeys];
+        const nextMeta = [...cropMetadata];
+
+        let resultIdx = 0;
+
+        // If targetIndex provided, start filling there
+        if (targetIndex !== null) {
+          // If targeting a specific slot, fill it
+          nextImages[targetIndex] = newImageUris[0];
+          nextOriginals[targetIndex] = newOriginalUris[0];
+          nextRatios[targetIndex] = newAspectRatios[0];
+          nextPresets[targetIndex] = newPresetKeys[0];
+          nextMeta[targetIndex] = newCropMetadata[0];
+          // If more results (not expected if selectionLimit=1), could fill subsequent empty slots
+        } else {
+          // Auto-fill empty slots
+          for (
+            let i = 0;
+            i < maxImages && resultIdx < newImageUris.length;
+            i++
+          ) {
+            if (nextImages[i] === null) {
+              nextImages[i] = newImageUris[resultIdx];
+              nextOriginals[i] = newOriginalUris[resultIdx];
+              nextRatios[i] = newAspectRatios[resultIdx];
+              nextPresets[i] = newPresetKeys[resultIdx];
+              nextMeta[i] = newCropMetadata[resultIdx];
+              resultIdx++;
+            }
+          }
+        }
+
+        setImages(nextImages);
+        setOriginalUris(nextOriginals);
+        setAspectRatios(nextRatios);
+        setPresetKeys(nextPresets);
+        setCropMetadata(nextMeta);
+
+        if (onImagesChange) onImagesChange(nextImages.filter(Boolean));
+        if (onAspectRatiosChange)
+          onAspectRatiosChange(nextRatios.filter((_, i) => nextImages[i]));
+      } else {
+        // Dense update (append)
         const updatedImages = [...images, ...newImageUris].slice(0, maxImages);
         const updatedOriginalUris = [...originalUris, ...newOriginalUris].slice(
           0,
@@ -177,20 +351,6 @@ const ImageUploader = forwardRef(
           0,
           maxImages
         );
-
-        // NEW: Store full crop metadata for re-editing
-        const newCropMetadata = croppedResults.map((r) => r.metadata || {});
-
-        console.log(
-          "[ImageUploader] Storing crop metadata:",
-          newCropMetadata.map((m) => ({
-            preset: m.preset,
-            scale: m.scale,
-            translateX: m.translateX,
-            translateY: m.translateY,
-          }))
-        );
-
         const updatedCropMetadata = [...cropMetadata, ...newCropMetadata].slice(
           0,
           maxImages
@@ -202,57 +362,10 @@ const ImageUploader = forwardRef(
         setPresetKeys(updatedPresetKeys);
         setCropMetadata(updatedCropMetadata);
 
-        if (onImagesChange) {
-          onImagesChange(updatedImages);
-        }
-        if (onAspectRatiosChange) {
-          onAspectRatiosChange(updatedAspectRatios);
-        }
-      } catch (error) {
-        console.error("Error picking images:", error);
-        Alert.alert("Error", `Failed to pick images: ${error.message}`);
+        if (onImagesChange) onImagesChange(updatedImages);
+        if (onAspectRatiosChange) onAspectRatiosChange(updatedAspectRatios);
       }
     };
-
-    // Add multiple images without crop (original behavior)
-    const handleAddMultiple = async () => {
-      try {
-        const { status } =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (status !== "granted") {
-          Alert.alert(
-            "Permission Required",
-            "Permission to access camera roll is required!"
-          );
-          return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsMultipleSelection: true,
-          quality: 0.8,
-          selectionLimit: maxImages - images.length,
-        });
-
-        if (!result.canceled && result.assets) {
-          const newImages = result.assets.map((asset) => asset.uri);
-          const updatedImages = [...images, ...newImages].slice(0, maxImages);
-          setImages(updatedImages);
-          if (onImagesChange) {
-            onImagesChange(updatedImages);
-          }
-        }
-      } catch (error) {
-        console.error("Error picking images:", error);
-        Alert.alert("Error", `Failed to pick images: ${error.message}`);
-      }
-    };
-
-    // Unified add function based on enableCrop prop
-    const handleAddImages = enableCrop
-      ? handleAddMultipleWithCrop
-      : handleAddMultiple;
 
     // Edit/crop an existing image - uses ORIGINAL URI and saved preset
     const handleEditImage = async (index) => {
@@ -312,23 +425,48 @@ const ImageUploader = forwardRef(
     };
 
     const removeImage = (index) => {
-      const updatedImages = images.filter((_, i) => i !== index);
-      const updatedOriginalUris = originalUris.filter((_, i) => i !== index);
-      const updatedAspectRatios = aspectRatios.filter((_, i) => i !== index);
-      const updatedPresetKeys = presetKeys.filter((_, i) => i !== index);
-      const updatedCropMetadata = cropMetadata.filter((_, i) => i !== index);
+      if (hingeStyle) {
+        // Sparse removal: set to null
+        const update = (arr, val) => {
+          const copy = [...arr];
+          copy[index] = val;
+          return copy;
+        };
+        const nextImages = update(images, null);
+        const nextOriginals = update(originalUris, null);
+        const nextRatios = update(aspectRatios, null);
+        const nextPresets = update(presetKeys, null);
+        const nextMeta = update(cropMetadata, null);
 
-      setImages(updatedImages);
-      setOriginalUris(updatedOriginalUris);
-      setAspectRatios(updatedAspectRatios);
-      setPresetKeys(updatedPresetKeys);
-      setCropMetadata(updatedCropMetadata);
+        setImages(nextImages);
+        setOriginalUris(nextOriginals);
+        setAspectRatios(nextRatios);
+        setPresetKeys(nextPresets);
+        setCropMetadata(nextMeta);
 
-      if (onImagesChange) {
-        onImagesChange(updatedImages);
-      }
-      if (onAspectRatiosChange) {
-        onAspectRatiosChange(updatedAspectRatios);
+        if (onImagesChange) onImagesChange(nextImages.filter(Boolean));
+        if (onAspectRatiosChange)
+          onAspectRatiosChange(nextRatios.filter((_, i) => nextImages[i]));
+      } else {
+        // Dense removal: filter out
+        const updatedImages = images.filter((_, i) => i !== index);
+        const updatedOriginalUris = originalUris.filter((_, i) => i !== index);
+        const updatedAspectRatios = aspectRatios.filter((_, i) => i !== index);
+        const updatedPresetKeys = presetKeys.filter((_, i) => i !== index);
+        const updatedCropMetadata = cropMetadata.filter((_, i) => i !== index);
+
+        setImages(updatedImages);
+        setOriginalUris(updatedOriginalUris);
+        setAspectRatios(updatedAspectRatios);
+        setPresetKeys(updatedPresetKeys);
+        setCropMetadata(updatedCropMetadata);
+
+        if (onImagesChange) {
+          onImagesChange(updatedImages);
+        }
+        if (onAspectRatiosChange) {
+          onAspectRatiosChange(updatedAspectRatios);
+        }
       }
     };
 
@@ -356,7 +494,140 @@ const ImageUploader = forwardRef(
       }
     };
 
+    // Render Hinge-style 2x3 grid
+    const renderHingeGrid = () => {
+      // 3 columns
+      const numColumns = 3;
+      const gap = 12;
+      const containerPadding = 48; // Assumes SPACING.l is 24px (24*2=48)
+
+      // Calculate available width and subtract extra buffer for rounding errors/borders
+      const availableWidth = width - containerPadding - 2;
+      const slotWidth = Math.floor(
+        (availableWidth - gap * (numColumns - 1)) / numColumns
+      );
+      const slotHeight = slotWidth * 1.25; // 4:5 aspect ratio
+      const isRequired = (index) => index < minRequired;
+      const needsMorePhotos = images.length < minRequired;
+
+      return (
+        <View>
+          <View style={styles.hingeGrid}>
+            {Array.from({ length: maxImages }).map((_, index) => {
+              const imageUri = images[index];
+              const isEmpty = !imageUri;
+              const isRequiredSlot = isRequired(index);
+              const isSelected = selectedForReorder === index;
+
+              if (isEmpty) {
+                return (
+                  <TouchableOpacity
+                    key={`slot-${index}`}
+                    style={[
+                      styles.hingeSlot,
+                      { width: slotWidth, height: slotHeight },
+                      isRequiredSlot && styles.hingeSlotRequired,
+                    ]}
+                    onPress={() => handleAddImages(index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.hingeSlotIconContainer}>
+                      <Ionicons
+                        name="person-add-outline"
+                        size={24}
+                        color={isRequiredSlot ? "#B8627D" : COLORS.textLight}
+                      />
+                      <View
+                        style={[
+                          styles.hingeSlotPlus,
+                          isRequiredSlot && styles.hingeSlotPlusRequired,
+                        ]}
+                      >
+                        <Ionicons name="add" size={12} color="#FFFFFF" />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+
+              return (
+                <View
+                  key={`photo-${index}`}
+                  style={[
+                    styles.hingePhotoContainer,
+                    { width: slotWidth, height: slotHeight },
+                    isSelected && styles.hingePhotoSelected,
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => handlePhotoTapForReorder(index)}
+                    onLongPress={() => handleEditImage(index)}
+                    activeOpacity={0.7}
+                    style={styles.imageTouch}
+                  >
+                    <Image
+                      source={{ uri: imageUri, cache: "reload" }}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                    {isSelected && (
+                      <View style={styles.hingeSelectedOverlay}>
+                        <Ionicons
+                          name="swap-horizontal"
+                          size={32}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    )}
+                    {enableCrop && !isSelected && (
+                      <View style={styles.editHint}>
+                        <Ionicons name="crop" size={14} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.hingeRemoveButton}
+                    onPress={() => {
+                      setSelectedForReorder(null);
+                      removeImage(index);
+                    }}
+                  >
+                    <Ionicons name="close" size={14} color="#333" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Required indicator and hint */}
+          <View style={styles.hingeFooter}>
+            <View style={styles.hingeRequiredRow}>
+              <Text
+                style={[
+                  styles.hingeRequiredText,
+                  needsMorePhotos && styles.hingeRequiredTextError,
+                ]}
+              >
+                {minRequired} photos required
+              </Text>
+              {needsMorePhotos && <View style={styles.hingeErrorDot} />}
+            </View>
+            <Text style={styles.hingeHintText}>
+              {selectedForReorder !== null
+                ? "Tap another photo to swap"
+                : "Tap to reorder, hold to edit"}
+            </Text>
+          </View>
+        </View>
+      );
+    };
+
     const renderImageGrid = () => {
+      // Use Hinge-style grid if enabled
+      if (hingeStyle) {
+        return renderHingeGrid();
+      }
+
       if (images.length === 0) {
         if (horizontal) return null;
         return (
@@ -590,6 +861,111 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 6,
     padding: 6,
+  },
+
+  // Hinge-style grid
+  hingeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  hingeSlot: {
+    borderWidth: 2,
+    borderColor: "#E5E5E5",
+    borderStyle: "dashed",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FAFAFA",
+  },
+  hingeSlotRequired: {
+    borderColor: "#D4899B",
+    backgroundColor: "#FFF8F9",
+  },
+  hingeSlotIconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  hingeSlotPlus: {
+    position: "absolute",
+    bottom: -4,
+    right: -8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#999999",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hingeSlotPlusRequired: {
+    backgroundColor: "#B8627D",
+  },
+  hingePhotoContainer: {
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#F0F0F0",
+  },
+  hingePhotoSelected: {
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+  },
+  hingeSelectedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  hingeRemoveButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  hingeFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  hingeRequiredRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  hingeRequiredText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#666666",
+  },
+  hingeRequiredTextError: {
+    color: "#B8627D",
+  },
+  hingeErrorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E74C3C",
+  },
+  hingeHintText: {
+    fontSize: 12,
+    color: "#999999",
   },
 });
 
