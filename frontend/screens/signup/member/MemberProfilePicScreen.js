@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
 import { useCrop } from "../../../components/MediaCrop";
-import ProgressBar from "../../../components/Progressbar";
+
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -36,6 +36,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
     phone,
     name,
     gender,
+    pronouns,
+    showPronouns,
     dob,
     interests,
     location,
@@ -80,6 +82,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           phone,
           dob,
           gender,
+          pronouns,
+          showPronouns,
           location,
           interests,
           profile_photo_url: profileUrl || null,
@@ -115,16 +119,6 @@ const ProfilePictureScreen = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
-        </View>
-
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 7 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={87.5} />
-          </View>
         </View>
 
         {/* Content Section */}

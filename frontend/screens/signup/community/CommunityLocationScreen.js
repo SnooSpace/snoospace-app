@@ -14,27 +14,45 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import ProgressBar from "../../../components/Progressbar";
-import { getCurrentLocation, hasLocationPermission, requestLocationPermission } from "../../../utils/location";
+
+import {
+  getCurrentLocation,
+  hasLocationPermission,
+  requestLocationPermission,
+} from "../../../utils/location";
 import { reverseGeocodeStructured } from "../../../utils/geocoding";
 import { isValidGoogleMapsUrl } from "../../../utils/validateGoogleMapsUrl";
 import { parseGoogleMapsLink } from "../../../utils/googleMapsParser";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CommunityLocationScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories } = route.params || {};
-  
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+  } = route.params || {};
+
   // Location state
   const [location, setLocation] = useState(null);
   const [displayAddress, setDisplayAddress] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
-  
+
   // Loading states
   const [isLoadingGps, setIsLoadingGps] = useState(false);
   const [isParsingUrl, setIsParsingUrl] = useState(false);
-  
+
   // Validation state
   const [urlValid, setUrlValid] = useState(null); // null = not validated, true/false = valid/invalid
   const [isUrlFocused, setIsUrlFocused] = useState(false);
@@ -45,10 +63,10 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       setUrlValid(null);
       return;
     }
-    
+
     const valid = isValidGoogleMapsUrl(locationUrl);
     setUrlValid(valid);
-    
+
     // Auto-parse if valid
     if (valid) {
       parseUrl(locationUrl);
@@ -74,7 +92,10 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           country: parsedLocation.country,
           googleMapsUrl: url,
         });
-        setDisplayAddress(parsedLocation.address || `${parsedLocation.lat}, ${parsedLocation.lng}`);
+        setDisplayAddress(
+          parsedLocation.address ||
+            `${parsedLocation.lat}, ${parsedLocation.lng}`
+        );
       } else {
         // URL is valid but coordinates couldn't be extracted - store URL only
         // This is fine for communities, they can just use the URL to show location
@@ -120,14 +141,20 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       // Get current location
       const currentLocation = await getCurrentLocation();
       if (!currentLocation) {
-        Alert.alert("Error", "Could not get your location. Please try again or paste a Google Maps link.");
+        Alert.alert(
+          "Error",
+          "Could not get your location. Please try again or paste a Google Maps link."
+        );
         setIsLoadingGps(false);
         return;
       }
 
       // Reverse geocode to get address
-      const addressData = await reverseGeocodeStructured(currentLocation.lat, currentLocation.lng);
-      
+      const addressData = await reverseGeocodeStructured(
+        currentLocation.lat,
+        currentLocation.lng
+      );
+
       setLocation({
         lat: currentLocation.lat,
         lng: currentLocation.lng,
@@ -136,8 +163,10 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         state: addressData.state,
         country: addressData.country,
       });
-      setDisplayAddress(addressData.address || `${currentLocation.lat}, ${currentLocation.lng}`);
-      
+      setDisplayAddress(
+        addressData.address || `${currentLocation.lat}, ${currentLocation.lng}`
+      );
+
       // Clear URL field since we used GPS
       setLocationUrl("");
       setUrlValid(null);
@@ -151,10 +180,14 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
   const handleContinue = () => {
     // Allow continuing with either GPS coordinates OR just a valid Google Maps URL
-    const hasValidLocation = location && (location.lat || location.googleMapsUrl);
-    
+    const hasValidLocation =
+      location && (location.lat || location.googleMapsUrl);
+
     if (!hasValidLocation) {
-      Alert.alert("Location Required", "Please use your current location or paste a Google Maps link.");
+      Alert.alert(
+        "Location Required",
+        "Please use your current location or paste a Google Maps link."
+      );
       return;
     }
 
@@ -180,11 +213,11 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -192,14 +225,12 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           {/* Header Row */}
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={COLORS.textPrimary}
+              />
             </TouchableOpacity>
-          </View>
-
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <Text style={styles.stepText}>Step 5 of 9</Text>
-            <ProgressBar progress={56} />
           </View>
 
           {/* Content */}
@@ -221,7 +252,9 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                 <Ionicons name="locate" size={22} color={COLORS.primary} />
               )}
               <Text style={styles.gpsButtonText}>
-                {isLoadingGps ? "Getting location..." : "Use My Current Location"}
+                {isLoadingGps
+                  ? "Getting location..."
+                  : "Use My Current Location"}
               </Text>
             </TouchableOpacity>
 
@@ -237,7 +270,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             <Text style={styles.helperText}>
               Open Google Maps → Search location → Tap Share → Copy link
             </Text>
-            
+
             <TextInput
               style={[
                 styles.urlInput,
@@ -264,18 +297,24 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                 <Text style={styles.parsingText}>Parsing location...</Text>
               </View>
             )}
-            
+
             {urlValid === true && !isParsingUrl && (
               <View style={styles.validationRow}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success || "#34C759"} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={COLORS.success || "#34C759"}
+                />
                 <Text style={styles.validText}>Valid Google Maps link</Text>
               </View>
             )}
-            
+
             {urlValid === false && (
               <View style={styles.validationRow}>
                 <Ionicons name="close-circle" size={20} color={COLORS.error} />
-                <Text style={styles.invalidText}>Invalid URL - must be from Google Maps</Text>
+                <Text style={styles.invalidText}>
+                  Invalid URL - must be from Google Maps
+                </Text>
               </View>
             )}
 
@@ -294,19 +333,26 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         {/* Footer with Continue Button */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.continueButtonContainer, !canContinue && styles.continueButtonDisabled]}
+            style={[
+              styles.continueButtonContainer,
+              !canContinue && styles.continueButtonDisabled,
+            ]}
             onPress={handleContinue}
             disabled={!canContinue || isParsingUrl}
             activeOpacity={0.8}
           >
             <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.continueButton}
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.continueButton}
             >
               <Text style={styles.continueButtonText}>Continue</Text>
-              <Ionicons name="arrow-forward" size={20} color={COLORS.textInverted} />
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={COLORS.textInverted}
+              />
             </LinearGradient>
           </TouchableOpacity>
         </View>

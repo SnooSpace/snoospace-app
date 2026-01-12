@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,40 +9,46 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
-import ProgressBar from "../../../components/Progressbar";
-import { Ionicons } from "@expo/vector-icons"; 
+} from "react-native";
+
+import { Ionicons } from "@expo/vector-icons";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 /**
  * Main Screen Component
  */
 const CommunityBioScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url } = route.params || {};
-  const [bioText, setBioText] = useState('');
+  const { email, accessToken, refreshToken, name, logo_url } =
+    route.params || {};
+  const [bioText, setBioText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleSkip = () => {
-    navigation.navigate("CommunityCategory", { 
-      email, 
-      accessToken, 
+    navigation.navigate("CommunityCategory", {
+      email,
+      accessToken,
       refreshToken,
-      name, 
-      logo_url, 
-      bio: null 
+      name,
+      logo_url,
+      bio: null,
     });
   };
 
   const handleNext = () => {
-    navigation.navigate("CommunityCategory", { 
-      email, 
-      accessToken, 
+    navigation.navigate("CommunityCategory", {
+      email,
+      accessToken,
       refreshToken,
-      name, 
-      logo_url, 
-      bio: bioText 
+      name,
+      logo_url,
+      bio: bioText,
     });
   };
 
@@ -68,53 +74,53 @@ const CommunityBioScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={handleSkip} 
-            style={[styles.skipButton, isSkipDisabled && styles.disabledSkipButton]} // Apply disabled style
+
+          <TouchableOpacity
+            onPress={handleSkip}
+            style={[
+              styles.skipButton,
+              isSkipDisabled && styles.disabledSkipButton,
+            ]} // Apply disabled style
             disabled={isSkipDisabled} // Apply disabled prop
           >
-            <Text style={[styles.skipText, isSkipDisabled && styles.disabledSkipText]}>Skip</Text>
+            <Text
+              style={[
+                styles.skipText,
+                isSkipDisabled && styles.disabledSkipText,
+              ]}
+            >
+              Skip
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 3 of 9</Text>
-          <ProgressBar progress={33} />
-        </View>
-        
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>
-            Tell us about your community...
-          </Text>
+          <Text style={styles.title}>Tell us about your community...</Text>
 
           <TextInput
-            style={[
-              styles.bioInput,
-              isFocused && styles.bioInputFocused,
-            ]}
+            style={[styles.bioInput, isFocused && styles.bioInputFocused]}
             placeholder="Write a brief description of your community. What is its purpose? Who is it for? (500 characters max)"
-            placeholderTextColor={COLORS.textSecondary} 
+            placeholderTextColor={COLORS.textSecondary}
             value={bioText}
             onChangeText={setBioText}
             multiline={true}
-            textAlignVertical="top" 
-            maxLength={500} 
+            textAlignVertical="top"
+            maxLength={500}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
           />
-          <Text style={styles.charCount}>
-            {bioText.length} / 500
-          </Text>
+          <Text style={styles.charCount}>{bioText.length} / 500</Text>
         </View>
       </ScrollView>
 
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           activeOpacity={0.8}
           disabled={isButtonDisabled} // Apply disabled prop
@@ -145,12 +151,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  
+
   // --- Header Styles ---
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: 15,
     paddingBottom: 10,
     paddingHorizontal: 5,
@@ -164,7 +170,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.primary,
   },
   // New styles for disabled Skip button
@@ -186,7 +192,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 5,
   },
-  
+
   // --- Content & Input Styles ---
   contentContainer: {
     marginTop: 10,
@@ -202,7 +208,7 @@ const styles = StyleSheet.create({
   bioInput: {
     fontSize: 16,
     color: COLORS.textPrimary,
-    minHeight: 180, 
+    minHeight: 180,
     backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 10,
     padding: 15,
@@ -218,15 +224,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 8,
-    textAlign: 'right',
+    textAlign: "right",
   },
 
   // --- Footer/Button Styles (Fixed at bottom) ---
   footer: {
     backgroundColor: COLORS.background,
     paddingHorizontal: 20,
-    paddingTop: 10, 
-    paddingBottom: 0, 
+    paddingTop: 10,
+    paddingBottom: 0,
     borderTopWidth: 0,
   },
   nextButtonContainer: {
@@ -248,7 +254,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });
 

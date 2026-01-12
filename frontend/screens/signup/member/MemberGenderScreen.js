@@ -10,9 +10,14 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import ProgressBar from "../../../components/Progressbar";
+
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // --- Reusable Radio Button Component ---
 const RadioOption = ({ label, isSelected, onPress }) => {
@@ -50,7 +55,7 @@ const GenderSelectionScreen = ({ navigation, route }) => {
   const genderOptions = ["Male", "Female", "Non-binary"];
 
   const handleNext = () => {
-    navigation.navigate("MemberAge", {
+    navigation.navigate("MemberPronouns", {
       email,
       accessToken,
       refreshToken,
@@ -78,15 +83,6 @@ const GenderSelectionScreen = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 3 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={37.5} />
-          </View>
-        </View>
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
@@ -107,7 +103,10 @@ const GenderSelectionScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}

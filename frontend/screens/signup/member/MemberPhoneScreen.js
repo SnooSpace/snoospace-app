@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,101 +9,113 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import ProgressBar from '../../../components/Progressbar';
+  KeyboardAvoidingView,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
 
 const PhoneNumberInputScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken } = route.params || {};
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = () => {
-    navigation.navigate('MemberName', { email, accessToken, refreshToken, phone: phoneNumber });
+    navigation.navigate("MemberName", {
+      email,
+      accessToken,
+      refreshToken,
+      phone: phoneNumber,
+    });
   };
 
   // Function to format the phone number as the user types
   const formatPhoneNumber = (text) => {
     // Remove all non-digit characters
-    const digits = text.replace(/\D/g, '');
+    const digits = text.replace(/\D/g, "");
     setPhoneNumber(digits);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 1 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={12.5} />
-          </View>
-        </View>
-
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>What's your number?</Text>
-          <Text style={styles.subtitle}>
-            We'll text you a code to verify your phone.
-          </Text>
-
-          {/* Phone Number Input */}
-          <View style={[
-                  styles.phoneInputContainer,
-                  isFocused && styles.phoneInputContainerFocused
-                ]}>
-            {/* Country Code and Flag for India */}
-            <View style={styles.countryCodePill}>
-              <Text style={styles.flagEmoji}>🇮🇳</Text>
-              <Text style={styles.countryCodeText}>+91</Text>
-            </View>
-
-            {/* Actual Phone Number Input Field */}
-            <TextInput
-              style={styles.inputField}
-              onChangeText={formatPhoneNumber}
-              value={phoneNumber}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder="(000) 000-0000"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              autoComplete="tel"
-              maxLength={10}
-            />
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.continueButtonContainer, phoneNumber.length !== 10 && styles.disabledButton]}
-          onPress={handleContinue}
-          disabled={phoneNumber.length !== 10}
-          activeOpacity={0.8}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.continueButton}
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>What's your number?</Text>
+            <Text style={styles.subtitle}>
+              We'll text you a code to verify your phone.
+            </Text>
+
+            {/* Phone Number Input */}
+            <View
+              style={[
+                styles.phoneInputContainer,
+                isFocused && styles.phoneInputContainerFocused,
+              ]}
+            >
+              {/* Country Code and Flag for India */}
+              <View style={styles.countryCodePill}>
+                <Text style={styles.flagEmoji}>🇮🇳</Text>
+                <Text style={styles.countryCodeText}>+91</Text>
+              </View>
+
+              {/* Actual Phone Number Input Field */}
+              <TextInput
+                style={styles.inputField}
+                onChangeText={formatPhoneNumber}
+                value={phoneNumber}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder="(000) 000-0000"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="phone-pad"
+                textContentType="telephoneNumber"
+                autoComplete="tel"
+                maxLength={10}
+              />
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Fixed Footer/Button Section - Now inside KeyboardAvoidingView */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.continueButtonContainer,
+              phoneNumber.length !== 10 && styles.disabledButton,
+            ]}
+            onPress={handleContinue}
+            disabled={phoneNumber.length !== 10}
+            activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Continue</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.continueButton}
+            >
+              <Text style={styles.buttonText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -114,7 +126,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -127,7 +142,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -137,26 +152,26 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   phoneInputContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     height: 50,
-    backgroundColor: COLORS.inputBackground || '#f8f9fa',
+    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   phoneInputContainerFocused: {
     borderColor: COLORS.primary,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   countryCodePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
-    backgroundColor: '#e9ecef',
+    backgroundColor: "#e9ecef",
     borderRightWidth: 1,
-    borderRightColor: '#ced4da',
+    borderRightColor: "#ced4da",
   },
   flagEmoji: {
     fontSize: 18,
@@ -164,7 +179,7 @@ const styles = StyleSheet.create({
   },
   countryCodeText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
     marginRight: 2,
   },
@@ -173,13 +188,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     color: COLORS.textPrimary,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   footer: {
     padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 20 : 30,
     backgroundColor: COLORS.background,
     borderTopWidth: 0,
-    marginBottom: 50,
   },
   continueButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
@@ -198,7 +213,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   progressBarContainer: {
     height: 4,

@@ -10,11 +10,16 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import ProgressBar from "../../../components/Progressbar";
+
 import { Ionicons } from "@expo/vector-icons";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CommunityNameScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken } = route.params || {};
@@ -22,7 +27,12 @@ const CommunityNameScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
-    navigation.navigate("CommunityLogo", { email, accessToken, refreshToken, name });
+    navigation.navigate("CommunityLogo", {
+      email,
+      accessToken,
+      refreshToken,
+      name,
+    });
   };
 
   const isButtonDisabled = name.trim().length === 0;
@@ -43,26 +53,13 @@ const CommunityNameScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.headerProgress}>
-          <Text style={styles.stepText}>Step 1 of 9</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={11} />
-          </View>
-        </View>
-
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Enter your Community Name</Text>
 
           {/* Name Input */}
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused,
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             onChangeText={setName}
             value={name}
             placeholder="Enter your name"
@@ -78,7 +75,10 @@ const CommunityNameScreen = ({ navigation, route }) => {
 
         {/* 👇 Button moved inside the ScrollView for dynamic positioning 👇 */}
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 20, 
+    paddingBottom: 20,
   },
   header: {
     paddingVertical: 15,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   nextButtonContainer: {
-    marginTop: 40, 
+    marginTop: 40,
     marginHorizontal: 5,
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,

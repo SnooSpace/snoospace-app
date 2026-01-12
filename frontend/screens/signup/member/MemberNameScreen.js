@@ -10,10 +10,15 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import ProgressBar from "../../../components/Progressbar";
+
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -24,7 +29,13 @@ const NameInputScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
-    navigation.navigate("MemberGender", { email, accessToken, refreshToken, phone, name });
+    navigation.navigate("MemberGender", {
+      email,
+      accessToken,
+      refreshToken,
+      phone,
+      name,
+    });
   };
 
   // Determine if the button should be disabled (e.g., if the name is empty)
@@ -46,26 +57,13 @@ const NameInputScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 2 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={25} />
-          </View>
-        </View>
-
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>What's your name?</Text>
 
           {/* Name Input */}
           <TextInput
-            style={[
-              styles.input,
-              isFocused && styles.inputFocused
-            ]}
+            style={[styles.input, isFocused && styles.inputFocused]}
             onChangeText={setName}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
@@ -83,16 +81,19 @@ const NameInputScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
         >
           <LinearGradient
-             colors={COLORS.primaryGradient}
-             start={{ x: 0, y: 0 }}
-             end={{ x: 1, y: 0 }}
-             style={styles.nextButton}
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.nextButton}
           >
             <Text style={styles.buttonText}>Next</Text>
           </LinearGradient>

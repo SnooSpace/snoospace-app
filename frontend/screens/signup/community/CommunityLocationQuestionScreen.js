@@ -5,28 +5,55 @@ import {
   TouchableOpacity,
   Text,
   SafeAreaView,
-  Platform, 
-  StatusBar, 
+  Platform,
+  StatusBar,
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar";
-
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CommunityLocationQuestionScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories } = route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+  } = route.params || {};
 
   const handleYes = () => {
     navigation.navigate("CommunityLocation", {
-      email, accessToken, refreshToken, name, logo_url, bio, category, categories,
+      email,
+      accessToken,
+      refreshToken,
+      name,
+      logo_url,
+      bio,
+      category,
+      categories,
     });
   };
 
   const handleNo = () => {
     navigation.navigate("CommunityPhone", {
-      email, accessToken, refreshToken, name, logo_url, bio, category, categories, location: null,
+      email,
+      accessToken,
+      refreshToken,
+      name,
+      logo_url,
+      bio,
+      category,
+      categories,
+      location: null,
     });
   };
 
@@ -36,9 +63,7 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
-      <View style={styles.container}> 
-        
+      <View style={styles.container}>
         {/* Header Row (Back Button) */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -46,15 +71,11 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 5 of 9</Text>
-          <ProgressBar progress={56} />
-        </View>
-
         {/* Content */}
         <View style={styles.contentBody}>
-          <Text style={styles.mainTitle}>Do you have a permanent location?</Text>
+          <Text style={styles.mainTitle}>
+            Do you have a permanent location?
+          </Text>
           <Text style={styles.subtitle}>
             This helps us show your community to nearby members and sponsors.
           </Text>
@@ -93,19 +114,19 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0, 
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingHorizontal: 20, 
+    paddingHorizontal: 20,
   },
-  
+
   headerRow: {
     flexDirection: "row",
     justifyContent: "flex-start",
     alignItems: "center",
-    paddingTop: 15, 
+    paddingTop: 15,
     paddingBottom: 10,
   },
   backButton: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,22 +12,39 @@ import {
   Alert,
   Platform,
   StatusBar,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import ProgressBar from '../../../components/Progressbar';
-import { Ionicons } from '@expo/vector-icons'; // Import Ionicons for the back arrow
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for the back arrow
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // --- Initial Data ---
 const defaultCategories = [
-  'Sports', 'Music', 'Technology', 'Travel', 'Food & Drink',
-  'Art & Culture', 'Fitness', 'Gaming', 'Movies', 'Books',
-  'Fashion', 'Photography', 'Outdoors', 'Volunteering', 'Networking',
+  "Sports",
+  "Music",
+  "Technology",
+  "Travel",
+  "Food & Drink",
+  "Art & Culture",
+  "Fitness",
+  "Gaming",
+  "Movies",
+  "Books",
+  "Fashion",
+  "Photography",
+  "Outdoors",
+  "Volunteering",
+  "Networking",
 ];
 
-const STORAGE_KEY = 'community_categories';
+const STORAGE_KEY = "community_categories";
 const MAX_CATEGORIES = 3;
 
 // --- Components ---
@@ -42,13 +59,15 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
       {
         backgroundColor: isSelected ? COLORS.primary : COLORS.background,
         borderColor: isSelected ? COLORS.primary : COLORS.border,
-      }
+      },
     ]}
     onPress={() => onPress(category)}
     activeOpacity={0.7}
     accessibilityRole="button"
     accessibilityState={{ selected: isSelected }}
-    accessibilityLabel={`Category: ${category}. ${isSelected ? 'Selected' : 'Tap to select'}.`}
+    accessibilityLabel={`Category: ${category}. ${
+      isSelected ? "Selected" : "Tap to select"
+    }.`}
   >
     <Text
       style={[
@@ -65,11 +84,13 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
  * Main Screen Component
  */
 const CommunityCategoryScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url, bio } = route.params || {};
+  const { email, accessToken, refreshToken, name, logo_url, bio } =
+    route.params || {};
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [availableCategories, setAvailableCategories] = useState(defaultCategories);
+  const [availableCategories, setAvailableCategories] =
+    useState(defaultCategories);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   // Load saved categories on component mount
   useEffect(() => {
@@ -82,11 +103,13 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
         // Ensure unique list by filtering out defaults that might be in savedCategories
-        const uniqueSaved = parsedCategories.filter(c => !defaultCategories.includes(c));
+        const uniqueSaved = parsedCategories.filter(
+          (c) => !defaultCategories.includes(c)
+        );
         setAvailableCategories([...defaultCategories, ...uniqueSaved]);
       }
     } catch (error) {
-      console.error('Error loading saved categories:', error);
+      console.error("Error loading saved categories:", error);
     }
   };
 
@@ -94,29 +117,35 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     try {
       const savedCategories = await AsyncStorage.getItem(STORAGE_KEY);
       let categories = savedCategories ? JSON.parse(savedCategories) : [];
-      
+
       // Add new category if it doesn't exist
-      if (!categories.includes(categoryName) && !defaultCategories.includes(categoryName)) {
+      if (
+        !categories.includes(categoryName) &&
+        !defaultCategories.includes(categoryName)
+      ) {
         categories.push(categoryName);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
-        setAvailableCategories(prev => [...prev, categoryName]);
+        setAvailableCategories((prev) => [...prev, categoryName]);
       }
     } catch (error) {
-      console.error('Error saving new category:', error);
+      console.error("Error saving new category:", error);
     }
   };
 
   // Toggle selection state for a category chip
   const toggleCategory = (category) => {
-    setSelectedCategories(prevSelected => {
+    setSelectedCategories((prevSelected) => {
       if (prevSelected.includes(category)) {
-        return prevSelected.filter(c => c !== category);
+        return prevSelected.filter((c) => c !== category);
       }
       if (prevSelected.length >= MAX_CATEGORIES) {
-        Alert.alert('Limit Reached', `You can select up to ${MAX_CATEGORIES} categories.`);
+        Alert.alert(
+          "Limit Reached",
+          `You can select up to ${MAX_CATEGORIES} categories.`
+        );
         return prevSelected;
       }
-      return [...prevSelected, category]; 
+      return [...prevSelected, category];
     });
   };
 
@@ -126,31 +155,35 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
   const handleCreateCategory = () => {
     const trimmedName = newCategoryName.trim();
-    
+
     if (!trimmedName) {
-      Alert.alert('Error', 'Please enter a category name.');
+      Alert.alert("Error", "Please enter a category name.");
       return;
     }
-    
+
     // Check if category already exists (case-insensitive check)
-    if (availableCategories.map(c => c.toLowerCase()).includes(trimmedName.toLowerCase())) {
-      Alert.alert('Error', 'This category already exists.');
+    if (
+      availableCategories
+        .map((c) => c.toLowerCase())
+        .includes(trimmedName.toLowerCase())
+    ) {
+      Alert.alert("Error", "This category already exists.");
       return;
     }
-    
+
     // Save the new category
     saveNewCategory(trimmedName);
-    
+
     // Close modal and reset input
     setShowCreateModal(false);
-    setNewCategoryName('');
-    
-    Alert.alert('Success', 'New category created successfully!');
+    setNewCategoryName("");
+
+    Alert.alert("Success", "New category created successfully!");
   };
 
   const handleCancelCreate = () => {
     setShowCreateModal(false);
-    setNewCategoryName('');
+    setNewCategoryName("");
   };
 
   const handleBack = () => {
@@ -159,16 +192,19 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
   const handleNext = () => {
     if (selectedCategories.length === 0) {
-      Alert.alert('Selection Required', 'Please select at least one category before proceeding.');
+      Alert.alert(
+        "Selection Required",
+        "Please select at least one category before proceeding."
+      );
       return;
     }
-    navigation.navigate("CommunityLocationQuestion", { 
-      email, 
-      accessToken, 
+    navigation.navigate("CommunityLocationQuestion", {
+      email,
+      accessToken,
       refreshToken,
-      name, 
-      logo_url, 
-      bio, 
+      name,
+      logo_url,
+      bio,
       category: selectedCategories[0],
       categories: selectedCategories,
     });
@@ -184,7 +220,6 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        
         {/* Header Row (Back Button) */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -192,24 +227,16 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 4 of 9</Text>
-          <ProgressBar progress={44} />
-        </View>
-        
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>
-            Choose Community Category
-          </Text>
+          <Text style={styles.title}>Choose Community Category</Text>
           <Text style={styles.subtitle}>
             Select up to 3 categories that best fit your community.
           </Text>
 
           {/* Category Chips Container */}
           <View style={styles.chipsContainer}>
-            {availableCategories.map(category => (
+            {availableCategories.map((category) => (
               <CategoryChip
                 key={category}
                 category={category}
@@ -226,7 +253,12 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
             activeOpacity={0.7}
             accessibilityRole="button"
           >
-            <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} style={styles.createNewIcon} />
+            <Ionicons
+              name="add-circle-outline"
+              size={24}
+              color={COLORS.primary}
+              style={styles.createNewIcon}
+            />
             <Text style={styles.createNewText}>Create New Category</Text>
           </TouchableOpacity>
         </View>
@@ -235,7 +267,10 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       {/* Fixed Footer/Button Section */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           activeOpacity={0.8}
           disabled={isButtonDisabled}
@@ -262,7 +297,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create New Category</Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Enter category name"
@@ -272,7 +307,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
               autoFocus={true}
               maxLength={30}
             />
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -280,7 +315,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.createButton]}
                 onPress={handleCreateCategory}
@@ -307,12 +342,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  
+
   // --- Header Styles (Consistent) ---
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
     paddingTop: 15,
     paddingBottom: 10,
     paddingHorizontal: 5,
@@ -353,8 +388,8 @@ const styles = StyleSheet.create({
 
   // --- Chips/Tags Styles ---
   chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12, // Consistent spacing between chips
     marginBottom: 40,
   },
@@ -366,28 +401,28 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   // --- Create New Button Styles ---
   createNewButton: {
-    flexDirection: 'row',
-    alignSelf: 'center', 
-    alignItems: 'center',
+    flexDirection: "row",
+    alignSelf: "center",
+    alignItems: "center",
     paddingHorizontal: 30,
     paddingVertical: 12,
-    borderRadius: 12, 
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.primary,
-    borderStyle: 'dashed',
-    backgroundColor: COLORS.background, 
+    borderStyle: "dashed",
+    backgroundColor: COLORS.background,
   },
   createNewIcon: {
     marginRight: 8,
   },
   createNewText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.primary,
   },
 
@@ -396,7 +431,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 25, 
+    paddingBottom: 25,
     borderTopWidth: 0,
   },
   nextButtonContainer: {
@@ -417,24 +452,24 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   // --- Modal Styles (Consistent) ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 20,
   },
   modalContent: {
     backgroundColor: COLORS.background,
     borderRadius: 15,
     padding: 25,
-    width: '100%',
+    width: "100%",
     maxWidth: 350,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
@@ -442,10 +477,10 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.textPrimary,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalInput: {
     borderWidth: 1,
@@ -459,15 +494,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBackground || "#f8f9fa",
   },
   modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 15,
   },
   modalButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButton: {
     backgroundColor: COLORS.inputBackground || "#f8f9fa",
@@ -477,12 +512,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textPrimary,
   },
   createButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textInverted,
   },
 });

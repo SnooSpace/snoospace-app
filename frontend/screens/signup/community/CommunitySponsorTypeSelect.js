@@ -22,7 +22,6 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar";
 
 const { width } = Dimensions.get("window");
 
@@ -214,13 +213,6 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-        </View>
-
-        {/* Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 8 of 9</Text>
-          {/* FIX 2: Using SimpleProgressBar with updated progress value */}
-          <ProgressBar progress={89} />
         </View>
 
         {/* Scrollable Content */}

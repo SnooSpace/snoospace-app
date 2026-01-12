@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
-import ProgressBar from "../../../components/Progressbar";
+
 import HapticsService from "../../../services/HapticsService";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -54,8 +54,17 @@ const InterestChip = ({ label, isSelected, onPress, isDisabled }) => {
 };
 
 const InterestsScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name, gender, dob } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    phone,
+    name,
+    gender,
+    pronouns,
+    showPronouns,
+    dob,
+  } = route.params || {};
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [allInterests, setAllInterests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +112,8 @@ const InterestsScreen = ({ navigation, route }) => {
       phone,
       name,
       gender,
+      pronouns,
+      showPronouns,
       dob,
       interests: selectedInterests,
     });
@@ -125,16 +136,6 @@ const InterestsScreen = ({ navigation, route }) => {
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-        </View>
-
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 5 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={62.5} />
-          </View>
         </View>
 
         {/* Content Section */}

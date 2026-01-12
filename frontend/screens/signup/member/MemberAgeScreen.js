@@ -8,17 +8,31 @@ import {
   Text,
   TextInput,
 } from "react-native";
-import ProgressBar from "../../../components/Progressbar";
+
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 // --- Design Constants ---
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
 
 export default function Example({ navigation, route }) {
-  const { email, accessToken, refreshToken, phone, name, gender } = route?.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    phone,
+    name,
+    gender,
+    pronouns,
+    showPronouns,
+  } = route?.params || {};
   const [form, setForm] = useState({});
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -69,16 +83,6 @@ export default function Example({ navigation, route }) {
           {/* Progress bar and Skip button removed as per request */}
         </View>
 
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 4 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={50} />
-          </View>
-        </View>
-
         {/* Title */}
         <Text style={styles.title}>Enter your Birthday</Text>
         <Text style={styles.subtitle}>
@@ -101,7 +105,7 @@ export default function Example({ navigation, route }) {
               returnKeyType="done"
               style={[
                 styles.inputControl,
-                isFocused && styles.inputControlFocused
+                isFocused && styles.inputControlFocused,
               ]}
               value={input}
             />
@@ -133,54 +137,59 @@ export default function Example({ navigation, route }) {
         </View>
 
         {/* Button */}
-          <TouchableOpacity
-            onPress={() => {
-              if (form.dateOfBirth) {
-                // Calculate age properly considering month and day
-                const birthDate = new Date(form.dateOfBirth);
-                const today = new Date();
-                
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                
-                // If birthday hasn't occurred this year yet, subtract 1
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                  age--;
-                }
-                
-                Alert.alert("Confirm your age", `You are ${age} years old.`, [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Confirm",
-                    onPress: () => {
-                      navigation?.navigate?.("MemberInterests", {
-                        email,
-                        accessToken,
-                        refreshToken,
-                        phone,
-                        name,
-                        gender,
-                        dob: form.dateOfBirth,
-                      });
-                    },
-                  },
-                ]);
-              } else {
-                Alert.alert("Please enter a valid date");
+        <TouchableOpacity
+          onPress={() => {
+            if (form.dateOfBirth) {
+              // Calculate age properly considering month and day
+              const birthDate = new Date(form.dateOfBirth);
+              const today = new Date();
+
+              let age = today.getFullYear() - birthDate.getFullYear();
+              const monthDiff = today.getMonth() - birthDate.getMonth();
+
+              // If birthday hasn't occurred this year yet, subtract 1
+              if (
+                monthDiff < 0 ||
+                (monthDiff === 0 && today.getDate() < birthDate.getDate())
+              ) {
+                age--;
               }
-            }}
-            style={styles.btnContainer}
-            activeOpacity={0.8}
+
+              Alert.alert("Confirm your age", `You are ${age} years old.`, [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Confirm",
+                  onPress: () => {
+                    navigation?.navigate?.("MemberInterests", {
+                      email,
+                      accessToken,
+                      refreshToken,
+                      phone,
+                      name,
+                      gender,
+                      pronouns,
+                      showPronouns,
+                      dob: form.dateOfBirth,
+                    });
+                  },
+                },
+              ]);
+            } else {
+              Alert.alert("Please enter a valid date");
+            }
+          }}
+          style={styles.btnContainer}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={COLORS.primaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.btn}
           >
-            <LinearGradient
-               colors={COLORS.primaryGradient}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 0 }}
-               style={styles.btn}
-            >
-              <Text style={styles.btnText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            <Text style={styles.btnText}>Next</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

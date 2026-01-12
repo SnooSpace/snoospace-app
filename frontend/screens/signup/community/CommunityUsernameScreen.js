@@ -20,8 +20,12 @@ import { setAuthSession } from "../../../api/auth";
 const { width } = Dimensions.get("window");
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -30,12 +34,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { userData, accessToken, refreshToken } = route.params;
-  
-  console.log('[CommunityUsername] Route params:', {
+
+  console.log("[CommunityUsername] Route params:", {
     userDataEmail: userData?.email,
     accessTokenLength: accessToken?.length,
     refreshTokenLength: refreshToken?.length,
-    userDataKeys: Object.keys(userData || {})
+    userDataKeys: Object.keys(userData || {}),
   });
 
   // Debounced username availability check
@@ -94,26 +98,31 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         ...userData,
         username: username.toLowerCase().trim(), // Include username in signup
       };
-      
-      console.log('[CommunityUsername] Creating community with payload:', {
+
+      console.log("[CommunityUsername] Creating community with payload:", {
         name: signupPayload.name,
         email: signupPayload.email,
         username: signupPayload.username,
       });
-      
-      const signupResult = await apiPost('/communities/signup', signupPayload, 15000, accessToken);
+
+      const signupResult = await apiPost(
+        "/communities/signup",
+        signupPayload,
+        15000,
+        accessToken
+      );
       const communityProfile = signupResult?.community;
       // Get tokens from signup response (backend now returns them)
       const newAccessToken = signupResult?.accessToken;
       const newRefreshToken = signupResult?.refreshToken;
-      
+
       if (!communityProfile || !communityProfile.id) {
         throw new Error("Failed to create community account");
       }
 
       const communityId = String(communityProfile.id);
-      
-      console.log('[CommunityUsername] Community created:', {
+
+      console.log("[CommunityUsername] Community created:", {
         communityId,
         username: communityProfile.username,
         email: communityProfile.email,
@@ -125,28 +134,31 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       // Use tokens from signup response (not route params)
       await addAccount({
         id: communityId,
-        type: 'community',
+        type: "community",
         username: communityProfile.username || username,
         email: userData.email || communityProfile.email,
         name: communityProfile.name || userData.name,
         profilePicture: communityProfile.logo_url || userData.logo_url || null,
-        authToken: newAccessToken,     // From signup response
-        refreshToken: newRefreshToken,  // From signup response
+        authToken: newAccessToken, // From signup response
+        refreshToken: newRefreshToken, // From signup response
         isLoggedIn: true,
       });
-      
+
       // Step 3: Also update the old auth storage for backward compatibility
       if (newAccessToken) {
         await setAuthSession(newAccessToken, userData.email, newRefreshToken);
       }
-      
-      console.log('[CommunitySignup] Account added and auth session updated');
+
+      console.log("[CommunitySignup] Account added and auth session updated");
 
       // Step 4: Navigate to community home with navigation reset
       navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
     } catch (error) {
       console.error("Error completing signup:", error);
-      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to complete signup. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +172,10 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         color: COLORS.textSecondary,
       };
     if (isAvailable === true)
-      return { text: "✓ Username is available", color: COLORS.success || "#00C851" };
+      return {
+        text: "✓ Username is available",
+        color: COLORS.success || "#00C851",
+      };
     if (isAvailable === false)
       return { text: "✗ Username is already taken", color: COLORS.error };
     return { text: "", color: COLORS.textSecondary };
@@ -188,12 +203,6 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 2. Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 9 of 9</Text>
-          <ProgressBar progress={100} />
-        </View>
-
         {/* 3. Content Area */}
         <View style={styles.content}>
           <View style={styles.header}>
@@ -205,7 +214,19 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={[styles.inputWrapper, { borderColor: isAvailable === false ? COLORS.error : (isAvailable === true ? (COLORS.success || "#00C851") : COLORS.border) }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  borderColor:
+                    isAvailable === false
+                      ? COLORS.error
+                      : isAvailable === true
+                      ? COLORS.success || "#00C851"
+                      : COLORS.border,
+                },
+              ]}
+            >
               <TextInput
                 style={styles.textInput}
                 value={username}
@@ -253,7 +274,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
             style={styles.nextButton}
           >
             <Text style={styles.nextButtonText}>
-                {isSubmitting ? "Setting Username..." : "Complete Signup"}
+              {isSubmitting ? "Setting Username..." : "Complete Signup"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

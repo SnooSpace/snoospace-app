@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCrop } from "../../../components/MediaCrop";
-import ProgressBar from "../../../components/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -101,12 +100,6 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-        </View>
-
-        {/* Progress Bar and Step Text */}
-        <View style={styles.progressContainer}>
-          <Text style={styles.stepText}>Step 2 of 9</Text>
-          <ProgressBar progress={22} />
         </View>
 
         {/* Content Section */}

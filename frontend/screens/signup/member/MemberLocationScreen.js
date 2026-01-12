@@ -13,15 +13,30 @@ import {
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
-import ProgressBar from "../../../components/Progressbar";
+
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 // Removed local constants in favor of theme constants
 
 const LocationInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name, gender, dob, interests } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    phone,
+    name,
+    gender,
+    pronouns,
+    showPronouns,
+    dob,
+    interests,
+  } = route.params || {};
   const [location, setLocation] = useState({
     address: "",
     city: "",
@@ -32,7 +47,6 @@ const LocationInputScreen = ({ navigation, route }) => {
   });
   const [loadingLocation, setLoadingLocation] = useState(false);
   const navigatedRef = useRef(false);
-
 
   const handleGetLocation = async () => {
     try {
@@ -47,7 +61,9 @@ const LocationInputScreen = ({ navigation, route }) => {
             {
               text: "Open Settings",
               onPress: () => {
-                try { Linking.openSettings(); } catch {}
+                try {
+                  Linking.openSettings();
+                } catch {}
               },
             },
           ]
@@ -84,6 +100,8 @@ const LocationInputScreen = ({ navigation, route }) => {
             phone,
             name,
             gender,
+            pronouns,
+            showPronouns,
             dob,
             interests,
             location: resolved,
@@ -101,6 +119,8 @@ const LocationInputScreen = ({ navigation, route }) => {
             phone,
             name,
             gender,
+            pronouns,
+            showPronouns,
             dob,
             interests,
             location: resolved,
@@ -123,13 +143,13 @@ const LocationInputScreen = ({ navigation, route }) => {
       phone,
       name,
       gender,
+      pronouns,
+      showPronouns,
       dob,
       interests,
       location: location,
     });
   };
-
-
 
   // Button disabled (kept as fallback, but we auto-navigate on success)
   const isButtonDisabled = !location.city || location.city.trim().length === 0;
@@ -149,16 +169,6 @@ const LocationInputScreen = ({ navigation, route }) => {
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
-        </View>
-
-        {/* Header Section (Progress Bar and Step Text) */}
-        <View style={styles.header}>
-          <Text style={styles.stepText}>Step 6 of 8</Text>
-
-          {/* Progress Bar Container */}
-          <View style={styles.progressBarContainer}>
-            <ProgressBar progress={75} />
-          </View>
         </View>
 
         {/* Content Section */}
@@ -183,15 +193,19 @@ const LocationInputScreen = ({ navigation, route }) => {
 
           {/* Helper text */}
           <Text style={{ color: COLORS.textSecondary, marginTop: 8 }}>
-            We only use your location while the app is open to show nearby events and improve recommendations.
+            We only use your location while the app is open to show nearby
+            events and improve recommendations.
           </Text>
         </View>
       </ScrollView>
 
       {/* No footer button needed; we auto-advance after locating. Keep hidden fallback button for safety. */}
-      <View style={[styles.footer, { display: 'none' }]}>
+      <View style={[styles.footer, { display: "none" }]}>
         <TouchableOpacity
-          style={[styles.nextButtonContainer, isButtonDisabled && styles.disabledButton]}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.disabledButton,
+          ]}
           onPress={handleNext}
           disabled={isButtonDisabled}
           activeOpacity={0.8}
@@ -206,8 +220,6 @@ const LocationInputScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
-
-
     </SafeAreaView>
   );
 };

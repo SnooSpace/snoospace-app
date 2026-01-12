@@ -22,8 +22,12 @@ import * as sessionManager from "../../../utils/sessionManager";
 const { width, height } = Dimensions.get("window");
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
 const FONT_SIZES = {
   largeHeader: 32, // Matches Community
@@ -77,7 +81,10 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
   const handleFinish = async () => {
     if (!username || username.length < 3) {
-      Alert.alert("Invalid Username", "Username must be at least 3 characters long");
+      Alert.alert(
+        "Invalid Username",
+        "Username must be at least 3 characters long"
+      );
       return;
     }
 
@@ -95,6 +102,8 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         phone: userData.phone,
         dob: userData.dob,
         gender: userData.gender,
+        pronouns: userData.pronouns || [],
+        show_pronouns: userData.showPronouns !== false, // default to true
         location: userData.location,
         interests: userData.interests,
         profile_photo_url: userData.profile_photo_url || null,
@@ -103,33 +112,29 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
       // Get the new member's data
       const memberProfile = signupResult?.member;
-      
+
       if (!memberProfile || !memberProfile.id) {
         throw new Error("Failed to create account - please try again");
       }
 
       const memberId = String(memberProfile.id);
-      
-      console.log('[MemberUsername] Member created:', {
+
+      console.log("[MemberUsername] Member created:", {
         memberId,
         username: memberProfile.username,
-        email: memberProfile.email
+        email: memberProfile.email,
       });
 
       // Step 2: Create a session for the new member (generates JWT tokens)
       // This internally saves to sessionManager's @sessions_v2 storage
-      console.log('[MemberUsername] Creating session for new member...');
-      await sessionManager.createSession(
-        memberId,
-        'member',
-        userData.email
-      );
-      
+      console.log("[MemberUsername] Creating session for new member...");
+      await sessionManager.createSession(memberId, "member", userData.email);
+
       // Step 3: Get the stored session with ACTUAL tokens from sessionManager
       // This ensures we use the correctly encrypted/stored tokens
       const storedSession = await sessionManager.getActiveSession();
-      
-      console.log('[MemberUsername] Session stored:', {
+
+      console.log("[MemberUsername] Session stored:", {
         hasAccessToken: !!storedSession?.accessToken,
         hasRefreshToken: !!storedSession?.refreshToken,
         accessTokenLength: storedSession?.accessToken?.length,
@@ -140,17 +145,18 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       // This ensures @accounts has the same tokens as @sessions_v2
       await addAccount({
         id: memberId,
-        type: 'member',
+        type: "member",
         username: memberProfile.username || username,
         email: userData.email || memberProfile.email,
         name: memberProfile.name || userData.name,
-        profilePicture: memberProfile.profile_photo_url || userData.profile_photo_url || null,
+        profilePicture:
+          memberProfile.profile_photo_url || userData.profile_photo_url || null,
         authToken: storedSession?.accessToken,
         refreshToken: storedSession?.refreshToken || null,
         isLoggedIn: true,
       });
-      
-      console.log('[MemberSignup] Account synced to accountManager');
+
+      console.log("[MemberSignup] Account synced to accountManager");
 
       // Step 5: Navigate to member home with navigation reset
       navigation.reset({
@@ -159,7 +165,10 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error("Error completing signup:", error);
-      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to complete signup. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -167,14 +176,24 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
   const getUsernameStatus = () => {
     if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
-    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textSecondary };
-    if (isAvailable === true) return { text: "✓ Username is available", color: COLORS.success || "#00C851" };
-    if (isAvailable === false) return { text: "✗ Username is already taken", color: COLORS.error };
+    if (username.length < 3)
+      return {
+        text: "Username must be at least 3 characters",
+        color: COLORS.textSecondary,
+      };
+    if (isAvailable === true)
+      return {
+        text: "✓ Username is available",
+        color: COLORS.success || "#00C851",
+      };
+    if (isAvailable === false)
+      return { text: "✗ Username is already taken", color: COLORS.error };
     return { text: "", color: COLORS.textSecondary };
   };
 
   const status = getUsernameStatus();
-  const isButtonDisabled = !username || username.length < 3 || !isAvailable || isSubmitting;
+  const isButtonDisabled =
+    !username || username.length < 3 || !isAvailable || isSubmitting;
 
   const handleBack = () => {
     navigation.goBack();
@@ -182,11 +201,11 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -198,14 +217,12 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                 style={styles.backButton}
                 accessibilityLabel="Go back"
               >
-                <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+                <Ionicons
+                  name="arrow-back"
+                  size={24}
+                  color={COLORS.textPrimary}
+                />
               </TouchableOpacity>
-            </View>
-
-            {/* 2. Progress Bar and Step Text */}
-            <View style={styles.progressContainer}>
-              <Text style={styles.stepText}>Step 8 of 8</Text>
-              <ProgressBar progress={100} />
             </View>
 
             {/* 3. Content Area */}
@@ -219,7 +236,12 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Username</Text>
-                <View style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isFocused && styles.inputWrapperFocused,
+                  ]}
+                >
                   <TextInput
                     style={styles.textInput}
                     value={username}
@@ -244,8 +266,12 @@ const MemberUsernameScreen = ({ navigation, route }) => {
               <View style={styles.rulesContainer}>
                 <Text style={styles.rulesTitle}>Username Rules:</Text>
                 <Text style={styles.rule}>• 3-30 characters long</Text>
-                <Text style={styles.rule}>• Only letters, numbers, underscores, and dots</Text>
-                <Text style={styles.rule}>• Must be unique across all users</Text>
+                <Text style={styles.rule}>
+                  • Only letters, numbers, underscores, and dots
+                </Text>
+                <Text style={styles.rule}>
+                  • Must be unique across all users
+                </Text>
               </View>
             </View>
           </View>
@@ -256,17 +282,17 @@ const MemberUsernameScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={[
               styles.nextButtonContainer,
-              isButtonDisabled && styles.nextButtonDisabled
+              isButtonDisabled && styles.nextButtonDisabled,
             ]}
             onPress={handleFinish}
             disabled={isButtonDisabled}
             activeOpacity={0.8}
           >
             <LinearGradient
-               colors={COLORS.primaryGradient}
-               start={{ x: 0, y: 0 }}
-               end={{ x: 1, y: 0 }}
-               style={styles.nextButton}
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextButton}
             >
               <Text style={styles.nextButtonText}>
                 {isSubmitting ? "Setting Username..." : "Complete Signup"}
@@ -400,7 +426,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.05,
     paddingVertical: 15,
     backgroundColor: COLORS.background,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25
+    paddingBottom: Platform.OS === "ios" ? 40 : 25,
   },
   nextButtonContainer: {
     borderRadius: 15,

@@ -13,46 +13,63 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar"; 
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 
-const { width } = Dimensions.get('window');
-
+const { width } = Dimensions.get("window");
 
 // --- Components ---
 const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
   const [isFocused, setIsFocused] = useState(false);
   return (
-  <View style={[styles.phoneInputContainer, isFocused && styles.phoneInputContainerFocused]}>
-    <TouchableOpacity
-      style={styles.countryCodePicker}
-      onPress={() => console.log("Action: Open country code selection modal")}
-      activeOpacity={0.7}
-      accessibilityLabel="Select country code"
+    <View
+      style={[
+        styles.phoneInputContainer,
+        isFocused && styles.phoneInputContainerFocused,
+      ]}
     >
-      <Text style={styles.countryCodeText}>🇮🇳 +91 </Text>
-    </TouchableOpacity>
-    <TextInput
-      style={styles.phoneNumberInput}
-      placeholder={placeholder}
-      placeholderTextColor={COLORS.textSecondary}
-      value={value}
-      onChangeText={onChangeText}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-      keyboardType="phone-pad"
-      dataDetectorTypes="phoneNumber"
-      maxLength={10}
-      autoFocus={isRequired}
-    />
-  </View>
+      <TouchableOpacity
+        style={styles.countryCodePicker}
+        onPress={() => console.log("Action: Open country code selection modal")}
+        activeOpacity={0.7}
+        accessibilityLabel="Select country code"
+      >
+        <Text style={styles.countryCodeText}>🇮🇳 +91 </Text>
+      </TouchableOpacity>
+      <TextInput
+        style={styles.phoneNumberInput}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textSecondary}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        keyboardType="phone-pad"
+        dataDetectorTypes="phoneNumber"
+        maxLength={10}
+        autoFocus={isRequired}
+      />
+    </View>
   );
 };
 
 // --- Main Screen Component ---
 const CommunityPhoneNoScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url, bio, category, categories, location } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+  } = route.params || {};
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
 
@@ -115,7 +132,6 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
       {/* 1. Header Row (Back and Skip) */}
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -125,12 +141,6 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-      </View>
-
-      {/* 2. Progress Bar and Step Text */}
-      <View style={styles.progressContainer}>
-        <Text style={styles.stepText}>Step 6 of 9</Text>
-        <ProgressBar progress={67} />
       </View>
 
       {/* 3. Scrollable Content */}
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
     width: width * 0.9,
     alignSelf: "center",
     // FIX: Reduced padding bottom here to accommodate the slightly raised button footer
-    paddingBottom: 70, 
+    paddingBottom: 70,
   },
   contentArea: {
     flex: 1,
@@ -321,7 +331,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     backgroundColor: COLORS.background,
     // FIX: Increased bottom padding to push the button higher
-    paddingBottom: Platform.OS === 'ios' ? 40 : 25, 
+    paddingBottom: Platform.OS === "ios" ? 40 : 25,
   },
   continueButtonContainer: {
     width: "100%",
