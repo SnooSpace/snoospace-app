@@ -115,9 +115,27 @@ const ImageUploader = forwardRef(
     const { cropImage } = useCrop();
     const navigation = useNavigation();
     const resolveRef = useRef(null);
+    const hasInitializedRef = useRef(false);
+
+    // Sync initialImages when they change (e.g., after API load)
+    React.useEffect(() => {
+      // Only initialize once - don't overwrite user edits
+      if (!hasInitializedRef.current && initialImages.length > 0) {
+        hasInitializedRef.current = true;
+        setImages(initializeState(initialImages, maxImages));
+      }
+    }, [initialImages]);
 
     // Swap two images for reordering (works for both dense and sparse/fixed arrays)
     const swapImages = (indexA, indexB) => {
+      console.log("[ImageUploader] swapImages called:", { indexA, indexB });
+      console.log("[ImageUploader] URL at position A:", images[indexA]);
+      console.log("[ImageUploader] URL at position B:", images[indexB]);
+      console.log(
+        "[ImageUploader] Are they the same?",
+        images[indexA] === images[indexB]
+      );
+
       const swap = (arr) => {
         const newArr = [...arr];
         // Ensure indices exist if array was shorter (though ideally shouldn't happen in fixed mode)
@@ -136,6 +154,13 @@ const ImageUploader = forwardRef(
       const newAspectRatios = swap(aspectRatios);
       const newPresetKeys = swap(presetKeys);
       const newCropMetadata = swap(cropMetadata);
+
+      console.log(
+        "[ImageUploader] After swap - newImages:",
+        newImages.map((img, i) =>
+          img ? `[${i}]: ${img.substring(0, 30)}...` : `[${i}]: null`
+        )
+      );
 
       setImages(newImages);
       setOriginalUris(newOriginalUris);
@@ -508,21 +533,31 @@ const ImageUploader = forwardRef(
       );
       const slotHeight = slotWidth * 1.25; // 4:5 aspect ratio
       const isRequired = (index) => index < minRequired;
-      const needsMorePhotos = images.length < minRequired;
+      const actualImageCount = images.filter(Boolean).length;
+      const needsMorePhotos = actualImageCount < minRequired;
+
+      // Create a render key based on image positions to force re-render
+      const gridRenderKey = images
+        .map((img, i) => (img ? img.slice(-20) : "null"))
+        .join("-");
+      console.log("[ImageUploader] Rendering grid with key:", gridRenderKey);
 
       return (
         <View>
-          <View style={styles.hingeGrid}>
+          <View key={gridRenderKey} style={styles.hingeGrid}>
             {Array.from({ length: maxImages }).map((_, index) => {
               const imageUri = images[index];
               const isEmpty = !imageUri;
               const isRequiredSlot = isRequired(index);
               const isSelected = selectedForReorder === index;
 
+              // Use consistent key based only on index position
+              const slotKey = `grid-slot-${index}`;
+
               if (isEmpty) {
                 return (
                   <TouchableOpacity
-                    key={`slot-${index}`}
+                    key={slotKey}
                     style={[
                       styles.hingeSlot,
                       { width: slotWidth, height: slotHeight },
@@ -552,7 +587,7 @@ const ImageUploader = forwardRef(
 
               return (
                 <View
-                  key={`photo-${index}`}
+                  key={slotKey}
                   style={[
                     styles.hingePhotoContainer,
                     { width: slotWidth, height: slotHeight },
@@ -566,9 +601,24 @@ const ImageUploader = forwardRef(
                     style={styles.imageTouch}
                   >
                     <Image
-                      source={{ uri: imageUri, cache: "reload" }}
+                      key={`img-${index}-${imageUri}`}
+                      source={{ uri: imageUri }}
                       style={styles.image}
                       resizeMode="cover"
+                      onError={(e) =>
+                        console.log(
+                          "[ImageUploader] Image load error at index",
+                          index,
+                          ":",
+                          e.nativeEvent.error
+                        )
+                      }
+                      onLoad={() =>
+                        console.log(
+                          "[ImageUploader] Image loaded successfully at index",
+                          index
+                        )
+                      }
                     />
                     {isSelected && (
                       <View style={styles.hingeSelectedOverlay}>
@@ -726,12 +776,15 @@ const ImageUploader = forwardRef(
         style={[
           styles.container,
           style,
-          horizontal && images.length === 0 && { marginBottom: 0, height: 0 },
+          horizontal &&
+            (hingeStyle ? images.filter(Boolean).length : images.length) ===
+              0 && { marginBottom: 0, height: 0 },
         ]}
       >
         {!horizontal && (
           <Text style={styles.label}>
-            Photos ({images.length}/{maxImages})
+            Photos ({hingeStyle ? images.filter(Boolean).length : images.length}
+            /{maxImages})
           </Text>
         )}
         {renderImageGrid()}

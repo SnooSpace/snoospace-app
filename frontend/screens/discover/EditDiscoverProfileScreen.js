@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -128,6 +129,57 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       appearInDiscover !== initialState.appearInDiscover
     );
   };
+
+  // Handle back button with unsaved changes confirmation
+  const handleBackPress = useCallback(() => {
+    if (hasChanges()) {
+      Alert.alert(
+        "Unsaved Changes",
+        "You have unsaved changes. What would you like to do?",
+        [
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => navigation.goBack(),
+          },
+          {
+            text: "Keep Editing",
+            style: "cancel",
+          },
+          {
+            text: "Save & Exit",
+            onPress: async () => {
+              await handleSave();
+              // Note: handleSave navigates back on success
+            },
+          },
+        ]
+      );
+      return true; // Prevent default back behavior
+    }
+    navigation.goBack();
+    return true;
+  }, [
+    photos,
+    goalBadges,
+    openers,
+    showPronouns,
+    appearInDiscover,
+    initialState,
+    navigation,
+  ]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        handleBackPress();
+        return true;
+      }
+    );
+    return () => backHandler.remove();
+  }, [handleBackPress]);
 
   const handleSave = async () => {
     // Validation
@@ -279,10 +331,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
