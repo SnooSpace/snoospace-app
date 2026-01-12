@@ -181,6 +181,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
               getFocusedRouteNameFromRoute(route) ?? "DiscoverHome";
             if (
               routeName === "ProfileFeed" ||
+              routeName === "NetworkingProfile" ||
               routeName === "Chat" ||
               routeName === "EditDiscoverProfile"
             ) {
