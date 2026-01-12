@@ -328,18 +328,25 @@ async function tryRefreshAndRetry(
       // CRITICAL: Update tokens atomically for the SPECIFIC account that initiated refresh
       // This prevents race conditions when user switches accounts during API calls
       if (accountId) {
-        // Update in sessionManager (V2)
+        // Use composite key to prevent ID collisions (e.g., member_28 vs community_28)
         const compositeId = `${accountType}_${accountId}`;
+
+        // Update in sessionManager (V2)
         await sessionManager.updateLocalSession(compositeId, {
           accessToken: newAccess,
           refreshToken: newRefresh,
         });
 
-        // Also update in accountManager for backward compatibility
-        await authModule.updateAccountTokens(accountId, newAccess, newRefresh);
+        // CRITICAL: Also update in accountManager using composite key for backward compatibility
+        // This fixes the bug where member_28 and community_28 would collide
+        await authModule.updateAccountTokens(
+          compositeId,
+          newAccess,
+          newRefresh
+        );
         console.log(
           "[tryRefreshAndRetry] Tokens updated for account:",
-          accountId,
+          compositeId,
           "generation:",
           refreshStartGeneration
         );

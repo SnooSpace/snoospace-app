@@ -315,19 +315,24 @@ export async function logoutCurrentAccount() {
     }
 
     const accounts = await getAllAccounts();
-    const accountIdStr = String(activeAccount.id);
 
-    // Mark current account as logged out
-    await updateAccount(accountIdStr, { isLoggedIn: false });
+    // CRITICAL: Use composite key to prevent ID collisions (e.g., member_28 vs community_28)
+    const accountCompositeId = `${activeAccount.type}_${activeAccount.id}`;
 
-    // Find next available logged-in account
+    // Mark current account as logged out using composite key
+    await updateAccount(accountCompositeId, { isLoggedIn: false });
+
+    // Find next available logged-in account - compare by composite key
     const nextAccount = accounts.find(
-      (acc) => String(acc.id) !== accountIdStr && acc.isLoggedIn !== false
+      (acc) =>
+        `${acc.type}_${acc.id}` !== accountCompositeId &&
+        acc.isLoggedIn !== false
     );
 
     if (nextAccount) {
-      // Switch to next account
-      await switchAccount(nextAccount.id);
+      // Switch to next account using composite key
+      const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
+      await switchAccount(nextCompositeId);
       return { switchToAccount: nextAccount, navigateToLanding: false };
     }
 
@@ -342,6 +347,7 @@ export async function logoutCurrentAccount() {
 /**
  * Remove account
  * Prevents removing currently logged-in account
+ * @param {string} accountId - Should be composite key (type_id) format for safety
  */
 export async function removeAccount(accountId) {
   try {
@@ -353,10 +359,16 @@ export async function removeAccount(accountId) {
     const accountIdStr = String(accountId);
     const activeAccount = await getActiveAccount();
 
-    // Prevent removing currently logged-in account
+    // Build composite key for active account for proper comparison
+    const activeCompositeId = activeAccount
+      ? `${activeAccount.type}_${activeAccount.id}`
+      : null;
+
+    // Prevent removing currently logged-in account - use composite key comparison
     if (
       activeAccount &&
-      String(activeAccount.id) === accountIdStr &&
+      (activeCompositeId === accountIdStr ||
+        String(activeAccount.id) === accountIdStr) &&
       activeAccount.isLoggedIn !== false
     ) {
       throw new Error(
@@ -364,26 +376,30 @@ export async function removeAccount(accountId) {
       );
     }
 
-    // Filter using raw account data (comparing IDs without decryption)
-    const updatedAccounts = accounts.filter(
-      (acc) => String(acc.id) !== accountIdStr
-    );
+    // CRITICAL: Filter using composite key to prevent removing wrong account
+    // when member_28 and community_28 exist
+    const updatedAccounts = accounts.filter((acc) => {
+      const accCompositeId = `${acc.type}_${acc.id}`;
+      // Keep accounts that DON'T match the ID being removed
+      // Support both composite key and legacy plain ID formats
+      return accCompositeId !== accountIdStr && String(acc.id) !== accountIdStr;
+    });
 
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
 
     // If removing active account, switch to first available logged-in account
     const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
-    if (String(activeId) === accountIdStr) {
+    if (activeId === accountIdStr || String(activeId) === accountIdStr) {
       const nextLoggedIn = updatedAccounts.find(
         (acc) => acc.isLoggedIn !== false
       );
       if (nextLoggedIn) {
-        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, String(nextLoggedIn.id));
+        // Use composite key for new active account
+        const nextCompositeId = `${nextLoggedIn.type}_${nextLoggedIn.id}`;
+        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, nextCompositeId);
       } else if (updatedAccounts.length > 0) {
-        await AsyncStorage.setItem(
-          ACTIVE_ACCOUNT_KEY,
-          String(updatedAccounts[0].id)
-        );
+        const firstCompositeId = `${updatedAccounts[0].type}_${updatedAccounts[0].id}`;
+        await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, firstCompositeId);
       } else {
         await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
       }
@@ -398,6 +414,8 @@ export async function removeAccount(accountId) {
 
 /**
  * Update account data
+ * @param {string} accountId - Should be composite key (type_id) format for safety
+ * @param {Object} updates - Fields to update
  */
 export async function updateAccount(accountId, updates) {
   try {
@@ -407,11 +425,24 @@ export async function updateAccount(accountId, updates) {
     const accounts = JSON.parse(accountsJson);
     const accountIdStr = String(accountId);
 
-    // Support both composite key (type_id) and legacy (just id) formats
-    const accountIndex = accounts.findIndex((acc) => {
+    // CRITICAL: Prefer composite key matching to prevent ID collisions
+    // e.g., member_28 should NOT match community_28
+    // Legacy plain ID fallback is kept but logged as warning
+    let accountIndex = accounts.findIndex((acc) => {
       const compositeId = `${acc.type}_${acc.id}`;
-      return compositeId === accountIdStr || String(acc.id) === accountIdStr;
+      return compositeId === accountIdStr;
     });
+
+    // Legacy fallback - only if composite key didn't match and ID looks like plain number
+    if (accountIndex === -1 && !accountIdStr.includes("_")) {
+      console.warn(
+        `[updateAccount] ⚠️ Using legacy plain ID match for: ${accountIdStr}. ` +
+          `This may cause issues if multiple account types share this ID.`
+      );
+      accountIndex = accounts.findIndex(
+        (acc) => String(acc.id) === accountIdStr
+      );
+    }
 
     if (accountIndex === -1) {
       console.warn("[updateAccount] Account not found:", accountIdStr);
@@ -470,10 +501,23 @@ export async function markAccountLoggedOut(accountId, reason, source) {
     const accounts = JSON.parse(accountsJson);
     const accountIdStr = String(accountId);
 
-    const accountIndex = accounts.findIndex((acc) => {
+    // CRITICAL: Prefer composite key matching to prevent ID collisions
+    // e.g., member_28 should NOT match community_28
+    let accountIndex = accounts.findIndex((acc) => {
       const compositeId = `${acc.type}_${acc.id}`;
-      return compositeId === accountIdStr || String(acc.id) === accountIdStr;
+      return compositeId === accountIdStr;
     });
+
+    // Legacy fallback - only if composite key didn't match and ID looks like plain number
+    if (accountIndex === -1 && !accountIdStr.includes("_")) {
+      console.warn(
+        `[markAccountLoggedOut] ⚠️ Using legacy plain ID match for: ${accountIdStr}. ` +
+          `This may cause issues if multiple account types share this ID.`
+      );
+      accountIndex = accounts.findIndex(
+        (acc) => String(acc.id) === accountIdStr
+      );
+    }
 
     if (accountIndex === -1) {
       console.warn("[markAccountLoggedOut] Account not found:", accountIdStr);
