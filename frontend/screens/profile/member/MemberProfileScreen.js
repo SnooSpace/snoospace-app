@@ -1245,58 +1245,16 @@ export default function MemberProfileScreen({ navigation }) {
             <Text style={styles.profileName}>{profile.name}</Text>
             {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
               <View style={styles.pronounsRowCentered}>
-                <View
-                  key={`pronoun-0`}
-                  style={[styles.chip, styles.pronounChipSmall]}
-                >
+                <View style={[styles.chip, styles.pronounChipSmall]}>
                   <Text style={styles.chipText}>
-                    {String(profile.pronouns[0]).replace(
-                      /^[{\"]+|[}\"]+$/g,
-                      ""
-                    )}
+                    {profile.pronouns
+                      .map((p) => String(p).replace(/^[{\"]+|[}\"]+$/g, ""))
+                      .join(" / ")}
                   </Text>
                 </View>
-                {profile.pronouns.length > 1 && !showAllPronouns ? (
-                  <TouchableOpacity
-                    onPress={() => setShowAllPronouns(true)}
-                    style={[styles.chip, styles.pronounChipSmall]}
-                  >
-                    <Text style={styles.chipText}>
-                      +{profile.pronouns.length - 1}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-                {profile.pronouns.length > 1 && showAllPronouns ? (
-                  <TouchableOpacity
-                    onPress={() => setShowAllPronouns(false)}
-                    style={[
-                      styles.chip,
-                      styles.pronounChipSmall,
-                      styles.chipRed,
-                    ]}
-                  >
-                    <Text style={[styles.chipText, styles.chipTextRed]}>-</Text>
-                  </TouchableOpacity>
-                ) : null}
               </View>
             ) : null}
           </View>
-          {Array.isArray(profile.pronouns) &&
-          profile.pronouns.length > 1 &&
-          showAllPronouns ? (
-            <View style={styles.expandedPronounsRow}>
-              {profile.pronouns.slice(1).map((p, idx) => (
-                <View
-                  key={`pronoun-expanded-${idx}`}
-                  style={[styles.chip, styles.pronounChipSmall]}
-                >
-                  <Text style={styles.chipText}>
-                    {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
           {profile.bio ? renderBio(profile.bio) : null}
 
           {/* Stats */}

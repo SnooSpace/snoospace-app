@@ -269,6 +269,12 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     );
   }
 
+  const getCompletionColor = (percentage) => {
+    if (percentage < 50) return "#FF3B30"; // Red
+    if (percentage < 80) return "#FF9500"; // Orange
+    return "#34C759"; // Green
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -279,7 +285,12 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Discover Profile</Text>
+        <Text style={styles.headerTitle}>
+          My Discover Profile{" "}
+          <Text style={{ color: getCompletionColor(completion) }}>
+            {completion}%
+          </Text>
+        </Text>
         <TouchableOpacity
           style={[
             styles.saveButton,
@@ -306,17 +317,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           <Text style={styles.successToastText}>Saved successfully!</Text>
         </View>
       )}
-
-      {/* Completion Bar */}
-      <View style={styles.completionBar}>
-        <View style={styles.completionTrack}>
-          <View style={[styles.completionFill, { width: `${completion}%` }]} />
-        </View>
-        <Text style={styles.completionText}>
-          {completion}% complete{" "}
-          {completion < 75 && "· Complete your profile to be discovered"}
-        </Text>
-      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* SECTION 1: Photos */}
