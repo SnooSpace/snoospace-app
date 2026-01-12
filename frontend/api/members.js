@@ -1,4 +1,10 @@
-import { apiGet, apiPost, apiDelete, apiPatch } from "./client";
+import {
+  apiGet,
+  apiPost,
+  apiDelete,
+  apiPatch,
+  BACKEND_BASE_URL,
+} from "./client";
 import { getAuthToken } from "./auth";
 
 export async function getPublicMemberProfile(memberId) {
@@ -94,9 +100,22 @@ export async function fetchInterests() {
 }
 
 export async function fetchPronouns() {
-  const token = await getAuthToken();
-  const result = await apiGet("/api/pronouns", 15000, token);
-  return result?.pronouns || [];
+  // Public endpoint - no auth required (used during signup before user has a token)
+  try {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/pronouns`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("[fetchPronouns] Error:", data?.error || res.statusText);
+      return [];
+    }
+    return data?.pronouns || [];
+  } catch (error) {
+    console.error("[fetchPronouns] Network error:", error.message);
+    return [];
+  }
 }
 
 export async function getMemberFollowers(

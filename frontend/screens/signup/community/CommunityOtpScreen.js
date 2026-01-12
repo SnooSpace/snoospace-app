@@ -12,6 +12,8 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
+import Reanimated, { ZoomIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
@@ -34,6 +36,9 @@ const CommunityOtpScreen = ({ navigation, route }) => {
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  // Button feedback state
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -55,34 +60,45 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
 
-      // For signup, proceed with tokens if available
-      let accessToken = null;
-      let refreshToken = null;
-
-      if (result.session) {
-        accessToken = result.session.accessToken;
-        refreshToken = result.session.refreshToken;
-        if (accessToken) {
-          await setAuthSession(accessToken, email, refreshToken);
-        }
-      }
-      await clearPendingOtp();
-
-      console.log("[CommunityOtp] OTP verified, navigating with:", {
-        email,
-        accessTokenLength: accessToken?.length,
-        refreshTokenLength: refreshToken?.length,
-      });
-
-      navigation.navigate("CommunityName", {
-        email,
-        accessToken,
-        refreshToken,
-      });
-    } catch (e) {
-      setError(e.message || "Invalid verification code.");
-    } finally {
+      // Success Feedback
       setLoading(false);
+      setIsSuccess(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setTimeout(async () => {
+        // For signup, proceed with tokens if available
+        let accessToken = null;
+        let refreshToken = null;
+
+        if (result.session) {
+          accessToken = result.session.accessToken;
+          refreshToken = result.session.refreshToken;
+          if (accessToken) {
+            await setAuthSession(accessToken, email, refreshToken);
+          }
+        }
+        await clearPendingOtp();
+
+        console.log("[CommunityOtp] OTP verified, navigating with:", {
+          email,
+          accessTokenLength: accessToken?.length,
+          refreshTokenLength: refreshToken?.length,
+        });
+
+        setIsSuccess(false);
+        navigation.navigate("CommunityName", {
+          email,
+          accessToken,
+          refreshToken,
+        });
+      }, 1000);
+    } catch (e) {
+      setLoading(false);
+      setIsError(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+      setTimeout(() => setIsError(false), 2000);
+      setError(e.message || "Invalid verification code.");
     }
   };
 
@@ -153,19 +169,44 @@ const CommunityOtpScreen = ({ navigation, route }) => {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <TouchableOpacity
-            style={[styles.buttonContainer, loading && styles.buttonDisabled]}
+            style={[
+              styles.buttonContainer,
+              (loading || isSuccess || isError) && styles.buttonDisabled,
+            ]}
             onPress={handleVerify}
-            disabled={loading}
+            disabled={loading || isSuccess || isError}
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={COLORS.primaryGradient}
+              colors={
+                isSuccess
+                  ? ["#34C759", "#2FB350"]
+                  : isError
+                  ? [COLORS.error, COLORS.error]
+                  : COLORS.primaryGradient
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.button}
             >
               {loading ? (
                 <ActivityIndicator color={COLORS.textInverted} />
+              ) : isSuccess ? (
+                <Reanimated.View entering={ZoomIn}>
+                  <Ionicons
+                    name="checkmark"
+                    size={24}
+                    color={COLORS.textInverted}
+                  />
+                </Reanimated.View>
+              ) : isError ? (
+                <Reanimated.View entering={ZoomIn}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={COLORS.textInverted}
+                  />
+                </Reanimated.View>
               ) : (
                 <Text style={styles.buttonText}>Verify</Text>
               )}

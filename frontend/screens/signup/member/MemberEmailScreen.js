@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,9 +11,18 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
+  TouchableWithoutFeedback,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MaskedView from "@react-native-masked-view/masked-view";
+
 import {
   COLORS,
   SPACING,
@@ -24,6 +33,23 @@ import {
 import { apiPost } from "../../../api/client";
 import { setPendingOtp, checkEmailExists } from "../../../api/auth";
 
+const { width } = Dimensions.get("window");
+
+// Helper for Gradient Text
+const GradientText = (props) => {
+  return (
+    <MaskedView maskElement={<Text {...props} />}>
+      <LinearGradient
+        colors={COLORS.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text {...props} style={[props.style, { opacity: 0 }]} />
+      </LinearGradient>
+    </MaskedView>
+  );
+};
+
 const EmailInputScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [isValidEmail, setIsValidEmail] = useState(false);
@@ -32,6 +58,46 @@ const EmailInputScreen = ({ navigation }) => {
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+  const [showAccountExistsModal, setShowAccountExistsModal] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const insets = useSafeAreaInsets();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkResendTimer();
+    }, [])
+  );
+
+  useEffect(() => {
+    let interval;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) return 0;
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const checkResendTimer = async () => {
+    try {
+      const lastTimeStr = await AsyncStorage.getItem("last_otp_timestamp");
+      if (lastTimeStr) {
+        const lastTime = parseInt(lastTimeStr, 10);
+        const elapsed = Math.floor((Date.now() - lastTime) / 1000);
+        const remaining = 60 - elapsed;
+        if (remaining > 0) {
+          setResendTimer(remaining);
+        } else {
+          setResendTimer(0);
+        }
+      }
+    } catch (e) {
+      console.error("Error checking resend timer:", e);
+    }
+  };
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -53,6 +119,7 @@ const EmailInputScreen = ({ navigation }) => {
       // Only navigate if we get a successful response
       if (response) {
         console.log("OTP sent successfully, navigating to OTP screen");
+        await AsyncStorage.setItem("last_otp_timestamp", Date.now().toString());
         setRetryCount(0); // Reset retry count on success
         navigation.navigate("MemberOtp", { email });
       } else {
@@ -109,21 +176,7 @@ const EmailInputScreen = ({ navigation }) => {
       if (exists) {
         setLoading(false);
         console.log("[MemberEmailScreen] Showing confirmation dialog");
-        // Show confirmation dialog
-        Alert.alert(
-          "Account Exists",
-          "An account with this email already exists. Would you like to create a new account with the same email or use a different email?",
-          [
-            {
-              text: "Use Different Email",
-              style: "cancel",
-            },
-            {
-              text: "Continue Anyway",
-              onPress: () => sendOtpAndNavigate(),
-            },
-          ]
-        );
+        setShowAccountExistsModal(true);
         return;
       }
 
@@ -149,14 +202,11 @@ const EmailInputScreen = ({ navigation }) => {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              // Use parent navigator since this is the first screen of nested navigator
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.getParent()?.goBack();
-              }
+              // Explicitly navigate back to Landing screen to exit signup flow
+              navigation.navigate("Landing");
             }}
             style={styles.backButton}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
@@ -197,30 +247,96 @@ const EmailInputScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
+      <KeyboardStickyView
+        offset={{
+          closed: 0,
+          opened: 0,
+        }}
+        style={styles.stickyFooter}
+      >
+        <View
           style={[
-            styles.continueButtonContainer,
-            (!isValidEmail || loading) && styles.disabledButton,
+            styles.footer,
+            { paddingBottom: 50 + (Platform.OS === "ios" ? 0 : 0) },
           ]}
-          onPress={handleContinue}
-          disabled={!isValidEmail || loading}
-          activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.continueButton}
+          <TouchableOpacity
+            style={[
+              styles.continueButtonContainer,
+              (!isValidEmail || loading || resendTimer > 0) &&
+                styles.disabledButton,
+            ]}
+            onPress={handleContinue}
+            disabled={!isValidEmail || loading || resendTimer > 0}
+            activeOpacity={0.8}
           >
-            {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
-            ) : (
-              <Text style={styles.buttonText}>Get Code</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.continueButton}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.textInverted} />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Get Code"}
+                </Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardStickyView>
+
+      {/* Account Exists Modal */}
+      <Modal
+        visible={showAccountExistsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAccountExistsModal(false)}
+      >
+        <TouchableWithoutFeedback
+          onPress={() => setShowAccountExistsModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Account Exists</Text>
+                <Text style={styles.modalMessage}>
+                  An account with this email already exists. Would you like to
+                  create a new account with the same email or use a different
+                  email?
+                </Text>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalSecondaryButton}
+                    onPress={() => setShowAccountExistsModal(false)}
+                  >
+                    <Text style={styles.modalSecondaryButtonText}>
+                      Use Different Email
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.modalVerticalDivider} />
+
+                  <TouchableOpacity
+                    style={styles.modalPrimaryButton}
+                    onPress={() => {
+                      setShowAccountExistsModal(false);
+                      sendOtpAndNavigate();
+                    }}
+                  >
+                    <GradientText style={styles.modalPrimaryButtonText}>
+                      Continue Anyway
+                    </GradientText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -235,6 +351,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 120, // Add padding to avoid content being hidden behind footer
   },
   header: {
     flexDirection: "row",
@@ -286,12 +403,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: 5,
   },
+  stickyFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
   footer: {
     padding: 20,
     backgroundColor: COLORS.background,
   },
   continueButtonContainer: {
-    marginVertical: 200, // Kept from original, though looks large
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
   },
@@ -309,6 +431,70 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingTop: 24,
+    alignItems: "center",
+    ...SHADOWS.md,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold", // Using bold to simulate the look, can use serif if font available
+    color: "#000",
+    marginBottom: 8,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", // Attempting to match the serif look from image
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: "#444",
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    width: "100%",
+    height: 50,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalSecondaryButtonText: {
+    fontSize: 16,
+    color: "#000",
+    fontWeight: "400",
+  },
+  modalVerticalDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: "#eee",
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPrimaryButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    // Color is handled by GradientText components
   },
 });
 

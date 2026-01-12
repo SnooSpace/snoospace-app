@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -59,7 +60,7 @@ const NameInputScreen = ({ navigation, route }) => {
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>What's your name?</Text>
+          <Text style={styles.title}>What should we call you?</Text>
 
           {/* Name Input */}
           <TextInput
@@ -79,26 +80,40 @@ const NameInputScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
+      {/* Fixed Footer/Button Section */}
+      <KeyboardStickyView
+        offset={{
+          closed: 0,
+          opened: 0,
+        }}
+        style={styles.stickyFooter}
+      >
+        <View
           style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
+            styles.footer,
+            { paddingBottom: Platform.OS === "ios" ? 20 : 20 },
           ]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
+          <TouchableOpacity
+            style={[
+              styles.nextButtonContainer,
+              isButtonDisabled && styles.disabledButton,
+            ]}
+            onPress={handleNext}
+            disabled={isButtonDisabled}
+            activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextButton}
+            >
+              <Text style={styles.buttonText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardStickyView>
     </SafeAreaView>
   );
 };
@@ -114,6 +129,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 120, // Add padding to avoid content being hidden behind footer
   },
   header: {
     paddingVertical: 15,
@@ -156,10 +172,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   footer: {
-    backgroundColor: COLORS.background,
     padding: 20,
-    marginBottom: 50,
-    borderTopWidth: 0,
+    backgroundColor: COLORS.background,
+  },
+  stickyFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,

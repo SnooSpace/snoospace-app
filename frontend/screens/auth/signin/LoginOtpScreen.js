@@ -8,7 +8,15 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Modal,
+  TouchableWithoutFeedback,
+  Dimensions,
+  Platform,
+  Animated,
 } from "react-native";
+import { useRef } from "react";
+import MaskedView from "@react-native-masked-view/masked-view";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { addAccount, getAllAccounts } from "../../../utils/accountManager";
@@ -28,6 +36,22 @@ import {
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
+const { width } = Dimensions.get("window");
+
+// Helper for Gradient Text
+const GradientText = (props) => {
+  return (
+    <MaskedView maskElement={<Text {...props} />}>
+      <LinearGradient
+        colors={COLORS.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text {...props} style={[props.style, { opacity: 0 }]} />
+      </LinearGradient>
+    </MaskedView>
+  );
+};
 
 const LoginOtpScreen = ({ navigation, route }) => {
   const { email, isAddingAccount, loginViaUsername, targetAccount } =
@@ -35,9 +59,16 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
+  const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [showGoBackModal, setShowGoBackModal] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  // Toast state
+  const [showResendToast, setShowResendToast] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateYAnim = useRef(new Animated.Value(20)).current;
 
   // Account picker state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -370,7 +401,36 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setError("");
     try {
       await sessionManager.sendOtp(email);
-      Alert.alert("Success", `Code resent to ${email}.`);
+      // toast logic
+      setShowResendToast(true);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateYAnim, {
+            toValue: 20,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setShowResendToast(false));
+      }, 5000);
+
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
       setError(e.message || "Failed to resend code");
@@ -384,17 +444,9 @@ const LoginOtpScreen = ({ navigation, route }) => {
       {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => {
-            Alert.alert(
-              "Go Back?",
-              "You'll need to request a new code if you go back.",
-              [
-                { text: "Stay", style: "cancel" },
-                { text: "Change Email", onPress: () => navigation.goBack() },
-              ]
-            );
-          }}
+          onPress={() => setShowGoBackModal(true)}
           style={styles.backButton}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
@@ -447,7 +499,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color="#5f27cd" size="small" />
+            <ActivityIndicator color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
@@ -456,7 +508,6 @@ const LoginOtpScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Account Picker Modal */}
       <AccountPickerModal
         visible={showAccountPicker}
         onClose={() => setShowAccountPicker(false)}
@@ -467,6 +518,67 @@ const LoginOtpScreen = ({ navigation, route }) => {
         email={email}
         loggedInAccountIds={loggedInAccountIds}
       />
+
+      {/* Modern Go Back Modal */}
+      <Modal
+        visible={showGoBackModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoBackModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Go Back?</Text>
+                <Text style={styles.modalMessage}>
+                  You'll need to request a new code if you go back.
+                </Text>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalSecondaryButton}
+                    onPress={() => setShowGoBackModal(false)}
+                  >
+                    <Text style={styles.modalSecondaryButtonText}>Stay</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.modalVerticalDivider} />
+
+                  <TouchableOpacity
+                    style={styles.modalPrimaryButton}
+                    onPress={() => {
+                      setShowGoBackModal(false);
+                      navigation.goBack();
+                    }}
+                  >
+                    <GradientText style={styles.modalPrimaryButtonText}>
+                      Change Email
+                    </GradientText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Resend Success Toast */}
+      {showResendToast && (
+        <Animated.View
+          style={[
+            styles.toastContainer,
+            {
+              bottom: 50 + insets.bottom,
+              opacity: fadeAnim,
+              transform: [{ translateY: translateYAnim }],
+            },
+          ]}
+        >
+          <Ionicons name="checkmark-circle" size={24} color="#fff" />
+          <Text style={styles.toastText}>Code resent to {email}</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 };
@@ -558,6 +670,96 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
     textAlign: "center",
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingTop: 24,
+    alignItems: "center",
+    ...SHADOWS.md,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 8,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: "#444",
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    width: "100%",
+    height: 50,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalSecondaryButtonText: {
+    fontSize: 16,
+    color: "#000",
+    fontWeight: "400",
+  },
+  modalVerticalDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: "#eee",
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPrimaryButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    // Color handled by GradientText
+  },
+  toastContainer: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    backgroundColor: COLORS.success || "#34C759",
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 10,
+    flex: 1,
   },
 });
 

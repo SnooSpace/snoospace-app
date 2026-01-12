@@ -58,9 +58,9 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What's your number?</Text>
+            <Text style={styles.title}>Where can we reach you?</Text>
             <Text style={styles.subtitle}>
-              We'll text you a code to verify your phone.
+              Your number is private and never shared.
             </Text>
 
             {/* Phone Number Input */}

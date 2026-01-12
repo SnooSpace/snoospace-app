@@ -86,7 +86,7 @@ const GenderSelectionScreen = ({ navigation, route }) => {
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>What's your gender?</Text>
+          <Text style={styles.title}>How do you identify?</Text>
 
           {/* Gender Options */}
           {genderOptions.map((option) => (
