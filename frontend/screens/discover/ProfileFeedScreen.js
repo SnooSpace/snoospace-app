@@ -25,6 +25,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const { event } = route.params || {};
   const [attendees, setAttendees] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
@@ -65,6 +66,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
         );
         setAttendees(response.attendees || []);
         setCurrentIndex(0);
+        setCurrentPhotoIndex(0);
       }
     } catch (error) {
       console.error("Error loading attendees:", error);
@@ -110,6 +112,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const goToNextProfile = () => {
     if (currentIndex < attendees.length - 1) {
       setCurrentIndex((prev) => prev + 1);
+      setCurrentPhotoIndex(0);
     } else {
       Alert.alert("All Done", "You've seen everyone at this event!", [
         { text: "OK", onPress: () => navigation.goBack() },
@@ -225,14 +228,75 @@ export default function ProfileFeedScreen({ route, navigation }) {
         {/* Name */}
         <Text style={styles.profileName}>{currentAttendee.name}</Text>
 
-        {/* Photo */}
-        <View style={styles.profilePhotoContainer}>
-          <Image
-            source={{ uri: heroPhoto }}
-            style={styles.profilePhoto}
-            resizeMode="cover"
-          />
-        </View>
+        {/* Photo Carousel */}
+        {(() => {
+          // Combine discover_photos and fallback to profile photos
+          // discover_photos can be array of URL strings or objects
+          const discoverPhotos = currentAttendee.discover_photos || [];
+          let allPhotos = [];
+
+          if (discoverPhotos.length > 0) {
+            allPhotos = discoverPhotos
+              .map((p, i) => ({
+                id: i,
+                // Handle both string URLs and object formats
+                photo_url:
+                  typeof p === "string" ? p : p.url || p.photo_url || "",
+                photo_order: i,
+              }))
+              .filter((p) => p.photo_url); // Filter out empty URLs
+          }
+
+          // Fallback to member_photos if no discover_photos
+          if (allPhotos.length === 0) {
+            allPhotos =
+              photos.length > 0
+                ? photos
+                : [{ id: 0, photo_url: heroPhoto, photo_order: 0 }];
+          }
+
+          const currentPhoto =
+            allPhotos[currentPhotoIndex]?.photo_url || heroPhoto;
+
+          return (
+            <TouchableOpacity
+              activeOpacity={0.95}
+              style={styles.profilePhotoContainer}
+              onPress={() => {
+                if (allPhotos.length > 1) {
+                  setCurrentPhotoIndex((prev) => (prev + 1) % allPhotos.length);
+                }
+              }}
+            >
+              <Image
+                source={{ uri: currentPhoto }}
+                style={styles.profilePhoto}
+                resizeMode="cover"
+              />
+              {/* Photo indicators */}
+              {allPhotos.length > 1 && (
+                <View style={styles.photoIndicators}>
+                  {allPhotos.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.photoIndicator,
+                        index === currentPhotoIndex &&
+                          styles.photoIndicatorActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+              {/* Tap hint for multiple photos */}
+              {allPhotos.length > 1 && currentPhotoIndex === 0 && (
+                <View style={styles.tapHint}>
+                  <Text style={styles.tapHintText}>Tap for more photos</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })()}
 
         {/* Age - between photo and interests */}
         {currentAttendee.age && (
@@ -246,6 +310,20 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 · {currentAttendee.pronouns}
               </Text>
             )}
+          </View>
+        )}
+
+        {/* Conversation Starters */}
+        {currentAttendee.openers && currentAttendee.openers.length > 0 && (
+          <View style={styles.openersSection}>
+            {currentAttendee.openers.slice(0, 3).map((opener, index) => (
+              <View key={index} style={styles.openerCard}>
+                <Text style={styles.openerPrompt}>
+                  {opener.prompt || "A topic I could talk about for hours..."}
+                </Text>
+                <Text style={styles.openerAnswer}>{opener.response || ""}</Text>
+              </View>
+            ))}
           </View>
         )}
 
@@ -545,5 +623,64 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
     marginTop: SPACING.s,
     textAlign: "center",
+  },
+  // Photo carousel styles
+  photoIndicators: {
+    position: "absolute",
+    top: SPACING.m,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  photoIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  photoIndicatorActive: {
+    backgroundColor: "#FFFFFF",
+    width: 24,
+  },
+  tapHint: {
+    position: "absolute",
+    bottom: SPACING.m,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  tapHintText: {
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    color: "#FFFFFF",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.s,
+    borderRadius: BORDER_RADIUS.pill,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  // Conversation starters styles
+  openersSection: {
+    marginBottom: SPACING.m,
+    gap: SPACING.s,
+  },
+  openerCard: {
+    backgroundColor: "#F0F7FF",
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+    borderLeftWidth: 3,
+    borderLeftColor: PRIMARY_COLOR,
+  },
+  openerPrompt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: LIGHT_TEXT_COLOR,
+    marginBottom: 4,
+  },
+  openerAnswer: {
+    fontSize: 15,
+    color: TEXT_COLOR,
+    fontWeight: "500",
   },
 });

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
-import { addAccount } from "../../../utils/accountManager";
+import { addAccount, getAllAccounts } from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import {
   startForegroundWatch,
@@ -43,6 +43,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [pickerLoading, setPickerLoading] = useState(false);
+  const [loggedInAccountIds, setLoggedInAccountIds] = useState([]);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -274,9 +275,66 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
       // Email login flow - show account picker if multiple accounts
       if (result.requiresAccountSelection) {
-        // Multiple accounts - show picker
-        console.log("[LoginOtpV2] Multiple accounts found, showing picker");
+        // Multiple accounts - check which are already logged in
+        console.log(
+          "[LoginOtpV2] Multiple accounts found, checking logged-in status"
+        );
+
+        // Get currently logged-in accounts
+        const loggedInAccounts = await getAllAccounts();
+        const loggedInIds = loggedInAccounts
+          .filter((acc) => acc.isLoggedIn !== false)
+          .map((acc) => `${acc.type}_${acc.id}`);
+
+        // Filter accounts to find non-logged-in ones
+        const notLoggedInAccounts = result.accounts.filter(
+          (acc) => !loggedInIds.includes(`${acc.type}_${acc.id}`)
+        );
+
+        console.log(
+          "[LoginOtpV2] Already logged in:",
+          loggedInIds.length,
+          "Not logged in:",
+          notLoggedInAccounts.length
+        );
+
+        // Case 1: All accounts already logged in
+        if (notLoggedInAccounts.length === 0) {
+          Alert.alert(
+            "Already Logged In",
+            "You're already logged in to all accounts linked to this email.",
+            [
+              {
+                text: "Switch to one of them",
+                onPress: () => navigation.goBack(),
+              },
+              {
+                text: "Create new account",
+                onPress: () => navigation.navigate("Landing"),
+              },
+            ]
+          );
+          return;
+        }
+
+        // Case 2: Only one non-logged-in account → auto-login
+        if (notLoggedInAccounts.length === 1) {
+          console.log(
+            "[LoginOtpV2] Only one non-logged-in account, auto-login"
+          );
+          const account = notLoggedInAccounts[0];
+          const sessionResult = await sessionManager.createSession(
+            account.id,
+            account.type,
+            email
+          );
+          await completeLogin(sessionResult.user, sessionResult.session);
+          return;
+        }
+
+        // Case 3: Multiple non-logged-in accounts → show picker with greyed-out logged-in ones
         setAccounts(result.accounts);
+        setLoggedInAccountIds(loggedInIds);
         setShowAccountPicker(true);
         return;
       }
@@ -407,6 +465,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         onSelectMultiple={handleMultipleAccountsSelected}
         loading={pickerLoading}
         email={email}
+        loggedInAccountIds={loggedInAccountIds}
       />
     </SafeAreaView>
   );

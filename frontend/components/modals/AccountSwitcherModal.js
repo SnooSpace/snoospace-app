@@ -89,16 +89,25 @@ export default function AccountSwitcherModal({
   }
 
   async function handleSwitchAccount(account) {
+    // CRITICAL: Use composite key for account comparison to prevent ID collisions
+    // between different account types (e.g., member id:28 vs community id:28)
+    const accountCompositeId = `${account.type}_${account.id}`;
+
     console.log("[AccountSwitcher] handleSwitchAccount called with account:", {
       id: account.id,
+      type: account.type,
+      compositeId: accountCompositeId,
       username: account.username,
       email: account.email,
       isLoggedIn: account.isLoggedIn,
       currentAccountId: currentAccountId,
     });
 
-    // Convert both to strings for comparison
-    if (String(account.id) === String(currentAccountId)) {
+    // Compare using composite key to prevent ID collisions
+    if (
+      accountCompositeId === currentAccountId ||
+      String(account.id) === String(currentAccountId)
+    ) {
       console.log(
         "[AccountSwitcher] Clicked on current account, closing modal"
       );
@@ -129,7 +138,8 @@ export default function AccountSwitcherModal({
     }
 
     try {
-      setSwitchingTo(account.id);
+      // Use composite key for tracking state
+      setSwitchingTo(accountCompositeId);
 
       // Check if token is valid
       const isValid = await validateToken(accessToken);
@@ -152,9 +162,12 @@ export default function AccountSwitcherModal({
         );
       }
 
-      // Switch account
-      console.log("[AccountSwitcher] Calling switchAccount...");
-      await switchAccount(account.id);
+      // Switch account using composite key
+      console.log(
+        "[AccountSwitcher] Calling switchAccount with:",
+        accountCompositeId
+      );
+      await switchAccount(accountCompositeId);
 
       // Token was already validated at the start of this function
       // No need to re-verify after switch - the account.authToken is correct
@@ -209,9 +222,10 @@ export default function AccountSwitcherModal({
   function promptReAuthentication(account) {
     onClose(); // Close switcher first
 
-    // Mark account as logged out with detailed logging
+    // Mark account as logged out with detailed logging - use composite key
+    const accountCompositeId = `${account.type}_${account.id}`;
     accountManager.markAccountLoggedOut(
-      account.id,
+      accountCompositeId,
       "Token invalid/expired during account switch",
       "AccountSwitcherModal:promptReAuthentication"
     );
@@ -233,7 +247,9 @@ export default function AccountSwitcherModal({
           style: "destructive",
           onPress: async () => {
             try {
-              await accountManager.removeAccount(account.id);
+              // Use composite key for removal
+              const accountCompositeId = `${account.type}_${account.id}`;
+              await accountManager.removeAccount(accountCompositeId);
               loadAccounts(); // Refresh the list
             } catch (error) {
               Alert.alert("Error", error.message || "Failed to remove account");
@@ -247,11 +263,12 @@ export default function AccountSwitcherModal({
   function renderAccountItem({ item }) {
     // Create composite ID for comparison
     const itemCompositeId = `${item.type}_${item.id}`;
-    // isActive: check both composite format and plain id for backward compatibility
+    // isActive: check composite format (primary) or plain id (backward compatibility)
     const isActive =
       currentAccountId === itemCompositeId ||
       (currentAccountId && String(item.id) === String(currentAccountId));
-    const isSwitching = switchingTo === item.id;
+    // CRITICAL: Use composite key for switching state to prevent collisions
+    const isSwitching = switchingTo === itemCompositeId;
     const isLoggedOut = item.isLoggedIn === false;
     const canRemove = !isActive || isLoggedOut;
 
@@ -331,7 +348,7 @@ export default function AccountSwitcherModal({
           {/* Account List */}
           <FlatList
             data={accounts}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => `${item.type}_${item.id}`}
             renderItem={renderAccountItem}
             style={styles.accountList}
             contentContainerStyle={styles.listContent}

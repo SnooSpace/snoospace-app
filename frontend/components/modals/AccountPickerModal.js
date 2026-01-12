@@ -64,6 +64,7 @@ export default function AccountPickerModal({
   onSelectMultiple, // New prop for multi-select
   loading,
   email,
+  loggedInAccountIds = [], // IDs of already logged-in accounts
 }) {
   const [selectedAccounts, setSelectedAccounts] = useState([]);
 
@@ -91,7 +92,11 @@ export default function AccountPickerModal({
   };
 
   const selectAll = () => {
-    setSelectedAccounts([...accounts]);
+    // Only select accounts that are NOT already logged in
+    const selectableAccounts = accounts.filter(
+      (acc) => !loggedInAccountIds.includes(`${acc.type}_${acc.id}`)
+    );
+    setSelectedAccounts([...selectableAccounts]);
   };
 
   const handleLogin = () => {
@@ -106,22 +111,40 @@ export default function AccountPickerModal({
     const config = TYPE_CONFIG[item.type] || TYPE_CONFIG.member;
     const gradient = getGradientForName(item.name || item.username);
     const selected = isSelected(item);
+    const isAlreadyLoggedIn = loggedInAccountIds.includes(
+      `${item.type}_${item.id}`
+    );
 
     return (
       <TouchableOpacity
-        style={[styles.accountItem, selected && styles.accountItemSelected]}
+        style={[
+          styles.accountItem,
+          selected && styles.accountItemSelected,
+          isAlreadyLoggedIn && styles.accountItemDisabled,
+        ]}
         onPress={() => toggleAccountSelection(item)}
-        disabled={loading}
+        disabled={loading || isAlreadyLoggedIn}
       >
-        {/* Selection checkbox */}
-        <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-          {selected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-        </View>
+        {/* Selection checkbox - hide if already logged in */}
+        {!isAlreadyLoggedIn && (
+          <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+            {selected && (
+              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+            )}
+          </View>
+        )}
+
+        {/* Logged in indicator */}
+        {isAlreadyLoggedIn && (
+          <View style={styles.loggedInIndicator}>
+            <Ionicons name="checkmark-circle" size={20} color="#8E8E93" />
+          </View>
+        )}
 
         {/* Avatar */}
         <LinearGradient
           colors={gradient}
-          style={styles.avatar}
+          style={[styles.avatar, isAlreadyLoggedIn && styles.avatarDisabled]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
@@ -132,23 +155,41 @@ export default function AccountPickerModal({
 
         {/* Account info */}
         <View style={styles.accountInfo}>
-          <Text style={styles.accountName} numberOfLines={1}>
+          <Text
+            style={[
+              styles.accountName,
+              isAlreadyLoggedIn && styles.textDisabled,
+            ]}
+            numberOfLines={1}
+          >
             {item.name || item.username}
           </Text>
-          <Text style={styles.accountUsername} numberOfLines={1}>
+          <Text
+            style={[
+              styles.accountUsername,
+              isAlreadyLoggedIn && styles.textDisabled,
+            ]}
+            numberOfLines={1}
+          >
             @{item.username}
           </Text>
         </View>
 
-        {/* Type badge */}
-        <View
-          style={[styles.typeBadge, { backgroundColor: config.color + "20" }]}
-        >
-          <Ionicons name={config.icon} size={12} color={config.color} />
-          <Text style={[styles.typeBadgeText, { color: config.color }]}>
-            {config.label}
-          </Text>
-        </View>
+        {/* Type badge or Logged in badge */}
+        {isAlreadyLoggedIn ? (
+          <View style={styles.loggedInBadge}>
+            <Text style={styles.loggedInBadgeText}>Already logged in</Text>
+          </View>
+        ) : (
+          <View
+            style={[styles.typeBadge, { backgroundColor: config.color + "20" }]}
+          >
+            <Ionicons name={config.icon} size={12} color={config.color} />
+            <Text style={[styles.typeBadgeText, { color: config.color }]}>
+              {config.label}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -210,7 +251,9 @@ export default function AccountPickerModal({
               <FlatList
                 data={accounts}
                 renderItem={renderAccountItem}
-                keyExtractor={(item) => `${item.type}_${item.id}`}
+                keyExtractor={(item, index) =>
+                  `${item.type}_${item.id}_${index}`
+                }
                 style={styles.accountList}
                 showsVerticalScrollIndicator={false}
               />
@@ -425,6 +468,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  // Styles for already logged-in accounts
+  accountItemDisabled: {
+    opacity: 0.6,
+    backgroundColor: "#F5F5F5",
+  },
+  loggedInIndicator: {
+    width: 22,
+    height: 22,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarDisabled: {
+    opacity: 0.7,
+  },
+  textDisabled: {
+    color: "#AEAEB2",
+  },
+  loggedInBadge: {
+    backgroundColor: "#8E8E93" + "20",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  loggedInBadgeText: {
+    fontSize: 11,
+    color: "#8E8E93",
+    fontWeight: "500",
+  },
 });
 
 AccountPickerModal.propTypes = {
@@ -432,9 +504,10 @@ AccountPickerModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   accounts: PropTypes.array,
   onSelectAccount: PropTypes.func.isRequired,
-  onSelectMultiple: PropTypes.func, // New prop for multi-select
+  onSelectMultiple: PropTypes.func,
   loading: PropTypes.bool,
   email: PropTypes.string,
+  loggedInAccountIds: PropTypes.array,
 };
 
 AccountPickerModal.defaultProps = {
@@ -442,4 +515,5 @@ AccountPickerModal.defaultProps = {
   onSelectMultiple: null,
   loading: false,
   email: "",
+  loggedInAccountIds: [],
 };

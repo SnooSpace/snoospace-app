@@ -736,6 +736,8 @@ const getEventAttendees = async (req, res) => {
         m.intent_badges,
         m.pronouns,
         m.show_pronouns,
+        m.discover_photos,
+        m.openers,
         COALESCE(
           json_agg(
             json_build_object(
@@ -753,7 +755,7 @@ const getEventAttendees = async (req, res) => {
         AND er.member_id != $2 
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
         ${filterClause}
-      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns
+      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
       ORDER BY m.name
     `;
 
@@ -788,11 +790,41 @@ const getEventAttendees = async (req, res) => {
         }
       }
 
+      // Parse discover_photos
+      let discoverPhotos = [];
+      if (attendee.discover_photos) {
+        if (Array.isArray(attendee.discover_photos)) {
+          discoverPhotos = attendee.discover_photos;
+        } else if (typeof attendee.discover_photos === "string") {
+          try {
+            discoverPhotos = JSON.parse(attendee.discover_photos);
+          } catch (e) {
+            discoverPhotos = [];
+          }
+        }
+      }
+
+      // Parse openers (conversation starters)
+      let openers = [];
+      if (attendee.openers) {
+        if (Array.isArray(attendee.openers)) {
+          openers = attendee.openers;
+        } else if (typeof attendee.openers === "string") {
+          try {
+            openers = JSON.parse(attendee.openers);
+          } catch (e) {
+            openers = [];
+          }
+        }
+      }
+
       return {
         ...attendee,
         age,
         pronouns: pronounsDisplay,
         intent_badges: attendee.intent_badges || [],
+        discover_photos: discoverPhotos,
+        openers: openers,
         photos:
           attendee.photos.length > 0
             ? attendee.photos

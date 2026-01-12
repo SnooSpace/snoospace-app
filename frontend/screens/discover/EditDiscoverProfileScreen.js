@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
 import { updateMemberProfile } from "../../api/members";
+import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import ChipSelector from "../../components/ChipSelector";
 import HapticsService from "../../services/HapticsService";
@@ -151,8 +152,38 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
     try {
       setSaving(true);
+
+      // Upload any local photos to Cloudinary before saving
+      let photosToSave = [];
+      for (const photo of photos) {
+        if (
+          typeof photo === "string" &&
+          (photo.startsWith("file://") || photo.startsWith("content://"))
+        ) {
+          // This is a local file, needs to be uploaded
+          photosToSave.push(photo);
+        } else if (typeof photo === "string" && photo.startsWith("http")) {
+          // Already a Cloudinary URL, keep it
+          photosToSave.push(photo);
+        }
+      }
+
+      // Upload local photos to Cloudinary
+      const localPhotos = photosToSave.filter(
+        (p) => p.startsWith("file://") || p.startsWith("content://")
+      );
+      const cloudinaryPhotos = photosToSave.filter((p) => p.startsWith("http"));
+
+      let uploadedUrls = [];
+      if (localPhotos.length > 0) {
+        uploadedUrls = await uploadMultipleImages(localPhotos);
+      }
+
+      // Combine: keep existing Cloudinary URLs and add new uploaded ones
+      const finalPhotos = [...cloudinaryPhotos, ...uploadedUrls];
+
       await updateMemberProfile({
-        discover_photos: photos,
+        discover_photos: finalPhotos,
         intent_badges: goalBadges,
         openers: openers,
         show_pronouns: showPronouns,
@@ -160,12 +191,15 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       });
       HapticsService.triggerNotificationSuccess();
 
+      // Update photos state with Cloudinary URLs
+      setPhotos(finalPhotos);
+
       setInitialState({
         name,
         age,
         pronouns,
         showPronouns,
-        photos,
+        photos: finalPhotos,
         goalBadges,
         openers,
         appearInDiscover,

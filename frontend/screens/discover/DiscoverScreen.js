@@ -31,6 +31,7 @@ const PRIMARY_COLOR = COLORS.primary;
 export default function DiscoverScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [exploreEvents, setExploreEvents] = useState([]);
+  const [suggestedCommunities, setSuggestedCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exploreTab, setExploreTab] = useState("nearby");
   const [errorMsg, setErrorMsg] = useState("");
@@ -75,35 +76,39 @@ export default function DiscoverScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadEvents();
+      loadData();
       checkProfileCompletion();
     }, [])
   );
 
-  const loadEvents = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setErrorMsg("");
       const token = await getAuthToken();
 
       if (token) {
-        const response = await apiGet("/events/my-events", 15000, token);
-        setEvents(response.events || []);
+        // Load all data in parallel
+        const [eventsResponse, exploreResponse, suggestionsResponse] =
+          await Promise.all([
+            apiGet("/events/my-events", 15000, token).catch(() => ({
+              events: [],
+            })),
+            apiGet("/events/discover", 15000, token).catch(() => ({
+              events: [],
+            })),
+            apiGet("/discover/suggestions", 15000, token).catch(() => ({
+              suggestions: [],
+            })),
+          ]);
 
-        try {
-          const exploreResponse = await apiGet(
-            "/events/discover",
-            15000,
-            token
-          );
-          setExploreEvents(exploreResponse.events || []);
-        } catch (e) {
-          setExploreEvents([]);
-        }
+        setEvents(eventsResponse.events || []);
+        setExploreEvents(exploreResponse.events || []);
+        setSuggestedCommunities(suggestionsResponse.suggestions || []);
       }
     } catch (error) {
-      console.error("Error loading events:", error);
-      setErrorMsg(error?.message || "Failed to load events");
+      console.error("Error loading data:", error);
+      setErrorMsg(error?.message || "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -316,6 +321,65 @@ export default function DiscoverScreen({ navigation }) {
             events.slice(0, 5).map((event) => renderEventCard(event))
           )}
         </View>
+
+        {/* Based on your Interests - Community Recommendations */}
+        {suggestedCommunities.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>BASED ON YOUR INTERESTS</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.communitiesScrollContent}
+            >
+              {suggestedCommunities.map((community) => (
+                <TouchableOpacity
+                  key={community.id}
+                  style={styles.communityCard}
+                  onPress={() =>
+                    navigation.navigate("CommunityPublicProfile", {
+                      communityId: community.id,
+                    })
+                  }
+                  activeOpacity={0.7}
+                >
+                  {community.logo_url ? (
+                    <Image
+                      source={{ uri: community.logo_url }}
+                      style={styles.communityLogo}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.communityLogo,
+                        styles.communityLogoPlaceholder,
+                      ]}
+                    >
+                      <Ionicons name="people" size={24} color={PRIMARY_COLOR} />
+                    </View>
+                  )}
+                  <Text style={styles.communityName} numberOfLines={2}>
+                    {community.name}
+                  </Text>
+                  {community.category && (
+                    <Text style={styles.communityCategory} numberOfLines={1}>
+                      {community.category}
+                    </Text>
+                  )}
+                  <View style={styles.communityFollowers}>
+                    <Ionicons
+                      name="people-outline"
+                      size={12}
+                      color={LIGHT_TEXT_COLOR}
+                    />
+                    <Text style={styles.communityFollowerCount}>
+                      {community.follower_count || 0}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>EXPLORE MORE</Text>
@@ -640,5 +704,51 @@ const styles = StyleSheet.create({
   retryText: {
     color: PRIMARY_COLOR,
     fontWeight: "600",
+  },
+  // Community suggestion styles
+  communitiesScrollContent: {
+    paddingHorizontal: SPACING.l,
+    gap: SPACING.m,
+  },
+  communityCard: {
+    width: 120,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.l,
+    padding: SPACING.m,
+    alignItems: "center",
+    ...SHADOWS.sm,
+  },
+  communityLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: SPACING.s,
+  },
+  communityLogoPlaceholder: {
+    backgroundColor: "#F0EAFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  communityName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: TEXT_COLOR,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  communityCategory: {
+    fontSize: 11,
+    color: LIGHT_TEXT_COLOR,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  communityFollowers: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  communityFollowerCount: {
+    fontSize: 11,
+    color: LIGHT_TEXT_COLOR,
   },
 });
