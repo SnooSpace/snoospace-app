@@ -25,16 +25,39 @@ import {
 // Removed local constants in favor of theme constants
 
 const PhoneNumberInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken } = route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    profile_photo_url,
+    dob,
+    pronouns,
+    showPronouns,
+    gender,
+    location,
+    interests,
+  } = route.params || {};
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = () => {
-    navigation.navigate("MemberName", {
-      email,
+    // Pass all collected data to Username screen for final signup
+    navigation.navigate("MemberUsername", {
+      userData: {
+        email,
+        name,
+        profile_photo_url,
+        dob,
+        pronouns,
+        showPronouns,
+        gender,
+        location,
+        interests,
+        phone: phoneNumber,
+      },
       accessToken,
       refreshToken,
-      phone: phoneNumber,
     });
   };
 

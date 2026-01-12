@@ -29,19 +29,7 @@ import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
-  const {
-    email,
-    accessToken,
-    refreshToken,
-    phone,
-    name,
-    gender,
-    pronouns,
-    showPronouns,
-    dob,
-    interests,
-    location,
-  } = route.params || {};
+  const { email, accessToken, refreshToken, name } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -73,23 +61,13 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         profileUrl = await uploadImage(imageUri, () => {});
       }
 
-      // DON'T create the member record here - pass all data to username screen
-      // Record will be created when username is set (final step)
-      navigation.navigate("MemberUsername", {
-        userData: {
-          name,
-          email,
-          phone,
-          dob,
-          gender,
-          pronouns,
-          showPronouns,
-          location,
-          interests,
-          profile_photo_url: profileUrl || null,
-        },
+      // Navigate to Age screen with profile photo URL
+      navigation.navigate("MemberAge", {
+        email,
         accessToken,
         refreshToken,
+        name,
+        profile_photo_url: profileUrl || null,
       });
     } catch (e) {
       alert(e.message || "Failed to upload image");

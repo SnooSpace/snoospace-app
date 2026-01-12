@@ -164,32 +164,11 @@ const EmailInputScreen = ({ navigation }) => {
       return;
     }
 
-    setLoading(true);
-    setError("");
-
-    try {
-      // Check if email already has accounts
-      console.log("[MemberEmailScreen] Checking if email exists:", email);
-      const exists = await checkEmailExists(email);
-      console.log("[MemberEmailScreen] Email exists result:", exists);
-
-      if (exists) {
-        setLoading(false);
-        console.log("[MemberEmailScreen] Showing confirmation dialog");
-        setShowAccountExistsModal(true);
-        return;
-      }
-
-      // No existing account - proceed directly
-      console.log(
-        "[MemberEmailScreen] No existing account, proceeding to send OTP"
-      );
-      await sendOtpAndNavigate();
-    } catch (e) {
-      console.error("Email check error:", e);
-      // On error, proceed anyway
-      await sendOtpAndNavigate();
-    }
+    // Multi-Account System: Skip email existence check
+    // Account selection happens AFTER OTP verification, not before
+    // This allows users to create multiple profiles with the same email
+    console.log("[MemberEmailScreen] Proceeding to send OTP for:", email);
+    await sendOtpAndNavigate();
   };
 
   return (

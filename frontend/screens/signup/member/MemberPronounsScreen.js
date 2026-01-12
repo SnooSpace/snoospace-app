@@ -42,7 +42,7 @@ const PronounRow = ({ label, isSelected, onPress }) => {
 };
 
 const MemberPronounsScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name, gender } =
+  const { email, accessToken, refreshToken, name, profile_photo_url, dob } =
     route.params || {};
   const [selectedPronouns, setSelectedPronouns] = useState([]);
   const [visibleOnProfile, setVisibleOnProfile] = useState(true);
@@ -85,13 +85,13 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   };
 
   const handleNext = () => {
-    navigation.navigate("MemberAge", {
+    navigation.navigate("MemberGender", {
       email,
       accessToken,
       refreshToken,
-      phone,
       name,
-      gender,
+      profile_photo_url,
+      dob,
       pronouns: selectedPronouns,
       showPronouns: visibleOnProfile,
     });

@@ -30,11 +30,10 @@ const NameInputScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const handleNext = () => {
-    navigation.navigate("MemberGender", {
+    navigation.navigate("MemberProfilePic", {
       email,
       accessToken,
       refreshToken,
-      phone,
       name,
     });
   };

@@ -58,12 +58,13 @@ const InterestsScreen = ({ navigation, route }) => {
     email,
     accessToken,
     refreshToken,
-    phone,
     name,
-    gender,
+    profile_photo_url,
+    dob,
     pronouns,
     showPronouns,
-    dob,
+    gender,
+    location,
   } = route.params || {};
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [allInterests, setAllInterests] = useState([]);
@@ -105,16 +106,17 @@ const InterestsScreen = ({ navigation, route }) => {
   };
 
   const handleFinish = () => {
-    navigation.navigate("MemberLocation", {
+    navigation.navigate("MemberPhone", {
       email,
       accessToken,
       refreshToken,
-      phone,
       name,
-      gender,
+      profile_photo_url,
+      dob,
       pronouns,
       showPronouns,
-      dob,
+      gender,
+      location,
       interests: selectedInterests,
     });
   };

@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
+import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import {
   COLORS,
   SPACING,
@@ -58,6 +59,12 @@ const VerificationScreen = ({ route, navigation }) => {
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [showGoBackModal, setShowGoBackModal] = useState(false);
+
+  // Account Picker Modal state
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [accountPickerLoading, setAccountPickerLoading] = useState(false);
+  const [verificationResult, setVerificationResult] = useState(null);
   const insets = useSafeAreaInsets();
 
   // Button feedback state
@@ -94,28 +101,38 @@ const VerificationScreen = ({ route, navigation }) => {
       setIsSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+      // Store verification result for later use
+      setVerificationResult(result);
+
       // Delay to show animation
       setTimeout(async () => {
-        // For signup, we may get requiresAccountCreation or session
-        // Either way, proceed to next step with tokens if available
-        let accessToken = null;
-        let refreshToken = null;
-
-        if (result.session) {
-          accessToken = result.session.accessToken;
-          refreshToken = result.session.refreshToken;
-          if (accessToken) {
-            await setAuthSession(accessToken, email, refreshToken);
-          }
-        }
-
+        setIsSuccess(false);
         await clearPendingOtp();
-        setIsSuccess(false); // Reset for next time (though we nav away)
-        navigation.navigate("MemberPhone", {
-          email,
-          accessToken,
-          refreshToken,
-        });
+
+        // Check if accounts exist for this email
+        if (result.accounts && result.accounts.length > 0) {
+          // Show account picker modal
+          setAccounts(result.accounts);
+          setShowAccountPicker(true);
+        } else {
+          // No accounts - proceed to signup
+          let accessToken = null;
+          let refreshToken = null;
+
+          if (result.session) {
+            accessToken = result.session.accessToken;
+            refreshToken = result.session.refreshToken;
+            if (accessToken) {
+              await setAuthSession(accessToken, email, refreshToken);
+            }
+          }
+
+          navigation.navigate("MemberName", {
+            email,
+            accessToken,
+            refreshToken,
+          });
+        }
       }, 1000);
     } catch (e) {
       setLoading(false);
@@ -133,6 +150,68 @@ const VerificationScreen = ({ route, navigation }) => {
         setError(e.message || "Verification failed");
       }
     }
+  };
+
+  // Handle selecting an existing account from the picker
+  const handleSelectAccount = async (account) => {
+    setAccountPickerLoading(true);
+    try {
+      // Create session for the selected account
+      const session = await sessionManager.createSession(
+        account.id,
+        account.type,
+        email
+      );
+
+      await setAuthSession(session.accessToken, email, session.refreshToken);
+      setShowAccountPicker(false);
+
+      // Navigate to the appropriate home screen based on account type
+      // Use getParent() to access root AppNavigator from nested MemberSignupNavigator
+      const rootNav = navigation.getParent() || navigation;
+      const homeScreen =
+        account.type === "member"
+          ? "MemberHome"
+          : account.type === "community"
+          ? "CommunityHome"
+          : account.type === "sponsor"
+          ? "SponsorHome"
+          : account.type === "venue"
+          ? "VenueHome"
+          : "MemberHome";
+
+      rootNav.reset({
+        index: 0,
+        routes: [{ name: homeScreen }],
+      });
+    } catch (e) {
+      Alert.alert("Error", e.message || "Failed to login. Please try again.");
+    } finally {
+      setAccountPickerLoading(false);
+    }
+  };
+
+  // Handle creating a new profile
+  const handleCreateNewProfile = async () => {
+    setShowAccountPicker(false);
+
+    let accessToken = null;
+    let refreshToken = null;
+
+    if (verificationResult?.session) {
+      accessToken = verificationResult.session.accessToken;
+      refreshToken = verificationResult.session.refreshToken;
+      if (accessToken) {
+        await setAuthSession(accessToken, email, refreshToken);
+      }
+    }
+
+    // Navigate to signup flow
+    navigation.navigate("MemberName", {
+      email,
+      accessToken,
+      refreshToken,
+    });
   };
 
   const handleResendCode = async () => {
@@ -333,6 +412,17 @@ const VerificationScreen = ({ route, navigation }) => {
           <Text style={styles.toastText}>Code resent to {email}</Text>
         </Animated.View>
       )}
+
+      {/* Account Picker Modal */}
+      <AccountPickerModal
+        visible={showAccountPicker}
+        onClose={() => setShowAccountPicker(false)}
+        accounts={accounts}
+        onSelectAccount={handleSelectAccount}
+        onCreateNewProfile={handleCreateNewProfile}
+        loading={accountPickerLoading}
+        email={email}
+      />
     </SafeAreaView>
   );
 };

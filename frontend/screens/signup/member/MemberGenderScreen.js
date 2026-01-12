@@ -49,18 +49,30 @@ const RadioOption = ({ label, isSelected, onPress }) => {
 };
 
 const GenderSelectionScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone, name } = route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    profile_photo_url,
+    dob,
+    pronouns,
+    showPronouns,
+  } = route.params || {};
   const [selectedGender, setSelectedGender] = useState(null);
 
   const genderOptions = ["Male", "Female", "Non-binary"];
 
   const handleNext = () => {
-    navigation.navigate("MemberPronouns", {
+    navigation.navigate("MemberLocation", {
       email,
       accessToken,
       refreshToken,
-      phone,
       name,
+      profile_photo_url,
+      dob,
+      pronouns,
+      showPronouns,
       gender: selectedGender,
     });
   };

@@ -445,6 +445,12 @@ router.post(
   MemberController.updateLocation
 );
 
+// Member Signup Draft (Multi-Account System)
+router.post("/members/signup/draft", MemberController.createDraft);
+router.patch("/members/signup/draft/:id", MemberController.updateDraft);
+router.get("/members/signup/resume", MemberController.resumeSignup);
+router.post("/members/signup/complete/:id", MemberController.completeSignup);
+
 // Communities
 router.post("/communities/signup", CommunityController.signup);
 router.get(

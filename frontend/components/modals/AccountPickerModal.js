@@ -62,6 +62,7 @@ export default function AccountPickerModal({
   accounts,
   onSelectAccount,
   onSelectMultiple, // New prop for multi-select
+  onCreateNewProfile, // New prop for creating a new profile
   loading,
   email,
   loggedInAccountIds = [], // IDs of already logged-in accounts
@@ -257,6 +258,21 @@ export default function AccountPickerModal({
                 style={styles.accountList}
                 showsVerticalScrollIndicator={false}
               />
+
+              {/* Create new profile button */}
+              {onCreateNewProfile && (
+                <TouchableOpacity
+                  style={styles.createNewButton}
+                  onPress={onCreateNewProfile}
+                  disabled={loading}
+                >
+                  <View style={styles.createNewIcon}>
+                    <Ionicons name="add" size={20} color={COLORS.primary} />
+                  </View>
+                  <Text style={styles.createNewText}>Create a new profile</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+                </TouchableOpacity>
+              )}
             </>
           )}
 
@@ -497,6 +513,33 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     fontWeight: "500",
   },
+  // Create new profile button styles
+  createNewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "30",
+    borderStyle: "dashed",
+  },
+  createNewIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  createNewText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
 });
 
 AccountPickerModal.propTypes = {
@@ -505,6 +548,7 @@ AccountPickerModal.propTypes = {
   accounts: PropTypes.array,
   onSelectAccount: PropTypes.func.isRequired,
   onSelectMultiple: PropTypes.func,
+  onCreateNewProfile: PropTypes.func,
   loading: PropTypes.bool,
   email: PropTypes.string,
   loggedInAccountIds: PropTypes.array,
@@ -513,6 +557,7 @@ AccountPickerModal.propTypes = {
 AccountPickerModal.defaultProps = {
   accounts: [],
   onSelectMultiple: null,
+  onCreateNewProfile: null,
   loading: false,
   email: "",
   loggedInAccountIds: [],

@@ -23,16 +23,8 @@ import {
 // Removed local constants in favor of theme constants
 
 export default function Example({ navigation, route }) {
-  const {
-    email,
-    accessToken,
-    refreshToken,
-    phone,
-    name,
-    gender,
-    pronouns,
-    showPronouns,
-  } = route?.params || {};
+  const { email, accessToken, refreshToken, name, profile_photo_url } =
+    route?.params || {};
   const [form, setForm] = useState({});
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -160,15 +152,12 @@ export default function Example({ navigation, route }) {
                 {
                   text: "Confirm",
                   onPress: () => {
-                    navigation?.navigate?.("MemberInterests", {
+                    navigation?.navigate?.("MemberPronouns", {
                       email,
                       accessToken,
                       refreshToken,
-                      phone,
                       name,
-                      gender,
-                      pronouns,
-                      showPronouns,
+                      profile_photo_url,
                       dob: form.dateOfBirth,
                     });
                   },

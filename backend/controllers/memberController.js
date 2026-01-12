@@ -900,6 +900,298 @@ async function updateLocation(req, res) {
   }
 }
 
+// ============================================================
+// SIGNUP DRAFT FUNCTIONS (Multi-Account System)
+// ============================================================
+
+/**
+ * Create a draft profile after OTP verification
+ * Profile is created with signup_status = 'IN_PROGRESS'
+ */
+async function createDraft(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    console.log("[MemberSignup] Creating draft profile for:", emailLower);
+
+    // Create minimal draft record
+    const result = await pool.query(
+      `INSERT INTO members (email, signup_status, last_completed_step)
+       VALUES ($1, 'IN_PROGRESS', 'email')
+       RETURNING id, email, signup_status, last_completed_step, created_at`,
+      [emailLower]
+    );
+
+    const draft = result.rows[0];
+    console.log("[MemberSignup] Draft created with id:", draft.id);
+
+    res.json({
+      success: true,
+      profile_id: draft.id,
+      signup_status: draft.signup_status,
+      last_completed_step: draft.last_completed_step,
+    });
+  } catch (err) {
+    console.error(
+      "/members/signup/draft error:",
+      err && err.stack ? err.stack : err
+    );
+    res.status(500).json({ error: "Failed to create draft profile" });
+  }
+}
+
+/**
+ * Update draft profile with step data
+ * Called after each signup step to persist data
+ */
+async function updateDraft(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const profileId = req.params.id;
+    const stepData = req.body || {};
+
+    if (!profileId) {
+      return res.status(400).json({ error: "Profile ID is required" });
+    }
+
+    // Verify draft exists and is IN_PROGRESS
+    const existing = await pool.query(
+      `SELECT id, signup_status FROM members WHERE id = $1`,
+      [profileId]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "Draft profile not found" });
+    }
+
+    if (existing.rows[0].signup_status !== "IN_PROGRESS") {
+      return res.status(400).json({ error: "Profile is not a draft" });
+    }
+
+    // Build dynamic update query based on provided fields
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    const allowedFields = {
+      name: "name",
+      phone: "phone",
+      dob: "dob",
+      gender: "gender",
+      pronouns: "pronouns",
+      interests: "interests",
+      location: "location",
+      profile_photo_url: "profile_photo_url",
+      show_pronouns: "show_pronouns",
+      last_completed_step: "last_completed_step",
+    };
+
+    for (const [key, column] of Object.entries(allowedFields)) {
+      if (stepData[key] !== undefined) {
+        if (key === "pronouns" && Array.isArray(stepData[key])) {
+          updates.push(`${column} = $${paramIndex++}::text[]`);
+          values.push(stepData[key]);
+        } else if (key === "interests" && Array.isArray(stepData[key])) {
+          updates.push(`${column} = $${paramIndex++}::jsonb`);
+          values.push(JSON.stringify(stepData[key]));
+        } else if (key === "location" && typeof stepData[key] === "object") {
+          updates.push(`${column} = $${paramIndex++}::jsonb`);
+          values.push(JSON.stringify(stepData[key]));
+        } else if (key === "show_pronouns") {
+          updates.push(`${column} = $${paramIndex++}`);
+          values.push(!!stepData[key]);
+        } else {
+          updates.push(`${column} = $${paramIndex++}`);
+          values.push(stepData[key]);
+        }
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    values.push(profileId);
+    const query = `UPDATE members SET ${updates.join(
+      ", "
+    )} WHERE id = $${paramIndex} RETURNING *`;
+
+    const result = await pool.query(query, values);
+    console.log(
+      "[MemberSignup] Draft updated, step:",
+      stepData.last_completed_step
+    );
+
+    res.json({
+      success: true,
+      profile_id: result.rows[0].id,
+      last_completed_step: result.rows[0].last_completed_step,
+    });
+  } catch (err) {
+    console.error(
+      "/members/signup/draft/:id error:",
+      err && err.stack ? err.stack : err
+    );
+    res.status(500).json({ error: "Failed to update draft profile" });
+  }
+}
+
+/**
+ * Check for incomplete signup (IN_PROGRESS profiles)
+ * Called on app launch to resume signup
+ */
+async function resumeSignup(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+
+    // Find IN_PROGRESS profile for this email
+    const result = await pool.query(
+      `SELECT id, email, name, phone, dob, gender, pronouns, show_pronouns, 
+              interests, location, profile_photo_url, signup_status, last_completed_step
+       FROM members 
+       WHERE LOWER(email) = $1 AND signup_status = 'IN_PROGRESS'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [emailLower]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ hasInProgressSignup: false });
+    }
+
+    const profile = result.rows[0];
+
+    // Parse JSONB fields
+    let parsedProfile = {
+      ...profile,
+      pronouns: parsePgTextArray(profile.pronouns),
+      interests:
+        typeof profile.interests === "string"
+          ? JSON.parse(profile.interests)
+          : profile.interests,
+      location:
+        typeof profile.location === "string"
+          ? JSON.parse(profile.location)
+          : profile.location,
+    };
+
+    res.json({
+      hasInProgressSignup: true,
+      profile: parsedProfile,
+      last_completed_step: profile.last_completed_step,
+    });
+  } catch (err) {
+    console.error(
+      "/members/signup/resume error:",
+      err && err.stack ? err.stack : err
+    );
+    res.status(500).json({ error: "Failed to check for incomplete signup" });
+  }
+}
+
+/**
+ * Complete signup - sets signup_status = 'ACTIVE'
+ * Final step after username is set
+ */
+async function completeSignup(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const profileId = req.params.id;
+    const { username } = req.body || {};
+
+    if (!profileId) {
+      return res.status(400).json({ error: "Profile ID is required" });
+    }
+
+    // Validate username
+    if (!username || typeof username !== "string") {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const sanitizedUsername = username.toLowerCase().trim();
+    if (!/^[a-z0-9._]{3,30}$/.test(sanitizedUsername)) {
+      return res.status(400).json({
+        error:
+          "Username must be 3-30 characters, lowercase letters, numbers, dots and underscores only",
+      });
+    }
+
+    // Check if username is taken
+    const existingUsername = await pool.query(
+      `SELECT id FROM members WHERE username = $1 AND id <> $2 LIMIT 1`,
+      [sanitizedUsername, profileId]
+    );
+    if (existingUsername.rows.length > 0) {
+      return res.status(409).json({ error: "Username is already taken" });
+    }
+
+    // Verify profile exists and is IN_PROGRESS
+    const existing = await pool.query(`SELECT * FROM members WHERE id = $1`, [
+      profileId,
+    ]);
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    const profile = existing.rows[0];
+    if (profile.signup_status !== "IN_PROGRESS") {
+      return res.status(400).json({ error: "Profile is not in signup flow" });
+    }
+
+    // Validate all required fields are present
+    const requiredFields = [
+      "name",
+      "phone",
+      "dob",
+      "gender",
+      "location",
+      "interests",
+    ];
+    const missingFields = requiredFields.filter((field) => !profile[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: `Missing required fields: ${missingFields.join(", ")}`,
+      });
+    }
+
+    // Complete the signup
+    const result = await pool.query(
+      `UPDATE members 
+       SET username = $1, signup_status = 'ACTIVE', last_completed_step = 'complete'
+       WHERE id = $2
+       RETURNING *`,
+      [sanitizedUsername, profileId]
+    );
+
+    console.log("[MemberSignup] Signup completed for:", sanitizedUsername);
+
+    res.json({
+      success: true,
+      member: result.rows[0],
+    });
+  } catch (err) {
+    console.error(
+      "/members/signup/complete error:",
+      err && err.stack ? err.stack : err
+    );
+    res.status(500).json({ error: "Failed to complete signup" });
+  }
+}
+
 module.exports = {
   signup,
   getProfile,
@@ -911,4 +1203,9 @@ module.exports = {
   startEmailChange,
   verifyEmailChange,
   updateLocation,
+  // Signup draft functions
+  createDraft,
+  updateDraft,
+  resumeSignup,
+  completeSignup,
 };

@@ -29,13 +29,12 @@ const LocationInputScreen = ({ navigation, route }) => {
     email,
     accessToken,
     refreshToken,
-    phone,
     name,
-    gender,
+    profile_photo_url,
+    dob,
     pronouns,
     showPronouns,
-    dob,
-    interests,
+    gender,
   } = route.params || {};
   const [location, setLocation] = useState({
     address: "",
@@ -93,17 +92,16 @@ const LocationInputScreen = ({ navigation, route }) => {
         setLocation(resolved);
         if (!navigatedRef.current) {
           navigatedRef.current = true;
-          navigation.navigate("MemberProfilePic", {
+          navigation.navigate("MemberInterests", {
             email,
             accessToken,
             refreshToken,
-            phone,
             name,
-            gender,
+            profile_photo_url,
+            dob,
             pronouns,
             showPronouns,
-            dob,
-            interests,
+            gender,
             location: resolved,
           });
         }
@@ -112,17 +110,16 @@ const LocationInputScreen = ({ navigation, route }) => {
         setLocation(resolved);
         if (!navigatedRef.current) {
           navigatedRef.current = true;
-          navigation.navigate("MemberProfilePic", {
+          navigation.navigate("MemberInterests", {
             email,
             accessToken,
             refreshToken,
-            phone,
             name,
-            gender,
+            profile_photo_url,
+            dob,
             pronouns,
             showPronouns,
-            dob,
-            interests,
+            gender,
             location: resolved,
           });
         }
@@ -136,17 +133,16 @@ const LocationInputScreen = ({ navigation, route }) => {
   };
 
   const handleNext = () => {
-    navigation.navigate("MemberProfilePic", {
+    navigation.navigate("MemberInterests", {
       email,
       accessToken,
       refreshToken,
-      phone,
       name,
-      gender,
+      profile_photo_url,
+      dob,
       pronouns,
       showPronouns,
-      dob,
-      interests,
+      gender,
       location: location,
     });
   };
