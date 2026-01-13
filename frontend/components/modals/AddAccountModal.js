@@ -1,13 +1,7 @@
-import React from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import PropTypes from 'prop-types';
+import React from "react";
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import PropTypes from "prop-types";
 
 /**
  * Add Account Modal - Instagram-style
@@ -39,6 +33,7 @@ export default function AddAccountModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <TouchableOpacity
         style={styles.overlay}
@@ -61,7 +56,9 @@ export default function AddAccountModal({
             style={styles.primaryButton}
             onPress={handleLoginExisting}
           >
-            <Text style={styles.primaryButtonText}>Log into existing account</Text>
+            <Text style={styles.primaryButtonText}>
+              Log into existing account
+            </Text>
           </TouchableOpacity>
 
           {/* Create new account button */}
@@ -73,10 +70,7 @@ export default function AddAccountModal({
           </TouchableOpacity>
 
           {/* Cancel button */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={onClose}
-          >
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -88,11 +82,11 @@ export default function AddAccountModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -101,51 +95,51 @@ const styles = StyleSheet.create({
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: "#E5E5EA",
     borderRadius: 2,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginTop: 10,
     marginBottom: 20,
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1D1D1F',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#1D1D1F",
+    textAlign: "center",
     marginBottom: 30,
   },
   primaryButton: {
-    backgroundColor: '#0095F6',
+    backgroundColor: "#0095F6",
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 12,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   secondaryButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   secondaryButtonText: {
-    color: '#0095F6',
+    color: "#0095F6",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cancelButton: {
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButtonText: {
-    color: '#8E8E93',
+    color: "#8E8E93",
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
 

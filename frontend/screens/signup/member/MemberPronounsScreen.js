@@ -18,6 +18,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 import HapticsService from "../../../services/HapticsService";
 import { fetchPronouns } from "../../../api/members";
 import {
@@ -143,7 +144,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
       >
         {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -159,9 +160,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
               }
             }}
             style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
 
           <TouchableOpacity
             onPress={() => setShowCancelModal(true)}
@@ -272,12 +271,8 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
   },
   contentContainer: {
     flex: 1,

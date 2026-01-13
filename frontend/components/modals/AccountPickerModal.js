@@ -201,6 +201,7 @@ export default function AccountPickerModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <TouchableOpacity
         style={styles.overlay}

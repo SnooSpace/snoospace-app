@@ -30,6 +30,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 const FONT_SIZES = {
   largeHeader: 32, // Matches Community
@@ -247,17 +248,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
           <View style={styles.container}>
             {/* 1. Header Row (Back Button & Cancel) */}
             <View style={styles.headerRow}>
-              <TouchableOpacity
-                onPress={handleBack}
-                style={styles.backButton}
-                accessibilityLabel="Go back"
-              >
-                <Ionicons
-                  name="arrow-back"
-                  size={24}
-                  color={COLORS.textPrimary}
-                />
-              </TouchableOpacity>
+              <GlassBackButton onPress={handleBack} style={styles.backButton} />
 
               <TouchableOpacity
                 onPress={() => setShowCancelModal(true)}
@@ -367,11 +358,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 20,
     paddingTop: 15,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
+    paddingBottom: 45,
   },
   cancelButton: {
     paddingHorizontal: 12,
@@ -379,7 +366,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
   },
 

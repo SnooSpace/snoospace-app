@@ -1,23 +1,17 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { View, Text, TouchableOpacity, Modal, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-const PRIMARY_COLOR = '#5f27cd';
-const TEXT_COLOR = '#1e1e1e';
-const LIGHT_TEXT_COLOR = '#6c757d';
-const BACKGROUND_COLOR = '#ffffff';
+const PRIMARY_COLOR = "#5f27cd";
+const TEXT_COLOR = "#1e1e1e";
+const LIGHT_TEXT_COLOR = "#6c757d";
+const BACKGROUND_COLOR = "#ffffff";
 
-export default function LocationConfirmationModal({ 
-  visible, 
-  businessName, 
-  onYes, 
-  onNo 
+export default function LocationConfirmationModal({
+  visible,
+  businessName,
+  onYes,
+  onNo,
 }) {
   return (
     <Modal
@@ -25,13 +19,14 @@ export default function LocationConfirmationModal({
       transparent
       animationType="fade"
       onRequestClose={onNo}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <Text style={styles.questionText}>
             Are you currently at {businessName}?
           </Text>
-          
+
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={[styles.button, styles.yesButton]}
@@ -39,7 +34,7 @@ export default function LocationConfirmationModal({
             >
               <Text style={styles.yesButtonText}>Yes, I'm here</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.button, styles.noButton]}
               onPress={onNo}
@@ -56,55 +51,54 @@ export default function LocationConfirmationModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContainer: {
     backgroundColor: BACKGROUND_COLOR,
     borderRadius: 16,
     padding: 24,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    alignItems: 'center',
+    alignItems: "center",
   },
   questionText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 24,
     lineHeight: 24,
   },
   buttonContainer: {
-    width: '100%',
+    width: "100%",
     gap: 12,
   },
   button: {
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   yesButton: {
     backgroundColor: PRIMARY_COLOR,
   },
   yesButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   noButton: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: "#e9ecef",
   },
   noButtonText: {
     color: TEXT_COLOR,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
-

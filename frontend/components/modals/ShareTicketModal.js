@@ -445,6 +445,7 @@ const ShareTicketModal = ({ visible, onClose, events = [], onGiftSent }) => {
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>

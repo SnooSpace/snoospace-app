@@ -230,7 +230,12 @@ const TicketTypesEditor = ({ ticketTypes = [], onChange }) => {
       ))}
 
       {/* Add/Edit Modal */}
-      <Modal visible={showModal} animationType="slide" transparent>
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        transparent
+        statusBarTranslucent={true}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>

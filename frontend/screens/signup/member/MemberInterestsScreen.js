@@ -20,6 +20,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 import { getSignupInterests } from "../../../api/categories";
 import {
   updateSignupDraft,
@@ -160,7 +161,7 @@ const InterestsScreen = ({ navigation, route }) => {
       >
         {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -180,9 +181,7 @@ const InterestsScreen = ({ navigation, route }) => {
               }
             }}
             style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
 
           <TouchableOpacity
             onPress={() => setShowCancelModal(true)}
@@ -283,7 +282,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
   },
   headerRow: {
@@ -291,10 +290,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
-  backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
-  },
+
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
@@ -407,10 +403,6 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
-  },
-  backButton: {
-    padding: 15, // Increase this value to make the touch area larger
-    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
   },
 });
 

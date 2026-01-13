@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Modal,
   View,
@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import PropTypes from 'prop-types';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import PropTypes from "prop-types";
 
 /**
  * Logout Modal - Shows options for logging out
@@ -29,6 +29,7 @@ export default function LogoutModal({
       transparent={true}
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <TouchableOpacity
         style={styles.overlay}
@@ -45,11 +46,12 @@ export default function LogoutModal({
             <View style={styles.accountSection}>
               <Image
                 source={{
-                  uri: currentAccount.profilePicture || 
+                  uri:
+                    currentAccount.profilePicture ||
                     currentAccount.profile_photo_url ||
                     currentAccount.logo_url ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      currentAccount.username || currentAccount.name || 'User'
+                      currentAccount.username || currentAccount.name || "User"
                     )}&background=6A0DAD&color=FFFFFF`,
                 }}
                 style={styles.avatar}
@@ -74,7 +76,10 @@ export default function LogoutModal({
                   <Ionicons name="log-out-outline" size={24} color="#1D1D1F" />
                   <View style={styles.optionTextContainer}>
                     <Text style={styles.optionTitle}>
-                      Log out {currentAccount?.username ? `@${currentAccount.username}` : 'this account'}
+                      Log out{" "}
+                      {currentAccount?.username
+                        ? `@${currentAccount.username}`
+                        : "this account"}
                     </Text>
                     <Text style={styles.optionSubtitle}>
                       Switch to another account
@@ -124,10 +129,7 @@ export default function LogoutModal({
           </View>
 
           {/* Cancel Button */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={onClose}
-          >
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -139,43 +141,43 @@ export default function LogoutModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   accountSection: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 24,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: "#E5E5EA",
     marginBottom: 12,
   },
   username: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1D1D1F',
+    fontWeight: "600",
+    color: "#1D1D1F",
   },
   optionsSection: {
     paddingVertical: 8,
   },
   optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     gap: 16,
@@ -185,32 +187,32 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1D1D1F',
+    fontWeight: "600",
+    color: "#1D1D1F",
     marginBottom: 2,
   },
   optionSubtitle: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: "#8E8E93",
   },
   dangerText: {
-    color: '#FF3B30',
+    color: "#FF3B30",
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: "#E5E5EA",
     marginHorizontal: 20,
   },
   cancelButton: {
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: "#E5E5EA",
   },
   cancelText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#007AFF',
+    fontWeight: "600",
+    color: "#007AFF",
   },
 });
 

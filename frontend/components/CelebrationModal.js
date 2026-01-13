@@ -105,7 +105,12 @@ const CelebrationModal = ({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="fade">
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      statusBarTranslucent={true}
+    >
       <View style={styles.overlay}>
         <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
 

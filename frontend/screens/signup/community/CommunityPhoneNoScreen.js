@@ -19,6 +19,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 const { width } = Dimensions.get("window");
 
@@ -134,13 +135,11 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safeArea}>
       {/* 1. Header Row (Back and Skip) */}
       <View style={styles.headerRow}>
-        <TouchableOpacity
+        <GlassBackButton
           onPress={handleBack}
           accessibilityLabel="Go back"
           style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        />
       </View>
 
       {/* 3. Scrollable Content */}

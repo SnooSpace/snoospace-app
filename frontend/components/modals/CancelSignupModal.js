@@ -30,6 +30,7 @@ export default function CancelSignupModal({
       transparent={true}
       animationType="fade"
       onRequestClose={onKeepEditing}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>

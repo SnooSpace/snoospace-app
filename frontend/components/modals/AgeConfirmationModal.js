@@ -105,8 +105,8 @@ export default function AgeConfirmationModal({
 
 const styles = StyleSheet.create({
   overlay: {
-    width: width,
-    height: height + (Platform.OS === "android" ? 50 : 0), // Ensure coverage on Android
+    flex: 1,
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,

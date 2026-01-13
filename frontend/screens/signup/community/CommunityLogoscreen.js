@@ -22,6 +22,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 const CIRCLE_SIZE = 180;
 
@@ -94,12 +95,10 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       >
         {/* Header Section (Back Button) */}
         <View style={styles.headerRow}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => navigation.goBack()}
             style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
         </View>
 
         {/* Content Section */}

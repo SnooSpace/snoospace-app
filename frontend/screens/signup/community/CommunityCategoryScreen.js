@@ -24,6 +24,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -222,9 +223,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       >
         {/* Header Row (Back Button) */}
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          <GlassBackButton onPress={handleBack} style={styles.backButton} />
         </View>
 
         {/* Content Section */}

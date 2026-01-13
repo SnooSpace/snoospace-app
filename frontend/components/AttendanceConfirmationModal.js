@@ -34,6 +34,7 @@ export default function AttendanceConfirmationModal({
       transparent
       animationType="fade"
       onRequestClose={() => {}} // Prevent back button dismiss
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>

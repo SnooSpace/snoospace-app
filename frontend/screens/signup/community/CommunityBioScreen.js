@@ -20,6 +20,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 /**
  * Main Screen Component
@@ -71,9 +72,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
       >
         {/* Header Row (Back Button and Skip Button) */}
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          <GlassBackButton onPress={handleBack} style={styles.backButton} />
 
           <TouchableOpacity
             onPress={handleSkip}

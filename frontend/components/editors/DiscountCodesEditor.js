@@ -2,7 +2,7 @@
  * DiscountCodesEditor - Component for managing event discount codes
  * Used in CreateEventModal and EditEventModal
  */
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,36 +12,36 @@ import {
   Modal,
   ScrollView,
   Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS, SHADOWS } from '../../constants/theme';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { COLORS, SHADOWS } from "../../constants/theme";
 
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const TEXT_COLOR = "#1C1C1E";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [showValidFromPicker, setShowValidFromPicker] = useState(false);
   const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
-  
+
   const [currentCode, setCurrentCode] = useState({
-    code: '',
-    discount_type: 'percentage',
-    discount_value: '',
-    max_uses: '',
+    code: "",
+    discount_type: "percentage",
+    discount_value: "",
+    max_uses: "",
     valid_from: null,
     valid_until: null,
   });
 
   const resetForm = () => {
     setCurrentCode({
-      code: '',
-      discount_type: 'percentage',
-      discount_value: '',
-      max_uses: '',
+      code: "",
+      discount_type: "percentage",
+      discount_value: "",
+      max_uses: "",
       valid_from: null,
       valid_until: null,
     });
@@ -56,10 +56,10 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
   const openEditModal = (index) => {
     const dc = discountCodes[index];
     setCurrentCode({
-      code: dc.code || '',
-      discount_type: dc.discount_type || 'percentage',
-      discount_value: dc.discount_value?.toString() || '',
-      max_uses: dc.max_uses?.toString() || '',
+      code: dc.code || "",
+      discount_type: dc.discount_type || "percentage",
+      discount_value: dc.discount_value?.toString() || "",
+      max_uses: dc.max_uses?.toString() || "",
       valid_from: dc.valid_from ? new Date(dc.valid_from) : null,
       valid_until: dc.valid_until ? new Date(dc.valid_until) : null,
     });
@@ -69,11 +69,14 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
 
   const handleSave = () => {
     if (!currentCode.code.trim()) {
-      Alert.alert('Required', 'Please enter a discount code');
+      Alert.alert("Required", "Please enter a discount code");
       return;
     }
-    if (!currentCode.discount_value || parseFloat(currentCode.discount_value) <= 0) {
-      Alert.alert('Required', 'Please enter a valid discount value');
+    if (
+      !currentCode.discount_value ||
+      parseFloat(currentCode.discount_value) <= 0
+    ) {
+      Alert.alert("Required", "Please enter a valid discount value");
       return;
     }
 
@@ -101,13 +104,13 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
 
   const handleDelete = (index) => {
     Alert.alert(
-      'Delete Discount Code',
-      'Are you sure you want to delete this code?',
+      "Delete Discount Code",
+      "Are you sure you want to delete this code?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: () => {
             const updated = discountCodes.filter((_, i) => i !== index);
             onChange(updated);
@@ -118,7 +121,7 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
   };
 
   const formatDiscount = (dc) => {
-    if (dc.discount_type === 'percentage') {
+    if (dc.discount_type === "percentage") {
       return `${dc.discount_value}% OFF`;
     }
     return `₹${dc.discount_value} OFF`;
@@ -147,7 +150,9 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
             </LinearGradient>
           </View>
           <Text style={styles.emptyText}>No discount codes</Text>
-          <Text style={styles.emptySubtext}>Add promo codes for your event</Text>
+          <Text style={styles.emptySubtext}>
+            Add promo codes for your event
+          </Text>
         </View>
       )}
 
@@ -167,37 +172,53 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
             )}
           </View>
           <View style={styles.codeActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.deleteButton}
               onPress={() => handleDelete(index)}
             >
               <Ionicons name="trash-outline" size={20} color="#FF3B30" />
             </TouchableOpacity>
-            <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={LIGHT_TEXT_COLOR}
+            />
           </View>
         </TouchableOpacity>
       ))}
 
       {/* Add/Edit Modal */}
-      <Modal visible={showModal} animationType="slide" transparent>
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        transparent
+        statusBarTranslucent={true}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingIndex !== null ? 'Edit Discount Code' : 'Add Discount Code'}
+                {editingIndex !== null
+                  ? "Edit Discount Code"
+                  : "Add Discount Code"}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <Ionicons name="close" size={24} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Code */}
               <Text style={styles.fieldLabel}>Promo Code *</Text>
               <TextInput
                 style={styles.input}
                 value={currentCode.code}
-                onChangeText={(text) => setCurrentCode({ ...currentCode, code: text.toUpperCase() })}
+                onChangeText={(text) =>
+                  setCurrentCode({ ...currentCode, code: text.toUpperCase() })
+                }
                 placeholder="e.g., EARLYBIRD20, VIP50"
                 placeholderTextColor={LIGHT_TEXT_COLOR}
                 autoCapitalize="characters"
@@ -206,22 +227,28 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
               {/* Discount Type */}
               <Text style={styles.fieldLabel}>Discount Type</Text>
               <View style={styles.typeOptions}>
-                {['percentage', 'flat'].map((type) => (
+                {["percentage", "flat"].map((type) => (
                   <TouchableOpacity
                     key={type}
                     style={[
                       styles.typeOption,
-                      currentCode.discount_type === type && styles.typeOptionActive,
+                      currentCode.discount_type === type &&
+                        styles.typeOptionActive,
                     ]}
-                    onPress={() => setCurrentCode({ ...currentCode, discount_type: type })}
+                    onPress={() =>
+                      setCurrentCode({ ...currentCode, discount_type: type })
+                    }
                   >
                     <Text
                       style={[
                         styles.typeOptionText,
-                        currentCode.discount_type === type && styles.typeOptionTextActive,
+                        currentCode.discount_type === type &&
+                          styles.typeOptionTextActive,
                       ]}
                     >
-                      {type === 'percentage' ? 'Percentage (%)' : 'Flat Amount (₹)'}
+                      {type === "percentage"
+                        ? "Percentage (%)"
+                        : "Flat Amount (₹)"}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -229,13 +256,18 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
 
               {/* Discount Value */}
               <Text style={styles.fieldLabel}>
-                Discount Value {currentCode.discount_type === 'percentage' ? '(%)' : '(₹)'} *
+                Discount Value{" "}
+                {currentCode.discount_type === "percentage" ? "(%)" : "(₹)"} *
               </Text>
               <TextInput
                 style={styles.input}
                 value={currentCode.discount_value}
-                onChangeText={(text) => setCurrentCode({ ...currentCode, discount_value: text })}
-                placeholder={currentCode.discount_type === 'percentage' ? '20' : '500'}
+                onChangeText={(text) =>
+                  setCurrentCode({ ...currentCode, discount_value: text })
+                }
+                placeholder={
+                  currentCode.discount_type === "percentage" ? "20" : "500"
+                }
                 placeholderTextColor={LIGHT_TEXT_COLOR}
                 keyboardType="numeric"
               />
@@ -245,7 +277,9 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
               <TextInput
                 style={styles.input}
                 value={currentCode.max_uses}
-                onChangeText={(text) => setCurrentCode({ ...currentCode, max_uses: text })}
+                onChangeText={(text) =>
+                  setCurrentCode({ ...currentCode, max_uses: text })
+                }
                 placeholder="Leave empty for unlimited"
                 placeholderTextColor={LIGHT_TEXT_COLOR}
                 keyboardType="numeric"
@@ -257,15 +291,27 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
                 style={styles.dateButton}
                 onPress={() => setShowValidFromPicker(true)}
               >
-                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
                 <Text style={styles.dateButtonText}>
                   {currentCode.valid_from
                     ? currentCode.valid_from.toLocaleDateString()
-                    : 'Set start date'}
+                    : "Set start date"}
                 </Text>
                 {currentCode.valid_from && (
-                  <TouchableOpacity onPress={() => setCurrentCode({ ...currentCode, valid_from: null })}>
-                    <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCurrentCode({ ...currentCode, valid_from: null })
+                    }
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={LIGHT_TEXT_COLOR}
+                    />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -276,15 +322,27 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
                 style={styles.dateButton}
                 onPress={() => setShowValidUntilPicker(true)}
               >
-                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
                 <Text style={styles.dateButtonText}>
                   {currentCode.valid_until
                     ? currentCode.valid_until.toLocaleDateString()
-                    : 'Set expiry date'}
+                    : "Set expiry date"}
                 </Text>
                 {currentCode.valid_until && (
-                  <TouchableOpacity onPress={() => setCurrentCode({ ...currentCode, valid_until: null })}>
-                    <Ionicons name="close-circle" size={20} color={LIGHT_TEXT_COLOR} />
+                  <TouchableOpacity
+                    onPress={() =>
+                      setCurrentCode({ ...currentCode, valid_until: null })
+                    }
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={LIGHT_TEXT_COLOR}
+                    />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -296,7 +354,8 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
                   display="default"
                   onChange={(event, date) => {
                     setShowValidFromPicker(false);
-                    if (date) setCurrentCode({ ...currentCode, valid_from: date });
+                    if (date)
+                      setCurrentCode({ ...currentCode, valid_from: date });
                   }}
                 />
               )}
@@ -308,7 +367,8 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
                   display="default"
                   onChange={(event, date) => {
                     setShowValidUntilPicker(false);
-                    if (date) setCurrentCode({ ...currentCode, valid_until: date });
+                    if (date)
+                      setCurrentCode({ ...currentCode, valid_until: date });
                   }}
                 />
               )}
@@ -322,7 +382,7 @@ const DiscountCodesEditor = ({ discountCodes = [], onChange }) => {
                 style={styles.saveButtonGradient}
               >
                 <Text style={styles.saveButtonText}>
-                  {editingIndex !== null ? 'Update Code' : 'Add Code'}
+                  {editingIndex !== null ? "Update Code" : "Add Code"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -338,32 +398,32 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   addButtonText: {
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 32,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: "#E8E8E8",
     ...SHADOWS.sm,
   },
   emptyIconWrapper: {
@@ -373,13 +433,13 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 16,
     color: TEXT_COLOR,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   emptySubtext: {
     fontSize: 14,
@@ -387,27 +447,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   codeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
   },
   codeInfo: {
     flex: 1,
   },
   codeName: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   codeDiscount: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.primary,
     marginTop: 4,
   },
@@ -417,8 +477,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   codeActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   deleteButton: {
@@ -426,26 +486,26 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: "90%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: "#E5E5EA",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: TEXT_COLOR,
   },
   modalBody: {
@@ -453,22 +513,22 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 8,
     marginTop: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
     color: TEXT_COLOR,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
   },
   typeOptions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   typeOption: {
@@ -476,13 +536,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    backgroundColor: '#FAFAFA',
-    alignItems: 'center',
+    borderColor: "#E5E5EA",
+    backgroundColor: "#FAFAFA",
+    alignItems: "center",
   },
   typeOptionActive: {
     borderColor: COLORS.primary,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
   },
   typeOptionText: {
     fontSize: 14,
@@ -490,16 +550,16 @@ const styles = StyleSheet.create({
   },
   typeOptionTextActive: {
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderRadius: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
     gap: 10,
   },
   dateButtonText: {
@@ -511,18 +571,18 @@ const styles = StyleSheet.create({
     margin: 20,
     marginTop: 10,
     borderRadius: 30,
-    overflow: 'hidden',
+    overflow: "hidden",
     ...SHADOWS.primaryGlow,
   },
   saveButtonGradient: {
     padding: 16,
     borderRadius: 30,
-    alignItems: 'center',
+    alignItems: "center",
   },
   saveButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });
 

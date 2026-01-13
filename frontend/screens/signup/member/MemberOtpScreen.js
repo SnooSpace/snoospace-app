@@ -32,6 +32,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -308,13 +309,10 @@ const VerificationScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
+        <GlassBackButton
           onPress={() => setShowGoBackModal(true)}
           style={styles.backButton}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        />
       </View>
 
       <View style={styles.content}>

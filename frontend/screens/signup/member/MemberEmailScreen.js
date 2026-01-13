@@ -29,6 +29,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 import { apiPost } from "../../../api/client";
 import { setPendingOtp, checkEmailExists } from "../../../api/auth";
@@ -179,16 +180,13 @@ const EmailInputScreen = ({ navigation }) => {
       >
         {/* Header Section */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => {
               // Explicitly navigate back to Landing screen to exit signup flow
               navigation.navigate("Landing");
             }}
             style={styles.backButton}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
         </View>
 
         {/* Content Section */}
@@ -338,7 +336,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 15,
+    marginLeft: -15,
   },
   contentContainer: {
     flex: 0,

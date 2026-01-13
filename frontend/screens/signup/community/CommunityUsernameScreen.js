@@ -26,6 +26,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -194,13 +195,11 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         {/* 1. Header Row (Back Button) */}
         <View style={styles.headerRow}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={handleBack}
             style={styles.backButton}
             accessibilityLabel="Go back"
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
         </View>
 
         {/* 3. Content Area */}

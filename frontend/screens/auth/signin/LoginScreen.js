@@ -21,6 +21,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 // Removed local constants in favor of theme constants
 
@@ -119,7 +120,7 @@ const LoginScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       {/* Header Section (Only Back Button) */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <GlassBackButton
           onPress={() => {
             // Try to go back, if not possible navigate to Landing
             if (navigation.canGoBack()) {
@@ -129,9 +130,7 @@ const LoginScreen = ({ navigation, route }) => {
             }
           }}
           style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        />
       </View>
 
       <View style={styles.content}>

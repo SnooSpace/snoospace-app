@@ -32,6 +32,7 @@ export default function DraftRecoveryModal({
       transparent={true}
       animationType="fade"
       onRequestClose={() => {}} // Prevent dismiss on back button
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>

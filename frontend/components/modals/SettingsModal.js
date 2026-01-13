@@ -44,6 +44,7 @@ export default function SettingsModal({
       transparent={true}
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -121,7 +122,7 @@ export default function SettingsModal({
               </Text>
               <Switch
                 trackColor={{ false: "#767577", true: "#34C759" }} // Use IOS green for true
-                thumbColor={Platform.OS === 'android' ? "#f4f3f4" : ""}
+                thumbColor={Platform.OS === "android" ? "#f4f3f4" : ""}
                 ios_backgroundColor="#3e3e3e"
                 onValueChange={onToggleHaptics}
                 value={hapticsEnabled}
@@ -252,4 +253,3 @@ SettingsModal.propTypes = {
   textColor: PropTypes.string,
   lightTextColor: PropTypes.string,
 };
-

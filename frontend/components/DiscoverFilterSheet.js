@@ -113,6 +113,7 @@ export default function DiscoverFilterSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         {/* Backdrop - tap to close */}

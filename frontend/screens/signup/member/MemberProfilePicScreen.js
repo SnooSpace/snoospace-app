@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,8 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
 import { useCrop } from "../../../components/MediaCrop";
@@ -22,6 +24,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 // Removed local constants in favor of theme constants
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
@@ -40,13 +43,76 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   const [uploading, setUploading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Animation values
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(0.5)).current;
+  const hintOpacity = useRef(new Animated.Value(1)).current;
+
+  const [currentHintIndex, setCurrentHintIndex] = useState(0);
+  const HINTS = [
+    "Use a clear face photo",
+    "No logos or group photos",
+    "Good lighting works best",
+  ];
+
   // Instagram-style crop hook for avatar
   const { pickAndCrop } = useCrop();
+
+  useEffect(() => {
+    // 1. Bounce Animation on Load
+    Animated.spring(bounceAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+
+    // 2. Slow Pulsing Animation Loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 3000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // 3. Rotating Hints Animation
+    const hintInterval = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(hintOpacity, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(hintOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      setTimeout(() => {
+        setCurrentHintIndex((prev) => (prev + 1) % HINTS.length);
+      }, 500); // Change text halfway through fade out/in
+    }, 4000);
+
+    return () => clearInterval(hintInterval);
+  }, []);
 
   const handleAddPhoto = async () => {
     console.log("handleAddPhoto called"); // Debug log
     try {
       // Use Instagram-style crop for 1:1 avatar
+      // ... (Rest of the function remains same)
       const result = await pickAndCrop("avatar");
 
       if (result) {
@@ -110,8 +176,16 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   // Button is disabled while uploading
   const isButtonDisabled = uploading;
 
-  // Note: The progress bar is marked as Step 3/5 in the image.
-  const progressPercentage = "60%";
+  // Pulse ring scale interpolation
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.15],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.6, 0.3, 0],
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -121,7 +195,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       >
         {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -136,9 +210,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
               }
             }}
             style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
 
           <TouchableOpacity
             onPress={() => setShowCancelModal(true)}
@@ -150,38 +222,70 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Let people recognize you</Text>
-          <Text style={styles.subtitle}>This will be your main photo.</Text>
+          <Text style={styles.title}>Put a face to your profile</Text>
+          <Text style={styles.subtitle}>
+            People are more likely to connect with you when they can see you.
+          </Text>
 
-          {/* Profile Picture Upload Area */}
-          <TouchableOpacity
-            style={styles.photoUploadArea}
-            onPress={handleAddPhoto}
-            activeOpacity={0.7}
+          {/* Animated Profile Picture Upload Area */}
+          <Animated.View
+            style={[
+              {
+                transform: [{ scale: bounceAnim }],
+              },
+            ]}
           >
-            {/* The Dashed Circle Wrapper */}
-            <View style={styles.dashedCircle}>
-              {/* Content when no photo is uploaded */}
-              {!imageUri && (
-                <View style={styles.uploadContent}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={35}
-                    color={COLORS.primary}
+            {/* Pulsing Ring Background */}
+            <Animated.View
+              style={[
+                styles.pulsingRing,
+                {
+                  transform: [{ scale: pulseScale }],
+                  opacity: pulseOpacity,
+                },
+              ]}
+            />
+
+            {/* Main Upload Circle */}
+            <TouchableOpacity
+              style={styles.photoUploadArea}
+              onPress={handleAddPhoto}
+              activeOpacity={0.9}
+            >
+              {/* Glow Shadow Container */}
+              <View style={styles.glowContainer}>
+                {/* Content when no photo is uploaded */}
+                {!imageUri && (
+                  <View style={styles.uploadContent}>
+                    <Ionicons name="camera" size={40} color={COLORS.primary} />
+                    <Text style={styles.uploadText}>Add Photo</Text>
+                  </View>
+                )}
+                {/* Content when photo IS uploaded */}
+                {imageUri && (
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={styles.profileImage}
+                    resizeMode="cover"
                   />
-                  <Text style={styles.uploadText}>Add Photo</Text>
-                </View>
-              )}
-              {/* Content when photo IS uploaded */}
-              {imageUri && (
-                <Image
-                  source={{ uri: imageUri }}
-                  style={styles.profileImage}
-                  resizeMode="cover"
-                />
-              )}
-            </View>
-          </TouchableOpacity>
+                )}
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Rotating Hints */}
+          <View style={styles.hintContainer}>
+            <Animated.Text
+              style={[
+                styles.hintText,
+                {
+                  opacity: hintOpacity,
+                },
+              ]}
+            >
+              {HINTS[currentHintIndex]}
+            </Animated.Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -252,16 +356,13 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 10,
-  },
-  backButton: {
-    paddingRight: 15,
   },
   headerTitle: {
     fontSize: 18,
@@ -270,30 +371,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     marginLeft: -40, // Visual centering adjustment
-  },
-  progressSection: {
-    paddingHorizontal: 5,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
   },
   contentContainer: {
     flex: 1,
@@ -305,10 +382,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: COLORS.textPrimary,
-    marginBottom: 5,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
+    padding: 20,
+    paddingLeft: 25,
     color: COLORS.textSecondary,
     marginBottom: 50,
   },
@@ -319,23 +397,40 @@ const styles = StyleSheet.create({
     borderRadius: CIRCLE_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: COLORS.background,
+    shadowColor: "#6FE7D8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  dashedCircle: {
+  glowContainer: {
     width: "100%",
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
-    borderWidth: 2,
-    borderColor: COLORS.primary + "80",
-    borderStyle: "dashed",
-    backgroundColor: COLORS.primary + "10",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#fff",
+    borderWidth: 4,
+    borderColor: "#F0F0FF", // Very light colored border
+    overflow: "hidden",
+  },
+  pulsingRing: {
+    position: "absolute",
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
+    backgroundColor: "#6FE7D8",
+    zIndex: -1,
+  },
+  dashedCircle: {
+    // Deprecated/Removed
   },
   uploadContent: {
     alignItems: "center",
   },
   uploadText: {
-    marginTop: 5,
+    marginTop: 8,
     fontSize: 16,
     fontWeight: "600",
     color: COLORS.primary,
@@ -346,7 +441,20 @@ const styles = StyleSheet.create({
   profileImage: {
     width: "100%",
     height: "100%",
-    borderRadius: CIRCLE_SIZE / 2,
+  },
+
+  // --- Hint Styles ---
+  hintContainer: {
+    marginTop: 40,
+    height: 30, // Fixed height to prevent layout jumps
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hintText: {
+    fontSize: 14,
+    color: "#8E8E93", // Subtle gray for "tiny hint" feel
+    fontWeight: "500",
+    textAlign: "center",
   },
 
   // --- Footer/Button Styles ---
@@ -381,11 +489,7 @@ const styles = StyleSheet.create({
   },
   buttonSpinner: {
     marginRight: 8,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
-  },
+  }
 });
 
 export default ProfilePictureScreen;

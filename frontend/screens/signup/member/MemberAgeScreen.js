@@ -19,6 +19,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 import {
   updateSignupDraft,
   deleteSignupDraft,
@@ -159,7 +160,7 @@ export default function Example({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity
+        <GlassBackButton
           onPress={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();
@@ -173,9 +174,7 @@ export default function Example({ navigation, route }) {
             }
           }}
           style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        />
 
         <TouchableOpacity
           onPress={() => setShowCancelModal(true)}
@@ -220,15 +219,23 @@ export default function Example({ navigation, route }) {
                   .filter((char) => char === "/").length;
                 const indexWithoutDelimeter = index - countDelimiters;
                 const current = input[indexWithoutDelimeter];
+                const isSlash = placeholder === "/";
 
                 return (
-                  <Text key={index} style={styles.inputChar}>
-                    {placeholder === "/" || !current ? (
-                      <Text style={styles.inputCharEmpty}>{placeholder}</Text>
+                  <View
+                    key={index}
+                    style={
+                      isSlash
+                        ? styles.inputCharContainerSlash
+                        : styles.inputCharContainer
+                    }
+                  >
+                    {isSlash ? (
+                      <Text style={styles.slashText}>/</Text>
                     ) : (
-                      current
+                      <Text style={styles.inputChar}>{current || ""}</Text>
                     )}
-                  </Text>
+                  </View>
                 );
               })}
             </View>
@@ -290,10 +297,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
-  },
   title: {
     fontSize: 28, // Adjusted to 28 to match Gender screen
     fontWeight: "bold",
@@ -314,31 +317,30 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 30, // Increased spacing
     position: "relative",
+    alignItems: "center", // Center the input container
   },
   inputControl: {
     height: 50,
+    width: "100%",
     backgroundColor: "transparent",
     paddingHorizontal: 16,
     borderRadius: 12,
     fontSize: 1,
     color: "transparent",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: "solid",
+    borderWidth: 0, // Removed border
     zIndex: 2,
   },
   inputControlFocused: {
-    borderColor: COLORS.primary,
+    // No specific focus style needed for the invisible input itself
   },
   inputOverflow: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: "transparent", // Removed background
     zIndex: 1,
     position: "absolute",
     top: 0,
@@ -347,23 +349,42 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "100%",
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 16,
+    justifyContent: "center", // Center the characters
+    alignItems: "center",
+    gap: 8, // Add gap between characters
+  },
+  inputCharContainer: {
+    width: 30,
+    height: 45,
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomWidth: 3,
+    borderBottomColor: "#000",
+  },
+  inputCharContainerSlash: {
+    width: 20,
+    height: 45,
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomWidth: 0, // No underline for slash
   },
   inputChar: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    lineHeight: 50,
-    fontSize: 28,
-    textAlign: "center",
+    fontSize: 24,
     fontWeight: "600",
+    color: "#000",
+    textAlign: "center",
   },
   inputCharEmpty: {
-    color: "#BBB9BC",
+    // No placeholder needed for empty lines in this design, or could clearly show empty space
+    // But user image implies just the line is visible when empty.
+  },
+  slashText: {
+    fontSize: 24,
     fontWeight: "400",
+    color: "#C7C7CC", // Lighter color for slash
   },
   btnContainer: {
+    marginTop: 20, // Added some top margin
     marginBottom: 50,
     borderRadius: 12,
     ...SHADOWS.primaryGlow,

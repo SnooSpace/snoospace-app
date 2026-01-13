@@ -25,6 +25,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
@@ -127,7 +128,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       >
         {/* Header Section */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <GlassBackButton
             onPress={() => {
               Alert.alert(
                 "Go Back?",
@@ -139,9 +140,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
               );
             }}
             style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          />
         </View>
 
         {/* Content Section */}

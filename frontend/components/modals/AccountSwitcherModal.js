@@ -331,6 +331,7 @@ export default function AccountSwitcherModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <TouchableOpacity
         style={styles.overlay}

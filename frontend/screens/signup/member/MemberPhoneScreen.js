@@ -20,6 +20,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import GlassBackButton from "../../../components/GlassBackButton";
 import {
   updateSignupDraft,
   deleteSignupDraft,
@@ -105,7 +106,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
         >
           {/* Header Section with Back and Cancel buttons */}
           <View style={styles.header}>
-            <TouchableOpacity
+            <GlassBackButton
               onPress={() => {
                 if (navigation.canGoBack()) {
                   navigation.goBack();
@@ -126,13 +127,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                 }
               }}
               style={styles.backButton}
-            >
-              <Ionicons
-                name="arrow-back"
-                size={24}
-                color={COLORS.textPrimary}
-              />
-            </TouchableOpacity>
+            />
 
             <TouchableOpacity
               onPress={() => setShowCancelModal(true)}
@@ -234,17 +229,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
-  },
   cancelButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   cancelText: {
     fontSize: 16,
-    color: COLORS.primary || "#007AFF",
+    color: "#8E8E93",
     fontWeight: "500",
   },
   contentContainer: {
@@ -326,24 +317,7 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 18,
     fontWeight: "600",
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-    marginTop: 5,
-    marginLeft: 0,
-  },
-  header: {
-    paddingVertical: 60,
-  },
+  }
 });
 
 export default PhoneNumberInputScreen;

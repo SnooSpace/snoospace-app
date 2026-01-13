@@ -312,6 +312,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       transparent={true}
       animationType="slide"
       onRequestClose={() => setShowGuidelines(false)}
+      statusBarTranslucent={true}
     >
       <TouchableOpacity
         style={styles.modalOverlay}

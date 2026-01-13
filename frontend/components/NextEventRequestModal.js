@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,20 +9,20 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-const PRIMARY_COLOR = '#6A0DAD';
-const TEXT_COLOR = '#1D1D1F';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const PRIMARY_COLOR = "#6A0DAD";
+const TEXT_COLOR = "#1D1D1F";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
-const NextEventRequestModal = ({ 
-  visible, 
-  attendee, 
-  onClose, 
-  onSendRequest 
+const NextEventRequestModal = ({
+  visible,
+  attendee,
+  onClose,
+  onSendRequest,
 }) => {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSendRequest = async () => {
@@ -31,23 +31,23 @@ const NextEventRequestModal = ({
     setLoading(true);
     try {
       await onSendRequest(message);
-      setMessage('');
+      setMessage("");
       onClose();
       Alert.alert(
-        'Request Sent!',
+        "Request Sent!",
         `Your request to attend the next event with ${attendee.name} has been sent.`,
-        [{ text: 'OK' }]
+        [{ text: "OK" }]
       );
     } catch (error) {
-      console.error('Error sending request:', error);
-      Alert.alert('Error', 'Failed to send request. Please try again.');
+      console.error("Error sending request:", error);
+      Alert.alert("Error", "Failed to send request. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setMessage('');
+    setMessage("");
     onClose();
   };
 
@@ -59,10 +59,11 @@ const NextEventRequestModal = ({
       transparent
       animationType="slide"
       onRequestClose={handleClose}
+      statusBarTranslucent={true}
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.container}>
           {/* Header */}
@@ -87,9 +88,7 @@ const NextEventRequestModal = ({
 
           {/* Message Input */}
           <View style={styles.messageContainer}>
-            <Text style={styles.messageLabel}>
-              Send a message (optional)
-            </Text>
+            <Text style={styles.messageLabel}>Send a message (optional)</Text>
             <TextInput
               style={styles.messageInput}
               placeholder="Hey! Would you like to attend the next event together?"
@@ -101,25 +100,23 @@ const NextEventRequestModal = ({
               maxLength={200}
               textAlignVertical="top"
             />
-            <Text style={styles.characterCount}>
-              {message.length}/200
-            </Text>
+            <Text style={styles.characterCount}>{message.length}/200</Text>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.cancelButton]}
               onPress={handleClose}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.actionButton, 
+                styles.actionButton,
                 styles.sendButton,
-                loading && styles.sendButtonDisabled
+                loading && styles.sendButtonDisabled,
               ]}
               onPress={handleSendRequest}
               disabled={loading}
@@ -137,9 +134,14 @@ const NextEventRequestModal = ({
 
           {/* Info Text */}
           <View style={styles.infoContainer}>
-            <Ionicons name="information-circle-outline" size={16} color={LIGHT_TEXT_COLOR} />
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={LIGHT_TEXT_COLOR}
+            />
             <Text style={styles.infoText}>
-              They'll receive a notification about your request to attend the next event together.
+              They'll receive a notification about your request to attend the
+              next event together.
             </Text>
           </View>
         </View>
@@ -151,22 +153,22 @@ const NextEventRequestModal = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
-    maxHeight: '80%',
+    maxHeight: "80%",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   closeButton: {
@@ -174,16 +176,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: TEXT_COLOR,
   },
   placeholder: {
     width: 34,
   },
   attendeeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
     padding: 15,
     marginBottom: 20,
@@ -192,9 +194,9 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F0F0F0",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 15,
   },
   attendeeDetails: {
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
   },
   attendeeName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 4,
   },
@@ -215,63 +217,63 @@ const styles = StyleSheet.create({
   },
   messageLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
     marginBottom: 8,
   },
   messageInput: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderRadius: 12,
     padding: 15,
     fontSize: 16,
     color: TEXT_COLOR,
     minHeight: 100,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   characterCount: {
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: 5,
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 20,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 15,
     borderRadius: 12,
     gap: 8,
   },
   cancelButton: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: "#F2F2F7",
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   sendButton: {
     backgroundColor: PRIMARY_COLOR,
   },
   sendButtonDisabled: {
-    backgroundColor: '#C7C7CC',
+    backgroundColor: "#C7C7CC",
   },
   sendButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F8F9FA',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F8F9FA",
     borderRadius: 8,
     padding: 12,
   },
