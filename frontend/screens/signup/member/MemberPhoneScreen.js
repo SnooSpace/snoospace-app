@@ -110,7 +110,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                 if (navigation.canGoBack()) {
                   navigation.goBack();
                 } else {
-                  navigation.navigate("MemberInterests", {
+                  navigation.replace("MemberInterests", {
                     email,
                     accessToken,
                     refreshToken,
@@ -226,9 +226,9 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 20,
   },
   header: {
+    paddingHorizontal: 20,
     paddingVertical: 15,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     marginTop: 30,
-    paddingHorizontal: 5,
+    paddingHorizontal: 25,
   },
   title: {
     fontSize: 28,

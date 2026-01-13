@@ -220,7 +220,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate("MemberPhone", {
+      navigation.replace("MemberPhone", {
         ...userData,
         accessToken,
         refreshToken,
@@ -355,7 +355,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: width * 0.05,
     backgroundColor: COLORS.background,
     paddingBottom: 100, // Space for fixed button
   },
@@ -363,20 +362,16 @@ const styles = StyleSheet.create({
   // --- Header Styles ---
   headerRow: {
     flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    width: "100%",
-    paddingTop: 15,
-    paddingBottom: 5,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-  headerRow: {
-    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 10,
+  },
+  backButton: {
+    padding: 15,
+    marginLeft: -15,
   },
   cancelButton: {
     paddingHorizontal: 12,
@@ -402,6 +397,7 @@ const styles = StyleSheet.create({
   // --- Content Styles ---
   content: {
     paddingTop: 0,
+    paddingHorizontal: 25,
   },
   header: {
     marginBottom: 40,

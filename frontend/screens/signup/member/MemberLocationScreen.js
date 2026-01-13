@@ -208,7 +208,7 @@ const LocationInputScreen = ({ navigation, route }) => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.navigate("MemberGender", {
+                navigation.replace("MemberGender", {
                   email,
                   accessToken,
                   refreshToken,

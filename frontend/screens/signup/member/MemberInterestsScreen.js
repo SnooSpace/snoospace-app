@@ -165,7 +165,7 @@ const InterestsScreen = ({ navigation, route }) => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.navigate("MemberLocation", {
+                navigation.replace("MemberLocation", {
                   email,
                   accessToken,
                   refreshToken,
@@ -271,8 +271,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -292,7 +292,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   backButton: {
-    paddingRight: 15,
+    padding: 15, // Increase this value to make the touch area larger
+    marginLeft: -15, // Optional: Offset to visually align the icon with the screen edge
   },
   headerTitle: {
     fontSize: 18,

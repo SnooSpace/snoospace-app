@@ -24,6 +24,7 @@ import {
   deleteSignupDraft,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import AgeConfirmationModal from "../../../components/modals/AgeConfirmationModal";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -48,6 +49,9 @@ export default function Example({ navigation, route }) {
   );
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [calculatedAge, setCalculatedAge] = useState(0);
+  const [formattedBirthDate, setFormattedBirthDate] = useState("");
 
   const handleInputChange = (value) => {
     setInput(value);
@@ -108,62 +112,80 @@ export default function Example({ navigation, route }) {
       age--;
     }
 
-    Alert.alert("Confirm your age", `You are ${age} years old.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Confirm",
-        onPress: async () => {
-          // Update client-side draft
-          try {
-            await updateSignupDraft("MemberAge", { dob: form.dateOfBirth });
-            console.log("[MemberAgeScreen] Draft updated with dob");
-          } catch (e) {
-            console.log("[MemberAgeScreen] Draft update failed:", e.message);
-          }
+    // Format birth date: "30 November 2004"
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    const formattedDate = `${birthDate.getDate()} ${
+      months[birthDate.getMonth()]
+    } ${birthDate.getFullYear()}`;
 
-          navigation?.navigate?.("MemberPronouns", {
-            email,
-            accessToken,
-            refreshToken,
-            name,
-            profile_photo_url,
-            dob: form.dateOfBirth,
-          });
-        },
-      },
-    ]);
+    setCalculatedAge(age);
+    setFormattedBirthDate(formattedDate);
+    setShowAgeModal(true);
+  };
+
+  const onConfirmAge = async () => {
+    setShowAgeModal(false);
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberAge", { dob: form.dateOfBirth });
+      console.log("[MemberAgeScreen] Draft updated with dob");
+    } catch (e) {
+      console.log("[MemberAgeScreen] Draft update failed:", e.message);
+    }
+
+    navigation?.navigate?.("MemberPronouns", {
+      email,
+      accessToken,
+      refreshToken,
+      name,
+      profile_photo_url,
+      dob: form.dateOfBirth,
+    });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate("MemberProfilePic", {
-                  email,
-                  accessToken,
-                  refreshToken,
-                  name,
-                });
-              }
-            }}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberProfilePic", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+              });
+            }
+          }}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setShowCancelModal(true)}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={() => setShowCancelModal(true)}
+          style={styles.cancelButton}
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
 
+      <View style={styles.contentContainer}>
         {/* Title */}
         <Text style={styles.title}>Enter your Birthday</Text>
         <Text style={styles.subtitle}>
@@ -234,6 +256,13 @@ export default function Example({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
+      <AgeConfirmationModal
+        visible={showAgeModal}
+        age={calculatedAge}
+        birthDate={formattedBirthDate}
+        onConfirm={onConfirmAge}
+        onEdit={() => setShowAgeModal(false)}
+      />
       {/* Cancel Confirmation Modal */}
       <CancelSignupModal
         visible={showCancelModal}
@@ -250,40 +279,34 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  container: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 31,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
-  },
-  form: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    marginTop: 24,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15, // Adjusted to match other screens
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: 25,
   },
   header: {
+    paddingHorizontal: 20,
     paddingVertical: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    // Removed marginTop: 50
+  },
+  backButton: {
+    padding: 15,
+    marginLeft: -15,
+  },
+  title: {
+    fontSize: 28, // Adjusted to 28 to match Gender screen
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginBottom: 30,
+  },
+  form: {
+    marginBottom: 20,
   },
   cancelButton: {
     paddingHorizontal: 12,
@@ -356,30 +379,5 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     fontWeight: "600",
     color: COLORS.textInverted,
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  progressBarActive: {
-    height: "100%",
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
-  },
-  progressBarInactive: {
-    flex: 1,
-    height: "100%",
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-    marginLeft: 5,
-  },
-  header: {
-    paddingVertical: 15,
   },
 });

@@ -117,7 +117,7 @@ const GenderSelectionScreen = ({ navigation, route }) => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.navigate("MemberPronouns", {
+                navigation.replace("MemberPronouns", {
                   email,
                   accessToken,
                   refreshToken,

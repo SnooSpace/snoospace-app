@@ -127,7 +127,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                 navigation.goBack();
               } else {
                 // Fallback for resume flow where stack is empty
-                navigation.navigate("MemberName", {
+                navigation.replace("MemberName", {
                   email,
                   accessToken,
                   refreshToken,

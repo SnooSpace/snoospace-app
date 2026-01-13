@@ -148,7 +148,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.navigate("MemberAge", {
+                navigation.replace("MemberAge", {
                   email,
                   accessToken,
                   refreshToken,
