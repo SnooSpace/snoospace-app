@@ -303,11 +303,10 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
   },
   header: {
-    padding: 20,
-    paddingBottom: 5,
-    backgroundColor: COLORS.background,
+    paddingVertical: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -334,7 +333,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginLeft: -40, // Adjust to center the text visually
   },
-  
+
   contentContainer: {
     flex: 1,
     marginTop: 30,

@@ -342,10 +342,10 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    paddingVertical: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   },
   buttonSpinner: {
     marginRight: 8,
-  }
+  },
 });
 
 export default ProfilePictureScreen;
