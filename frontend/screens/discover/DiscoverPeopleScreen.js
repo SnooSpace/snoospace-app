@@ -73,7 +73,9 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
             {attendee.age ? `, ${attendee.age}` : ""}
           </Text>
           <Text style={styles.personPronouns} numberOfLines={1}>
-            {attendee.pronouns || "they/them"}
+            {attendee.pronouns && attendee.pronouns !== "Prefer not to say"
+              ? attendee.pronouns
+              : "they/them"}
           </Text>
           {attendee.intent_badges?.[0] && (
             <View style={styles.intentBadgeSmall}>

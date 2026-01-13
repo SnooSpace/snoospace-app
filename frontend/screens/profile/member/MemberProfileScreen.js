@@ -1243,11 +1243,14 @@ export default function MemberProfileScreen({ navigation }) {
 
           <View style={styles.nameAndPronounsContainer}>
             <Text style={styles.profileName}>{profile.name}</Text>
-            {Array.isArray(profile.pronouns) && profile.pronouns.length > 0 ? (
+            {Array.isArray(profile.pronouns) &&
+            profile.pronouns.filter((p) => p !== "Prefer not to say").length >
+              0 ? (
               <View style={styles.pronounsRowCentered}>
                 <View style={[styles.chip, styles.pronounChipSmall]}>
                   <Text style={styles.chipText}>
                     {profile.pronouns
+                      .filter((p) => p !== "Prefer not to say")
                       .map((p) => String(p).replace(/^[{\"]+|[}\"]+$/g, ""))
                       .join(" / ")}
                   </Text>

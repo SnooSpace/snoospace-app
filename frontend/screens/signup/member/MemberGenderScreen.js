@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -22,6 +22,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
@@ -68,6 +69,20 @@ const GenderSelectionScreen = ({ navigation, route }) => {
   } = route.params || {};
   const [selectedGender, setSelectedGender] = useState(initialGender || null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft if route.params is missing gender
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!initialGender) {
+        const draftData = await getDraftData();
+        if (draftData?.gender) {
+          console.log("[MemberGenderScreen] Hydrating from draft");
+          setSelectedGender(draftData.gender);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const genderOptions = ["Male", "Female", "Non-binary"];
 

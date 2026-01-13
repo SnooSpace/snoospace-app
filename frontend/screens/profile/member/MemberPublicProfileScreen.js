@@ -92,8 +92,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             })()
           : [],
         pronouns: Array.isArray(p?.pronouns)
-          ? p.pronouns.filter((pron) => pron && String(pron).trim())
-          : p?.pronouns && String(p.pronouns).trim()
+          ? p.pronouns.filter(
+              (pron) =>
+                pron && String(pron).trim() && pron !== "Prefer not to say"
+            )
+          : p?.pronouns &&
+            String(p.pronouns).trim() &&
+            p.pronouns !== "Prefer not to say"
           ? [String(p.pronouns).trim()]
           : [],
       };

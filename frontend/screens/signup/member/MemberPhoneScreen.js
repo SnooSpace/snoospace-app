@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -24,6 +24,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
@@ -48,6 +49,20 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
   const [phoneNumber, setPhoneNumber] = useState(initialPhone || "");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft if route.params is missing phone
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!initialPhone) {
+        const draftData = await getDraftData();
+        if (draftData?.phone) {
+          console.log("[MemberPhoneScreen] Hydrating from draft");
+          setPhoneNumber(draftData.phone);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleCancel = async () => {
     await deleteSignupDraft();

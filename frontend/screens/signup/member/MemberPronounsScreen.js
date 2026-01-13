@@ -24,21 +24,34 @@ import { fetchPronouns } from "../../../api/members";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const MAX_SELECTIONS = 4;
+const PREFER_NOT_TO_SAY = "Prefer not to say";
 
 // --- Pronoun Row Component ---
-const PronounRow = ({ label, isSelected, onPress }) => {
+const PronounRow = ({ label, isSelected, onPress, disabled }) => {
   return (
     <TouchableOpacity
-      style={styles.pronounRow}
-      onPress={() => onPress(label)}
-      activeOpacity={0.7}
+      style={[styles.pronounRow, disabled && styles.pronounRowDisabled]}
+      onPress={() => !disabled && onPress(label)}
+      activeOpacity={disabled ? 1 : 0.7}
+      disabled={disabled}
     >
-      <Text style={styles.pronounText}>{label}</Text>
-      <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+      <Text
+        style={[styles.pronounText, disabled && styles.pronounTextDisabled]}
+      >
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.checkbox,
+          isSelected && styles.checkboxSelected,
+          disabled && styles.checkboxDisabled,
+        ]}
+      >
         {isSelected && (
           <Ionicons name="checkmark" size={16} color={COLORS.textInverted} />
         )}
@@ -68,6 +81,23 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Hydrate from draft if route.params is missing pronouns
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if ((!initialPronouns || initialPronouns.length === 0) && !loading) {
+        const draftData = await getDraftData();
+        if (draftData?.pronouns && draftData.pronouns.length > 0) {
+          console.log("[MemberPronounsScreen] Hydrating from draft");
+          setSelectedPronouns(draftData.pronouns);
+        }
+        if (draftData?.showPronouns !== undefined) {
+          setVisibleOnProfile(draftData.showPronouns);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, [loading]);
+
   // Fetch pronouns from API on mount
   useEffect(() => {
     const loadPronouns = async () => {
@@ -87,6 +117,13 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     loadPronouns();
   }, []);
 
+  // Check if "Prefer not to say" is selected
+  const preferNotToSaySelected = selectedPronouns.includes(PREFER_NOT_TO_SAY);
+  // Check if any other pronoun is selected
+  const hasOtherPronounSelected = selectedPronouns.some(
+    (p) => p !== PREFER_NOT_TO_SAY
+  );
+
   const togglePronoun = (pronoun) => {
     HapticsService.triggerSelection();
     setSelectedPronouns((prev) => {
@@ -94,14 +131,23 @@ const MemberPronounsScreen = ({ navigation, route }) => {
         // Deselect
         return prev.filter((p) => p !== pronoun);
       } else {
-        // Select - but only if we haven't reached the maximum
-        if (prev.length < MAX_SELECTIONS) {
-          return [...prev, pronoun];
+        // If selecting "Prefer not to say", clear all others
+        if (pronoun === PREFER_NOT_TO_SAY) {
+          return [PREFER_NOT_TO_SAY];
         }
-        return prev; // Don't add if at maximum
+        // If selecting a regular pronoun, remove "Prefer not to say" if present
+        const filtered = prev.filter((p) => p !== PREFER_NOT_TO_SAY);
+        // Select - but only if we haven't reached the maximum
+        if (filtered.length < MAX_SELECTIONS) {
+          return [...filtered, pronoun];
+        }
+        return filtered; // Don't add if at maximum
       }
     });
   };
+
+  // Button is disabled if no pronoun is selected
+  const isButtonDisabled = selectedPronouns.length === 0;
 
   const handleCancel = async () => {
     await deleteSignupDraft();
@@ -113,11 +159,20 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   };
 
   const handleNext = async () => {
+    // Filter out "Prefer not to say" - it should not be stored in the database
+    const pronounsToSave = selectedPronouns.filter(
+      (p) => p !== PREFER_NOT_TO_SAY
+    );
+    // If "Prefer not to say" is selected, force showPronouns to false
+    const shouldShowPronouns = preferNotToSaySelected
+      ? false
+      : visibleOnProfile;
+
     // Update client-side draft
     try {
       await updateSignupDraft("MemberPronouns", {
-        pronouns: selectedPronouns,
-        showPronouns: visibleOnProfile,
+        pronouns: pronounsToSave,
+        showPronouns: shouldShowPronouns,
       });
       console.log("[MemberPronounsScreen] Draft updated");
     } catch (e) {
@@ -131,8 +186,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
       name,
       profile_photo_url,
       dob,
-      pronouns: selectedPronouns,
-      showPronouns: visibleOnProfile,
+      pronouns: pronounsToSave,
+      showPronouns: shouldShowPronouns,
     });
   };
 
@@ -172,14 +227,27 @@ const MemberPronounsScreen = ({ navigation, route }) => {
             ) : allPronouns.length === 0 ? (
               <Text style={styles.subtitle}>No pronouns available</Text>
             ) : (
-              allPronouns.map((pronoun) => (
+              <>
+                {allPronouns.map((pronoun) => (
+                  <PronounRow
+                    key={pronoun}
+                    label={pronoun}
+                    isSelected={selectedPronouns.includes(pronoun)}
+                    onPress={togglePronoun}
+                    disabled={
+                      preferNotToSaySelected && pronoun !== PREFER_NOT_TO_SAY
+                    }
+                  />
+                ))}
+                {/* Prefer not to say option */}
                 <PronounRow
-                  key={pronoun}
-                  label={pronoun}
-                  isSelected={selectedPronouns.includes(pronoun)}
+                  key={PREFER_NOT_TO_SAY}
+                  label={PREFER_NOT_TO_SAY}
+                  isSelected={preferNotToSaySelected}
                   onPress={togglePronoun}
+                  disabled={hasOtherPronounSelected}
                 />
-              ))
+              </>
             )}
           </View>
         </View>
@@ -189,17 +257,26 @@ const MemberPronounsScreen = ({ navigation, route }) => {
       <View style={styles.footer}>
         {/* Visible on Profile Toggle */}
         <TouchableOpacity
-          style={styles.visibilityToggle}
-          onPress={() => setVisibleOnProfile(!visibleOnProfile)}
-          activeOpacity={0.7}
+          style={[
+            styles.visibilityToggle,
+            preferNotToSaySelected && styles.visibilityToggleDisabled,
+          ]}
+          onPress={() =>
+            !preferNotToSaySelected && setVisibleOnProfile(!visibleOnProfile)
+          }
+          activeOpacity={preferNotToSaySelected ? 1 : 0.7}
+          disabled={preferNotToSaySelected}
         >
           <View
             style={[
               styles.toggleCheckbox,
-              visibleOnProfile && styles.toggleCheckboxSelected,
+              visibleOnProfile &&
+                !preferNotToSaySelected &&
+                styles.toggleCheckboxSelected,
+              preferNotToSaySelected && styles.checkboxDisabled,
             ]}
           >
-            {visibleOnProfile && (
+            {visibleOnProfile && !preferNotToSaySelected && (
               <Ionicons
                 name="checkmark"
                 size={16}
@@ -207,14 +284,25 @@ const MemberPronounsScreen = ({ navigation, route }) => {
               />
             )}
           </View>
-          <Text style={styles.visibilityText}>Visible on profile</Text>
+          <Text
+            style={[
+              styles.visibilityText,
+              preferNotToSaySelected && styles.visibilityTextDisabled,
+            ]}
+          >
+            Visible on profile
+          </Text>
         </TouchableOpacity>
 
         {/* Next Button */}
         <TouchableOpacity
-          style={styles.nextButtonContainer}
+          style={[
+            styles.nextButtonContainer,
+            isButtonDisabled && styles.nextButtonDisabled,
+          ]}
           onPress={handleNext}
           activeOpacity={0.8}
+          disabled={isButtonDisabled}
         >
           <LinearGradient
             colors={COLORS.primaryGradient}
@@ -296,6 +384,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
+  pronounRowDisabled: {
+    opacity: 0.4,
+  },
+  pronounTextDisabled: {
+    color: COLORS.textSecondary,
+  },
+  checkboxDisabled: {
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.inputBackground || "#f0f0f0",
+  },
 
   // --- Footer Styles ---
   footer: {
@@ -326,9 +424,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textPrimary,
   },
+  visibilityToggleDisabled: {
+    opacity: 0.4,
+  },
+  visibilityTextDisabled: {
+    color: COLORS.textSecondary,
+  },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
+  },
+  nextButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
     paddingVertical: 15,

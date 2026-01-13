@@ -23,6 +23,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import AgeConfirmationModal from "../../../components/modals/AgeConfirmationModal";
@@ -54,6 +55,26 @@ export default function Example({ navigation, route }) {
   const [calculatedAge, setCalculatedAge] = useState(0);
   const [formattedBirthDate, setFormattedBirthDate] = useState("");
   const [error, setError] = useState("");
+
+  // Hydrate from draft if route.params is missing dob
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!initialDob) {
+        const draftData = await getDraftData();
+        if (draftData?.dob) {
+          console.log("[MemberAgeScreen] Hydrating from draft");
+          setForm({ dateOfBirth: draftData.dob });
+          // Format input as MMDDYYYY
+          const parts = draftData.dob.split("-");
+          if (parts.length === 3) {
+            const [year, month, day] = parts;
+            setInput(`${month.padStart(2, "0")}${day.padStart(2, "0")}${year}`);
+          }
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Animation Refs
   const fadeAnim = useRef(new Animated.Value(0)).current;

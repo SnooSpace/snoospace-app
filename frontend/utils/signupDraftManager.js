@@ -128,6 +128,15 @@ export async function deleteSignupDraft() {
 }
 
 /**
+ * Get only the data portion of the draft (for screen hydration)
+ * @returns {Promise<object|null>} Draft data or null
+ */
+export async function getDraftData() {
+  const draft = await getSignupDraft();
+  return draft?.data || null;
+}
+
+/**
  * Check if a draft exists without expiry check
  * @returns {Promise<boolean>}
  */
@@ -176,6 +185,7 @@ export default {
   updateSignupDraft,
   getSignupDraft,
   deleteSignupDraft,
+  getDraftData,
   hasSignupDraft,
   getNextScreenForStep,
   getResumeScreen,

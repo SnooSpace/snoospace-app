@@ -246,7 +246,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
   // Extract data from current attendee
   const name = currentAttendee?.name || "Unknown";
   const age = currentAttendee?.age;
-  const pronouns = currentAttendee?.pronouns;
+  // Filter out "Prefer not to say" from pronouns
+  const rawPronouns = currentAttendee?.pronouns;
+  const pronouns =
+    rawPronouns && rawPronouns !== "Prefer not to say"
+      ? Array.isArray(rawPronouns)
+        ? rawPronouns.filter((p) => p !== "Prefer not to say").join(" / ") ||
+          null
+        : rawPronouns
+      : null;
   const goalBadges = currentAttendee?.intent_badges || [];
   const interests = currentAttendee?.interests || [];
   const openers = currentAttendee?.openers || [];

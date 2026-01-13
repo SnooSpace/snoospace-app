@@ -25,6 +25,7 @@ import { getSignupInterests } from "../../../api/categories";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
@@ -79,6 +80,20 @@ const InterestsScreen = ({ navigation, route }) => {
   const [allInterests, setAllInterests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft if route.params is missing interests
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if ((!initialInterests || initialInterests.length === 0) && !loading) {
+        const draftData = await getDraftData();
+        if (draftData?.interests && draftData.interests.length > 0) {
+          console.log("[MemberInterestsScreen] Hydrating from draft");
+          setSelectedInterests(draftData.interests);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, [loading]);
 
   // Fetch interests from API on mount
   useEffect(() => {

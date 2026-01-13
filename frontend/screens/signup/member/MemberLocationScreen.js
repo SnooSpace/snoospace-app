@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -26,6 +26,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 // Removed local constants in favor of theme constants
@@ -56,6 +57,20 @@ const LocationInputScreen = ({ navigation, route }) => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const navigatedRef = useRef(false);
+
+  // Hydrate from draft if route.params is missing location
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!initialLocation || !initialLocation.city) {
+        const draftData = await getDraftData();
+        if (draftData?.location && draftData.location.city) {
+          console.log("[MemberLocationScreen] Hydrating from draft");
+          setLocation(draftData.location);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleCancel = async () => {
     await deleteSignupDraft();
@@ -133,6 +148,17 @@ const LocationInputScreen = ({ navigation, route }) => {
             gender,
             location: resolved,
           });
+        } else {
+          // Location was updated (user came back) - just update draft, don't auto-navigate
+          try {
+            await updateSignupDraft("MemberLocation", { location: resolved });
+            console.log("[MemberLocationScreen] Location updated in draft");
+          } catch (e) {
+            console.log(
+              "[MemberLocationScreen] Draft update failed:",
+              e.message
+            );
+          }
         }
       } else {
         const resolved = { ...location, lat: latitude, lng: longitude };
@@ -160,6 +186,16 @@ const LocationInputScreen = ({ navigation, route }) => {
             gender,
             location: resolved,
           });
+        } else {
+          // Location was updated - just update draft
+          try {
+            await updateSignupDraft("MemberLocation", { location: resolved });
+          } catch (e) {
+            console.log(
+              "[MemberLocationScreen] Draft update failed:",
+              e.message
+            );
+          }
         }
       }
     } catch (error) {
@@ -193,8 +229,11 @@ const LocationInputScreen = ({ navigation, route }) => {
     });
   };
 
-  // Button disabled (kept as fallback, but we auto-navigate on success)
-  const isButtonDisabled = !location.city || location.city.trim().length === 0;
+  // Computed: check if location is already set
+  const hasLocation = location.city && location.city.trim().length > 0;
+
+  // Button disabled (for Next button when no location)
+  const isButtonDisabled = !hasLocation;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -227,7 +266,31 @@ const LocationInputScreen = ({ navigation, route }) => {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Where are you located?</Text>
 
-          {/* Use Current Location Button */}
+          {/* Location Card - shown when location is set */}
+          {hasLocation && (
+            <View style={styles.locationCard}>
+              <View style={styles.locationCardContent}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={COLORS.success || "#00C851"}
+                />
+                <View style={styles.locationCardText}>
+                  <Text style={styles.locationCity}>
+                    {location.city}
+                    {location.state ? `, ${location.state}` : ""}
+                  </Text>
+                  {location.country && (
+                    <Text style={styles.locationCountry}>
+                      {location.country}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Use/Update Current Location Button */}
           <TouchableOpacity
             style={styles.locationButton}
             onPress={handleGetLocation}
@@ -239,7 +302,11 @@ const LocationInputScreen = ({ navigation, route }) => {
               <Ionicons name="location" size={20} color={COLORS.primary} />
             )}
             <Text style={styles.locationButtonText}>
-              {loadingLocation ? "Getting location..." : "Use Current Location"}
+              {loadingLocation
+                ? "Getting location..."
+                : hasLocation
+                ? "Update Location"
+                : "Use Current Location"}
             </Text>
           </TouchableOpacity>
 
@@ -251,27 +318,29 @@ const LocationInputScreen = ({ navigation, route }) => {
         </View>
       </ScrollView>
 
-      {/* No footer button needed; we auto-advance after locating. Keep hidden fallback button for safety. */}
-      <View style={[styles.footer, { display: "none" }]}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
+      {/* Footer with Next button - visible when location is set */}
+      {hasLocation && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.nextButtonContainer,
+              isButtonDisabled && styles.disabledButton,
+            ]}
+            onPress={handleNext}
+            disabled={isButtonDisabled}
+            activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextButton}
+            >
+              <Text style={styles.buttonText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Cancel Confirmation Modal */}
       <CancelSignupModal
@@ -318,7 +387,34 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: COLORS.textPrimary,
-    marginBottom: 40,
+    marginBottom: 30,
+  },
+  // Location Card Styles
+  locationCard: {
+    backgroundColor: "#F0FFF4",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#00C85133",
+  },
+  locationCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  locationCardText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  locationCity: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  locationCountry: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   inputWrapper: {
     flexDirection: "row",

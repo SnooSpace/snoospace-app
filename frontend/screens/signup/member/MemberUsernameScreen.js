@@ -11,14 +11,16 @@ import {
   Platform,
   StatusBar,
   Dimensions,
-  KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import * as sessionManager from "../../../utils/sessionManager";
-import { deleteSignupDraft } from "../../../utils/signupDraftManager";
+import {
+  deleteSignupDraft,
+  getDraftData,
+} from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width, height } = Dimensions.get("window");
@@ -31,6 +33,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
+import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
 
 const FONT_SIZES = {
   largeHeader: 32, // Matches Community
@@ -47,6 +50,29 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   const { userData, accessToken, refreshToken } = route.params;
+
+  // Track email separately so we can hydrate from draft if needed
+  const [hydratedEmail, setHydratedEmail] = useState(userData?.email || null);
+
+  // Hydrate from draft if route.params is missing data
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getDraftData();
+      if (draftData?.username && !username) {
+        console.log("[MemberUsernameScreen] Hydrating username from draft");
+        setUsername(draftData.username);
+      }
+      // Hydrate email from draft if missing from userData
+      if (!userData?.email && draftData?.email) {
+        console.log(
+          "[MemberUsernameScreen] Hydrating email from draft:",
+          draftData.email
+        );
+        setHydratedEmail(draftData.email);
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleCancel = async () => {
     await deleteSignupDraft();
@@ -108,10 +134,28 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
+      // Use hydratedEmail which falls back to draft email if userData.email is undefined
+      const emailToUse = userData?.email || hydratedEmail;
+
+      // Debug: Log all userData being sent
+      console.log("[MemberUsername] Signup data:", {
+        name: userData.name,
+        email: emailToUse,
+        phone: userData.phone,
+        dob: userData.dob,
+        gender: userData.gender,
+        pronouns: userData.pronouns,
+        showPronouns: userData.showPronouns,
+        location: userData.location,
+        interests: userData.interests,
+        profile_photo_url: userData.profile_photo_url,
+        username: username,
+      });
+
       // Step 1: Create the member record with ALL data including username
       const signupResult = await apiPost("/members/signup", {
         name: userData.name,
-        email: userData.email,
+        email: emailToUse,
         phone: userData.phone,
         dob: userData.dob,
         gender: userData.gender,
@@ -141,7 +185,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       // Step 2: Create a session for the new member (generates JWT tokens)
       // This internally saves to sessionManager's @sessions_v2 storage
       console.log("[MemberUsername] Creating session for new member...");
-      await sessionManager.createSession(memberId, "member", userData.email);
+      await sessionManager.createSession(memberId, "member", emailToUse);
 
       // Step 3: Get the stored session with ACTUAL tokens from sessionManager
       // This ensures we use the correctly encrypted/stored tokens
@@ -160,7 +204,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         id: memberId,
         type: "member",
         username: memberProfile.username || username,
-        email: userData.email || memberProfile.email,
+        email: emailToUse || memberProfile.email,
         name: memberProfile.name || userData.name,
         profilePicture:
           memberProfile.profile_photo_url || userData.profile_photo_url || null,
@@ -243,12 +287,9 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         onCancel={() => setShowCancelModal(true)}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
+      <View style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
@@ -304,8 +345,8 @@ const MemberUsernameScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
 
-        {/* 4. Fixed Button Container - Outside ScrollView for stickiness */}
-        <View style={styles.buttonFixedContainer}>
+        {/* 4. Fixed Button - Using KeyboardAwareToolbar for proper keyboard sync */}
+        <KeyboardAwareToolbar style={styles.buttonFixedContainer}>
           <TouchableOpacity
             style={[
               styles.nextButtonContainer,
@@ -326,8 +367,8 @@ const MemberUsernameScreen = ({ navigation, route }) => {
               </Text>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAwareToolbar>
+      </View>
     </SafeAreaView>
   );
 };
@@ -434,13 +475,11 @@ const styles = StyleSheet.create({
 
   // --- Fixed Button Styles ---
   buttonFixedContainer: {
-    position: "absolute",
-    bottom: 0,
-    width: width,
     paddingHorizontal: width * 0.05,
-    paddingVertical: 15,
+    paddingTop: 15,
+    paddingBottom: 30,
     backgroundColor: COLORS.background,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
+    borderTopWidth: 0,
   },
   nextButtonContainer: {
     borderRadius: 15,

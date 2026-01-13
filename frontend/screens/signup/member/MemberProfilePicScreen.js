@@ -32,6 +32,7 @@ import { uploadImage } from "../../../api/cloudinary";
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
@@ -57,6 +58,20 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
   // Instagram-style crop hook for avatar
   const { pickAndCrop } = useCrop();
+
+  // Hydrate from draft if route.params is missing profile_photo_url
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!imageUri && !route.params?.profile_photo_url) {
+        const draftData = await getDraftData();
+        if (draftData?.profile_photo_url) {
+          console.log("[MemberProfilePicScreen] Hydrating from draft");
+          setImageUri(draftData.profile_photo_url);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   useEffect(() => {
     // 1. Bounce Animation on Load
@@ -173,8 +188,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
     });
   };
 
-  // Button is disabled while uploading
-  const isButtonDisabled = uploading;
+  // Button is disabled if no image or while uploading
+  const isButtonDisabled = !imageUri || uploading;
 
   // Pulse ring scale interpolation
   const pulseScale = pulseAnim.interpolate({

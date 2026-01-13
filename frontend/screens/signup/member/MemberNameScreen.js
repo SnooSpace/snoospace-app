@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -23,6 +23,7 @@ import {
 import {
   updateSignupDraft,
   deleteSignupDraft,
+  getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import SignupHeader from "../../../components/SignupHeader";
@@ -36,6 +37,20 @@ const NameInputScreen = ({ navigation, route }) => {
   const [name, setName] = useState(route.params?.name || "");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft if route.params is missing name
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!route.params?.name) {
+        const draftData = await getDraftData();
+        if (draftData?.name) {
+          console.log("[MemberNameScreen] Hydrating from draft");
+          setName(draftData.name);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleNext = async () => {
     // Update client-side draft with name
