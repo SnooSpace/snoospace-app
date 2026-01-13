@@ -225,7 +225,7 @@ const EmailInputScreen = ({ navigation }) => {
         <View
           style={[
             styles.footer,
-            { paddingBottom: 50 + (Platform.OS === "ios" ? 0 : 0) },
+            { paddingBottom: 60 + (Platform.OS === "ios" ? 0 : 0) },
           ]}
         >
           <TouchableOpacity
