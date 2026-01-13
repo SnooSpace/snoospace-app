@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
+  Animated,
   StyleSheet,
-  Alert,
   SafeAreaView,
   View,
   TouchableOpacity,
@@ -19,7 +19,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
@@ -53,9 +53,48 @@ export default function Example({ navigation, route }) {
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [calculatedAge, setCalculatedAge] = useState(0);
   const [formattedBirthDate, setFormattedBirthDate] = useState("");
+  const [error, setError] = useState("");
+
+  // Animation Refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (error) {
+      // Reset values
+      fadeAnim.setValue(0);
+      slideAnim.setValue(20);
+
+      // Animate In
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Auto dismiss after 5s
+      const timer = setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => setError(""));
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   const handleInputChange = (value) => {
     setInput(value);
+    if (error) setError("");
 
     if (value.length === 8) {
       try {
@@ -80,7 +119,7 @@ export default function Example({ navigation, route }) {
 
         setForm({ dateOfBirth: `${year}-${month}-${day}` });
       } catch (_) {
-        Alert.alert("Invalid date entered, try again.");
+        setError("Enter a valid date");
         setInput("");
       }
     }
@@ -97,7 +136,7 @@ export default function Example({ navigation, route }) {
 
   const handleNext = async () => {
     if (!form.dateOfBirth) {
-      Alert.alert("Please enter a valid date");
+      setError("Enter a valid date");
       return;
     }
 
@@ -159,30 +198,21 @@ export default function Example({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <GlassBackButton
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.replace("MemberProfilePic", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-              });
-            }
-          }}
-          style={styles.backButton}
-        />
-
-        <TouchableOpacity
-          onPress={() => setShowCancelModal(true)}
-          style={styles.cancelButton}
-        >
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
+      <SignupHeader
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.replace("MemberProfilePic", {
+              email,
+              accessToken,
+              refreshToken,
+              name,
+            });
+          }
+        }}
+        onCancel={() => setShowCancelModal(true)}
+      />
 
       <View style={styles.contentContainer}>
         {/* Title */}
@@ -244,6 +274,16 @@ export default function Example({ navigation, route }) {
           <Text style={styles.subtitle}>
             Your profile will show your age, not your date of birth.
           </Text>
+          {error ? (
+            <Animated.Text
+              style={[
+                styles.errorText,
+                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+              ]}
+            >
+              {error}
+            </Animated.Text>
+          ) : null}
         </View>
 
         {/* Button */}
@@ -289,13 +329,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     paddingHorizontal: 25,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    marginTop: 40,
   },
   title: {
     fontSize: 28, // Adjusted to 28 to match Gender screen
@@ -310,15 +344,6 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 20,
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#8E8E93",
-    fontWeight: "500",
   },
   input: {
     marginBottom: 30, // Increased spacing
@@ -400,5 +425,12 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     fontWeight: "600",
     color: COLORS.textInverted,
+  },
+  errorText: {
+    marginTop: 10,
+    color: "rgba(255, 59, 48, 0.8)", // Slightly dimmed red
+    fontSize: 14,
+    textAlign: "center",
+    fontWeight: "600",
   },
 });

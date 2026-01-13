@@ -30,7 +30,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 
 const FONT_SIZES = {
   largeHeader: 32, // Matches Community
@@ -237,6 +237,12 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         onKeepEditing={() => setShowCancelModal(false)}
         onDiscard={handleCancel}
       />
+
+      <SignupHeader
+        onBack={handleBack}
+        onCancel={() => setShowCancelModal(true)}
+      />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -246,18 +252,6 @@ const MemberUsernameScreen = ({ navigation, route }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-            {/* 1. Header Row (Back Button & Cancel) */}
-            <View style={styles.headerRow}>
-              <GlassBackButton onPress={handleBack} style={styles.backButton} />
-
-              <TouchableOpacity
-                onPress={() => setShowCancelModal(true)}
-                style={styles.cancelButton}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-
             {/* 3. Content Area */}
             <View style={styles.content}>
               <View style={styles.header}>
@@ -350,26 +344,6 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Space for fixed button
   },
 
-  // --- Header Styles ---
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 45,
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#8E8E93",
-    fontWeight: "500",
-  },
-
   // --- Progress Bar Styles ---
   progressContainer: {
     width: "100%",
@@ -385,6 +359,7 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 0,
     paddingHorizontal: 25,
+    marginTop: 40,
   },
   header: {
     marginBottom: 40,

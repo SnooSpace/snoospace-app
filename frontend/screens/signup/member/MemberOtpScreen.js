@@ -32,7 +32,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -308,12 +308,7 @@ const VerificationScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <GlassBackButton
-          onPress={() => setShowGoBackModal(true)}
-          style={styles.backButton}
-        />
-      </View>
+      <SignupHeader onBack={() => setShowGoBackModal(true)} />
 
       <View style={styles.content}>
         <Text style={styles.title}>Enter verification code</Text>
@@ -471,17 +466,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
   },
   content: {
     flex: 1,

@@ -153,16 +153,6 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_pronouns_active ON pronouns(is_active, display_order);
-
-      -- Seed default pronouns
-      INSERT INTO pronouns (label, display_order) VALUES
-        ('He/Him', 1),
-        ('She/Her', 2),
-        ('They/Them', 3),
-        ('She/They', 4),
-        ('He/They', 5),
-        ('Prefer not to say', 99)
-      ON CONFLICT (label) DO NOTHING;
       
       
       -- Posts table

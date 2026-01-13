@@ -21,7 +21,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 
 // Removed local constants in favor of theme constants
 
@@ -118,20 +118,15 @@ const LoginScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header Section (Only Back Button) */}
-      <View style={styles.header}>
-        <GlassBackButton
-          onPress={() => {
-            // Try to go back, if not possible navigate to Landing
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate("Landing");
-            }
-          }}
-          style={styles.backButton}
-        />
-      </View>
+      <SignupHeader
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate("Landing");
+          }
+        }}
+      />
 
       <View style={styles.content}>
         <Text style={styles.title}>Welcome back!</Text>
@@ -205,22 +200,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,

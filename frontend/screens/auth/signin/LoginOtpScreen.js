@@ -33,6 +33,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -441,16 +442,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header Section (Only Back Button) */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => setShowGoBackModal(true)}
-          style={styles.backButton}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      <SignupHeader onBack={() => setShowGoBackModal(true)} />
 
       <View style={styles.content}>
         <Text style={styles.title}>Enter verification code</Text>
@@ -587,22 +579,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
   },
   content: {
     flex: 1,

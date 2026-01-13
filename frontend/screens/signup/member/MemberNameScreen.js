@@ -25,6 +25,7 @@ import {
   deleteSignupDraft,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SignupHeader from "../../../components/SignupHeader";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -71,20 +72,12 @@ const NameInputScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <SignupHeader onCancel={() => setShowCancelModal(true)} />
+
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section with Cancel buttons */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => setShowCancelModal(true)}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>What should we call you?</Text>
@@ -157,22 +150,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 120, // Add padding to avoid content being hidden behind footer
-  },
-  header: {
-    paddingVertical: 15,
-    flexDirection: "row",
-    justifyContent: "flex-end", // Changed from space-between since back button is removed
-    alignItems: "center",
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#8E8E93",
-    fontWeight: "500",
+    paddingBottom: 120,
   },
   stepText: {
     fontSize: 14,

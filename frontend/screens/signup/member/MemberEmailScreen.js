@@ -29,7 +29,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 
 import { apiPost } from "../../../api/client";
 import { setPendingOtp, checkEmailExists } from "../../../api/auth";
@@ -174,21 +174,12 @@ const EmailInputScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <SignupHeader onBack={() => navigation.navigate("Landing")} />
+
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section */}
-        <View style={styles.header}>
-          <GlassBackButton
-            onPress={() => {
-              // Explicitly navigate back to Landing screen to exit signup flow
-              navigation.navigate("Landing");
-            }}
-            style={styles.backButton}
-          />
-        </View>
-
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>What's your email?</Text>
@@ -328,16 +319,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 120, // Add padding to avoid content being hidden behind footer
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 15,
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
+    paddingBottom: 120,
   },
   contentContainer: {
     flex: 0,

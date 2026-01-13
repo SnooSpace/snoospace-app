@@ -240,6 +240,49 @@ async function refreshToken(req, res) {
 
     const pool = req.app.locals.pool;
 
+    // DIAGNOSTIC: First check if token exists at all (ignoring expiry)
+    const diagnosticResult = await pool.query(
+      `SELECT id, user_id, user_type, device_id, expires_at, 
+              expires_at > NOW() as is_valid,
+              NOW() as current_time
+       FROM sessions 
+       WHERE refresh_token = $1`,
+      [refreshToken]
+    );
+
+    if (diagnosticResult.rows.length === 0) {
+      console.error(
+        "[Auth] ❌ REFRESH FAILED: Token not found in database at all"
+      );
+      console.error(
+        "[Auth] Token preview:",
+        refreshToken.substring(0, 16) + "..."
+      );
+      return res
+        .status(401)
+        .json({ error: "Invalid or expired refresh token" });
+    }
+
+    const diagnosticSession = diagnosticResult.rows[0];
+    console.log("[Auth] 🔍 Session found for token:", {
+      sessionId: diagnosticSession.id,
+      userId: diagnosticSession.user_id,
+      userType: diagnosticSession.user_type,
+      deviceId: diagnosticSession.device_id?.substring(0, 8) + "...",
+      expiresAt: diagnosticSession.expires_at,
+      currentTime: diagnosticSession.current_time,
+      isValid: diagnosticSession.is_valid,
+    });
+
+    if (!diagnosticSession.is_valid) {
+      console.error("[Auth] ❌ REFRESH FAILED: Session EXPIRED");
+      console.error("[Auth] Expired at:", diagnosticSession.expires_at);
+      console.error("[Auth] Current time:", diagnosticSession.current_time);
+      return res
+        .status(401)
+        .json({ error: "Invalid or expired refresh token" });
+    }
+
     // Find session by refresh token only (device_id not required for refresh)
     // Refresh tokens are 64-character hex strings (256-bit entropy) - secure without device binding
     // This fixes token loss when signup creates session with different device_id than app uses
@@ -250,6 +293,7 @@ async function refreshToken(req, res) {
     );
 
     if (result.rows.length === 0) {
+      // This shouldn't happen now, but keep as safety net
       return res
         .status(401)
         .json({ error: "Invalid or expired refresh token" });

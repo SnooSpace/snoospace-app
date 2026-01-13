@@ -18,7 +18,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
   deleteSignupDraft,
@@ -107,40 +107,30 @@ const GenderSelectionScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <SignupHeader
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.replace("MemberPronouns", {
+              email,
+              accessToken,
+              refreshToken,
+              name,
+              profile_photo_url,
+              dob,
+              pronouns,
+              showPronouns,
+            });
+          }
+        }}
+        onCancel={() => setShowCancelModal(true)}
+      />
+
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section with Back and Cancel buttons */}
-        <View style={styles.header}>
-          <GlassBackButton
-            onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.replace("MemberPronouns", {
-                  email,
-                  accessToken,
-                  refreshToken,
-                  name,
-                  profile_photo_url,
-                  dob,
-                  pronouns,
-                  showPronouns,
-                });
-              }
-            }}
-            style={styles.backButton}
-          />
-
-          <TouchableOpacity
-            onPress={() => setShowCancelModal(true)}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Text style={styles.title}>How do you identify?</Text>
@@ -200,21 +190,6 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-  },
-  header: {
-    paddingVertical: 15,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cancelButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#8E8E93",
-    fontWeight: "500",
   },
   stepText: {
     fontSize: 14,

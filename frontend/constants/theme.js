@@ -72,3 +72,9 @@ export const SHADOWS = {
     elevation: 8,
   },
 };
+
+export const LAYOUT = {
+  scrollContainerPaddingHorizontal: 20,
+  contentContainerPaddingHorizontal: 25,
+  contentContainerMarginTop: 20,
+};
