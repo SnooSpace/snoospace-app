@@ -9,7 +9,10 @@ import {
   useWindowDimensions,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -60,11 +63,11 @@ const GraphicHeader = () => {
           ]}
         />
         {/* Decorative "Star" or "Sparkle" to imply excitement */}
-        <Ionicons 
-          name="sparkles" 
-          size={40} 
-          color="rgba(255,255,255,0.3)" 
-          style={{ position: 'absolute', top: '30%', right: '20%' }} 
+        <Ionicons
+          name="sparkles"
+          size={40}
+          color="rgba(255,255,255,0.3)"
+          style={{ position: "absolute", top: "30%", right: "20%" }}
         />
       </LinearGradient>
     </View>
@@ -109,21 +112,23 @@ const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
       name="chevron-forward"
       size={22}
       // Use Primary Blue for the icon as requested (closest to gradient)
-      color={isSelected ? COLORS.primary : COLORS.primary} 
+      color={isSelected ? COLORS.primary : COLORS.primary}
     />
   </TouchableOpacity>
 );
 
 // --- Landing Screen ---
-const LandingScreen = ({ navigation }) => {
+const LandingScreen = ({ navigation, route }) => {
   const [selectedRole, setSelectedRole] = useState(null);
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { fromSwitcher } = route?.params || {};
   const isSmallWidth = width < 360;
 
   const handleSelection = (role) => {
     setSelectedRole(role);
     console.log(`Selected role: ${role}`);
-    // Navigate to role-specific signup form after short delay to feel selection? 
+    // Navigate to role-specific signup form after short delay to feel selection?
     // Or instant. Implementing instant as per original design.
     switch (role) {
       case "member":
@@ -150,14 +155,23 @@ const LandingScreen = ({ navigation }) => {
 
   return (
     <View style={styles.screenContainer}>
+      {fromSwitcher && (
+        <TouchableOpacity
+          style={[styles.backButton, { top: Math.max(insets.top, 20) + 10 }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={26} color="#FFF" />
+        </TouchableOpacity>
+      )}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
         <GraphicHeader />
-        
-        <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+
+        <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
           <View style={styles.contentContainer}>
             <View style={styles.headerTextContainer}>
               <Text style={styles.mainTitle}>Welcome to SnooSpace</Text>
@@ -252,7 +266,7 @@ const styles = StyleSheet.create({
   },
   headerTextContainer: {
     marginBottom: 30,
-    alignItems: 'center',
+    alignItems: "center",
   },
   mainTitle: {
     fontSize: FONT_SIZES.header,
@@ -325,6 +339,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 1,
+  },
+  backButton: {
+    position: "absolute",
+    left: 20,
+    zIndex: 100,
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
 });
 

@@ -1522,7 +1522,7 @@ export default function MemberProfileScreen({ navigation }) {
         }}
         onCreateNew={() => {
           // Navigate to signup landing
-          navigation.navigate("Landing");
+          navigation.navigate("Landing", { fromSwitcher: true });
         }}
       />
 

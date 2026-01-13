@@ -174,7 +174,7 @@ const EmailInputScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <SignupHeader onBack={() => navigation.navigate("Landing")} />
+      <SignupHeader onBack={() => navigation.goBack()} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}

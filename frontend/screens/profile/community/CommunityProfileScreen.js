@@ -1514,7 +1514,9 @@ export default function CommunityProfileScreen({ navigation }) {
         onLoginExisting={() =>
           navigation.navigate("Login", { isAddingAccount: true })
         }
-        onCreateNew={() => navigation.navigate("Landing")}
+        onCreateNew={() =>
+          navigation.navigate("Landing", { fromSwitcher: true })
+        }
       />
 
       <ActionSheet
