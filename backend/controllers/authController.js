@@ -389,11 +389,56 @@ function parsePgTextArrayForAuth(val) {
 
 async function getUserProfile(req, res) {
   try {
-    // Prefer email from authenticated user if present
-    const emailFromToken = req.user && req.user.email;
+    const pool = req.app.locals.pool;
+
+    // PRIORITY 1: Use user ID and type from authenticated token (most reliable)
+    const userIdFromToken = req.user?.id;
+    const userTypeFromToken = req.user?.type;
+
+    // PRIORITY 2: Fallback to email if no token user data
+    const emailFromToken = req.user?.email;
     const { email: emailFromBody } = req.body || {};
     const email = emailFromToken || emailFromBody;
-    const pool = req.app.locals.pool;
+
+    // If we have user ID and type from token, use those directly (fixes multi-account same-email issue)
+    if (userIdFromToken && userTypeFromToken) {
+      const tableMap = {
+        member: { table: "members", role: "member" },
+        community: { table: "communities", role: "community" },
+        sponsor: { table: "sponsors", role: "sponsor" },
+        venue: { table: "venues", role: "venue" },
+      };
+
+      const config = tableMap[userTypeFromToken];
+      if (config) {
+        const result = await pool.query(
+          `SELECT * FROM ${config.table} WHERE id = $1`,
+          [userIdFromToken]
+        );
+
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          if (config.role === "member") {
+            const normalized = {
+              ...row,
+              interests:
+                typeof row.interests === "string"
+                  ? JSON.parse(row.interests)
+                  : row.interests,
+              pronouns: parsePgTextArrayForAuth(row.pronouns),
+              location:
+                typeof row.location === "string"
+                  ? JSON.parse(row.location)
+                  : row.location,
+            };
+            return res.json({ role: config.role, profile: normalized });
+          }
+          return res.json({ role: config.role, profile: row });
+        }
+      }
+    }
+
+    // Fallback: lookup by email (legacy behavior)
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
