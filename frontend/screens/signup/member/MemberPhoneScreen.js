@@ -20,6 +20,11 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -37,11 +42,30 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
     gender,
     location,
     interests,
+    phone: initialPhone,
   } = route.params || {};
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState(initialPhone || "");
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleContinue = () => {
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
+  const handleContinue = async () => {
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberPhone", { phone: phoneNumber });
+      console.log("[MemberPhoneScreen] Draft updated");
+    } catch (e) {
+      console.log("[MemberPhoneScreen] Draft update failed:", e.message);
+    }
+
     // Pass all collected data to Username screen for final signup
     navigation.navigate("MemberUsername", {
       userData: {
@@ -79,6 +103,45 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Header Section with Back and Cancel buttons */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate("MemberInterests", {
+                    email,
+                    accessToken,
+                    refreshToken,
+                    name,
+                    profile_photo_url,
+                    dob,
+                    pronouns,
+                    showPronouns,
+                    gender,
+                    location,
+                    interests,
+                  });
+                }
+              }}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={COLORS.textPrimary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowCancelModal(true)}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Content Section */}
           <View style={styles.contentContainer}>
             <Text style={styles.title}>Where can we reach you?</Text>
@@ -139,6 +202,13 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -158,9 +228,28 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
   },
+  header: {
+    paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  backButton: {
+    padding: 15,
+    marginLeft: -15,
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
+  },
   contentContainer: {
     flex: 1,
-    marginTop: 50,
+    marginTop: 30,
     paddingHorizontal: 5,
   },
   title: {
@@ -215,7 +304,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 20 : 30,
+    paddingBottom: 50,
     backgroundColor: COLORS.background,
     borderTopWidth: 0,
   },

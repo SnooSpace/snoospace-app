@@ -285,6 +285,66 @@ export async function clearPendingOtp() {
   } catch {}
 }
 
+// --- Active Signup Tracking (for crash resume with new email) ---
+const KEY_ACTIVE_SIGNUP = "active_signup";
+
+/**
+ * Set active signup data when starting a new signup flow
+ * This is used for crash resume when the signup email differs from logged-in email
+ */
+export async function setActiveSignup(email, profileId) {
+  try {
+    const payload = JSON.stringify({
+      email,
+      profileId,
+      startedAt: Date.now(),
+    });
+    await AsyncStorage.setItem(KEY_ACTIVE_SIGNUP, payload);
+    console.log(
+      "[setActiveSignup] Stored active signup for:",
+      email,
+      "profileId:",
+      profileId
+    );
+  } catch (e) {
+    console.log("[setActiveSignup] Failed:", e.message);
+  }
+}
+
+/**
+ * Get active signup data (for crash resume)
+ * Returns null if no active signup or if expired (24 hours)
+ */
+export async function getActiveSignup() {
+  try {
+    const raw = await AsyncStorage.getItem(KEY_ACTIVE_SIGNUP);
+    if (!raw) return null;
+
+    const obj = JSON.parse(raw);
+    // Expire after 24 hours
+    const ttl = 24 * 60 * 60 * 1000;
+    if (!obj.startedAt || Date.now() - obj.startedAt > ttl) {
+      await clearActiveSignup();
+      return null;
+    }
+
+    console.log("[getActiveSignup] Found active signup:", obj.email);
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear active signup data (when signup is completed or cancelled)
+ */
+export async function clearActiveSignup() {
+  try {
+    await AsyncStorage.removeItem(KEY_ACTIVE_SIGNUP);
+    console.log("[clearActiveSignup] Cleared");
+  } catch {}
+}
+
 /**
  * Check if any accounts exist for this email
  * Used to warn users during signup that they already have accounts

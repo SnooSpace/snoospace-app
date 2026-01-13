@@ -579,7 +579,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,

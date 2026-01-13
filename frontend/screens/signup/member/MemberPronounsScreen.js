@@ -20,6 +20,11 @@ import {
 } from "../../../constants/theme";
 import HapticsService from "../../../services/HapticsService";
 import { fetchPronouns } from "../../../api/members";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const MAX_SELECTIONS = 4;
 
@@ -42,12 +47,25 @@ const PronounRow = ({ label, isSelected, onPress }) => {
 };
 
 const MemberPronounsScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, profile_photo_url, dob } =
-    route.params || {};
-  const [selectedPronouns, setSelectedPronouns] = useState([]);
-  const [visibleOnProfile, setVisibleOnProfile] = useState(true);
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    profile_photo_url,
+    dob,
+    pronouns: initialPronouns,
+    showPronouns: initialShowPronouns,
+  } = route.params || {};
+  const [selectedPronouns, setSelectedPronouns] = useState(
+    initialPronouns || []
+  );
+  const [visibleOnProfile, setVisibleOnProfile] = useState(
+    initialShowPronouns !== false
+  );
   const [allPronouns, setAllPronouns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Fetch pronouns from API on mount
   useEffect(() => {
@@ -84,7 +102,27 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     });
   };
 
-  const handleNext = () => {
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
+  const handleNext = async () => {
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberPronouns", {
+        pronouns: selectedPronouns,
+        showPronouns: visibleOnProfile,
+      });
+      console.log("[MemberPronounsScreen] Draft updated");
+    } catch (e) {
+      console.log("[MemberPronounsScreen] Draft update failed:", e.message);
+    }
+
     navigation.navigate("MemberGender", {
       email,
       accessToken,
@@ -103,13 +141,33 @@ const MemberPronounsScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Back Button) */}
+        {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("MemberAge", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  profile_photo_url,
+                  dob,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
 
@@ -179,6 +237,13 @@ const MemberPronounsScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -197,6 +262,18 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   backButton: {
     padding: 15,

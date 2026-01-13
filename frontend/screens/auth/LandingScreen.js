@@ -168,25 +168,25 @@ const LandingScreen = ({ navigation }) => {
 
             <View style={styles.selectionList}>
               <SelectionItem
-                title="I'm a Member"
+                title="People"
                 subtitle="Join events and connect"
                 isSelected={selectedRole === "member"}
                 onPress={() => handleSelection("member")}
               />
               <SelectionItem
-                title="I'm a Community"
+                title="Community"
                 subtitle="Host events and grow"
                 isSelected={selectedRole === "community"}
                 onPress={() => handleSelection("community")}
               />
               <SelectionItem
-                title="I'm a Sponsor"
+                title="Sponsor"
                 subtitle="Support communities"
                 isSelected={selectedRole === "sponsor"}
                 onPress={() => handleSelection("sponsor")}
               />
               <SelectionItem
-                title="I'm a Venue"
+                title="Venue"
                 subtitle="Host amazing events"
                 isSelected={selectedRole === "venue"}
                 onPress={() => handleSelection("venue")}

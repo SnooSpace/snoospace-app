@@ -20,21 +20,49 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
 
 const NameInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, phone } = route.params || {};
-  const [name, setName] = useState("");
+  const { email, accessToken, refreshToken, isResumingDraft } =
+    route.params || {};
+  const [name, setName] = useState(route.params?.name || "");
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Update client-side draft with name
+    try {
+      await updateSignupDraft("MemberName", { name });
+      console.log("[MemberNameScreen] Draft updated with name");
+    } catch (e) {
+      console.log(
+        "[MemberNameScreen] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("MemberProfilePic", {
       email,
       accessToken,
       refreshToken,
       name,
+    });
+  };
+
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    // Return to home (will use origin account)
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
     });
   };
 
@@ -47,13 +75,13 @@ const NameInputScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section with Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
 
@@ -79,7 +107,6 @@ const NameInputScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Fixed Footer/Button Section */}
-      {/* Fixed Footer/Button Section */}
       <KeyboardStickyView
         offset={{
           closed: 0,
@@ -87,12 +114,7 @@ const NameInputScreen = ({ navigation, route }) => {
         }}
         style={styles.stickyFooter}
       >
-        <View
-          style={[
-            styles.footer,
-            { paddingBottom: Platform.OS === "ios" ? 20 : 20 },
-          ]}
-        >
+        <View style={[styles.footer, { paddingBottom: 70 }]}>
           <TouchableOpacity
             style={[
               styles.nextButtonContainer,
@@ -113,6 +135,13 @@ const NameInputScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </KeyboardStickyView>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -132,6 +161,18 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "flex-end", // Changed from space-between since back button is removed
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   stepText: {
     fontSize: 14,

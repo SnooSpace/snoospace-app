@@ -325,7 +325,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
             left: 0,
             right: 0,
             zIndex: 1000,
-            backgroundColor: "#FFFFFF",
+            backgroundColor: COLORS.background,
             paddingTop: insets.top,
             height: HEADER_HEIGHT + insets.top,
           },
@@ -421,7 +421,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: HEADER_HEIGHT,
     zIndex: 100,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   headerBorder: {
     position: "absolute",

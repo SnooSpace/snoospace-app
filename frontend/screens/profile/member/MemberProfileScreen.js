@@ -1679,7 +1679,7 @@ export default function MemberProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",

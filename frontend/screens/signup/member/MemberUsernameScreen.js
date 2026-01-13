@@ -18,6 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import * as sessionManager from "../../../utils/sessionManager";
+import { deleteSignupDraft } from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -41,8 +43,18 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const { userData } = route.params;
+  const { userData, accessToken, refreshToken } = route.params;
+
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
 
   // Debounced username availability check
   useEffect(() => {
@@ -158,7 +170,16 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
       console.log("[MemberSignup] Account synced to accountManager");
 
-      // Step 5: Navigate to member home with navigation reset
+      // Step 5: Delete the signup draft as it is now complete
+      try {
+        await deleteSignupDraft();
+        console.log("[MemberUsername] Signup draft deleted");
+      } catch (draftError) {
+        console.warn("[MemberUsername] Failed to delete draft:", draftError);
+        // Continue anyway, as the account is created
+      }
+
+      // Step 6: Navigate to member home with navigation reset
       navigation.reset({
         index: 0,
         routes: [{ name: "MemberHome" }],
@@ -196,11 +217,25 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     !username || username.length < 3 || !isAvailable || isSubmitting;
 
   const handleBack = () => {
-    navigation.goBack();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("MemberPhone", {
+        ...userData,
+        accessToken,
+        refreshToken,
+      });
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -210,7 +245,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-            {/* 1. Header Row (Back Button) */}
+            {/* 1. Header Row (Back Button & Cancel) */}
             <View style={styles.headerRow}>
               <TouchableOpacity
                 onPress={handleBack}
@@ -222,6 +257,13 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                   size={24}
                   color={COLORS.textPrimary}
                 />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowCancelModal(true)}
+                style={styles.cancelButton}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
 
@@ -330,6 +372,20 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 10,
     marginLeft: -10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
 
   // --- Progress Bar Styles ---

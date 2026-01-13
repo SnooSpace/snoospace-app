@@ -1051,11 +1051,18 @@ async function resumeSignup(req, res) {
     const pool = req.app.locals.pool;
     const { email } = req.query;
 
+    console.log(
+      "[resumeSignup] 🔍 Checking for IN_PROGRESS signup, email:",
+      email
+    );
+
     if (!email) {
+      console.log("[resumeSignup] ❌ No email provided");
       return res.status(400).json({ error: "Email is required" });
     }
 
     const emailLower = email.toLowerCase().trim();
+    console.log("[resumeSignup] 📧 Looking for email:", emailLower);
 
     // Find IN_PROGRESS profile for this email
     const result = await pool.query(
@@ -1068,7 +1075,10 @@ async function resumeSignup(req, res) {
       [emailLower]
     );
 
+    console.log("[resumeSignup] 📊 Query returned", result.rows.length, "rows");
+
     if (result.rows.length === 0) {
+      console.log("[resumeSignup] ℹ️ No IN_PROGRESS signup found");
       return res.json({ hasInProgressSignup: false });
     }
 

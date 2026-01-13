@@ -596,7 +596,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             left: 0,
             right: 0,
             zIndex: 1000,
-            backgroundColor: "#FFFFFF",
+            backgroundColor: COLORS.background,
             paddingTop: insets.top,
             height: totalHeaderHeight,
           },
@@ -748,7 +748,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
     // Removed explicit height here as it is set via style prop based on insets
     // shadow removed to be flat like Instagram
     zIndex: 100,
-    backgroundColor: "#FFFFFF", // Ensure background prevents see-through
+    backgroundColor: COLORS.background, // Ensure background prevents see-through
   },
   // New style for the dynamic border
   headerBorder: {

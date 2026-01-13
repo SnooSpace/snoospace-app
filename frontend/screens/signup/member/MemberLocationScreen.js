@@ -22,6 +22,11 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 // Removed local constants in favor of theme constants
 
 const LocationInputScreen = ({ navigation, route }) => {
@@ -35,17 +40,30 @@ const LocationInputScreen = ({ navigation, route }) => {
     pronouns,
     showPronouns,
     gender,
+    location: initialLocation,
   } = route.params || {};
-  const [location, setLocation] = useState({
-    address: "",
-    city: "",
-    state: "",
-    country: "",
-    lat: null,
-    lng: null,
-  });
+  const [location, setLocation] = useState(
+    initialLocation || {
+      address: "",
+      city: "",
+      state: "",
+      country: "",
+      lat: null,
+      lng: null,
+    }
+  );
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const navigatedRef = useRef(false);
+
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
 
   const handleGetLocation = async () => {
     try {
@@ -92,6 +110,16 @@ const LocationInputScreen = ({ navigation, route }) => {
         setLocation(resolved);
         if (!navigatedRef.current) {
           navigatedRef.current = true;
+          // Update client-side draft with location
+          try {
+            await updateSignupDraft("MemberLocation", { location: resolved });
+            console.log("[MemberLocationScreen] Draft updated with location");
+          } catch (e) {
+            console.log(
+              "[MemberLocationScreen] Draft update failed:",
+              e.message
+            );
+          }
           navigation.navigate("MemberInterests", {
             email,
             accessToken,
@@ -110,6 +138,15 @@ const LocationInputScreen = ({ navigation, route }) => {
         setLocation(resolved);
         if (!navigatedRef.current) {
           navigatedRef.current = true;
+          // Update client-side draft
+          try {
+            await updateSignupDraft("MemberLocation", { location: resolved });
+          } catch (e) {
+            console.log(
+              "[MemberLocationScreen] Draft update failed:",
+              e.message
+            );
+          }
           navigation.navigate("MemberInterests", {
             email,
             accessToken,
@@ -132,7 +169,15 @@ const LocationInputScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberLocation", { location });
+      console.log("[MemberLocationScreen] Draft updated");
+    } catch (e) {
+      console.log("[MemberLocationScreen] Draft update failed:", e.message);
+    }
+
     navigation.navigate("MemberInterests", {
       email,
       accessToken,
@@ -156,15 +201,37 @@ const LocationInputScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("MemberGender", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  profile_photo_url,
+                  dob,
+                  pronouns,
+                  showPronouns,
+                  gender,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content Section */}
@@ -216,6 +283,13 @@ const LocationInputScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -235,6 +309,18 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 5,
     backgroundColor: COLORS.background,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   headerRow: {
     flexDirection: "row",

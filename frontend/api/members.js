@@ -159,3 +159,42 @@ export async function getFollowStatusForMember(followingMemberId) {
   params.set("followingType", "member");
   return apiGet(`/follow/status?${params.toString()}`, 15000, token);
 }
+
+/**
+ * Check for incomplete signup (IN_PROGRESS profiles)
+ * Returns profile data and last_completed_step if resuming is needed
+ */
+export async function checkSignupResume(email) {
+  const params = new URLSearchParams();
+  params.set("email", email);
+  return apiGet(`/members/signup/resume?${params.toString()}`, 10000);
+}
+
+/**
+ * Create a draft signup profile after OTP verification
+ * Creates an IN_PROGRESS profile in the database
+ */
+export async function createSignupDraft(email) {
+  return apiPost("/members/signup/draft", { email }, 10000);
+}
+
+/**
+ * Update draft signup profile with step data
+ * @param {number} profileId - The draft profile ID
+ * @param {object} data - Profile data to update
+ * @param {string} completedStep - The step that was just completed
+ */
+export async function updateSignupDraft(profileId, data, completedStep) {
+  return apiPatch(
+    `/members/signup/draft/${profileId}`,
+    { ...data, last_completed_step: completedStep },
+    10000
+  );
+}
+
+/**
+ * Complete signup and set profile to ACTIVE
+ */
+export async function completeSignup(profileId) {
+  return apiPost(`/members/signup/complete/${profileId}`, {}, 10000);
+}

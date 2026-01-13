@@ -711,7 +711,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB", // Light gray background
+    backgroundColor: COLORS.background, // Clean Off-White
   },
   loadingContainer: {
     flex: 1,

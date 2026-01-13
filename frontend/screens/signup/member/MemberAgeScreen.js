@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
+  Platform,
+  StatusBar,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -17,17 +19,35 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
-// --- Design Constants ---
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
 
 export default function Example({ navigation, route }) {
-  const { email, accessToken, refreshToken, name, profile_photo_url } =
-    route?.params || {};
-  const [form, setForm] = useState({});
-  const [input, setInput] = useState("");
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    profile_photo_url,
+    dob: initialDob,
+  } = route?.params || {};
+  const [form, setForm] = useState(
+    initialDob ? { dateOfBirth: initialDob } : {}
+  );
+  const [input, setInput] = useState(
+    initialDob
+      ? initialDob.replace(/-/g, "").slice(4) +
+          initialDob.replace(/-/g, "").slice(0, 4)
+      : ""
+  );
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const handleInputChange = (value) => {
     setInput(value);
@@ -61,18 +81,87 @@ export default function Example({ navigation, route }) {
     }
   };
 
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
+  const handleNext = async () => {
+    if (!form.dateOfBirth) {
+      Alert.alert("Please enter a valid date");
+      return;
+    }
+
+    // Calculate age
+    const birthDate = new Date(form.dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+
+    Alert.alert("Confirm your age", `You are ${age} years old.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        onPress: async () => {
+          // Update client-side draft
+          try {
+            await updateSignupDraft("MemberAge", { dob: form.dateOfBirth });
+            console.log("[MemberAgeScreen] Draft updated with dob");
+          } catch (e) {
+            console.log("[MemberAgeScreen] Draft update failed:", e.message);
+          }
+
+          navigation?.navigate?.("MemberPronouns", {
+            email,
+            accessToken,
+            refreshToken,
+            name,
+            profile_photo_url,
+            dob: form.dateOfBirth,
+          });
+        },
+      },
+    ]);
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header Section (Only Back Button) */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("MemberProfilePic", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Title */}
@@ -130,43 +219,7 @@ export default function Example({ navigation, route }) {
 
         {/* Button */}
         <TouchableOpacity
-          onPress={() => {
-            if (form.dateOfBirth) {
-              // Calculate age properly considering month and day
-              const birthDate = new Date(form.dateOfBirth);
-              const today = new Date();
-
-              let age = today.getFullYear() - birthDate.getFullYear();
-              const monthDiff = today.getMonth() - birthDate.getMonth();
-
-              // If birthday hasn't occurred this year yet, subtract 1
-              if (
-                monthDiff < 0 ||
-                (monthDiff === 0 && today.getDate() < birthDate.getDate())
-              ) {
-                age--;
-              }
-
-              Alert.alert("Confirm your age", `You are ${age} years old.`, [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Confirm",
-                  onPress: () => {
-                    navigation?.navigate?.("MemberPronouns", {
-                      email,
-                      accessToken,
-                      refreshToken,
-                      name,
-                      profile_photo_url,
-                      dob: form.dateOfBirth,
-                    });
-                  },
-                },
-              ]);
-            } else {
-              Alert.alert("Please enter a valid date");
-            }
-          }}
+          onPress={handleNext}
           style={styles.btnContainer}
           activeOpacity={0.8}
         >
@@ -180,11 +233,23 @@ export default function Example({ navigation, route }) {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   container: {
     flexGrow: 1,
     flexShrink: 1,
@@ -211,8 +276,23 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 15,
-    marginLeft: -20,
-    marginTop: 50,
+    marginLeft: -15, // Adjusted to match other screens
+  },
+  header: {
+    paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    // Removed marginTop: 50
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   input: {
     marginBottom: 16,

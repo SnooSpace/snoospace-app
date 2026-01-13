@@ -25,13 +25,20 @@ import {
 // Removed local constants in favor of theme constants
 const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
 
-import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, name } = route.params || {};
-  const [imageUri, setImageUri] = useState(null);
+  const [imageUri, setImageUri] = useState(
+    route.params?.profile_photo_url || null
+  );
   const [uploading, setUploading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Instagram-style crop hook for avatar
   const { pickAndCrop } = useCrop();
@@ -56,9 +63,24 @@ const ProfilePictureScreen = ({ navigation, route }) => {
     try {
       setUploading(true);
       let profileUrl = null;
-      if (imageUri) {
-        // Upload to Cloudinary and use secure URL
+      if (imageUri && !imageUri.startsWith("http")) {
+        // Upload to Cloudinary and use secure URL (only if local file)
         profileUrl = await uploadImage(imageUri, () => {});
+      } else {
+        profileUrl = imageUri; // Already a URL (from resume)
+      }
+
+      // Update client-side draft
+      try {
+        await updateSignupDraft("MemberProfilePic", {
+          profile_photo_url: profileUrl,
+        });
+        console.log("[MemberProfilePicScreen] Draft updated");
+      } catch (e) {
+        console.log(
+          "[MemberProfilePicScreen] Draft update failed (non-critical):",
+          e.message
+        );
       }
 
       // Navigate to Age screen with profile photo URL
@@ -76,6 +98,15 @@ const ProfilePictureScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
   // Button is disabled while uploading
   const isButtonDisabled = uploading;
 
@@ -88,20 +119,38 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                // Fallback for resume flow where stack is empty
+                navigation.navigate("MemberName", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          {/* Progress bar and Skip button removed as per request */}
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Add your profile picture</Text>
+          <Text style={styles.title}>Let people recognize you</Text>
           <Text style={styles.subtitle}>This will be your main photo.</Text>
 
           {/* Profile Picture Upload Area */}
@@ -168,6 +217,13 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -186,6 +242,18 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   headerRow: {
     flexDirection: "row",

@@ -18,6 +18,11 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 // --- Reusable Radio Button Component ---
 const RadioOption = ({ label, isSelected, onPress }) => {
@@ -58,12 +63,31 @@ const GenderSelectionScreen = ({ navigation, route }) => {
     dob,
     pronouns,
     showPronouns,
+    gender: initialGender,
   } = route.params || {};
-  const [selectedGender, setSelectedGender] = useState(null);
+  const [selectedGender, setSelectedGender] = useState(initialGender || null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const genderOptions = ["Male", "Female", "Non-binary"];
 
-  const handleNext = () => {
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
+  const handleNext = async () => {
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberGender", { gender: selectedGender });
+      console.log("[MemberGenderScreen] Draft updated");
+    } catch (e) {
+      console.log("[MemberGenderScreen] Draft update failed:", e.message);
+    }
+
     navigation.navigate("MemberLocation", {
       email,
       accessToken,
@@ -86,13 +110,35 @@ const GenderSelectionScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("MemberPronouns", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  profile_photo_url,
+                  dob,
+                  pronouns,
+                  showPronouns,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
 
@@ -133,6 +179,13 @@ const GenderSelectionScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -151,6 +204,18 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   stepText: {
     fontSize: 14,

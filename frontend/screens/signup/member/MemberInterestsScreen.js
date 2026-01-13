@@ -21,6 +21,11 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import { getSignupInterests } from "../../../api/categories";
+import {
+  updateSignupDraft,
+  deleteSignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
@@ -65,10 +70,14 @@ const InterestsScreen = ({ navigation, route }) => {
     showPronouns,
     gender,
     location,
+    interests: initialInterests,
   } = route.params || {};
-  const [selectedInterests, setSelectedInterests] = useState([]);
+  const [selectedInterests, setSelectedInterests] = useState(
+    initialInterests || []
+  );
   const [allInterests, setAllInterests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Fetch interests from API on mount
   useEffect(() => {
@@ -89,6 +98,15 @@ const InterestsScreen = ({ navigation, route }) => {
     loadInterests();
   }, []);
 
+  const handleCancel = async () => {
+    await deleteSignupDraft();
+    setShowCancelModal(false);
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: "AuthGate" }],
+    });
+  };
+
   const toggleInterest = (interest) => {
     HapticsService.triggerSelection();
     setSelectedInterests((prev) => {
@@ -105,7 +123,17 @@ const InterestsScreen = ({ navigation, route }) => {
     });
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    // Update client-side draft
+    try {
+      await updateSignupDraft("MemberInterests", {
+        interests: selectedInterests,
+      });
+      console.log("[MemberInterestsScreen] Draft updated");
+    } catch (e) {
+      console.log("[MemberInterestsScreen] Draft update failed:", e.message);
+    }
+
     navigation.navigate("MemberPhone", {
       email,
       accessToken,
@@ -130,13 +158,37 @@ const InterestsScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Only Back Button) */}
+        {/* Header Section with Back and Cancel buttons */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("MemberLocation", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  profile_photo_url,
+                  dob,
+                  pronouns,
+                  showPronouns,
+                  gender,
+                  location,
+                });
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowCancelModal(true)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
 
@@ -196,6 +248,13 @@ const InterestsScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
@@ -214,6 +273,18 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelText: {
+    fontSize: 16,
+    color: COLORS.primary || "#007AFF",
+    fontWeight: "500",
   },
   headerRow: {
     flexDirection: "row",

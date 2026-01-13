@@ -21,7 +21,9 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
+import * as accountManager from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import { createSignupDraft } from "../../../utils/signupDraftManager";
 import { LinearGradient } from "expo-linear-gradient";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import {
@@ -127,6 +129,26 @@ const VerificationScreen = ({ route, navigation }) => {
             }
           }
 
+          // Create client-side draft for crash resume (NOT a backend record)
+          try {
+            console.log(
+              "[MemberOtpScreen] 🆕 Creating client-side draft for:",
+              email
+            );
+            const activeAccount = await accountManager.getActiveAccount();
+            const originAccountId = activeAccount?.id || null;
+            await createSignupDraft(email, originAccountId);
+            console.log(
+              "[MemberOtpScreen] ✅ Draft created, origin account:",
+              originAccountId
+            );
+          } catch (draftError) {
+            console.log(
+              "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
+              draftError.message
+            );
+          }
+
           navigation.navigate("MemberName", {
             email,
             accessToken,
@@ -204,6 +226,26 @@ const VerificationScreen = ({ route, navigation }) => {
       if (accessToken) {
         await setAuthSession(accessToken, email, refreshToken);
       }
+    }
+
+    // Create client-side draft for crash resume (NOT a backend record)
+    try {
+      console.log(
+        "[MemberOtpScreen] 🆕 Creating client-side draft for new profile:",
+        email
+      );
+      const activeAccount = await accountManager.getActiveAccount();
+      const originAccountId = activeAccount?.id || null;
+      await createSignupDraft(email, originAccountId);
+      console.log(
+        "[MemberOtpScreen] ✅ Draft created, origin account:",
+        originAccountId
+      );
+    } catch (draftError) {
+      console.log(
+        "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
+        draftError.message
+      );
     }
 
     // Navigate to signup flow
@@ -430,7 +472,7 @@ const VerificationScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
