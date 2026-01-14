@@ -34,13 +34,52 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { userData, accessToken, refreshToken } = route.params;
+  // Support both organization flow (userData object) and non-org flow (direct params)
+  const routeParams = route.params || {};
+  const {
+    userData: existingUserData,
+    accessToken,
+    refreshToken,
+    // Direct params for non-organization flow
+    email,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  } = routeParams;
+
+  // Build userData from either existing userData or direct params
+  const userData = existingUserData || {
+    email,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    community_type,
+    college_id,
+    college_subtype,
+    club_type,
+    community_theme,
+  };
 
   console.log("[CommunityUsername] Route params:", {
     userDataEmail: userData?.email,
     accessTokenLength: accessToken?.length,
     refreshTokenLength: refreshToken?.length,
     userDataKeys: Object.keys(userData || {}),
+    community_type: userData?.community_type,
   });
 
   // Debounced username availability check

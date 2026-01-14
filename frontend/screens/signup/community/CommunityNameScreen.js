@@ -23,7 +23,20 @@ import {
 import GlassBackButton from "../../../components/GlassBackButton";
 
 const CommunityNameScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken } = route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  } = route.params || {};
   const [name, setName] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
@@ -33,6 +46,15 @@ const CommunityNameScreen = ({ navigation, route }) => {
       accessToken,
       refreshToken,
       name,
+      // Pass community type fields forward
+      community_type,
+      college_id,
+      college_name,
+      college_subtype,
+      club_type,
+      community_theme,
+      college_pending,
+      isStudentCommunity,
     });
   };
 

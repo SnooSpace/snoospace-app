@@ -30,7 +30,21 @@ import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 
 const CommunityLogoScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name } = route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(false); // 👈 New state for loading
 
@@ -72,6 +86,15 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         refreshToken,
         name,
         logo_url: secureUrl,
+        // Pass community type fields forward
+        community_type,
+        college_id,
+        college_name,
+        college_subtype,
+        club_type,
+        community_theme,
+        college_pending,
+        isStudentCommunity,
       });
     } catch (e) {
       console.error("Image upload failed:", e);

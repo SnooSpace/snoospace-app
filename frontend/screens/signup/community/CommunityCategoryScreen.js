@@ -85,8 +85,23 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
  * Main Screen Component
  */
 const CommunityCategoryScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url, bio } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  } = route.params || {};
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [availableCategories, setAvailableCategories] =
     useState(defaultCategories);
@@ -208,6 +223,15 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       bio,
       category: selectedCategories[0],
       categories: selectedCategories,
+      // NEW: Pass community type fields forward
+      community_type,
+      college_id,
+      college_name,
+      college_subtype,
+      club_type,
+      community_theme,
+      college_pending,
+      isStudentCommunity,
     });
   };
 

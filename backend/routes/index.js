@@ -27,6 +27,7 @@ const ChallengeController = require("../controllers/challengeController");
 const PronounController = require("../controllers/pronounController");
 const AnalyticsController = require("../controllers/analyticsController");
 const ModerationController = require("../controllers/moderationController");
+const CollegeController = require("../controllers/collegeController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -514,6 +515,15 @@ router.patch(
   authMiddleware,
   CommunityController.patchHeads
 );
+
+// ============================================
+// COLLEGES & BRANCHES (For Community Signup)
+// ============================================
+router.get("/colleges", CollegeController.searchColleges);
+router.post("/colleges/request", CollegeController.requestCollege);
+router.get("/colleges/:id", CollegeController.getCollege);
+router.get("/branches", CollegeController.getBranches);
+router.get("/catalog/states", CollegeController.getIndianStates);
 
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);

@@ -87,7 +87,8 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         });
 
         setIsSuccess(false);
-        navigation.navigate("CommunityName", {
+        // Navigate to type selection screen (new flow)
+        navigation.navigate("CommunityTypeSelect", {
           email,
           accessToken,
           refreshToken,

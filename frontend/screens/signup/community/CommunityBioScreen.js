@@ -26,29 +26,52 @@ import GlassBackButton from "../../../components/GlassBackButton";
  * Main Screen Component
  */
 const CommunityBioScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name, logo_url } =
-    route.params || {};
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  } = route.params || {};
   const [bioText, setBioText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
+  // Build common params to pass forward
+  const commonParams = {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  };
+
   const handleSkip = () => {
     navigation.navigate("CommunityCategory", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
+      ...commonParams,
       bio: null,
     });
   };
 
   const handleNext = () => {
     navigation.navigate("CommunityCategory", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
+      ...commonParams,
       bio: bioText,
     });
   };

@@ -17,6 +17,12 @@ async function signup(req, res) {
       sponsor_types,
       heads,
       username,
+      // NEW: Community type fields
+      community_type, // 'individual_organizer' | 'college_affiliated' | 'organization'
+      college_id, // UUID if college-affiliated
+      college_subtype, // 'event' | 'club' | 'student_community'
+      club_type, // 'official_club' | 'department' | 'society'
+      community_theme, // For student communities (confessions/memes/discussions)
     } = req.body || {};
 
     // No longer using supabase_user_id - we use email as the login credential
@@ -34,22 +40,78 @@ async function signup(req, res) {
       phone: !!phone,
       sponsor_types: Array.isArray(sponsor_types),
       sponsor_types_value: sponsor_types,
+      community_type,
     });
 
-    if (!name || !email || !phone || !Array.isArray(sponsor_types)) {
-      console.log("Validation failed - missing required fields");
+    // Determine the community type - default to 'organization' for backwards compatibility
+    const resolvedCommunityType = community_type || "organization";
+    const isOrganization = resolvedCommunityType === "organization";
+    const isCollegeAffiliated = resolvedCommunityType === "college_affiliated";
+    const isIndividualOrganizer =
+      resolvedCommunityType === "individual_organizer";
+
+    // Base validation - name and email always required
+    if (!name || !email) {
+      console.log("Validation failed - missing name or email");
       return res.status(400).json({
-        error: "Required: name, categories, email, phone, sponsor_types[]",
+        error: "Required: name and email",
       });
     }
-    if (!/^\d{10}$/.test(phone)) {
-      return res.status(400).json({ error: "phone must be 10 digits" });
+
+    // Organization type requires phone and sponsor_types
+    if (isOrganization) {
+      if (!phone || !Array.isArray(sponsor_types)) {
+        console.log("Validation failed - organization missing required fields");
+        return res.status(400).json({
+          error: "Required for organization: phone, sponsor_types[]",
+        });
+      }
+      if (!/^\d{10}$/.test(phone)) {
+        return res.status(400).json({ error: "phone must be 10 digits" });
+      }
+      if (secondary_phone && !/^\d{10}$/.test(secondary_phone)) {
+        return res
+          .status(400)
+          .json({ error: "secondary_phone must be 10 digits if provided" });
+      }
+      // Allow "Open to All" as a single item, otherwise require minimum 3 items (no maximum)
+      if (sponsor_types.length === 1 && sponsor_types[0] === "Open to All") {
+        // This is valid - "Open to All" is allowed as a single item
+      } else if (sponsor_types.length < 3) {
+        return res.status(400).json({
+          error:
+            "sponsor_types must include at least 3 items, or select 'Open to All'",
+        });
+      }
     }
-    if (secondary_phone && !/^\d{10}$/.test(secondary_phone)) {
-      return res
-        .status(400)
-        .json({ error: "secondary_phone must be 10 digits if provided" });
+
+    // College-affiliated type validation
+    if (isCollegeAffiliated) {
+      if (!college_subtype) {
+        return res.status(400).json({
+          error:
+            "college_subtype is required for college-affiliated communities",
+        });
+      }
+      const validSubtypes = ["event", "club", "student_community"];
+      if (!validSubtypes.includes(college_subtype)) {
+        return res.status(400).json({
+          error:
+            "college_subtype must be one of: event, club, student_community",
+        });
+      }
+      // Club type validation
+      if (college_subtype === "club" && club_type) {
+        const validClubTypes = ["official_club", "department", "society"];
+        if (!validClubTypes.includes(club_type)) {
+          return res.status(400).json({
+            error:
+              "club_type must be one of: official_club, department, society",
+          });
+        }
+      }
     }
+
     // Validate location if provided (location is optional - can be null if user skipped)
     if (location !== null && location !== undefined) {
       // Accept either address OR googleMapsUrl as valid location data
@@ -62,15 +124,6 @@ async function signup(req, res) {
             "location must be an object with at least address or googleMapsUrl field if provided",
         });
       }
-    }
-    // Allow "Open to All" as a single item, otherwise require minimum 3 items (no maximum)
-    if (sponsor_types.length === 1 && sponsor_types[0] === "Open to All") {
-      // This is valid - "Open to All" is allowed as a single item
-    } else if (sponsor_types.length < 3) {
-      return res.status(400).json({
-        error:
-          "sponsor_types must include at least 3 items, or select 'Open to All'",
-      });
     }
 
     // Validate username if provided
@@ -100,26 +153,30 @@ async function signup(req, res) {
     }
     const primaryCategory = categoryList[0] || null;
 
-    // Heads: expect array of up to 3 with one primary
+    // Heads: expect array of up to 3 with one primary (only required for organization type)
     console.log("Heads validation:", {
       heads: heads,
       isArray: Array.isArray(heads),
       length: heads?.length,
+      isOrganization,
     });
 
-    if (!Array.isArray(heads) || heads.length === 0) {
-      console.log("Heads validation failed - not array or empty");
-      return res.status(400).json({
-        error: "heads[] required: at least one head with name and is_primary",
-      });
-    }
-    const primaryHeads = heads.filter((h) => h && h.is_primary);
-    console.log("Primary heads found:", primaryHeads.length);
-    if (primaryHeads.length !== 1) {
-      console.log("Heads validation failed - not exactly one primary head");
-      return res
-        .status(400)
-        .json({ error: "Exactly one primary head is required" });
+    // Heads are only required for organization type
+    if (isOrganization) {
+      if (!Array.isArray(heads) || heads.length === 0) {
+        console.log("Heads validation failed - not array or empty");
+        return res.status(400).json({
+          error: "heads[] required: at least one head with name and is_primary",
+        });
+      }
+      const primaryHeads = heads.filter((h) => h && h.is_primary);
+      console.log("Primary heads found:", primaryHeads.length);
+      if (primaryHeads.length !== 1) {
+        console.log("Heads validation failed - not exactly one primary head");
+        return res
+          .status(400)
+          .json({ error: "Exactly one primary head is required" });
+      }
     }
 
     const client = await pool.connect();
@@ -132,10 +189,24 @@ async function signup(req, res) {
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
 
+      // Prepare sponsor_types - default to empty array for non-organization types
+      const finalSponsorTypes = isOrganization ? sponsor_types : [];
+
+      // Determine sponsor visibility based on community type
+      // Student communities are NEVER sponsor visible
+      const isSponsorVisible = isOrganization
+        ? true
+        : isCollegeAffiliated && college_subtype !== "student_community"
+        ? false
+        : false;
+
       // INSERT with optional username - backend-generated id is the identity
       const communityResult = await client.query(
-        `INSERT INTO communities (user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types, username)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb,$12)
+        `INSERT INTO communities (
+          user_id, name, logo_url, bio, category, categories, location, email, phone, secondary_phone, sponsor_types, username,
+          community_type, college_id, college_subtype, club_type, community_theme, is_sponsor_visible
+        )
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18)
          RETURNING *`,
         [
           user_id,
@@ -146,10 +217,16 @@ async function signup(req, res) {
           JSON.stringify(categoryList),
           locationJson,
           email,
-          phone,
+          phone || null,
           secondary_phone || null,
-          JSON.stringify(sponsor_types),
+          JSON.stringify(finalSponsorTypes),
           sanitizedUsername,
+          resolvedCommunityType,
+          college_id || null,
+          college_subtype || null,
+          club_type || null,
+          community_theme || null,
+          isSponsorVisible,
         ]
       );
       const community = communityResult.rows[0];
@@ -159,25 +236,27 @@ async function signup(req, res) {
       );
       community.category = community.categories[0] || community.category;
 
-      // Clear existing heads and insert provided ones
-      await client.query(
-        "DELETE FROM community_heads WHERE community_id = $1",
-        [community.id]
-      );
-      for (const h of heads) {
-        if (!h || !h.name) continue;
+      // Clear existing heads and insert provided ones (only for organization type)
+      if (isOrganization && Array.isArray(heads)) {
         await client.query(
-          `INSERT INTO community_heads (community_id, name, email, phone, profile_pic_url, is_primary)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
-          [
-            community.id,
-            h.name,
-            h.email || null,
-            h.phone || null,
-            h.profile_pic_url || null,
-            !!h.is_primary,
-          ]
+          "DELETE FROM community_heads WHERE community_id = $1",
+          [community.id]
         );
+        for (const h of heads) {
+          if (!h || !h.name) continue;
+          await client.query(
+            `INSERT INTO community_heads (community_id, name, email, phone, profile_pic_url, is_primary)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+            [
+              community.id,
+              h.name,
+              h.email || null,
+              h.phone || null,
+              h.profile_pic_url || null,
+              !!h.is_primary,
+            ]
+          );
+        }
       }
 
       await client.query("COMMIT");

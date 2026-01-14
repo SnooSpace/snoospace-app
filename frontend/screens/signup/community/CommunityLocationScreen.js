@@ -43,7 +43,39 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     bio,
     category,
     categories,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
   } = route.params || {};
+
+  // Determine if this is an organization type (requires phone/heads)
+  const isOrganization = !community_type || community_type === "organization";
+
+  // Build common params to pass forward
+  const commonParams = {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  };
 
   // Location state
   const [location, setLocation] = useState(null);
@@ -192,17 +224,19 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       return;
     }
 
-    navigation.navigate("CommunityPhone", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
-      location,
-    });
+    // Skip phone/heads for non-organization types
+    if (isOrganization) {
+      navigation.navigate("CommunityPhone", {
+        ...commonParams,
+        location,
+      });
+    } else {
+      // Go directly to username for non-organization types
+      navigation.navigate("CommunityUsername", {
+        ...commonParams,
+        location,
+      });
+    }
   };
 
   const handleBack = () => {
