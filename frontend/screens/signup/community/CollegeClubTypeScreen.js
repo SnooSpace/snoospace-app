@@ -17,6 +17,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const CLUB_TYPES = [
   {
@@ -90,8 +91,21 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
     college_pending,
   } = route.params || {};
 
-  const handleClubTypeSelect = (clubType) => {
+  const handleClubTypeSelect = async (clubType) => {
     console.log("[CollegeClubType] Selected:", clubType.id);
+
+    // Save club_type to draft
+    try {
+      await updateCommunitySignupDraft("CollegeClubType", {
+        club_type: clubType.id,
+      });
+      console.log("[CollegeClubType] Draft updated with club_type");
+    } catch (e) {
+      console.log(
+        "[CollegeClubType] Draft update failed (non-critical):",
+        e.message
+      );
+    }
 
     // Navigate to name screen with all params
     navigation.navigate("CommunityName", {

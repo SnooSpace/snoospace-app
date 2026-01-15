@@ -17,6 +17,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const COMMUNITY_TYPES = [
   {
@@ -86,8 +87,21 @@ const TypeCard = ({ type, onPress, isLast }) => (
 const CommunityTypeSelectScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken } = route.params || {};
 
-  const handleTypeSelect = (type) => {
+  const handleTypeSelect = async (type) => {
     console.log("[CommunityTypeSelect] Selected type:", type.id);
+
+    // Save community_type to draft
+    try {
+      await updateCommunitySignupDraft("CommunityTypeSelect", {
+        community_type: type.id,
+      });
+      console.log("[CommunityTypeSelect] Draft updated with community_type");
+    } catch (e) {
+      console.log(
+        "[CommunityTypeSelect] Draft update failed (non-critical):",
+        e.message
+      );
+    }
 
     // Navigate to appropriate next screen based on type
     navigation.navigate(type.nextScreen, {

@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
+import { deleteCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const { width } = Dimensions.get("window");
 
@@ -191,7 +192,20 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
       console.log("[CommunitySignup] Account added and auth session updated");
 
-      // Step 4: Navigate to community home with navigation reset
+      // Step 4: Delete draft on successful completion
+      try {
+        await deleteCommunitySignupDraft();
+        console.log(
+          "[CommunityUsername] Draft deleted after successful signup"
+        );
+      } catch (e) {
+        console.log(
+          "[CommunityUsername] Draft deletion failed (non-critical):",
+          e.message
+        );
+      }
+
+      // Step 5: Navigate to community home with navigation reset
       navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
     } catch (error) {
       console.error("Error completing signup:", error);

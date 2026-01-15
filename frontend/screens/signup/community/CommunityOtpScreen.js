@@ -16,9 +16,12 @@ import * as Haptics from "expo-haptics";
 import Reanimated, { ZoomIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
+import * as accountManager from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import { createCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 import { LinearGradient } from "expo-linear-gradient";
+import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import {
   COLORS,
   SPACING,
@@ -40,6 +43,12 @@ const CommunityOtpScreen = ({ navigation, route }) => {
   // Button feedback state
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState(false);
+
+  // Account Picker Modal state
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [accountPickerLoading, setAccountPickerLoading] = useState(false);
+  const [verificationResult, setVerificationResult] = useState(null);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -66,33 +75,64 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       setIsSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      setTimeout(async () => {
-        // For signup, proceed with tokens if available
-        let accessToken = null;
-        let refreshToken = null;
+      // Store verification result for later use
+      setVerificationResult(result);
 
-        if (result.session) {
-          accessToken = result.session.accessToken;
-          refreshToken = result.session.refreshToken;
-          if (accessToken) {
-            await setAuthSession(accessToken, email, refreshToken);
-          }
-        }
+      setTimeout(async () => {
+        setIsSuccess(false);
         await clearPendingOtp();
 
-        console.log("[CommunityOtp] OTP verified, navigating with:", {
-          email,
-          accessTokenLength: accessToken?.length,
-          refreshTokenLength: refreshToken?.length,
-        });
+        // Check if accounts exist for this email
+        if (result.accounts && result.accounts.length > 0) {
+          // Show account picker modal
+          setAccounts(result.accounts);
+          setShowAccountPicker(true);
+        } else {
+          // No accounts - proceed to signup
+          let accessToken = null;
+          let refreshToken = null;
 
-        setIsSuccess(false);
-        // Navigate to type selection screen (new flow)
-        navigation.navigate("CommunityTypeSelect", {
-          email,
-          accessToken,
-          refreshToken,
-        });
+          if (result.session) {
+            accessToken = result.session.accessToken;
+            refreshToken = result.session.refreshToken;
+            if (accessToken) {
+              await setAuthSession(accessToken, email, refreshToken);
+            }
+          }
+
+          // Create client-side draft for crash resume
+          try {
+            console.log(
+              "[CommunityOtpScreen] 🆕 Creating client-side draft for:",
+              email
+            );
+            const activeAccount = await accountManager.getActiveAccount();
+            const originAccountId = activeAccount?.id || null;
+            await createCommunitySignupDraft(email, originAccountId);
+            console.log(
+              "[CommunityOtpScreen] ✅ Draft created, origin account:",
+              originAccountId
+            );
+          } catch (draftError) {
+            console.log(
+              "[CommunityOtpScreen] ⚠️ Draft creation failed (non-critical):",
+              draftError.message
+            );
+          }
+
+          console.log("[CommunityOtp] OTP verified, navigating with:", {
+            email,
+            accessTokenLength: accessToken?.length,
+            refreshTokenLength: refreshToken?.length,
+          });
+
+          // Navigate to type selection screen
+          navigation.navigate("CommunityTypeSelect", {
+            email,
+            accessToken,
+            refreshToken,
+          });
+        }
       }, 1000);
     } catch (e) {
       setLoading(false);
@@ -119,6 +159,87 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     } finally {
       setResendLoading(false);
     }
+  };
+
+  // Handle selecting an existing account from the picker
+  const handleSelectAccount = async (account) => {
+    setAccountPickerLoading(true);
+    try {
+      // Create session for the selected account
+      const session = await sessionManager.createSession(
+        account.id,
+        account.type,
+        email
+      );
+
+      await setAuthSession(session.accessToken, email, session.refreshToken);
+      setShowAccountPicker(false);
+
+      // Navigate to the appropriate home screen based on account type
+      const rootNav = navigation.getParent() || navigation;
+      const homeScreen =
+        account.type === "member"
+          ? "MemberHome"
+          : account.type === "community"
+          ? "CommunityHome"
+          : account.type === "sponsor"
+          ? "SponsorHome"
+          : account.type === "venue"
+          ? "VenueHome"
+          : "MemberHome";
+
+      rootNav.reset({
+        index: 0,
+        routes: [{ name: homeScreen }],
+      });
+    } catch (e) {
+      Alert.alert("Error", e.message || "Failed to login. Please try again.");
+    } finally {
+      setAccountPickerLoading(false);
+    }
+  };
+
+  // Handle creating a new Community profile
+  const handleCreateNewProfile = async () => {
+    setShowAccountPicker(false);
+
+    let accessToken = null;
+    let refreshToken = null;
+
+    if (verificationResult?.session) {
+      accessToken = verificationResult.session.accessToken;
+      refreshToken = verificationResult.session.refreshToken;
+      if (accessToken) {
+        await setAuthSession(accessToken, email, refreshToken);
+      }
+    }
+
+    // Create client-side draft for crash resume
+    try {
+      console.log(
+        "[CommunityOtpScreen] 🆕 Creating client-side draft for new profile:",
+        email
+      );
+      const activeAccount = await accountManager.getActiveAccount();
+      const originAccountId = activeAccount?.id || null;
+      await createCommunitySignupDraft(email, originAccountId);
+      console.log(
+        "[CommunityOtpScreen] ✅ Draft created, origin account:",
+        originAccountId
+      );
+    } catch (draftError) {
+      console.log(
+        "[CommunityOtpScreen] ⚠️ Draft creation failed (non-critical):",
+        draftError.message
+      );
+    }
+
+    // Navigate to signup flow
+    navigation.navigate("CommunityTypeSelect", {
+      email,
+      accessToken,
+      refreshToken,
+    });
   };
 
   return (
@@ -233,6 +354,17 @@ const CommunityOtpScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Account Picker Modal */}
+      <AccountPickerModal
+        visible={showAccountPicker}
+        onClose={() => setShowAccountPicker(false)}
+        accounts={accounts}
+        onSelectAccount={handleSelectAccount}
+        onCreateNewProfile={handleCreateNewProfile}
+        loading={accountPickerLoading}
+        email={email}
+      />
     </SafeAreaView>
   );
 };

@@ -17,6 +17,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const COLLEGE_SUBTYPES = [
   {
@@ -100,13 +101,27 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
     college_pending,
   } = route.params || {};
 
-  const handleSubtypeSelect = (subtype) => {
+  const handleSubtypeSelect = async (subtype) => {
     console.log(
       "[CollegeSubtypeSelect] Selected:",
       subtype.id,
       "for college:",
       college_name
     );
+
+    // Save college_subtype to draft
+    try {
+      await updateCommunitySignupDraft("CollegeSubtypeSelect", {
+        college_subtype: subtype.id,
+        isStudentCommunity: subtype.id === "student_community",
+      });
+      console.log("[CollegeSubtypeSelect] Draft updated with subtype");
+    } catch (e) {
+      console.log(
+        "[CollegeSubtypeSelect] Draft update failed (non-critical):",
+        e.message
+      );
+    }
 
     // Navigate to appropriate next screen based on subtype
     if (subtype.id === "student_community") {

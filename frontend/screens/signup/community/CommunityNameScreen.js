@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
   Text,
@@ -20,7 +21,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const CommunityNameScreen = ({ navigation, route }) => {
   const {
@@ -36,11 +43,38 @@ const CommunityNameScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
   const [name, setName] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleNext = () => {
+  // Hydrate from draft if route.params is missing name
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!route.params?.name) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.name) {
+          console.log("[CommunityNameScreen] Hydrating from draft");
+          setName(draftData.name);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
+
+  const handleNext = async () => {
+    // Update client-side draft with name
+    try {
+      await updateCommunitySignupDraft("CommunityName", { name });
+      console.log("[CommunityNameScreen] Draft updated with name");
+    } catch (e) {
+      console.log(
+        "[CommunityNameScreen] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("CommunityLogo", {
       email,
       accessToken,
@@ -58,6 +92,17 @@ const CommunityNameScreen = ({ navigation, route }) => {
     });
   };
 
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
+  };
+
   const isButtonDisabled = name.trim().length === 0;
 
   return (
@@ -66,13 +111,21 @@ const CommunityNameScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Back Button) */}
-        <View style={styles.header}>
-          <GlassBackButton
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          />
-        </View>
+        {/* Header */}
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityTypeSelect", {
+                email,
+                accessToken,
+                refreshToken,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
@@ -114,6 +167,13 @@ const CommunityNameScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

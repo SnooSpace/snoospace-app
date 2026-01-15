@@ -24,6 +24,7 @@ import {
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
 import { apiGet, apiPost } from "../../../api/client";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 // Debounce helper
 const useDebounce = (value, delay) => {
@@ -82,8 +83,23 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleCollegeSelect = (college) => {
+  const handleCollegeSelect = async (college) => {
     console.log("[CollegeSearch] Selected college:", college.id, college.name);
+
+    // Save college data to draft
+    try {
+      await updateCommunitySignupDraft("CollegeSearch", {
+        college_id: college.id,
+        college_name: college.name,
+      });
+      console.log("[CollegeSearch] Draft updated with college data");
+    } catch (e) {
+      console.log(
+        "[CollegeSearch] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("CollegeSubtypeSelect", {
       email,
       accessToken,

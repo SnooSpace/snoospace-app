@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -24,7 +25,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 // --- Initial Data ---
 const defaultCategories = [
@@ -101,17 +108,28 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [availableCategories, setAvailableCategories] =
     useState(defaultCategories);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Load saved categories on component mount
   useEffect(() => {
     loadSavedCategories();
+    hydrateFromDraft();
   }, []);
+
+  const hydrateFromDraft = async () => {
+    const draftData = await getCommunityDraftData();
+    if (draftData?.categories) {
+      console.log("[CommunityCategoryScreen] Hydrating from draft");
+      setSelectedCategories(draftData.categories);
+    }
+  };
 
   const loadSavedCategories = async () => {
     try {
@@ -206,7 +224,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     navigation.goBack();
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selectedCategories.length === 0) {
       Alert.alert(
         "Selection Required",
@@ -214,7 +232,22 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       );
       return;
     }
-    navigation.navigate("CommunityLocationQuestion", {
+
+    // Save categories to draft
+    try {
+      await updateCommunitySignupDraft("CommunityCategory", {
+        category: selectedCategories[0],
+        categories: selectedCategories,
+      });
+      console.log("[CommunityCategoryScreen] Draft updated with categories");
+    } catch (e) {
+      console.log(
+        "[CommunityCategoryScreen] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
+    const categoryParams = {
       email,
       accessToken,
       refreshToken,
@@ -223,7 +256,6 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       bio,
       category: selectedCategories[0],
       categories: selectedCategories,
-      // NEW: Pass community type fields forward
       community_type,
       college_id,
       college_name,
@@ -232,7 +264,26 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       community_theme,
       college_pending,
       isStudentCommunity,
-    });
+    };
+
+    // Individual organizers skip LocationQuestion and use GPS-based location
+    if (community_type === "individual_organizer") {
+      navigation.navigate("IndividualLocation", categoryParams);
+    } else {
+      // Organizations and colleges use the LocationQuestion flow
+      navigation.navigate("CommunityLocationQuestion", categoryParams);
+    }
+  };
+
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
   };
 
   // Button is enabled if at least one category is selected
@@ -245,10 +296,31 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Row (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton onPress={handleBack} style={styles.backButton} />
-        </View>
+        {/* Header */}
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityBio", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                logo_url,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
@@ -349,6 +421,13 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

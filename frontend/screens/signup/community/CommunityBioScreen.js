@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -20,7 +21,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 /**
  * Main Screen Component
@@ -41,9 +48,23 @@ const CommunityBioScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
   const [bioText, setBioText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (draftData?.bio) {
+        console.log("[CommunityBioScreen] Hydrating from draft");
+        setBioText(draftData.bio);
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Build common params to pass forward
   const commonParams = {
@@ -69,15 +90,34 @@ const CommunityBioScreen = ({ navigation, route }) => {
     });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Save bio to draft
+    try {
+      await updateCommunitySignupDraft("CommunityBio", { bio: bioText });
+      console.log("[CommunityBioScreen] Draft updated with bio");
+    } catch (e) {
+      console.log(
+        "[CommunityBioScreen] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("CommunityCategory", {
       ...commonParams,
       bio: bioText,
     });
   };
 
-  const handleBack = () => {
-    navigation.goBack();
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    // Use CommonActions.reset for proper navigation from nested navigator
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
   };
 
   // 1. Next button is disabled if: text is empty OR text exceeds 500 characters.
@@ -93,10 +133,33 @@ const CommunityBioScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Row (Back Button and Skip Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton onPress={handleBack} style={styles.backButton} />
+        {/* Header */}
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityLogo", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          showCancel={false}
+        />
 
+        {/* Skip Button Row */}
+        <View style={styles.skipButtonRow}>
           <TouchableOpacity
             onPress={handleSkip}
             style={[
@@ -157,6 +220,13 @@ const CommunityBioScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

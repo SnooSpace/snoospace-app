@@ -17,6 +17,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const COMMUNITY_THEMES = [
   {
@@ -97,8 +98,21 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
     college_pending,
   } = route.params || {};
 
-  const handleThemeSelect = (theme) => {
+  const handleThemeSelect = async (theme) => {
     console.log("[StudentCommunityTheme] Selected:", theme.id);
+
+    // Save community_theme to draft
+    try {
+      await updateCommunitySignupDraft("StudentCommunityTheme", {
+        community_theme: theme.id,
+      });
+      console.log("[StudentCommunityTheme] Draft updated with theme");
+    } catch (e) {
+      console.log(
+        "[StudentCommunityTheme] Draft update failed (non-critical):",
+        e.message
+      );
+    }
 
     // Navigate to name screen with all params
     navigation.navigate("CommunityName", {

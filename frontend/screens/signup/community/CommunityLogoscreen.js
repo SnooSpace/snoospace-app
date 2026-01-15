@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
   Text,
@@ -22,12 +23,18 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 
 const CIRCLE_SIZE = 180;
 
 import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const CommunityLogoScreen = ({ navigation, route }) => {
   const {
@@ -44,9 +51,32 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
   const [imageUri, setImageUri] = useState(null);
-  const [isLoading, setIsLoading] = useState(false); // 👈 New state for loading
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Update step on mount AND hydrate from draft
+  useEffect(() => {
+    const initScreen = async () => {
+      // Mark that we are now on CommunityLogo step (so crash resumes here)
+      try {
+        await updateCommunitySignupDraft("CommunityLogo", {});
+        console.log("[CommunityLogoScreen] Step set to CommunityLogo");
+      } catch (e) {
+        console.log("[CommunityLogoScreen] Step update failed:", e.message);
+      }
+
+      // Hydrate from draft if we have a saved logo
+      const draftData = await getCommunityDraftData();
+      if (draftData?.logo_url) {
+        console.log("[CommunityLogoScreen] Hydrating logo from draft");
+        setImageUri(draftData.logo_url);
+      }
+    };
+    initScreen();
+  }, []);
 
   // Instagram-style crop hook for logo
   const { pickAndCrop } = useCrop();
@@ -75,9 +105,22 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       return;
     }
 
-    setIsLoading(true); // 👈 Start loading
+    setIsLoading(true);
     try {
       const secureUrl = await uploadImage(imageUri, () => {});
+
+      // Save logo_url to draft
+      try {
+        await updateCommunitySignupDraft("CommunityLogo", {
+          logo_url: secureUrl,
+        });
+        console.log("[CommunityLogoScreen] Draft updated with logo_url");
+      } catch (e) {
+        console.log(
+          "[CommunityLogoScreen] Draft update failed (non-critical):",
+          e.message
+        );
+      }
 
       // Navigate on success
       navigation.navigate("CommunityBio", {
@@ -103,8 +146,19 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         e?.message || "Unable to upload logo. Please try again."
       );
     } finally {
-      setIsLoading(false); // 👈 Stop loading regardless of success/failure
+      setIsLoading(false);
     }
+  };
+
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
   };
 
   // Button is disabled if no photo is selected OR if it is loading
@@ -116,13 +170,29 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          />
-        </View>
+        {/* Header */}
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityName", {
+                email,
+                accessToken,
+                refreshToken,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
@@ -186,6 +256,13 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

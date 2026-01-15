@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -19,7 +20,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width } = Dimensions.get("window");
 
@@ -70,17 +77,33 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     location,
     phone,
     secondary_phone,
+    isResumingDraft,
   } = route.params || {};
 
   const [headName, setHeadName] = useState("");
   const [optionalName1, setOptionalName1] = useState("");
   const [optionalName2, setOptionalName2] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (draftData?.heads && draftData.heads.length > 0) {
+        console.log("[CommunityHeadNameScreen] Hydrating from draft");
+        setHeadName(draftData.heads[0].name || "");
+        if (draftData.heads[1]) setOptionalName1(draftData.heads[1].name || "");
+        if (draftData.heads[2]) setOptionalName2(draftData.heads[2].name || "");
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleBack = () => {
     navigation.goBack();
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Basic validation for the required field
     if (!headName.trim()) {
       alert("Community head name is required.");
@@ -95,6 +118,17 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
 
     if (optionalName2.trim()) {
       heads.push({ name: optionalName2.trim(), is_primary: false });
+    }
+
+    // Save heads to draft
+    try {
+      await updateCommunitySignupDraft("CommunityHeadName", { heads });
+      console.log("[CommunityHeadNameScreen] Draft updated with heads");
+    } catch (e) {
+      console.log(
+        "[CommunityHeadNameScreen] Draft update failed (non-critical):",
+        e.message
+      );
     }
 
     navigation.navigate("CommunitySponsorType", {
@@ -113,19 +147,51 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     });
   };
 
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
+  };
+
   const isButtonDisabled = !headName.trim();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header Row (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton
-            onPress={handleBack}
-            style={styles.backButton}
-            accessibilityLabel="Go back"
-          />
-        </View>
+        {/* Header */}
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityPhone", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                logo_url,
+                bio,
+                category,
+                categories,
+                location,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
         {/* Scrollable Content */}
         <ScrollView
@@ -183,6 +249,13 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

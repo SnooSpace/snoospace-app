@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
   View,
@@ -31,7 +32,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const CommunityLocationScreen = ({ navigation, route }) => {
   const {
@@ -52,6 +59,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft, // True when resumed from draft (no navigation history)
   } = route.params || {};
 
   // Determine if this is an organization type (requires phone/heads)
@@ -87,8 +95,27 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   const [isParsingUrl, setIsParsingUrl] = useState(false);
 
   // Validation state
-  const [urlValid, setUrlValid] = useState(null); // null = not validated, true/false = valid/invalid
+  const [urlValid, setUrlValid] = useState(null);
   const [isUrlFocused, setIsUrlFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (draftData?.location) {
+        console.log("[CommunityLocationScreen] Hydrating from draft");
+        setLocation(draftData.location);
+        if (draftData.location.address) {
+          setDisplayAddress(draftData.location.address);
+        } else if (draftData.location.googleMapsUrl) {
+          setDisplayAddress("Location saved as Google Maps link");
+          setLocationUrl(draftData.location.googleMapsUrl);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Validate URL on change
   useEffect(() => {
@@ -211,7 +238,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Allow continuing with either GPS coordinates OR just a valid Google Maps URL
     const hasValidLocation =
       location && (location.lat || location.googleMapsUrl);
@@ -222,6 +249,17 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         "Please use your current location or paste a Google Maps link."
       );
       return;
+    }
+
+    // Save location to draft
+    try {
+      await updateCommunitySignupDraft("CommunityLocation", { location });
+      console.log("[CommunityLocationScreen] Draft updated with location");
+    } catch (e) {
+      console.log(
+        "[CommunityLocationScreen] Draft update failed (non-critical):",
+        e.message
+      );
     }
 
     // Skip phone/heads for non-organization types
@@ -240,7 +278,39 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   };
 
   const handleBack = () => {
-    navigation.goBack();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace("CommunityLocationQuestion", {
+        email,
+        accessToken,
+        refreshToken,
+        name,
+        logo_url,
+        bio,
+        category,
+        categories,
+        community_type,
+        college_id,
+        college_name,
+        college_subtype,
+        club_type,
+        community_theme,
+        college_pending,
+        isStudentCommunity,
+      });
+    }
+  };
+
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
   };
 
   // Allow continuing with either GPS coordinates OR just a valid Google Maps URL
@@ -257,10 +327,11 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header Row */}
-          <View style={styles.headerRow}>
-            <GlassBackButton onPress={handleBack} style={styles.backButton} />
-          </View>
+          {/* Header */}
+          <SignupHeader
+            onBack={handleBack}
+            onCancel={() => setShowCancelModal(true)}
+          />
 
           {/* Content */}
           <View style={styles.contentBody}>
@@ -386,6 +457,13 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

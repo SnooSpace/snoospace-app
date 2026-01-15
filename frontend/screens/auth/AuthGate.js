@@ -22,6 +22,9 @@ import {
   getSignupDraft,
   deleteSignupDraft,
   getResumeScreen,
+  getCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityResumeScreen,
 } from "../../utils/signupDraftManager";
 import {
   startForegroundWatch,
@@ -32,6 +35,7 @@ import DraftRecoveryModal from "../../components/modals/DraftRecoveryModal";
 export default function AuthGate({ navigation }) {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [draft, setDraft] = useState(null);
+  const [draftType, setDraftType] = useState(null); // "member" or "community"
   const [pendingNavigation, setPendingNavigation] = useState(null);
 
   useEffect(() => {
@@ -93,18 +97,56 @@ export default function AuthGate({ navigation }) {
         return;
       }
 
-      // STEP 4: Check for signup draft (show recovery modal if exists)
-      console.log("[AuthGate] 🔍 Checking for signup draft...");
-      const signupDraft = await getSignupDraft();
+      // STEP 4: Check for signup drafts (Member or Community)
+      console.log("[AuthGate] 🔍 Checking for signup drafts...");
 
-      if (signupDraft) {
+      // Check Member draft first
+      const memberDraft = await getSignupDraft();
+      if (memberDraft) {
         console.log(
-          "[AuthGate] 📋 Found draft:",
-          signupDraft.id,
+          "[AuthGate] 📋 Found Member draft:",
+          memberDraft.id,
           "step:",
-          signupDraft.currentStep
+          memberDraft.currentStep
         );
-        setDraft(signupDraft);
+        setDraft(memberDraft);
+        setDraftType("member");
+
+        // Store navigation info for after user decision
+        const profile = await apiPost(
+          "/auth/get-user-profile",
+          { email },
+          8000,
+          token
+        );
+        const role = profile?.role;
+        const homeRoute =
+          role === "member"
+            ? "MemberHome"
+            : role === "community"
+            ? "CommunityHome"
+            : role === "sponsor"
+            ? "SponsorHome"
+            : role === "venue"
+            ? "VenueHome"
+            : "Landing";
+
+        setPendingNavigation({ route: homeRoute });
+        setShowRecoveryModal(true);
+        return;
+      }
+
+      // Check Community draft
+      const communityDraft = await getCommunitySignupDraft();
+      if (communityDraft) {
+        console.log(
+          "[AuthGate] 📋 Found Community draft:",
+          communityDraft.id,
+          "step:",
+          communityDraft.currentStep
+        );
+        setDraft(communityDraft);
+        setDraftType("community");
 
         // Store navigation info for after user decision
         const profile = await apiPost(
@@ -181,38 +223,73 @@ export default function AuthGate({ navigation }) {
   async function handleContinueDraft() {
     if (!draft) return;
 
-    console.log("[AuthGate] 🚀 Continuing draft signup at:", draft.currentStep);
+    console.log(
+      "[AuthGate] 🚀 Continuing",
+      draftType,
+      "draft at:",
+      draft.currentStep
+    );
     setShowRecoveryModal(false);
 
-    const resumeScreen = getResumeScreen(draft.currentStep);
-
-    navigation.reset({
-      index: 0,
-      routes: [
-        {
-          name: "MemberSignup",
-          state: {
-            index: 0,
-            routes: [
-              {
-                name: resumeScreen,
-                params: {
-                  ...draft.data,
-                  isResumingDraft: true,
+    if (draftType === "member") {
+      const resumeScreen = getResumeScreen(draft.currentStep);
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "MemberSignup",
+            state: {
+              index: 0,
+              routes: [
+                {
+                  name: resumeScreen,
+                  params: {
+                    ...draft.data,
+                    isResumingDraft: true,
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    } else if (draftType === "community") {
+      const resumeScreen = getCommunityResumeScreen(draft.currentStep);
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "CommunitySignup",
+            state: {
+              index: 0,
+              routes: [
+                {
+                  name: resumeScreen,
+                  params: {
+                    ...draft.data,
+                    isResumingDraft: true,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+    }
   }
 
   async function handleDiscardDraft() {
-    console.log("[AuthGate] 🗑️ Discarding draft");
-    await deleteSignupDraft();
+    console.log("[AuthGate] 🗑️ Discarding", draftType, "draft");
+
+    if (draftType === "member") {
+      await deleteSignupDraft();
+    } else if (draftType === "community") {
+      await deleteCommunitySignupDraft();
+    }
+
     setShowRecoveryModal(false);
     setDraft(null);
+    setDraftType(null);
 
     // Navigate to origin account home
     if (pendingNavigation) {
@@ -229,6 +306,7 @@ export default function AuthGate({ navigation }) {
       <DraftRecoveryModal
         visible={showRecoveryModal}
         draftEmail={draft?.data?.email}
+        draftType={draftType === "community" ? "Community" : "Member"}
         onContinue={handleContinueDraft}
         onDiscard={handleDiscardDraft}
       />

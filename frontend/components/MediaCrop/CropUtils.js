@@ -203,6 +203,18 @@ export const calculateCropRegion = ({
   const cropWidth = frameWidth * scaleToOriginalX;
   const cropHeight = frameHeight * scaleToOriginalY;
 
+  // Clamp origin to ensure it's within image bounds
+  const clampedOriginX = Math.max(0, Math.min(originX, imageWidth - 1));
+  const clampedOriginY = Math.max(0, Math.min(originY, imageHeight - 1));
+
+  // Calculate maximum available width/height from the clamped origin
+  const maxAvailableWidth = imageWidth - clampedOriginX;
+  const maxAvailableHeight = imageHeight - clampedOriginY;
+
+  // Clamp crop dimensions to fit within available space
+  const clampedWidth = Math.max(1, Math.min(cropWidth, maxAvailableWidth));
+  const clampedHeight = Math.max(1, Math.min(cropHeight, maxAvailableHeight));
+
   // Debug: Log all intermediate values
   console.log("[CropUtils] calculateCropRegion debug:", {
     input: {
@@ -226,14 +238,20 @@ export const calculateCropRegion = ({
       scaleToOriginalX,
       scaleToOriginalY,
     },
-    output: { originX, originY, cropWidth, cropHeight },
+    raw: { originX, originY, cropWidth, cropHeight },
+    clamped: {
+      originX: clampedOriginX,
+      originY: clampedOriginY,
+      width: clampedWidth,
+      height: clampedHeight,
+    },
   });
 
   return {
-    originX: Math.max(0, originX),
-    originY: Math.max(0, originY),
-    width: Math.min(cropWidth, imageWidth - Math.max(0, originX)),
-    height: Math.min(cropHeight, imageHeight - Math.max(0, originY)),
+    originX: clampedOriginX,
+    originY: clampedOriginY,
+    width: clampedWidth,
+    height: clampedHeight,
   };
 };
 

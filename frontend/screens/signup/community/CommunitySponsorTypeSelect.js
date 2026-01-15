@@ -22,7 +22,8 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const { width } = Dimensions.get("window");
 
@@ -108,7 +109,24 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       }
     };
     loadSponsorTypes();
+    hydrateFromDraft();
   }, []);
+
+  const hydrateFromDraft = async () => {
+    const {
+      getCommunityDraftData,
+    } = require("../../../utils/signupDraftManager");
+    const draftData = await getCommunityDraftData();
+    if (draftData?.sponsor_types) {
+      console.log("[CommunitySponsorTypeSelect] Hydrating from draft");
+      if (draftData.sponsor_types.includes("Open to All")) {
+        setIsOpenToAll(true);
+        setSelectedTypes([...sponsorTypes]);
+      } else {
+        setSelectedTypes(draftData.sponsor_types);
+      }
+    }
+  };
 
   // Toggle selection state for a sponsor type chip
   const toggleType = (type) => {
@@ -190,6 +208,21 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       heads,
     };
 
+    // Save sponsor_types to draft
+    try {
+      await updateCommunitySignupDraft("CommunitySponsorType", {
+        sponsor_types,
+      });
+      console.log(
+        "[CommunitySponsorTypeSelect] Draft updated with sponsor_types"
+      );
+    } catch (e) {
+      console.log(
+        "[CommunitySponsorTypeSelect] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("CommunityUsername", {
       userData,
       accessToken,
@@ -205,14 +238,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     // FIX 1: Consistent Safe Area implementation
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header Row (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton
-            onPress={handleBack}
-            style={styles.backButton}
-            accessibilityLabel="Go back"
-          />
-        </View>
+        {/* Header */}
+        <SignupHeader onBack={() => navigation.goBack()} showCancel={false} />
 
         {/* Scrollable Content */}
         <ScrollView

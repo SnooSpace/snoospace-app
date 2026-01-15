@@ -23,9 +23,11 @@ const { width } = Dimensions.get("window");
 export default function DraftRecoveryModal({
   visible,
   draftEmail,
+  draftType = "Member", // "Member" or "Community"
   onContinue,
   onDiscard,
 }) {
+  const isCommunity = draftType === "Community";
   return (
     <Modal
       visible={visible}
@@ -39,18 +41,18 @@ export default function DraftRecoveryModal({
           {/* Icon */}
           <View style={styles.iconContainer}>
             <Ionicons
-              name="person-add-outline"
+              name={isCommunity ? "people-outline" : "person-add-outline"}
               size={48}
               color={COLORS.primary}
             />
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Continue creating account?</Text>
+          <Text style={styles.title}>Continue {draftType} signup?</Text>
 
           {/* Description */}
           <Text style={styles.description}>
-            You were setting up a new account
+            You were setting up a new {draftType.toLowerCase()} account
             {draftEmail ? ` for ${draftEmail}` : ""}. Would you like to continue
             or discard it?
           </Text>

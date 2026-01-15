@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
   View,
@@ -17,7 +18,12 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const CommunityLocationQuestionScreen = ({ navigation, route }) => {
   const {
@@ -38,7 +44,23 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Update step on mount
+  useEffect(() => {
+    const initScreen = async () => {
+      try {
+        await updateCommunitySignupDraft("CommunityLocationQuestion", {});
+        console.log("[LocationQuestion] Step set to CommunityLocationQuestion");
+      } catch (e) {
+        console.log("[LocationQuestion] Step update failed:", e.message);
+      }
+    };
+    initScreen();
+  }, []);
 
   // Determine if this is an organization type (requires phone/heads)
   const isOrganization = !community_type || community_type === "organization";
@@ -63,11 +85,37 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
     isStudentCommunity,
   };
 
-  const handleYes = () => {
+  const handleYes = async () => {
+    // Save location preference to draft
+    try {
+      await updateCommunitySignupDraft("CommunityLocationQuestion", {
+        hasLocation: true,
+      });
+      console.log("[CommunityLocationQuestion] Draft updated - has location");
+    } catch (e) {
+      console.log(
+        "[CommunityLocationQuestion] Draft update failed (non-critical):",
+        e.message
+      );
+    }
     navigation.navigate("CommunityLocation", commonParams);
   };
 
-  const handleNo = () => {
+  const handleNo = async () => {
+    // Save location preference to draft
+    try {
+      await updateCommunitySignupDraft("CommunityLocationQuestion", {
+        hasLocation: false,
+        location: null,
+      });
+      console.log("[CommunityLocationQuestion] Draft updated - no location");
+    } catch (e) {
+      console.log(
+        "[CommunityLocationQuestion] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     // Skip phone/heads for non-organization types
     if (isOrganization) {
       navigation.navigate("CommunityPhone", {
@@ -84,16 +132,47 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
   };
 
   const handleBack = () => {
-    navigation.goBack();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace("CommunityCategory", {
+        email,
+        accessToken,
+        refreshToken,
+        name,
+        logo_url,
+        bio,
+        community_type,
+        college_id,
+        college_name,
+        college_subtype,
+        club_type,
+        community_theme,
+        college_pending,
+        isStudentCommunity,
+      });
+    }
+  };
+
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header Row (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton onPress={handleBack} style={styles.backButton} />
-        </View>
+        {/* Header */}
+        <SignupHeader
+          onBack={handleBack}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
         {/* Content */}
         <View style={styles.contentBody}>
@@ -130,6 +209,13 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
           </View>
         </View>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -19,7 +20,13 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width } = Dimensions.get("window");
 
@@ -70,9 +77,26 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     category,
     categories,
     location,
+    isResumingDraft,
   } = route.params || {};
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Hydrate from draft
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (draftData?.phone) {
+        console.log("[CommunityPhoneNoScreen] Hydrating from draft");
+        setPrimaryNumber(draftData.phone);
+        if (draftData.secondary_phone) {
+          setSecondaryNumber(draftData.secondary_phone);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleSkip = () => {
     navigation.navigate("CommunityHeadName", {
@@ -94,7 +118,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     navigation.goBack();
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!primaryNumber.trim()) {
       alert("Primary phone number is required.");
       return;
@@ -114,6 +138,20 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       return;
     }
 
+    // Save phone to draft
+    try {
+      await updateCommunitySignupDraft("CommunityPhone", {
+        phone: phoneDigits,
+        secondary_phone: secondaryPhoneDigits || null,
+      });
+      console.log("[CommunityPhoneNoScreen] Draft updated with phone");
+    } catch (e) {
+      console.log(
+        "[CommunityPhoneNoScreen] Draft update failed (non-critical):",
+        e.message
+      );
+    }
+
     navigation.navigate("CommunityHeadName", {
       email,
       accessToken,
@@ -129,18 +167,49 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     });
   };
 
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      })
+    );
+  };
+
   const isButtonDisabled = primaryNumber.replace(/\D/g, "").length !== 10;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* 1. Header Row (Back and Skip) */}
-      <View style={styles.headerRow}>
-        <GlassBackButton
-          onPress={handleBack}
-          accessibilityLabel="Go back"
-          style={styles.backButton}
-        />
-      </View>
+      {/* Header */}
+      <SignupHeader
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.replace("CommunityLocation", {
+              email,
+              accessToken,
+              refreshToken,
+              name,
+              logo_url,
+              bio,
+              category,
+              categories,
+              community_type,
+              college_id,
+              college_name,
+              college_subtype,
+              club_type,
+              community_theme,
+              college_pending,
+              isStudentCommunity,
+            });
+          }
+        }}
+        onCancel={() => setShowCancelModal(true)}
+      />
 
       {/* 3. Scrollable Content */}
       <ScrollView
@@ -195,6 +264,13 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Cancel Confirmation Modal */}
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </SafeAreaView>
   );
 };
