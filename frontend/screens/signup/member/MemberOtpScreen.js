@@ -135,19 +135,19 @@ const VerificationScreen = ({ route, navigation }) => {
           try {
             console.log(
               "[MemberOtpScreen] 🆕 Creating client-side draft for:",
-              email
+              email,
             );
             const activeAccount = await accountManager.getActiveAccount();
             const originAccountId = activeAccount?.id || null;
             await createSignupDraft(email, originAccountId);
             console.log(
               "[MemberOtpScreen] ✅ Draft created, origin account:",
-              originAccountId
+              originAccountId,
             );
           } catch (draftError) {
             console.log(
               "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
-              draftError.message
+              draftError.message,
             );
           }
 
@@ -168,7 +168,7 @@ const VerificationScreen = ({ route, navigation }) => {
 
       if (e.message && e.message.includes("timed out")) {
         setError(
-          "Request timed out. Please check your internet connection and try again."
+          "Request timed out. Please check your internet connection and try again.",
         );
       } else {
         setError(e.message || "Verification failed");
@@ -181,28 +181,50 @@ const VerificationScreen = ({ route, navigation }) => {
     setAccountPickerLoading(true);
     try {
       // Create session for the selected account
-      const session = await sessionManager.createSession(
+      const result = await sessionManager.createSession(
         account.id,
         account.type,
-        email
+        account.email || email,
       );
 
-      await setAuthSession(session.accessToken, email, session.refreshToken);
+      // Save to account manager (matching LoginOtpScreen behavior)
+      await accountManager.addAccount({
+        id: result.user.id,
+        type: result.user.type,
+        username: result.user.username,
+        email: result.user.email || email,
+        name: result.user.name || result.user.username,
+        profilePicture: result.user.avatar || null,
+        authToken: result.session.accessToken,
+        refreshToken: result.session.refreshToken,
+        isLoggedIn: true,
+      });
+
+      // Set legacy auth session for API client compatibility
+      await setAuthSession(
+        result.session.accessToken,
+        result.user.email || email,
+        result.session.refreshToken,
+      );
+
+      // Clear pending OTP
+      await clearPendingOtp();
+
       setShowAccountPicker(false);
 
       // Navigate to the appropriate home screen based on account type
       // Use getParent() to access root AppNavigator from nested MemberSignupNavigator
       const rootNav = navigation.getParent() || navigation;
       const homeScreen =
-        account.type === "member"
+        result.user.type === "member"
           ? "MemberHome"
-          : account.type === "community"
-          ? "CommunityHome"
-          : account.type === "sponsor"
-          ? "SponsorHome"
-          : account.type === "venue"
-          ? "VenueHome"
-          : "MemberHome";
+          : result.user.type === "community"
+            ? "CommunityHome"
+            : result.user.type === "sponsor"
+              ? "SponsorHome"
+              : result.user.type === "venue"
+                ? "VenueHome"
+                : "MemberHome";
 
       rootNav.reset({
         index: 0,
@@ -234,19 +256,19 @@ const VerificationScreen = ({ route, navigation }) => {
     try {
       console.log(
         "[MemberOtpScreen] 🆕 Creating client-side draft for new profile:",
-        email
+        email,
       );
       const activeAccount = await accountManager.getActiveAccount();
       const originAccountId = activeAccount?.id || null;
       await createSignupDraft(email, originAccountId);
       console.log(
         "[MemberOtpScreen] ✅ Draft created, origin account:",
-        originAccountId
+        originAccountId,
       );
     } catch (draftError) {
       console.log(
         "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
-        draftError.message
+        draftError.message,
       );
     }
 
@@ -346,8 +368,8 @@ const VerificationScreen = ({ route, navigation }) => {
               isSuccess
                 ? ["#34C759", "#2FB350"]
                 : isError
-                ? [COLORS.error, COLORS.error]
-                : COLORS.primaryGradient
+                  ? [COLORS.error, COLORS.error]
+                  : COLORS.primaryGradient
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

@@ -822,9 +822,9 @@ export default function CommunityProfileScreen({ navigation }) {
   }
 
   if (authError) {
+    // Show centered error view with re-login button for auth errors
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar translucent backgroundColor="transparent" style="dark" />
         <View style={styles.errorContainer}>
           <Ionicons
             name="alert-circle-outline"
@@ -844,7 +844,6 @@ export default function CommunityProfileScreen({ navigation }) {
       </SafeAreaView>
     );
   }
-
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" style="dark" />
@@ -2548,15 +2547,14 @@ const postModalStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: SPACING.xl,
-    backgroundColor: COLORS.background || "#FFF",
+    paddingHorizontal: 20,
   },
   errorText: {
     fontSize: 18,
     color: COLORS.textPrimary || "#000",
     textAlign: "center",
-    marginTop: SPACING.md,
-    marginBottom: SPACING.lg,
+    marginTop: SPACING.md || 16,
+    marginBottom: SPACING.lg || 24,
     fontWeight: "600",
   },
   reloginButton: {
@@ -2565,6 +2563,18 @@ const postModalStyles = StyleSheet.create({
     paddingHorizontal: 32,
     borderRadius: BORDER_RADIUS.pill || 25,
     ...SHADOWS.small,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 30,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   reloginButtonText: {
     color: "#FFF",

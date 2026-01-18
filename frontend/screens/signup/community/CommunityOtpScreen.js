@@ -104,19 +104,19 @@ const CommunityOtpScreen = ({ navigation, route }) => {
           try {
             console.log(
               "[CommunityOtpScreen] 🆕 Creating client-side draft for:",
-              email
+              email,
             );
             const activeAccount = await accountManager.getActiveAccount();
             const originAccountId = activeAccount?.id || null;
             await createCommunitySignupDraft(email, originAccountId);
             console.log(
               "[CommunityOtpScreen] ✅ Draft created, origin account:",
-              originAccountId
+              originAccountId,
             );
           } catch (draftError) {
             console.log(
               "[CommunityOtpScreen] ⚠️ Draft creation failed (non-critical):",
-              draftError.message
+              draftError.message,
             );
           }
 
@@ -166,27 +166,49 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setAccountPickerLoading(true);
     try {
       // Create session for the selected account
-      const session = await sessionManager.createSession(
+      const result = await sessionManager.createSession(
         account.id,
         account.type,
-        email
+        account.email || email,
       );
 
-      await setAuthSession(session.accessToken, email, session.refreshToken);
+      // Save to account manager (matching LoginOtpScreen behavior)
+      await accountManager.addAccount({
+        id: result.user.id,
+        type: result.user.type,
+        username: result.user.username,
+        email: result.user.email || email,
+        name: result.user.name || result.user.username,
+        profilePicture: result.user.avatar || null,
+        authToken: result.session.accessToken,
+        refreshToken: result.session.refreshToken,
+        isLoggedIn: true,
+      });
+
+      // Set legacy auth session for API client compatibility
+      await setAuthSession(
+        result.session.accessToken,
+        result.user.email || email,
+        result.session.refreshToken,
+      );
+
+      // Clear pending OTP
+      await clearPendingOtp();
+
       setShowAccountPicker(false);
 
       // Navigate to the appropriate home screen based on account type
       const rootNav = navigation.getParent() || navigation;
       const homeScreen =
-        account.type === "member"
+        result.user.type === "member"
           ? "MemberHome"
-          : account.type === "community"
-          ? "CommunityHome"
-          : account.type === "sponsor"
-          ? "SponsorHome"
-          : account.type === "venue"
-          ? "VenueHome"
-          : "MemberHome";
+          : result.user.type === "community"
+            ? "CommunityHome"
+            : result.user.type === "sponsor"
+              ? "SponsorHome"
+              : result.user.type === "venue"
+                ? "VenueHome"
+                : "MemberHome";
 
       rootNav.reset({
         index: 0,
@@ -218,19 +240,19 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     try {
       console.log(
         "[CommunityOtpScreen] 🆕 Creating client-side draft for new profile:",
-        email
+        email,
       );
       const activeAccount = await accountManager.getActiveAccount();
       const originAccountId = activeAccount?.id || null;
       await createCommunitySignupDraft(email, originAccountId);
       console.log(
         "[CommunityOtpScreen] ✅ Draft created, origin account:",
-        originAccountId
+        originAccountId,
       );
     } catch (draftError) {
       console.log(
         "[CommunityOtpScreen] ⚠️ Draft creation failed (non-critical):",
-        draftError.message
+        draftError.message,
       );
     }
 
@@ -258,7 +280,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                 [
                   { text: "Stay", style: "cancel" },
                   { text: "Change Email", onPress: () => navigation.goBack() },
-                ]
+                ],
               );
             }}
             style={styles.backButton}
@@ -303,8 +325,8 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                 isSuccess
                   ? ["#34C759", "#2FB350"]
                   : isError
-                  ? [COLORS.error, COLORS.error]
-                  : COLORS.primaryGradient
+                    ? [COLORS.error, COLORS.error]
+                    : COLORS.primaryGradient
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}

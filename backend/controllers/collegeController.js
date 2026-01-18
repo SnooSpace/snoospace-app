@@ -500,15 +500,18 @@ async function adminUpdateCampus(req, res) {
       req.body;
     const pool = req.app.locals.pool;
 
+    // Build dynamic SET clause to allow clearing optional fields
+    // Optional fields (state, area, address, location_url) can be set to null
+    // Required fields (campus_name, city) use COALESCE to keep old value if not provided
     const result = await pool.query(
       `UPDATE campuses SET
          campus_name = COALESCE($2, campus_name),
          city = COALESCE($3, city),
-         state = COALESCE($4, state),
-         area = COALESCE($5, area),
-         address = COALESCE($6, address),
-         location_url = COALESCE($7, location_url),
-         geo_location = COALESCE($7, geo_location),
+         state = $4,
+         area = $5,
+         address = $6,
+         location_url = $7,
+         geo_location = $7,
          status = COALESCE($8, status)
        WHERE id = $1
        RETURNING *`,

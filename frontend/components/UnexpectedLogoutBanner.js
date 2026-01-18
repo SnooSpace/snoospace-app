@@ -7,6 +7,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuthState } from "../contexts/AuthStateContext";
 import { useNavigation, CommonActions } from "@react-navigation/native";
 
@@ -37,30 +38,44 @@ export default function UnexpectedLogoutBanner({ onLoginPress }) {
         CommonActions.reset({
           index: 0,
           routes: [{ name: "Landing" }],
-        })
+        }),
       );
     }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="alert-circle" size={40} color="#DC2626" />
+      <View style={styles.card}>
+        {/* Icon */}
+        <View style={styles.iconWrapper}>
+          <LinearGradient
+            colors={["#FFE5E5", "#FFD1D1"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.iconBackground}
+          >
+            <Ionicons name="lock-closed-outline" size={36} color="#D32F2F" />
+          </LinearGradient>
         </View>
 
+        {/* Title */}
         <Text style={styles.title}>Session Expired</Text>
+
+        {/* Message */}
         <Text style={styles.message}>
-          You have been unexpectedly logged out.{"\n"}
-          Please log in again to continue.
+          Your session has ended.{"\n"}Please sign in again to continue.
         </Text>
 
-        {logoutDetails?.email && (
-          <Text style={styles.email}>Account: {logoutDetails.email}</Text>
-        )}
-
+        {/* Login Button */}
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Log In</Text>
+          <LinearGradient
+            colors={["#007AFF", "#0051D5"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.loginButtonGradient}
+          >
+            <Text style={styles.loginButtonText}>Sign In</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </View>
@@ -96,53 +111,64 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: "#F5F5F7",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
   },
-  content: {
+  card: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 48,
+    paddingHorizontal: 32,
     alignItems: "center",
-    padding: 32,
-    maxWidth: width * 0.85,
+    marginHorizontal: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  iconContainer: {
+  iconWrapper: {
+    marginBottom: 24,
+  },
+  iconBackground: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#FEE2E2",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 8,
+    color: "#1A1A1A",
+    marginBottom: 12,
+    textAlign: "center",
   },
   message: {
     fontSize: 15,
-    color: "#6B7280",
+    color: "#666666",
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 12,
-  },
-  email: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    marginBottom: 20,
+    marginBottom: 32,
   },
   loginButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 12,
+    width: "100%",
+    borderRadius: 25,
+    overflow: "hidden",
     shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
+  },
+  loginButtonGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   loginButtonText: {
     fontSize: 16,
