@@ -139,15 +139,19 @@ async function signup(req, res) {
       // Check if username is already taken across all user types
       const existingUsername = await pool.query(
         `SELECT id FROM communities WHERE username = $1 LIMIT 1`,
-        [sanitizedUsername]
+        [sanitizedUsername],
       );
       if (existingUsername.rows.length > 0) {
         return res.status(409).json({ error: "Username is already taken" });
       }
     }
 
+    // Categories: required for all types except student communities (they use theme instead)
+    const isStudentCommunity = college_subtype === "student_community";
     const { categories: categoryList, error: categoriesError } =
-      normalizeCategoriesInput(category, categories, { required: true });
+      normalizeCategoriesInput(category, categories, {
+        required: !isStudentCommunity,
+      });
     if (categoriesError) {
       return res.status(400).json({ error: categoriesError });
     }
@@ -197,8 +201,8 @@ async function signup(req, res) {
       const isSponsorVisible = isOrganization
         ? true
         : isCollegeAffiliated && college_subtype !== "student_community"
-        ? false
-        : false;
+          ? false
+          : false;
 
       // INSERT with optional username - backend-generated id is the identity
       const communityResult = await client.query(
@@ -227,26 +231,30 @@ async function signup(req, res) {
           club_type || null,
           community_theme || null,
           isSponsorVisible,
-        ]
+        ],
       );
       const community = communityResult.rows[0];
       community.categories = parseCategoriesValue(
         community.categories,
-        community.category
+        community.category,
       );
       community.category = community.categories[0] || community.category;
 
-      // Clear existing heads and insert provided ones (only for organization type)
-      if (isOrganization && Array.isArray(heads)) {
+      // Clear existing heads and insert provided ones (for organization AND college-affiliated types)
+      if (
+        (isOrganization || isCollegeAffiliated) &&
+        Array.isArray(heads) &&
+        heads.length > 0
+      ) {
         await client.query(
           "DELETE FROM community_heads WHERE community_id = $1",
-          [community.id]
+          [community.id],
         );
         for (const h of heads) {
           if (!h || !h.name) continue;
           await client.query(
-            `INSERT INTO community_heads (community_id, name, email, phone, profile_pic_url, is_primary)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
+            `INSERT INTO community_heads (community_id, name, email, phone, profile_pic_url, is_primary, role)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
             [
               community.id,
               h.name,
@@ -254,7 +262,8 @@ async function signup(req, res) {
               h.phone || null,
               h.profile_pic_url || null,
               !!h.is_primary,
-            ]
+              h.role || null,
+            ],
           );
         }
       }
@@ -272,7 +281,7 @@ async function signup(req, res) {
           community.id,
           "community",
           deviceId,
-          email
+          email,
         );
         console.log("[Signup] Session created for new community:", {
           communityId: community.id,
@@ -331,7 +340,7 @@ async function getProfile(req, res) {
     const communityResult = await pool.query(
       `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, created_at
        FROM communities WHERE id = $1`,
-      [userId]
+      [userId],
     );
 
     if (communityResult.rows.length === 0) {
@@ -342,7 +351,7 @@ async function getProfile(req, res) {
 
     // Get all community heads
     const headsResult = await pool.query(
-      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.created_at, ch.member_id,
+      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.role, ch.created_at, ch.member_id,
               COALESCE(m1.id, m2.id) as linked_member_id,
               COALESCE(m1.username, m2.username) as member_username,
               COALESCE(m1.profile_photo_url, m2.profile_photo_url) as member_photo_url
@@ -351,7 +360,7 @@ async function getProfile(req, res) {
        LEFT JOIN members m2 ON ch.member_id IS NULL AND LOWER(m2.email) = LOWER(ch.email)
        WHERE ch.community_id = $1
        ORDER BY ch.is_primary DESC, ch.created_at ASC`,
-      [userId]
+      [userId],
     );
 
     const heads = headsResult.rows.map((head) => ({
@@ -359,6 +368,7 @@ async function getProfile(req, res) {
       name: head.name,
       email: head.email,
       phone: head.phone,
+      role: head.role,
       profile_pic_url: head.profile_pic_url,
       is_primary: head.is_primary,
       created_at: head.created_at,
@@ -374,7 +384,7 @@ async function getProfile(req, res) {
         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count,
         (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
         (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
-      [userId]
+      [userId],
     );
 
     const followCounts = followCountsResult.rows[0];
@@ -386,7 +396,7 @@ async function getProfile(req, res) {
        WHERE author_id = $1 AND author_type = 'community'
        ORDER BY created_at DESC
        LIMIT 6`,
-      [userId]
+      [userId],
     );
 
     const posts = postsResult.rows.map((post) => ({
@@ -405,14 +415,14 @@ async function getProfile(req, res) {
           : community.sponsor_types,
       categories: parseCategoriesValue(
         community.categories,
-        community.category
+        community.category,
       ),
       follower_count: parseInt(followCounts.follower_count),
       following_count: parseInt(followCounts.following_count),
       events_hosted_count: parseInt(followCounts.events_hosted_count || 0, 10),
       events_scheduled_count: parseInt(
         followCounts.events_scheduled_count || 0,
-        10
+        10,
       ),
       location:
         typeof community.location === "string"
@@ -536,7 +546,9 @@ async function patchProfile(req, res) {
       }
       const sanitized = sponsor_types.filter(
         (s) =>
-          typeof s === "string" && s.trim().length > 0 && s.trim().length <= 100
+          typeof s === "string" &&
+          s.trim().length > 0 &&
+          s.trim().length <= 100,
       );
       updates.push(`sponsor_types = $${paramIndex++}::jsonb`);
       values.push(JSON.stringify(sanitized));
@@ -582,7 +594,7 @@ async function patchProfile(req, res) {
 
     values.push(userId);
     const query = `UPDATE communities SET ${updates.join(
-      ", "
+      ", ",
     )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url`;
 
     const result = await pool.query(query, values);
@@ -601,7 +613,7 @@ async function patchProfile(req, res) {
         category: community.category,
         categories: parseCategoriesValue(
           community.categories,
-          community.category
+          community.category,
         ),
         sponsor_types:
           typeof community.sponsor_types === "string"
@@ -617,7 +629,7 @@ async function patchProfile(req, res) {
   } catch (err) {
     console.error(
       "/communities/profile PATCH error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to update profile" });
   }
@@ -686,7 +698,7 @@ async function searchCommunities(req, res) {
   } catch (err) {
     console.error(
       "/communities/search error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to search communities" });
   }
@@ -708,7 +720,7 @@ async function getPublicCommunity(req, res) {
       `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location
        FROM communities
        WHERE id = $1`,
-      [targetId]
+      [targetId],
     );
     if (communityR.rows.length === 0) {
       return res.status(404).json({ error: "Community not found" });
@@ -717,7 +729,7 @@ async function getPublicCommunity(req, res) {
 
     // Get all community heads
     const headsResult = await pool.query(
-      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.created_at, ch.member_id,
+      `SELECT ch.id, ch.name, ch.email, ch.phone, ch.profile_pic_url, ch.is_primary, ch.role, ch.created_at, ch.member_id,
               COALESCE(m1.id, m2.id) as linked_member_id,
               COALESCE(m1.username, m2.username) as member_username,
               COALESCE(m1.profile_photo_url, m2.profile_photo_url) as member_photo_url
@@ -726,7 +738,7 @@ async function getPublicCommunity(req, res) {
        LEFT JOIN members m2 ON ch.member_id IS NULL AND LOWER(m2.email) = LOWER(ch.email)
        WHERE ch.community_id = $1
        ORDER BY ch.is_primary DESC, ch.created_at ASC`,
-      [targetId]
+      [targetId],
     );
 
     const heads = headsResult.rows.map((head) => ({
@@ -734,6 +746,7 @@ async function getPublicCommunity(req, res) {
       name: head.name,
       email: head.email,
       phone: head.phone,
+      role: head.role,
       profile_pic_url: head.profile_pic_url,
       is_primary: head.is_primary,
       created_at: head.created_at,
@@ -749,7 +762,7 @@ async function getPublicCommunity(req, res) {
          (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community') AS posts_count,
          (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
          (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
-      [targetId]
+      [targetId],
     );
     const counts = countsR.rows[0];
 
@@ -762,7 +775,7 @@ async function getPublicCommunity(req, res) {
          WHERE follower_id = $1 AND follower_type = $2
            AND following_id = $3 AND following_type = 'community'
          LIMIT 1`,
-        [authUserId, userType, targetId]
+        [authUserId, userType, targetId],
       );
       isFollowing = isFollowingR.rows.length > 0;
     }
@@ -796,7 +809,7 @@ async function getPublicCommunity(req, res) {
   } catch (err) {
     console.error(
       "/communities/:id/public error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to load public profile" });
   }
@@ -827,7 +840,7 @@ async function changeUsernameEndpoint(req, res) {
 
     const existing = await pool.query(
       `SELECT id FROM communities WHERE username = $1 AND id <> $2 LIMIT 1`,
-      [sanitized, userId]
+      [sanitized, userId],
     );
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: "Username is already taken" });
@@ -842,7 +855,7 @@ async function changeUsernameEndpoint(req, res) {
   } catch (err) {
     console.error(
       "/communities/username POST error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to update username" });
   }
@@ -875,7 +888,7 @@ async function startEmailChange(req, res) {
       pool,
       emailTrimmed,
       "communities",
-      userId
+      userId,
     );
     if (emailExists) {
       return res.status(409).json({ error: "Email is already in use" });
@@ -898,7 +911,7 @@ async function startEmailChange(req, res) {
   } catch (err) {
     console.error(
       "/communities/email/change/start error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to send OTP" });
   }
@@ -947,7 +960,7 @@ async function verifyEmailChange(req, res) {
   } catch (err) {
     console.error(
       "/communities/email/change/verify error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to verify email" });
   }
@@ -984,13 +997,13 @@ async function updateLocation(req, res) {
 
     await pool.query(
       `UPDATE communities SET location = $1::jsonb WHERE id = $2`,
-      [locationJson, userId]
+      [locationJson, userId],
     );
     res.json({ success: true });
   } catch (err) {
     console.error(
       "/communities/location POST error:",
-      err && err.stack ? err.stack : err
+      err && err.stack ? err.stack : err,
     );
     res.status(500).json({ error: "Failed to update location" });
   }
@@ -1010,7 +1023,7 @@ async function updateLogo(req, res) {
     }
     const r = await pool.query(
       "UPDATE communities SET logo_url = $1 WHERE id = $2 RETURNING id, logo_url",
-      [logo_url, userId]
+      [logo_url, userId],
     );
     if (r.rows.length === 0)
       return res.status(404).json({ error: "Community not found" });
@@ -1050,7 +1063,7 @@ async function patchHeads(req, res) {
       await client.query("BEGIN");
       await client.query(
         "DELETE FROM community_heads WHERE community_id = $1",
-        [userId]
+        [userId],
       );
       for (const h of heads) {
         if (!h || !h.name) continue;
@@ -1082,7 +1095,7 @@ async function patchHeads(req, res) {
             h.profile_pic_url || null,
             !!h.is_primary,
             memberId,
-          ]
+          ],
         );
       }
       await client.query("COMMIT");
@@ -1102,7 +1115,7 @@ async function patchHeads(req, res) {
 function normalizeCategoriesInput(
   singleCategory,
   categoriesList,
-  { required = true } = {}
+  { required = true } = {},
 ) {
   const collected = [];
 

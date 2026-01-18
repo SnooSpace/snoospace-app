@@ -63,27 +63,27 @@ router.post("/admin/create", CategoryController.createAdmin); // TODO: Protect i
 router.get(
   "/admin/analytics/overview",
   adminAuthMiddleware,
-  AnalyticsController.getOverview
+  AnalyticsController.getOverview,
 );
 router.get(
   "/admin/analytics/users",
   adminAuthMiddleware,
-  AnalyticsController.getUserAnalytics
+  AnalyticsController.getUserAnalytics,
 );
 router.get(
   "/admin/analytics/events",
   adminAuthMiddleware,
-  AnalyticsController.getEventAnalytics
+  AnalyticsController.getEventAnalytics,
 );
 router.get(
   "/admin/analytics/engagement",
   adminAuthMiddleware,
-  AnalyticsController.getEngagementAnalytics
+  AnalyticsController.getEngagementAnalytics,
 );
 router.get(
   "/admin/analytics/advanced",
   adminAuthMiddleware,
-  AnalyticsController.getAdvancedAnalytics
+  AnalyticsController.getAdvancedAnalytics,
 );
 
 // ============================================
@@ -93,51 +93,51 @@ router.get(
 router.get(
   "/admin/reports",
   adminAuthMiddleware,
-  ModerationController.getReports
+  ModerationController.getReports,
 );
 router.get(
   "/admin/reports/stats",
   adminAuthMiddleware,
-  ModerationController.getReportStats
+  ModerationController.getReportStats,
 );
 router.get(
   "/admin/reports/:id",
   adminAuthMiddleware,
-  ModerationController.getReportById
+  ModerationController.getReportById,
 );
 router.post(
   "/admin/reports/:id/resolve",
   adminAuthMiddleware,
-  ModerationController.resolveReport
+  ModerationController.resolveReport,
 );
 
 // User Restrictions
 router.get(
   "/admin/restrictions",
   adminAuthMiddleware,
-  ModerationController.getRestrictions
+  ModerationController.getRestrictions,
 );
 router.get(
   "/admin/restrictions/check",
   adminAuthMiddleware,
-  ModerationController.checkUserRestriction
+  ModerationController.checkUserRestriction,
 );
 router.post(
   "/admin/restrictions",
   adminAuthMiddleware,
-  ModerationController.restrictUser
+  ModerationController.restrictUser,
 );
 router.post(
   "/admin/restrictions/:id/revoke",
   adminAuthMiddleware,
-  ModerationController.revokeRestriction
+  ModerationController.revokeRestriction,
 );
 
 // Audit Log
 router.get(
   "/admin/audit-log",
   adminAuthMiddleware,
-  ModerationController.getAuditLog
+  ModerationController.getAuditLog,
 );
 
 // ============================================
@@ -146,27 +146,27 @@ router.get(
 router.get(
   "/admin/categories",
   adminAuthMiddleware,
-  CategoryController.getAllCategoriesAdmin
+  CategoryController.getAllCategoriesAdmin,
 );
 router.post(
   "/admin/categories",
   adminAuthMiddleware,
-  CategoryController.createCategory
+  CategoryController.createCategory,
 );
 router.patch(
   "/admin/categories/:categoryId",
   adminAuthMiddleware,
-  CategoryController.updateCategory
+  CategoryController.updateCategory,
 );
 router.delete(
   "/admin/categories/:categoryId",
   adminAuthMiddleware,
-  CategoryController.deleteCategory
+  CategoryController.deleteCategory,
 );
 router.post(
   "/admin/categories/reorder",
   adminAuthMiddleware,
-  CategoryController.reorderCategories
+  CategoryController.reorderCategories,
 );
 
 // ============================================
@@ -175,22 +175,22 @@ router.post(
 router.get(
   "/admin/interests",
   adminAuthMiddleware,
-  CategoryController.getAllInterestsAdmin
+  CategoryController.getAllInterestsAdmin,
 );
 router.post(
   "/admin/interests",
   adminAuthMiddleware,
-  CategoryController.createInterest
+  CategoryController.createInterest,
 );
 router.patch(
   "/admin/interests/:interestId",
   adminAuthMiddleware,
-  CategoryController.updateInterest
+  CategoryController.updateInterest,
 );
 router.delete(
   "/admin/interests/:interestId",
   adminAuthMiddleware,
-  CategoryController.deleteInterest
+  CategoryController.deleteInterest,
 );
 
 // ============================================
@@ -199,27 +199,27 @@ router.delete(
 router.get(
   "/admin/pronouns",
   adminAuthMiddleware,
-  PronounController.getAllPronounsAdmin
+  PronounController.getAllPronounsAdmin,
 );
 router.post(
   "/admin/pronouns",
   adminAuthMiddleware,
-  PronounController.createPronoun
+  PronounController.createPronoun,
 );
 router.patch(
   "/admin/pronouns/:id",
   adminAuthMiddleware,
-  PronounController.updatePronoun
+  PronounController.updatePronoun,
 );
 router.delete(
   "/admin/pronouns/:id",
   adminAuthMiddleware,
-  PronounController.deletePronoun
+  PronounController.deletePronoun,
 );
 router.post(
   "/admin/pronouns/reorder",
   adminAuthMiddleware,
-  PronounController.reorderPronouns
+  PronounController.reorderPronouns,
 );
 
 // ============================================
@@ -237,17 +237,17 @@ router.get("/admin/users", adminAuthMiddleware, CategoryController.getAllUsers);
 router.get(
   "/admin/users/:userId",
   adminAuthMiddleware,
-  CategoryController.getUserById
+  CategoryController.getUserById,
 );
 router.patch(
   "/admin/users/:userId",
   adminAuthMiddleware,
-  CategoryController.updateUser
+  CategoryController.updateUser,
 );
 router.delete(
   "/admin/users/:userId",
   adminAuthMiddleware,
-  CategoryController.deleteUser
+  CategoryController.deleteUser,
 );
 
 // ============================================
@@ -258,32 +258,32 @@ router.get("/admin/posts", adminAuthMiddleware, CategoryController.getAllPosts);
 router.get(
   "/admin/posts/:postId/likes",
   adminAuthMiddleware,
-  CategoryController.getPostLikesAdmin
+  CategoryController.getPostLikesAdmin,
 );
 router.get(
   "/admin/posts/:postId/comments",
   adminAuthMiddleware,
-  CategoryController.getPostCommentsAdmin
+  CategoryController.getPostCommentsAdmin,
 );
 router.delete(
   "/admin/posts/:postId",
   adminAuthMiddleware,
-  CategoryController.deletePostAdmin
+  CategoryController.deletePostAdmin,
 );
 router.get(
   "/admin/posts/:userId/:userType",
   adminAuthMiddleware,
-  CategoryController.getUserPostsAdmin
+  CategoryController.getUserPostsAdmin,
 );
 router.delete(
   "/admin/comments/:commentId",
   adminAuthMiddleware,
-  CategoryController.deleteCommentAdmin
+  CategoryController.deleteCommentAdmin,
 );
 router.post(
   "/admin/posts/cleanup-orphaned",
   adminAuthMiddleware,
-  CategoryController.cleanupOrphanedPosts
+  CategoryController.cleanupOrphanedPosts,
 );
 
 // Sponsor Types routes
@@ -291,22 +291,22 @@ router.get("/catalog/sponsor-types", CategoryController.getSponsorTypes); // Pub
 router.get(
   "/admin/sponsor-types",
   adminAuthMiddleware,
-  CategoryController.getAllSponsorTypesAdmin
+  CategoryController.getAllSponsorTypesAdmin,
 );
 router.post(
   "/admin/sponsor-types",
   adminAuthMiddleware,
-  CategoryController.createSponsorType
+  CategoryController.createSponsorType,
 );
 router.put(
   "/admin/sponsor-types/:id",
   adminAuthMiddleware,
-  CategoryController.updateSponsorType
+  CategoryController.updateSponsorType,
 );
 router.delete(
   "/admin/sponsor-types/:id",
   adminAuthMiddleware,
-  CategoryController.deleteSponsorType
+  CategoryController.deleteSponsorType,
 );
 
 // ============================================
@@ -315,27 +315,27 @@ router.delete(
 router.get(
   "/admin/events/stats",
   adminAuthMiddleware,
-  CategoryController.getEventStatsAdmin
+  CategoryController.getEventStatsAdmin,
 );
 router.get(
   "/admin/events",
   adminAuthMiddleware,
-  CategoryController.getAllEventsAdmin
+  CategoryController.getAllEventsAdmin,
 );
 router.get(
   "/admin/events/:eventId",
   adminAuthMiddleware,
-  CategoryController.getEventByIdAdmin
+  CategoryController.getEventByIdAdmin,
 );
 router.delete(
   "/admin/events/:eventId",
   adminAuthMiddleware,
-  CategoryController.deleteEventAdmin
+  CategoryController.deleteEventAdmin,
 );
 router.patch(
   "/admin/events/:eventId/cancel",
   adminAuthMiddleware,
-  CategoryController.cancelEventAdmin
+  CategoryController.cancelEventAdmin,
 );
 
 // Auth (Legacy - will be deprecated)
@@ -344,14 +344,14 @@ router.post(
   normalizeEmail,
   validateBody(["email"]),
   rateLimitOtp,
-  AuthController.sendOtp
+  AuthController.sendOtp,
 );
 router.post(
   "/auth/verify-otp",
   normalizeEmail,
   validateBody(["email", "token"]),
   rateLimitOtp,
-  AuthController.verifyOtp
+  AuthController.verifyOtp,
 );
 router.post("/auth/refresh", AuthController.refresh);
 router.get("/auth/callback", AuthController.callback);
@@ -360,26 +360,26 @@ router.post(
   "/auth/check-email",
   normalizeEmail,
   validateBody(["email"]),
-  AuthController.checkEmail
+  AuthController.checkEmail,
 );
 router.post(
   "/auth/get-user-profile",
   authMiddleware,
   normalizeEmail,
   validateBody(["email"]),
-  AuthController.getUserProfile
+  AuthController.getUserProfile,
 );
 router.post(
   "/auth/login/start",
   normalizeEmail,
   validateBody(["email"]),
   rateLimitOtp,
-  AuthController.loginStart
+  AuthController.loginStart,
 );
 router.get(
   "/auth/validate-token",
   authMiddleware,
-  AuthController.validateToken
+  AuthController.validateToken,
 );
 
 // Auth V2 - OTP-Only Multi-Account (New)
@@ -389,14 +389,14 @@ router.post(
   normalizeEmail,
   validateBody(["email"]),
   rateLimitOtp,
-  AuthV2Controller.sendOtp
+  AuthV2Controller.sendOtp,
 );
 router.post(
   "/auth/v2/verify-otp",
   normalizeEmail,
   validateBody(["email", "token"]),
   rateLimitOtp,
-  AuthV2Controller.verifyOtp
+  AuthV2Controller.verifyOtp,
 );
 router.post("/auth/v2/create-session", AuthV2Controller.createSessionEndpoint);
 router.post("/auth/v2/refresh", AuthV2Controller.refreshToken);
@@ -411,12 +411,12 @@ router.patch("/members/profile", authMiddleware, MemberController.patchProfile);
 router.post(
   "/members/profile/photo",
   authMiddleware,
-  MemberController.updatePhoto
+  MemberController.updatePhoto,
 );
 router.post(
   "/members/username",
   authMiddleware,
-  MemberController.changeUsernameEndpoint
+  MemberController.changeUsernameEndpoint,
 );
 router.post(
   "/members/email/change/start",
@@ -424,7 +424,7 @@ router.post(
   rateLimitOtp,
   normalizeEmail,
   validateBody(["email"]),
-  MemberController.startEmailChange
+  MemberController.startEmailChange,
 );
 router.post(
   "/members/email/change/verify",
@@ -432,18 +432,18 @@ router.post(
   rateLimitOtp,
   normalizeEmail,
   validateBody(["email", "otp"]),
-  MemberController.verifyEmailChange
+  MemberController.verifyEmailChange,
 );
 router.get("/members/search", authMiddleware, MemberController.searchMembers);
 router.get(
   "/members/:id/public",
   authMiddleware,
-  MemberController.getPublicMember
+  MemberController.getPublicMember,
 );
 router.post(
   "/members/location",
   authMiddleware,
-  MemberController.updateLocation
+  MemberController.updateLocation,
 );
 
 // Member Signup Draft (Multi-Account System)
@@ -457,22 +457,22 @@ router.post("/communities/signup", CommunityController.signup);
 router.get(
   "/communities/profile",
   authMiddleware,
-  CommunityController.getProfile
+  CommunityController.getProfile,
 );
 router.patch(
   "/communities/profile",
   authMiddleware,
-  CommunityController.patchProfile
+  CommunityController.patchProfile,
 );
 router.post(
   "/communities/profile/logo",
   authMiddleware,
-  CommunityController.updateLogo
+  CommunityController.updateLogo,
 );
 router.post(
   "/communities/username",
   authMiddleware,
-  CommunityController.changeUsernameEndpoint
+  CommunityController.changeUsernameEndpoint,
 );
 router.post(
   "/communities/email/change/start",
@@ -480,7 +480,7 @@ router.post(
   rateLimitOtp,
   normalizeEmail,
   validateBody(["email"]),
-  CommunityController.startEmailChange
+  CommunityController.startEmailChange,
 );
 router.post(
   "/communities/email/change/verify",
@@ -488,32 +488,32 @@ router.post(
   rateLimitOtp,
   normalizeEmail,
   validateBody(["email", "otp"]),
-  CommunityController.verifyEmailChange
+  CommunityController.verifyEmailChange,
 );
 router.post(
   "/communities/location",
   authMiddleware,
-  CommunityController.updateLocation
+  CommunityController.updateLocation,
 );
 router.get(
   "/communities/search",
   authMiddleware,
-  CommunityController.searchCommunities
+  CommunityController.searchCommunities,
 );
 router.get(
   "/communities/:id/events/public",
   authMiddleware,
-  EventController.getCommunityPublicEvents
+  EventController.getCommunityPublicEvents,
 );
 router.get(
   "/communities/:id/public",
   authMiddleware,
-  CommunityController.getPublicCommunity
+  CommunityController.getPublicCommunity,
 );
 router.patch(
   "/communities/heads",
   authMiddleware,
-  CommunityController.patchHeads
+  CommunityController.patchHeads,
 );
 
 // ============================================
@@ -525,17 +525,66 @@ router.get("/colleges/:id", CollegeController.getCollege);
 router.get("/branches", CollegeController.getBranches);
 router.get("/catalog/states", CollegeController.getIndianStates);
 
+// ============================================
+// ADMIN COLLEGE MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/colleges/pending-count",
+  adminAuthMiddleware,
+  CollegeController.adminGetPendingCount,
+);
+router.get(
+  "/admin/colleges",
+  adminAuthMiddleware,
+  CollegeController.adminGetColleges,
+);
+router.post(
+  "/admin/colleges",
+  adminAuthMiddleware,
+  CollegeController.adminCreateCollege,
+);
+router.put(
+  "/admin/colleges/:id",
+  adminAuthMiddleware,
+  CollegeController.adminUpdateCollege,
+);
+router.delete(
+  "/admin/colleges/:id",
+  adminAuthMiddleware,
+  CollegeController.adminDeleteCollege,
+);
+router.get(
+  "/admin/colleges/:collegeId/campuses",
+  adminAuthMiddleware,
+  CollegeController.adminGetCampuses,
+);
+router.post(
+  "/admin/campuses",
+  adminAuthMiddleware,
+  CollegeController.adminCreateCampus,
+);
+router.put(
+  "/admin/campuses/:id",
+  adminAuthMiddleware,
+  CollegeController.adminUpdateCampus,
+);
+router.delete(
+  "/admin/campuses/:id",
+  adminAuthMiddleware,
+  CollegeController.adminDeleteCampus,
+);
+
 // Sponsors
 router.post("/sponsors/signup", SponsorController.signup);
 router.post(
   "/sponsors/profile/logo",
   authMiddleware,
-  SponsorController.updateLogo
+  SponsorController.updateLogo,
 );
 router.get(
   "/sponsors/search",
   authMiddleware,
-  SponsorController.searchSponsors
+  SponsorController.searchSponsors,
 );
 
 // Venues
@@ -550,12 +599,12 @@ router.get("/search/global", authMiddleware, SearchController.globalSearch);
 router.get(
   "/discover/feed",
   authMiddleware,
-  DiscoverController.getDiscoverFeed
+  DiscoverController.getDiscoverFeed,
 );
 router.get(
   "/discover/suggestions",
   authMiddleware,
-  DiscoverController.getSuggestedCommunities
+  DiscoverController.getSuggestedCommunities,
 );
 
 // Activity & Insights
@@ -563,62 +612,62 @@ const ActivityController = require("../controllers/activityController");
 router.post(
   "/activity/view",
   authMiddleware,
-  ActivityController.logProfileView
+  ActivityController.logProfileView,
 );
 router.get(
   "/activity/insights",
   authMiddleware,
-  ActivityController.getActivityInsights
+  ActivityController.getActivityInsights,
 );
 router.get(
   "/connections/pending",
   authMiddleware,
-  ActivityController.getPendingRequests
+  ActivityController.getPendingRequests,
 );
 router.get("/connections", authMiddleware, ActivityController.getConnections);
 router.post(
   "/connections/request",
   authMiddleware,
-  ActivityController.sendConnectionRequest
+  ActivityController.sendConnectionRequest,
 );
 router.post(
   "/connections/:requestId/respond",
   authMiddleware,
-  ActivityController.respondToRequest
+  ActivityController.respondToRequest,
 );
 
 // Discover Feed V2 (Category-based)
 router.get(
   "/discover/v2/feed",
   authMiddleware,
-  CategoryController.getDiscoverFeedV2
+  CategoryController.getDiscoverFeedV2,
 );
 router.get(
   "/discover/categories",
   authMiddleware,
-  CategoryController.getDiscoverCategories
+  CategoryController.getDiscoverCategories,
 );
 router.get(
   "/discover/categories/:categoryId",
   authMiddleware,
-  CategoryController.getCategoryById
+  CategoryController.getCategoryById,
 );
 router.get(
   "/discover/categories/:categoryId/events",
   authMiddleware,
-  CategoryController.getEventsByCategory
+  CategoryController.getEventsByCategory,
 );
 
 // Event Categories
 router.get(
   "/events/:eventId/categories",
   authMiddleware,
-  CategoryController.getEventCategories
+  CategoryController.getEventCategories,
 );
 router.patch(
   "/events/:eventId/categories",
   authMiddleware,
-  CategoryController.assignEventCategories
+  CategoryController.assignEventCategories,
 );
 
 // Signup Interests (Dynamic)
@@ -628,54 +677,54 @@ router.get("/catalog/signup-interests", CategoryController.getSignupInterests);
 router.get(
   "/admin/categories",
   authMiddleware,
-  CategoryController.getAllCategoriesAdmin
+  CategoryController.getAllCategoriesAdmin,
 );
 router.post(
   "/admin/categories",
   authMiddleware,
-  CategoryController.createCategory
+  CategoryController.createCategory,
 );
 router.patch(
   "/admin/categories/:categoryId",
   authMiddleware,
-  CategoryController.updateCategory
+  CategoryController.updateCategory,
 );
 router.delete(
   "/admin/categories/:categoryId",
   authMiddleware,
-  CategoryController.deleteCategory
+  CategoryController.deleteCategory,
 );
 router.post(
   "/admin/categories/reorder",
   authMiddleware,
-  CategoryController.reorderCategories
+  CategoryController.reorderCategories,
 );
 router.patch(
   "/admin/events/:eventId/categories/:categoryId/featured",
   authMiddleware,
-  CategoryController.toggleEventFeatured
+  CategoryController.toggleEventFeatured,
 );
 
 // Admin: Interest Management
 router.get(
   "/admin/interests",
   authMiddleware,
-  CategoryController.getAllInterestsAdmin
+  CategoryController.getAllInterestsAdmin,
 );
 router.post(
   "/admin/interests",
   authMiddleware,
-  CategoryController.createInterest
+  CategoryController.createInterest,
 );
 router.patch(
   "/admin/interests/:interestId",
   authMiddleware,
-  CategoryController.updateInterest
+  CategoryController.updateInterest,
 );
 router.delete(
   "/admin/interests/:interestId",
   authMiddleware,
-  CategoryController.deleteInterest
+  CategoryController.deleteInterest,
 );
 
 // Username management
@@ -690,7 +739,7 @@ router.get("/posts/:postId", PostController.getPost);
 router.get(
   "/posts/user/:userId/:userType",
   authMiddleware,
-  PostController.getUserPosts
+  PostController.getUserPosts,
 );
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
@@ -703,92 +752,92 @@ router.get("/posts/:postId/results", authMiddleware, PollController.getResults);
 router.get(
   "/posts/:postId/vote-status",
   authMiddleware,
-  PollController.getVoteStatus
+  PollController.getVoteStatus,
 );
 
 // Prompt submission routes
 router.post(
   "/posts/:postId/submissions",
   authMiddleware,
-  PromptController.submitResponse
+  PromptController.submitResponse,
 );
 router.get(
   "/posts/:postId/submissions",
   authMiddleware,
-  PromptController.getSubmissions
+  PromptController.getSubmissions,
 );
 router.get(
   "/posts/:postId/my-submission",
   authMiddleware,
-  PromptController.getMySubmission
+  PromptController.getMySubmission,
 );
 router.patch(
   "/submissions/:submissionId/status",
   authMiddleware,
-  PromptController.moderateSubmission
+  PromptController.moderateSubmission,
 );
 router.patch(
   "/submissions/:submissionId/pin",
   authMiddleware,
-  PromptController.pinSubmission
+  PromptController.pinSubmission,
 );
 router.post(
   "/submissions/:submissionId/replies",
   authMiddleware,
-  PromptController.createReply
+  PromptController.createReply,
 );
 router.get(
   "/submissions/:submissionId/replies",
   authMiddleware,
-  PromptController.getReplies
+  PromptController.getReplies,
 );
 router.patch(
   "/replies/:replyId/hide",
   authMiddleware,
-  PromptController.hideReply
+  PromptController.hideReply,
 );
 
 // Q&A routes
 router.post(
   "/posts/:postId/questions",
   authMiddleware,
-  QnAController.submitQuestion
+  QnAController.submitQuestion,
 );
 router.get(
   "/posts/:postId/questions",
   authMiddleware,
-  QnAController.getQuestions
+  QnAController.getQuestions,
 );
 router.post(
   "/questions/:questionId/upvote",
   authMiddleware,
-  QnAController.upvoteQuestion
+  QnAController.upvoteQuestion,
 );
 router.delete(
   "/questions/:questionId/upvote",
   authMiddleware,
-  QnAController.removeUpvote
+  QnAController.removeUpvote,
 );
 router.post(
   "/questions/:questionId/answer",
   authMiddleware,
-  QnAController.answerQuestion
+  QnAController.answerQuestion,
 );
 router.patch(
   "/questions/:questionId",
   authMiddleware,
-  QnAController.moderateQuestion
+  QnAController.moderateQuestion,
 );
 router.patch(
   "/answers/:answerId/best",
   authMiddleware,
-  QnAController.markBestAnswer
+  QnAController.markBestAnswer,
 );
 router.post("/posts/:postId/experts", authMiddleware, QnAController.addExpert);
 router.delete(
   "/posts/:postId/experts/:expertId",
   authMiddleware,
-  QnAController.removeExpert
+  QnAController.removeExpert,
 );
 router.get("/posts/:postId/experts", authMiddleware, QnAController.getExperts);
 
@@ -796,94 +845,94 @@ router.get("/posts/:postId/experts", authMiddleware, QnAController.getExperts);
 router.post(
   "/posts/:postId/join",
   authMiddleware,
-  ChallengeController.joinChallenge
+  ChallengeController.joinChallenge,
 );
 router.delete(
   "/posts/:postId/join",
   authMiddleware,
-  ChallengeController.leaveChallenge
+  ChallengeController.leaveChallenge,
 );
 router.get(
   "/posts/:postId/participants",
   authMiddleware,
-  ChallengeController.getParticipants
+  ChallengeController.getParticipants,
 );
 router.post(
   "/posts/:postId/challenge-submissions",
   authMiddleware,
-  ChallengeController.submitProof
+  ChallengeController.submitProof,
 );
 router.get(
   "/posts/:postId/challenge-submissions",
   authMiddleware,
-  ChallengeController.getSubmissions
+  ChallengeController.getSubmissions,
 );
 router.patch(
   "/posts/:postId/progress",
   authMiddleware,
-  ChallengeController.updateProgress
+  ChallengeController.updateProgress,
 );
 router.post(
   "/posts/:postId/complete",
   authMiddleware,
-  ChallengeController.markComplete
+  ChallengeController.markComplete,
 );
 router.patch(
   "/challenge-submissions/:id/status",
   authMiddleware,
-  ChallengeController.moderateSubmission
+  ChallengeController.moderateSubmission,
 );
 router.patch(
   "/challenge-submissions/:id/feature",
   authMiddleware,
-  ChallengeController.featureSubmission
+  ChallengeController.featureSubmission,
 );
 router.patch(
   "/participants/:id/highlight",
   authMiddleware,
-  ChallengeController.highlightParticipant
+  ChallengeController.highlightParticipant,
 );
 router.post(
   "/challenge-submissions/:id/like",
   authMiddleware,
-  ChallengeController.likeSubmission
+  ChallengeController.likeSubmission,
 );
 router.delete(
   "/challenge-submissions/:id/like",
   authMiddleware,
-  ChallengeController.unlikeSubmission
+  ChallengeController.unlikeSubmission,
 );
 
 // Comments
 router.post(
   "/posts/:postId/comments",
   authMiddleware,
-  CommentController.createComment
+  CommentController.createComment,
 );
 router.post(
   "/comments/:commentId/reply",
   authMiddleware,
-  CommentController.replyToComment
+  CommentController.replyToComment,
 );
 router.get(
   "/posts/:postId/comments",
   authMiddleware,
-  CommentController.getPostComments
+  CommentController.getPostComments,
 );
 router.delete(
   "/comments/:commentId",
   authMiddleware,
-  CommentController.deleteComment
+  CommentController.deleteComment,
 );
 router.post(
   "/comments/:commentId/like",
   authMiddleware,
-  CommentController.likeComment
+  CommentController.likeComment,
 );
 router.delete(
   "/comments/:commentId/like",
   authMiddleware,
-  CommentController.unlikeComment
+  CommentController.unlikeComment,
 );
 
 // Follow system
@@ -894,29 +943,29 @@ router.get("/following/:userId/:userType", FollowController.getFollowing);
 router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
 router.get(
   "/follow/counts/:userId/:userType",
-  FollowController.getFollowCounts
+  FollowController.getFollowCounts,
 );
 
 // Notifications
 router.get(
   "/notifications",
   authMiddleware,
-  NotificationController.listNotifications
+  NotificationController.listNotifications,
 );
 router.get(
   "/notifications/unread-count",
   authMiddleware,
-  NotificationController.unreadCount
+  NotificationController.unreadCount,
 );
 router.patch(
   "/notifications/:id/read",
   authMiddleware,
-  NotificationController.markRead
+  NotificationController.markRead,
 );
 router.patch(
   "/notifications/read-all",
   authMiddleware,
-  NotificationController.markAllRead
+  NotificationController.markAllRead,
 );
 
 // Account
@@ -928,82 +977,82 @@ router.get("/events/my-events", authMiddleware, EventController.getMyEvents);
 router.get(
   "/events/pending-attendance",
   authMiddleware,
-  EventController.getPendingAttendanceEvents
+  EventController.getPendingAttendanceEvents,
 );
 router.get("/events/discover", authMiddleware, EventController.discoverEvents);
 router.get("/events/search", authMiddleware, EventController.searchEvents);
 router.get(
   "/events/:eventId/attendees",
   authMiddleware,
-  EventController.getEventAttendees
+  EventController.getEventAttendees,
 );
 router.post(
   "/events/:eventId/swipe",
   authMiddleware,
-  EventController.recordSwipe
+  EventController.recordSwipe,
 );
 router.get(
   "/events/:eventId/matches",
   authMiddleware,
-  EventController.getEventMatches
+  EventController.getEventMatches,
 );
 router.post(
   "/events/:eventId/request-next",
   authMiddleware,
-  EventController.requestNextEvent
+  EventController.requestNextEvent,
 );
 router.get(
   "/events/community",
   authMiddleware,
-  EventController.getCommunityEvents
+  EventController.getCommunityEvents,
 );
 // Event interest (bookmark) routes - must be before :eventId routes
 router.get(
   "/events/interested",
   authMiddleware,
-  EventController.getInterestedEvents
+  EventController.getInterestedEvents,
 );
 router.post(
   "/events/:eventId/interest",
   authMiddleware,
-  EventController.toggleEventInterest
+  EventController.toggleEventInterest,
 );
 // Event registration routes
 router.post(
   "/events/:eventId/register",
   authMiddleware,
-  EventController.registerForEvent
+  EventController.registerForEvent,
 );
 router.post(
   "/events/:eventId/cancel-registration",
   authMiddleware,
-  EventController.cancelRegistration
+  EventController.cancelRegistration,
 );
 // Ticket reservation routes (for checkout flow)
 router.post(
   "/events/:eventId/reserve-tickets",
   authMiddleware,
-  EventController.reserveTickets
+  EventController.reserveTickets,
 );
 router.post(
   "/events/:eventId/release-reservation",
   authMiddleware,
-  EventController.releaseReservation
+  EventController.releaseReservation,
 );
 router.get(
   "/events/:eventId/registrations",
   authMiddleware,
-  EventController.getEventAttendeesForCommunity
+  EventController.getEventAttendeesForCommunity,
 );
 router.get(
   "/events/:eventId/my-ticket",
   authMiddleware,
-  EventController.getMyTicket
+  EventController.getMyTicket,
 );
 router.post(
   "/events/:eventId/verify-ticket",
   authMiddleware,
-  EventController.verifyTicket
+  EventController.verifyTicket,
 );
 router.get("/events/:eventId", authMiddleware, EventController.getEventById);
 router.patch("/events/:eventId", authMiddleware, EventController.updateEvent);
@@ -1011,13 +1060,13 @@ router.delete("/events/:eventId", authMiddleware, EventController.deleteEvent);
 router.patch(
   "/events/:eventId/cancel",
   authMiddleware,
-  EventController.cancelEvent
+  EventController.cancelEvent,
 );
 // Attendance confirmation
 router.post(
   "/events/:eventId/confirm-attendance",
   authMiddleware,
-  EventController.confirmAttendance
+  EventController.confirmAttendance,
 );
 
 // ============================================
@@ -1027,19 +1076,19 @@ router.post(
 router.post(
   "/events/:eventId/gifts",
   authMiddleware,
-  EventController.createTicketGift
+  EventController.createTicketGift,
 );
 // Community views all gifts for event
 router.get(
   "/events/:eventId/gifts",
   authMiddleware,
-  EventController.getEventGifts
+  EventController.getEventGifts,
 );
 // Community revokes a gift (cascade to children)
 router.post(
   "/gifts/:giftId/revoke",
   authMiddleware,
-  EventController.revokeGift
+  EventController.revokeGift,
 );
 // Member views their received gifts
 router.get("/members/my-gifts", authMiddleware, EventController.getMyGifts);
@@ -1047,13 +1096,13 @@ router.get("/members/my-gifts", authMiddleware, EventController.getMyGifts);
 router.post(
   "/gifts/:giftId/reshare",
   authMiddleware,
-  EventController.reshareGift
+  EventController.reshareGift,
 );
 // Member confirms RSVP for free gifted ticket
 router.post(
   "/gifts/:giftId/confirm",
   authMiddleware,
-  EventController.confirmGiftRSVP
+  EventController.confirmGiftRSVP,
 );
 
 // ============================================
@@ -1063,71 +1112,78 @@ router.post(
 router.post(
   "/events/:eventId/request-invite",
   authMiddleware,
-  EventController.requestInvite
+  EventController.requestInvite,
 );
 // Community views invite requests for event
 router.get(
   "/events/:eventId/invite-requests",
   authMiddleware,
-  EventController.getInviteRequests
+  EventController.getInviteRequests,
 );
 // Community responds to invite request
 router.post(
   "/invite-requests/:requestId/respond",
   authMiddleware,
-  EventController.respondToInviteRequest
+  EventController.respondToInviteRequest,
 );
 
 // Upload (Cloudinary)
 router.post(
   "/upload/event-banner",
   authMiddleware,
-  UploadController.uploadEventBanner
+  UploadController.uploadEventBanner,
 );
 router.post(
   "/upload/event-gallery",
   authMiddleware,
-  UploadController.uploadEventGallery
+  UploadController.uploadEventGallery,
 );
 router.post(
   "/upload/performer-photo",
   authMiddleware,
-  UploadController.uploadPerformerPhoto
+  UploadController.uploadPerformerPhoto,
 );
 router.delete(
   "/upload/:publicId",
   authMiddleware,
-  UploadController.deleteUploadedImage
+  UploadController.deleteUploadedImage,
+);
+
+// Admin Upload (College logos)
+router.post(
+  "/admin/upload/college-logo",
+  adminAuthMiddleware,
+  UploadController.uploadCollegeLogo,
 );
 
 // Catalog
 router.get(
   "/catalog/interests",
   authMiddleware,
-  CatalogController.getInterests
+  CatalogController.getInterests,
 );
 
 // Messages
 router.get(
   "/messages/conversations",
   authMiddleware,
-  MessageController.getConversations
+  MessageController.getConversations,
 );
 router.get(
   "/messages/conversations/:conversationId",
   authMiddleware,
-  MessageController.getMessages
+  MessageController.getMessages,
 );
 router.post("/messages", authMiddleware, MessageController.sendMessage);
 router.put(
   "/messages/:messageId/read",
   authMiddleware,
-  MessageController.markMessageRead
+  MessageController.markMessageRead,
 );
 router.get(
   "/messages/unread-count",
   authMiddleware,
-  MessageController.getUnreadCount
+  MessageController.getUnreadCount,
 );
 
 // Search

@@ -837,6 +837,10 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE community_heads ALTER COLUMN phone DROP NOT NULL;
       EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      -- Add role column for storing head's role (Coordinator, President, etc.)
+      DO $$ BEGIN
+        ALTER TABLE community_heads ADD COLUMN IF NOT EXISTS role TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
       -- Constraints for communities
       DO $$ BEGIN
@@ -847,22 +851,17 @@ async function ensureTables(pool) {
           jsonb_typeof(categories) = 'array' AND jsonb_array_length(categories) <= 3
         );
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      -- REMOVED: email_unique_comm constraint for multi-account support
+      -- Multiple community accounts can share the same email (Instagram-style)
       DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'email_unique_comm') THEN
-          ALTER TABLE communities ADD CONSTRAINT email_unique_comm UNIQUE (email);
-        END IF;
-      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        ALTER TABLE communities DROP CONSTRAINT IF EXISTS email_unique_comm;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      -- REMOVED: sponsor_types_len constraint
+      -- Individual Organizers and College-affiliated communities have empty sponsor_types
+      -- Only Organization type requires sponsor_types (validated in backend)
       DO $$ BEGIN
-        -- Drop existing constraint if it exists
         ALTER TABLE communities DROP CONSTRAINT IF EXISTS sponsor_types_len;
-        -- Add new constraint that allows "Open to All" or minimum 3 items (no maximum)
-        ALTER TABLE communities ADD CONSTRAINT sponsor_types_len CHECK (
-          jsonb_typeof(sponsor_types) = 'array' AND (
-            (jsonb_array_length(sponsor_types) = 1 AND sponsor_types->0 = '"Open to All"') OR
-            jsonb_array_length(sponsor_types) >= 3
-          )
-        );
-      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
       DO $$ BEGIN
         CREATE UNIQUE INDEX IF NOT EXISTS one_primary_head_per_community 
         ON community_heads (community_id) WHERE (is_primary = true);
@@ -1080,6 +1079,76 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_log(admin_id);
       CREATE INDEX IF NOT EXISTS idx_audit_action ON admin_audit_log(action);
       CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
+
+      -- Colleges table (parent entity)
+      CREATE TABLE IF NOT EXISTS colleges (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL UNIQUE,
+        abbreviation TEXT,
+        website TEXT,
+        logo_url TEXT,
+        status TEXT DEFAULT 'approved' CHECK (status IN ('pending', 'approved')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_colleges_name ON colleges(name);
+      CREATE INDEX IF NOT EXISTS idx_colleges_status ON colleges(status);
+
+      -- Campuses table (physical locations of colleges)
+      CREATE TABLE IF NOT EXISTS campuses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        college_id UUID NOT NULL REFERENCES colleges(id) ON DELETE CASCADE,
+        campus_name TEXT NOT NULL,
+        city TEXT NOT NULL,
+        area TEXT,
+        address TEXT,
+        geo_location TEXT,
+        status TEXT DEFAULT 'active' CHECK (status IN ('pending', 'active')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(college_id, campus_name)
+      );
+      CREATE INDEX IF NOT EXISTS idx_campuses_college ON campuses(college_id);
+      CREATE INDEX IF NOT EXISTS idx_campuses_city ON campuses(city);
+      CREATE INDEX IF NOT EXISTS idx_campuses_status ON campuses(status);
+
+      -- Add campus_id to communities table
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS campus_id UUID REFERENCES campuses(id);
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- Migration: Add missing columns to existing colleges table
+      DO $$ BEGIN
+        ALTER TABLE colleges ADD COLUMN IF NOT EXISTS abbreviation TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges ADD COLUMN IF NOT EXISTS website TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges ADD COLUMN IF NOT EXISTS logo_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- Drop old columns that are no longer needed (city, state, country are now in campuses)
+      DO $$ BEGIN
+        ALTER TABLE colleges DROP COLUMN IF EXISTS city;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges DROP COLUMN IF EXISTS state;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges DROP COLUMN IF EXISTS country;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges DROP COLUMN IF EXISTS request_count;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE colleges DROP COLUMN IF EXISTS approved_at;
+      EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+      -- Migration: Add state and location_url columns to campuses table
+      DO $$ BEGIN
+        ALTER TABLE campuses ADD COLUMN IF NOT EXISTS state TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE campuses ADD COLUMN IF NOT EXISTS location_url TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

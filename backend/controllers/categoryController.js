@@ -26,7 +26,7 @@ const adminLogin = async (req, res) => {
     // Find admin by email
     const result = await pool.query(
       "SELECT * FROM admins WHERE email = $1 AND is_active = true",
-      [email.toLowerCase()]
+      [email.toLowerCase()],
     );
 
     if (result.rows.length === 0) {
@@ -55,7 +55,7 @@ const adminLogin = async (req, res) => {
         type: "admin",
       },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "30d" },
     );
 
     res.json({
@@ -95,7 +95,7 @@ const createAdmin = async (req, res) => {
       `INSERT INTO admins (email, password_hash, name, role)
        VALUES ($1, $2, $3, $4)
        RETURNING id, email, name, role, is_active, created_at`,
-      [email.toLowerCase(), password_hash, name, role]
+      [email.toLowerCase(), password_hash, name, role],
     );
 
     res.status(201).json({
@@ -340,12 +340,12 @@ const getDiscoverFeedV2 = async (req, res) => {
           ...category,
           events: eventsResult.rows,
         };
-      })
+      }),
     );
 
     // Filter out categories with no events
     const categoriesWithContent = categoriesWithEvents.filter(
-      (c) => c.events.length > 0
+      (c) => c.events.length > 0,
     );
 
     res.json({
@@ -371,7 +371,7 @@ const getEventsByCategory = async (req, res) => {
     // Get category info
     const categoryQuery = await pool.query(
       `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
-      [categoryId]
+      [categoryId],
     );
 
     if (categoryQuery.rows.length === 0) {
@@ -591,9 +591,9 @@ const reorderCategories = async (req, res) => {
       order.map((item) =>
         pool.query(
           `UPDATE discover_categories SET display_order = $1, updated_at = NOW() WHERE id = $2`,
-          [item.display_order, item.id]
-        )
-      )
+          [item.display_order, item.id],
+        ),
+      ),
     );
 
     res.json({
@@ -627,7 +627,7 @@ const assignEventCategories = async (req, res) => {
     // Verify the event belongs to this community
     const eventCheck = await pool.query(
       `SELECT id, community_id FROM events WHERE id = $1`,
-      [eventId]
+      [eventId],
     );
 
     if (eventCheck.rows.length === 0) {
@@ -646,7 +646,7 @@ const assignEventCategories = async (req, res) => {
     // Remove existing category assignments
     await pool.query(
       `DELETE FROM event_discover_categories WHERE event_id = $1`,
-      [eventId]
+      [eventId],
     );
 
     // Add new category assignments
@@ -654,8 +654,8 @@ const assignEventCategories = async (req, res) => {
       const inserts = categoryIds.map((categoryId, index) =>
         pool.query(
           `INSERT INTO event_discover_categories (event_id, category_id, display_order) VALUES ($1, $2, $3)`,
-          [eventId, categoryId, index]
-        )
+          [eventId, categoryId, index],
+        ),
       );
       await Promise.all(inserts);
     }
@@ -944,7 +944,7 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(m.name ILIKE $${params.length} OR m.username ILIKE $${params.length} OR m.email ILIKE $${params.length})`
+            `(m.name ILIKE $${params.length} OR m.username ILIKE $${params.length} OR m.email ILIKE $${params.length})`,
           );
         }
         // Note: is_active column doesn't exist in members table, so status filtering is skipped
@@ -957,7 +957,7 @@ const getAllUsers = async (req, res) => {
           "[getAllUsers] Member query:",
           memberQuery,
           "params:",
-          params
+          params,
         );
         const memberResult = await pool.query(memberQuery, params);
         console.log("[getAllUsers] Members found:", memberResult.rows.length);
@@ -988,7 +988,7 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(c.name ILIKE $${params.length} OR c.username ILIKE $${params.length} OR c.email ILIKE $${params.length})`
+            `(c.name ILIKE $${params.length} OR c.username ILIKE $${params.length} OR c.email ILIKE $${params.length})`,
           );
         }
         // Note: is_active column doesn't exist in communities table, so status filtering is skipped
@@ -1001,12 +1001,12 @@ const getAllUsers = async (req, res) => {
           "[getAllUsers] Community query:",
           communityQuery,
           "params:",
-          params
+          params,
         );
         const communityResult = await pool.query(communityQuery, params);
         console.log(
           "[getAllUsers] Communities found:",
-          communityResult.rows.length
+          communityResult.rows.length,
         );
 
         // Fetch community heads for each community
@@ -1015,7 +1015,7 @@ const getAllUsers = async (req, res) => {
             const headsResult = await pool.query(
               `SELECT name, phone, profile_pic_url, is_primary FROM community_heads 
                WHERE community_id = $1 ORDER BY is_primary DESC`,
-              [community.id]
+              [community.id],
             );
             community.heads = headsResult.rows;
           } catch (headErr) {
@@ -1080,7 +1080,7 @@ const getUserById = async (req, res) => {
           (SELECT COUNT(*) FROM follows WHERE follower_id = members.id AND follower_type = 'member') as following_count,
           (SELECT COUNT(*) FROM posts WHERE author_id = members.id AND author_type = 'member') as post_count
         FROM members WHERE id = $1`,
-        [userId]
+        [userId],
       );
       user = result.rows[0];
     } else {
@@ -1094,7 +1094,7 @@ const getUserById = async (req, res) => {
           (SELECT COUNT(*) FROM follows WHERE followed_id = communities.id AND followed_type = 'community') as follower_count,
           (SELECT COUNT(*) FROM posts WHERE author_id = communities.id AND author_type = 'community') as post_count
         FROM communities WHERE id = $1`,
-        [userId]
+        [userId],
       );
       user = result.rows[0];
     }
@@ -1129,7 +1129,7 @@ const updateUser = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE ${table} SET is_active = $1 WHERE id = $2 RETURNING id, is_active`,
-      [is_active, userId]
+      [is_active, userId],
     );
 
     if (result.rows.length === 0) {
@@ -1172,13 +1172,13 @@ const deleteUser = async (req, res) => {
       // 1. Delete user's post likes
       await pool.query(
         `DELETE FROM post_likes WHERE liker_id = $1 AND liker_type = $2`,
-        [userId, type]
+        [userId, type],
       );
 
       // 2. Delete user's post comments
       await pool.query(
         `DELETE FROM post_comments WHERE commenter_id = $1 AND commenter_type = $2`,
-        [userId, type]
+        [userId, type],
       );
 
       // 3. Delete likes on user's posts
@@ -1186,7 +1186,7 @@ const deleteUser = async (req, res) => {
         `DELETE FROM post_likes WHERE post_id IN (
           SELECT id FROM posts WHERE author_id = $1 AND author_type = $2
         )`,
-        [userId, type]
+        [userId, type],
       );
 
       // 4. Delete comments on user's posts
@@ -1194,13 +1194,13 @@ const deleteUser = async (req, res) => {
         `DELETE FROM post_comments WHERE post_id IN (
           SELECT id FROM posts WHERE author_id = $1 AND author_type = $2
         )`,
-        [userId, type]
+        [userId, type],
       );
 
       // 5. Delete user's posts
       const postsResult = await pool.query(
         `DELETE FROM posts WHERE author_id = $1 AND author_type = $2`,
-        [userId, type]
+        [userId, type],
       );
       console.log(`[deleteUser] Deleted ${postsResult.rowCount} posts`);
 
@@ -1209,13 +1209,13 @@ const deleteUser = async (req, res) => {
         `DELETE FROM follows WHERE 
           (follower_id = $1 AND follower_type = $2) OR 
           (following_id = $1 AND following_type = $2)`,
-        [userId, type]
+        [userId, type],
       );
 
       // 7. Finally delete the user
       const result = await pool.query(
         `DELETE FROM ${table} WHERE id = $1 RETURNING id`,
-        [userId]
+        [userId],
       );
 
       if (result.rows.length === 0) {
@@ -1231,7 +1231,7 @@ const deleteUser = async (req, res) => {
       // Soft delete - just ban the user
       const result = await pool.query(
         `UPDATE ${table} SET is_active = false WHERE id = $1 RETURNING id`,
-        [userId]
+        [userId],
       );
 
       if (result.rows.length === 0) {
@@ -1313,7 +1313,7 @@ const getAllPosts = async (req, res) => {
     // Get total count
     const countQuery = query.replace(
       /SELECT[\s\S]*?FROM posts/,
-      "SELECT COUNT(*) as total FROM posts"
+      "SELECT COUNT(*) as total FROM posts",
     );
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
@@ -1554,7 +1554,7 @@ const deleteCommentAdmin = async (req, res) => {
     // Check if comment exists and get post_id for updating count
     const commentCheck = await pool.query(
       "SELECT id, post_id FROM post_comments WHERE id = $1",
-      [commentId]
+      [commentId],
     );
 
     if (commentCheck.rows.length === 0) {
@@ -1569,7 +1569,7 @@ const deleteCommentAdmin = async (req, res) => {
     // Update comment count on post
     await pool.query(
       "UPDATE posts SET comment_count = GREATEST(COALESCE(comment_count, 0) - 1, 0) WHERE id = $1",
-      [postId]
+      [postId],
     );
 
     res.json({ success: true, message: "Comment deleted successfully" });
@@ -1636,7 +1636,7 @@ const cleanupOrphanedPosts = async (req, res) => {
     ]);
 
     console.log(
-      `[cleanupOrphanedPosts] Deleted ${result.rowCount} orphaned posts`
+      `[cleanupOrphanedPosts] Deleted ${result.rowCount} orphaned posts`,
     );
 
     res.json({
@@ -1664,7 +1664,7 @@ const getSponsorTypes = async (req, res) => {
       `SELECT id, name, display_order 
        FROM sponsor_types 
        WHERE is_active = true 
-       ORDER BY display_order ASC, name ASC`
+       ORDER BY display_order ASC, name ASC`,
     );
     res.json({
       success: true,
@@ -1717,7 +1717,7 @@ const createSponsorType = async (req, res) => {
     let order = display_order;
     if (display_order === 0) {
       const maxOrder = await pool.query(
-        "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM sponsor_types"
+        "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM sponsor_types",
       );
       order = maxOrder.rows[0].next_order;
     }
@@ -1726,7 +1726,7 @@ const createSponsorType = async (req, res) => {
       `INSERT INTO sponsor_types (name, display_order, is_active) 
        VALUES ($1, $2, $3) 
        RETURNING *`,
-      [name.trim(), order, is_active]
+      [name.trim(), order, is_active],
     );
 
     res.json({
@@ -1774,9 +1774,9 @@ const updateSponsorType = async (req, res) => {
     values.push(id);
     const result = await pool.query(
       `UPDATE sponsor_types SET ${updates.join(
-        ", "
+        ", ",
       )} WHERE id = $${paramIndex} RETURNING *`,
-      values
+      values,
     );
 
     if (result.rows.length === 0) {
@@ -1808,7 +1808,7 @@ const deleteSponsorType = async (req, res) => {
     // Check if sponsor type is in use
     const sponsorType = await pool.query(
       "SELECT name FROM sponsor_types WHERE id = $1",
-      [id]
+      [id],
     );
 
     if (sponsorType.rows.length === 0) {
@@ -1818,7 +1818,7 @@ const deleteSponsorType = async (req, res) => {
     const typeName = sponsorType.rows[0].name;
     const usageCheck = await pool.query(
       `SELECT COUNT(*) FROM communities WHERE sponsor_types @> $1`,
-      [JSON.stringify([typeName])]
+      [JSON.stringify([typeName])],
     );
 
     if (parseInt(usageCheck.rows[0].count) > 0) {
@@ -1937,17 +1937,17 @@ const getAllEventsAdmin = async (req, res) => {
       switch (status) {
         case "upcoming":
           conditions.push(
-            `e.start_datetime > $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+            `e.start_datetime > $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`,
           );
           break;
         case "ongoing":
           conditions.push(
-            `e.start_datetime <= $1 AND e.end_datetime >= $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+            `e.start_datetime <= $1 AND e.end_datetime >= $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`,
           );
           break;
         case "completed":
           conditions.push(
-            `e.end_datetime < $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`
+            `e.end_datetime < $1 AND (e.is_cancelled IS NULL OR e.is_cancelled = false)`,
           );
           break;
         case "cancelled":
@@ -1963,7 +1963,7 @@ const getAllEventsAdmin = async (req, res) => {
     // Get total count
     const countQuery = query.replace(
       /SELECT[\s\S]*?FROM events/,
-      "SELECT COUNT(*) as total FROM events"
+      "SELECT COUNT(*) as total FROM events",
     );
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
@@ -2073,7 +2073,7 @@ const deleteEventAdmin = async (req, res) => {
     // Check if event exists
     const eventCheck = await pool.query(
       "SELECT id, title FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
     if (eventCheck.rows.length === 0) {
       return res.status(404).json({ error: "Event not found" });
@@ -2105,7 +2105,7 @@ const deleteEventAdmin = async (req, res) => {
       } catch (err) {
         // Table may not exist - continue
         console.warn(
-          `[deleteEventAdmin] Query failed (non-critical): ${query}`
+          `[deleteEventAdmin] Query failed (non-critical): ${query}`,
         );
       }
     }
@@ -2134,7 +2134,7 @@ const cancelEventAdmin = async (req, res) => {
       `UPDATE events SET is_cancelled = true, updated_at = NOW() 
        WHERE id = $1 
        RETURNING id, title, is_cancelled`,
-      [eventId]
+      [eventId],
     );
 
     if (result.rows.length === 0) {

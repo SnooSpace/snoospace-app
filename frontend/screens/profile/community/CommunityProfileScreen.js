@@ -58,6 +58,7 @@ import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
 import MentionTextRenderer from "../../../components/MentionTextRenderer";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import {
@@ -184,7 +185,7 @@ export default function CommunityProfileScreen({ navigation }) {
       if (hasInitialLoadRef.current) {
         loadProfile(true);
       }
-    }, [loadProfile])
+    }, [loadProfile]),
   );
 
   // Listen for follow updates to refresh follower and following counts
@@ -238,7 +239,7 @@ export default function CommunityProfileScreen({ navigation }) {
             "/auth/get-user-profile",
             { email },
             10000,
-            token
+            token,
           );
           if (profileResponse?.profile?.id && mounted) {
             setCurrentUserId(profileResponse.profile.id);
@@ -273,8 +274,8 @@ export default function CommunityProfileScreen({ navigation }) {
                     ? payload.commentCount
                     : post.comment_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
     };
 
@@ -290,18 +291,18 @@ export default function CommunityProfileScreen({ navigation }) {
                     ? payload.commentCount
                     : post.comment_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
     };
 
     const unsubscribeLike = EventBus.on(
       "post-like-updated",
-      handlePostLikeUpdate
+      handlePostLikeUpdate,
     );
     const unsubscribeComment = EventBus.on(
       "post-comment-updated",
-      handlePostCommentUpdate
+      handlePostCommentUpdate,
     );
 
     return () => {
@@ -350,7 +351,7 @@ export default function CommunityProfileScreen({ navigation }) {
             "/auth/get-user-profile",
             email ? { email } : {},
             15000,
-            token
+            token,
           );
           role = profRes?.role || "community";
           fullProfile = profRes?.profile || null;
@@ -378,7 +379,7 @@ export default function CommunityProfileScreen({ navigation }) {
         const counts = await apiGet(
           `/follow/counts/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         const followersRaw = counts?.followers_count ?? counts?.followers;
         const followingRaw = counts?.following_count ?? counts?.following;
@@ -398,7 +399,7 @@ export default function CommunityProfileScreen({ navigation }) {
         const postsRes = await apiGet(
           `/posts/user/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch {}
@@ -467,7 +468,7 @@ export default function CommunityProfileScreen({ navigation }) {
         {
           mappedPhone: mappedProfile.phone,
           mappedSecondary: mappedProfile.secondary_phone,
-        }
+        },
       );
       mappedProfile.category = mappedProfile.categories[0] || "";
 
@@ -516,7 +517,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
       console.log(
         "[CommunityProfile] Navigating to login with email:",
-        emailToUse
+        emailToUse,
       );
 
       // Navigate to Login screen with email pre-filled
@@ -534,7 +535,7 @@ export default function CommunityProfileScreen({ navigation }) {
               params: { email: emailToUse },
             },
           ],
-        })
+        }),
       );
     } catch (error) {
       console.error("Error during relogin:", error);
@@ -547,10 +548,10 @@ export default function CommunityProfileScreen({ navigation }) {
     try {
       const allAccounts = await getAllAccounts();
       const loggedInAccounts = allAccounts.filter(
-        (acc) => acc.isLoggedIn !== false
+        (acc) => acc.isLoggedIn !== false,
       );
       const currentAccount = allAccounts.find(
-        (acc) => String(acc.id) === String(profile?.id)
+        (acc) => String(acc.id) === String(profile?.id),
       );
 
       setLogoutModalData({
@@ -585,14 +586,14 @@ export default function CommunityProfileScreen({ navigation }) {
       "[CommunityProfile] Navigating to:",
       routeName,
       "for account type:",
-      accountType
+      accountType,
     );
 
     rootNavigator.dispatch(
       CommonActions.reset({
         index: 0,
         routes: [{ name: routeName }],
-      })
+      }),
     );
   };
 
@@ -624,7 +625,7 @@ export default function CommunityProfileScreen({ navigation }) {
           CommonActions.reset({
             index: 0,
             routes: [{ name: "Landing" }],
-          })
+          }),
         );
       } else {
         console.log("[CommunityProfile] Logging out current account");
@@ -633,7 +634,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
         if (navigateToLanding) {
           console.log(
-            "[CommunityProfile] No other logged-in accounts, navigating to landing"
+            "[CommunityProfile] No other logged-in accounts, navigating to landing",
           );
           let rootNavigator = navigation;
           if (navigation.getParent) {
@@ -647,13 +648,13 @@ export default function CommunityProfileScreen({ navigation }) {
             CommonActions.reset({
               index: 0,
               routes: [{ name: "Landing" }],
-            })
+            }),
           );
         } else if (switchToAccount) {
           console.log(
             "[CommunityProfile] Switching to account:",
             switchToAccount.type,
-            switchToAccount.username
+            switchToAccount.username,
           );
           navigateToAccountHome(switchToAccount.type);
         }
@@ -767,8 +768,8 @@ export default function CommunityProfileScreen({ navigation }) {
                 isLiked: pending.is_liked,
                 like_count: pending.like_count,
               }
-            : p
-        )
+            : p,
+        ),
       );
       pendingPostUpdateRef.current = null;
     }
@@ -791,8 +792,8 @@ export default function CommunityProfileScreen({ navigation }) {
       prevPosts.map((p) =>
         p.id === postId
           ? { ...p, isLiked, is_liked: isLiked, like_count: likes }
-          : p
-      )
+          : p,
+      ),
     );
   };
 
@@ -1156,7 +1157,7 @@ export default function CommunityProfileScreen({ navigation }) {
                             const flatUrls = item.image_urls.flat();
                             firstImageUrl = flatUrls.find(
                               (u) =>
-                                typeof u === "string" && u.startsWith("http")
+                                typeof u === "string" && u.startsWith("http"),
                             );
                           } else if (
                             typeof item.image_urls === "string" &&
@@ -1214,7 +1215,7 @@ export default function CommunityProfileScreen({ navigation }) {
         onNotificationsPress={() =>
           Alert.alert(
             "Notifications",
-            "Notifications settings will be implemented soon!"
+            "Notifications settings will be implemented soon!",
           )
         }
         onPrivacyPress={() =>
@@ -1245,94 +1246,124 @@ export default function CommunityProfileScreen({ navigation }) {
         visible={showDeleteModal}
         transparent={true}
         animationType="fade"
+        statusBarTranslucent={true}
         onRequestClose={() => setShowDeleteModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Delete Account</Text>
-              <TouchableOpacity
-                onPress={() => setShowDeleteModal(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-              <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
-                This is permanent and cannot be undone. Type "delete" to
-                confirm.
-              </Text>
-              <TextInput
-                value={deleteInput}
-                onChangeText={setDeleteInput}
-                placeholder="Type delete"
-                autoCapitalize="none"
-                style={{
-                  borderWidth: 1,
-                  borderColor: "#E5E5EA",
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  marginBottom: 16,
-                }}
-              />
-              <TouchableOpacity
-                disabled={
-                  deleting || deleteInput.trim().toLowerCase() !== "delete"
-                }
-                onPress={async () => {
-                  if (deleteInput.trim().toLowerCase() !== "delete") return;
-                  setDeleting(true);
-                  try {
-                    const { switchedToAccount, navigateToLanding } =
-                      await apiDeleteAccount();
+          <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Delete Account</Text>
+                <TouchableOpacity
+                  onPress={() => {
                     setShowDeleteModal(false);
-
-                    if (navigateToLanding || !switchedToAccount) {
-                      navigation.reset({
-                        index: 0,
-                        routes: [{ name: "Landing" }],
-                      });
-                    } else {
-                      const routeMap = {
-                        member: "MemberHome",
-                        community: "CommunityHome",
-                        sponsor: "SponsorHome",
-                        venue: "VenueHome",
-                      };
-                      const routeName =
-                        routeMap[switchedToAccount.type] || "Landing";
-                      navigation.reset({
-                        index: 0,
-                        routes: [{ name: routeName }],
-                      });
-                    }
-                  } catch (e) {
-                    Alert.alert(
-                      "Delete failed",
-                      e?.message || "Could not delete account"
-                    );
-                  } finally {
-                    setDeleting(false);
-                  }
-                }}
-                style={{
-                  backgroundColor:
-                    deleteInput.trim().toLowerCase() === "delete"
-                      ? "#FF3B30"
-                      : "#FFAAA3",
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "600" }}>
-                  {deleting ? "Deleting..." : "Delete Account"}
+                    setDeleteInput("");
+                  }}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
+                  This is permanent and cannot be undone. Type "delete" to
+                  confirm.
                 </Text>
-              </TouchableOpacity>
+                <TextInput
+                  value={deleteInput}
+                  onChangeText={setDeleteInput}
+                  placeholder="Type delete"
+                  autoCapitalize="none"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#E5E5EA",
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    marginBottom: 16,
+                  }}
+                />
+                <TouchableOpacity
+                  disabled={
+                    deleting || deleteInput.trim().toLowerCase() !== "delete"
+                  }
+                  onPress={async () => {
+                    if (deleteInput.trim().toLowerCase() !== "delete") return;
+                    setDeleting(true);
+                    try {
+                      const { switchedToAccount, navigateToLanding } =
+                        await apiDeleteAccount();
+                      await AsyncStorage.multiRemove([
+                        "accessToken",
+                        "userData",
+                        "auth_token",
+                        "auth_email",
+                        "pending_otp",
+                      ]);
+                      setShowDeleteModal(false);
+
+                      // Get the root navigator
+                      let rootNavigator = navigation;
+                      if (navigation.getParent) {
+                        const parent = navigation.getParent();
+                        if (parent) {
+                          rootNavigator = parent.getParent
+                            ? parent.getParent()
+                            : parent;
+                        }
+                      }
+
+                      if (navigateToLanding || !switchedToAccount) {
+                        // No other accounts or explicitly told to go to landing
+                        rootNavigator.dispatch(
+                          CommonActions.reset({
+                            index: 0,
+                            routes: [{ name: "Landing" }],
+                          }),
+                        );
+                      } else {
+                        // Switch to other account
+                        const routeMap = {
+                          member: "MemberHome",
+                          community: "CommunityHome",
+                          sponsor: "SponsorHome",
+                          venue: "VenueHome",
+                        };
+                        const routeName =
+                          routeMap[switchedToAccount.type] || "Landing";
+                        rootNavigator.dispatch(
+                          CommonActions.reset({
+                            index: 0,
+                            routes: [{ name: routeName }],
+                          }),
+                        );
+                      }
+                    } catch (e) {
+                      Alert.alert(
+                        "Delete failed",
+                        e?.message || "Could not delete account",
+                      );
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                  style={{
+                    backgroundColor:
+                      deleteInput.trim().toLowerCase() === "delete"
+                        ? "#FF3B30"
+                        : "#FFAAA3",
+                    paddingVertical: 12,
+                    borderRadius: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>
+                    {deleting ? "Deleting..." : "Delete Account"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardStickyView>
         </View>
       </Modal>
 
@@ -1367,8 +1398,8 @@ export default function CommunityProfileScreen({ navigation }) {
             prevPosts.map((p) =>
               p.id === postId
                 ? { ...p, comment_count: (p.comment_count || 0) + 1 }
-                : p
-            )
+                : p,
+            ),
           );
         }}
         navigation={navigation}
@@ -1385,12 +1416,12 @@ export default function CommunityProfileScreen({ navigation }) {
             account.type === "member"
               ? "MemberHome"
               : account.type === "community"
-              ? "CommunityHome"
-              : account.type === "sponsor"
-              ? "SponsorHome"
-              : account.type === "venue"
-              ? "VenueHome"
-              : "Landing";
+                ? "CommunityHome"
+                : account.type === "sponsor"
+                  ? "SponsorHome"
+                  : account.type === "venue"
+                    ? "VenueHome"
+                    : "Landing";
 
           // Get the ROOT navigator (go up the parent chain)
           let rootNavigator = navigation;
@@ -1408,7 +1439,7 @@ export default function CommunityProfileScreen({ navigation }) {
           } catch (error) {
             console.warn(
               "[AccountSwitch] Could not get root navigator:",
-              error
+              error,
             );
           }
 
@@ -1421,7 +1452,7 @@ export default function CommunityProfileScreen({ navigation }) {
         onAddAccount={() => setShowAddAccountModal(true)}
         onLoginRequired={(account) => {
           console.log(
-            "[CommunityProfile] ============================================"
+            "[CommunityProfile] ============================================",
           );
           console.log("[CommunityProfile] onLoginRequired called!");
           console.log("[CommunityProfile] Account:", {
@@ -1437,7 +1468,7 @@ export default function CommunityProfileScreen({ navigation }) {
           let rootNavigator = navigation;
           console.log(
             "[CommunityProfile] Initial navigation object:",
-            !!navigation
+            !!navigation,
           );
 
           try {
@@ -1448,7 +1479,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 const parent2 = parent1.getParent();
                 console.log(
                   "[CommunityProfile] Grand parent navigator:",
-                  !!parent2
+                  !!parent2,
                 );
                 rootNavigator = parent2 || parent1;
               }
@@ -1456,38 +1487,38 @@ export default function CommunityProfileScreen({ navigation }) {
           } catch (error) {
             console.warn(
               "[CommunityProfile] Error getting root navigator:",
-              error
+              error,
             );
           }
 
           console.log(
             "[CommunityProfile] Root navigator obtained:",
-            !!rootNavigator
+            !!rootNavigator,
           );
           console.log("[CommunityProfile] Attempting navigation to Login...");
 
           try {
             console.log(
-              '[CommunityProfile] Calling rootNavigator.navigate("Login", ...)'
+              '[CommunityProfile] Calling rootNavigator.navigate("Login", ...)',
             );
             rootNavigator.navigate("Login", {
               email: account.email,
               isAddingAccount: false,
             });
             console.log(
-              "[CommunityProfile] Navigation call completed successfully"
+              "[CommunityProfile] Navigation call completed successfully",
             );
           } catch (error) {
             console.error(
               "[CommunityProfile] Navigation to Login failed!",
-              error
+              error,
             );
             console.error("[CommunityProfile] Error details:", {
               message: error.message,
               name: error.name,
             });
             console.log(
-              "[CommunityProfile] Attempting fallback: reset to Landing"
+              "[CommunityProfile] Attempting fallback: reset to Landing",
             );
             try {
               rootNavigator.reset({
@@ -1498,12 +1529,12 @@ export default function CommunityProfileScreen({ navigation }) {
             } catch (fallbackError) {
               console.error(
                 "[CommunityProfile] Fallback navigation ALSO failed!",
-                fallbackError
+                fallbackError,
               );
             }
           }
           console.log(
-            "[CommunityProfile] ============================================"
+            "[CommunityProfile] ============================================",
           );
         }}
       />
@@ -1651,7 +1682,7 @@ const PostModal = ({
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -1777,7 +1808,7 @@ const PostModal = ({
                   <TouchableOpacity
                     onPress={() => {
                       console.log(
-                        "[CommunityProfile] 3-dot pressed. Setting showDeleteMenu=true"
+                        "[CommunityProfile] 3-dot pressed. Setting showDeleteMenu=true",
                       );
                       setShowDeleteMenu(true);
                     }}
@@ -1798,7 +1829,7 @@ const PostModal = ({
                     post.author_photo_url ||
                     post.author_logo_url ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      post.author_name || post.author_username || "Community"
+                      post.author_name || post.author_username || "Community",
                     )}&background=5f27cd&color=FFFFFF`,
                 }}
                 style={postModalStyles.postModalHeaderAvatar}
@@ -1829,7 +1860,7 @@ const PostModal = ({
                     keyExtractor={(_, idx) => idx.toString()}
                     onMomentumScrollEnd={(e) => {
                       const index = Math.round(
-                        e.nativeEvent.contentOffset.x / screenWidth
+                        e.nativeEvent.contentOffset.x / screenWidth,
                       );
                       setCurrentImageIndex(index);
                     }}
@@ -1931,12 +1962,12 @@ const PostModal = ({
                   } else if (type === "sponsor") {
                     Alert.alert(
                       "Coming soon",
-                      "Sponsor profile navigation will be available soon."
+                      "Sponsor profile navigation will be available soon.",
                     );
                   } else if (type === "venue") {
                     Alert.alert(
                       "Coming soon",
-                      "Venue profile navigation will be available soon."
+                      "Venue profile navigation will be available soon.",
                     );
                   }
                 }}

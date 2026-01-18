@@ -49,6 +49,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     category,
     categories,
     location,
+    heads, // College-affiliated communities pass heads from CollegeHeadsScreen
     community_type,
     college_id,
     college_name,
@@ -68,6 +69,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     category,
     categories,
     location,
+    heads, // Include heads for college-affiliated communities
     community_type,
     college_id,
     college_subtype,
@@ -122,7 +124,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     if (!username || username.length < 3) {
       Alert.alert(
         "Invalid Username",
-        "Username must be at least 3 characters long"
+        "Username must be at least 3 characters long",
       );
       return;
     }
@@ -150,7 +152,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         "/communities/signup",
         signupPayload,
         15000,
-        accessToken
+        accessToken,
       );
       const communityProfile = signupResult?.community;
       // Get tokens from signup response (backend now returns them)
@@ -196,12 +198,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       try {
         await deleteCommunitySignupDraft();
         console.log(
-          "[CommunityUsername] Draft deleted after successful signup"
+          "[CommunityUsername] Draft deleted after successful signup",
         );
       } catch (e) {
         console.log(
           "[CommunityUsername] Draft deletion failed (non-critical):",
-          e.message
+          e.message,
         );
       }
 
@@ -211,7 +213,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       console.error("Error completing signup:", error);
       Alert.alert(
         "Error",
-        error?.message || "Failed to complete signup. Please try again."
+        error?.message || "Failed to complete signup. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -274,8 +276,8 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                     isAvailable === false
                       ? COLORS.error
                       : isAvailable === true
-                      ? COLORS.success || "#00C851"
-                      : COLORS.border,
+                        ? COLORS.success || "#00C851"
+                        : COLORS.border,
                 },
               ]}
             >

@@ -19,6 +19,7 @@ import CommunityLocationScreen from "./CommunityLocationScreen";
 import IndividualLocationScreen from "./IndividualLocationScreen";
 import CommunityPhoneNoScreen from "./CommunityPhoneNoScreen";
 import CommunityHeadNameScreen from "./CommunityHeadNameScreen";
+import CollegeHeadsScreen from "./CollegeHeadsScreen";
 import CommunitySponsorTypeSelect from "./CommunitySponsorTypeSelect";
 import CommunityUsernameScreen from "./CommunityUsernameScreen";
 
@@ -70,6 +71,7 @@ export default function CommunitySignupNavigator() {
         name="CommunityHeadName"
         component={CommunityHeadNameScreen}
       />
+      <Stack.Screen name="CollegeHeads" component={CollegeHeadsScreen} />
       <Stack.Screen
         name="CommunitySponsorType"
         component={CommunitySponsorTypeSelect}

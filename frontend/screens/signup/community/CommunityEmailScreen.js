@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
-import { checkEmailExists } from "../../../api/auth";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -97,40 +96,11 @@ const CommunityEmailScreen = ({ navigation, route }) => {
       return;
     }
 
-    setLoading(true);
-    setError("");
-
-    try {
-      // Check if email already has accounts
-      const exists = await checkEmailExists(email);
-
-      if (exists) {
-        setLoading(false);
-        // Show confirmation dialog
-        Alert.alert(
-          "Account Exists",
-          "An account with this email already exists. Would you like to create a new account with the same email or use a different email?",
-          [
-            {
-              text: "Use Different Email",
-              style: "cancel",
-            },
-            {
-              text: "Continue Anyway",
-              onPress: () => sendOtpAndNavigate(),
-            },
-          ]
-        );
-        return;
-      }
-
-      // No existing account - proceed directly
-      await sendOtpAndNavigate();
-    } catch (e) {
-      console.error("Email check error:", e);
-      // On error, proceed anyway
-      await sendOtpAndNavigate();
-    }
+    // Multi-Account System: Skip email existence check
+    // Account selection happens AFTER OTP verification, not before
+    // This allows users to create multiple profiles with the same email
+    console.log("[CommunityEmailScreen] Proceeding to send OTP for:", email);
+    await sendOtpAndNavigate();
   };
 
   return (

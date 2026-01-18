@@ -15,7 +15,7 @@ function getToken(): string | null {
 // Make authenticated API request
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = getToken();
 
@@ -101,14 +101,14 @@ export async function createCategory(category: {
 // Update a category
 export async function updateCategory(
   id: number,
-  updates: Partial<Category>
+  updates: Partial<Category>,
 ): Promise<Category> {
   const data = await apiRequest<SingleCategoryResponse>(
     `/admin/categories/${id}`,
     {
       method: "PATCH",
       body: JSON.stringify(updates),
-    }
+    },
   );
   return data.category;
 }
@@ -122,7 +122,7 @@ export async function deleteCategory(id: number): Promise<void> {
 
 // Reorder categories
 export async function reorderCategories(
-  order: { id: number; display_order: number }[]
+  order: { id: number; display_order: number }[],
 ): Promise<void> {
   await apiRequest("/admin/categories/reorder", {
     method: "POST",
@@ -167,7 +167,7 @@ export async function createInterest(interest: {
     {
       method: "POST",
       body: JSON.stringify(interest),
-    }
+    },
   );
   return data.interest;
 }
@@ -175,14 +175,14 @@ export async function createInterest(interest: {
 // Update interest
 export async function updateInterest(
   id: number,
-  updates: Partial<Interest>
+  updates: Partial<Interest>,
 ): Promise<Interest> {
   const data = await apiRequest<{ success: boolean; interest: Interest }>(
     `/admin/interests/${id}`,
     {
       method: "PATCH",
       body: JSON.stringify(updates),
-    }
+    },
   );
   return data.interest;
 }
@@ -227,7 +227,7 @@ export async function createPronoun(pronoun: {
     {
       method: "POST",
       body: JSON.stringify(pronoun),
-    }
+    },
   );
   return data.pronoun;
 }
@@ -235,14 +235,14 @@ export async function createPronoun(pronoun: {
 // Update pronoun
 export async function updatePronoun(
   id: number,
-  updates: Partial<Pronoun>
+  updates: Partial<Pronoun>,
 ): Promise<Pronoun> {
   const data = await apiRequest<{ success: boolean; pronoun: Pronoun }>(
     `/admin/pronouns/${id}`,
     {
       method: "PATCH",
       body: JSON.stringify(updates),
-    }
+    },
   );
   return data.pronoun;
 }
@@ -256,7 +256,7 @@ export async function deletePronoun(id: number): Promise<void> {
 
 // Reorder pronouns
 export async function reorderPronouns(
-  order: { id: number; display_order: number }[]
+  order: { id: number; display_order: number }[],
 ): Promise<void> {
   await apiRequest("/admin/pronouns/reorder", {
     method: "POST",
@@ -320,7 +320,7 @@ export interface GetUsersParams {
 
 // Get all users with pagination and filters
 export async function getUsers(
-  params: GetUsersParams = {}
+  params: GetUsersParams = {},
 ): Promise<UsersResponse> {
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set("page", params.page.toString());
@@ -338,10 +338,10 @@ export async function getUsers(
 // Get single user by ID
 export async function getUserById(
   id: number,
-  type: "member" | "community"
+  type: "member" | "community",
 ): Promise<User> {
   const data = await apiRequest<{ success: boolean; user: User }>(
-    `/admin/users/${id}?type=${type}`
+    `/admin/users/${id}?type=${type}`,
   );
   return data.user;
 }
@@ -350,7 +350,7 @@ export async function getUserById(
 export async function updateUser(
   id: number,
   type: "member" | "community",
-  updates: { is_active: boolean }
+  updates: { is_active: boolean },
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/users/${id}?type=${type}`, {
     method: "PATCH",
@@ -362,7 +362,7 @@ export async function updateUser(
 export async function deleteUser(
   id: number,
   type: "member" | "community",
-  hard: boolean = false
+  hard: boolean = false,
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/users/${id}?type=${type}&hard=${hard}`, {
     method: "DELETE",
@@ -391,7 +391,7 @@ export interface FollowUser {
 // Get followers list for a user
 export async function getFollowers(
   userId: number,
-  userType: "member" | "community"
+  userType: "member" | "community",
 ): Promise<{ followers: FollowUser[] }> {
   return apiRequest(`/followers/${userId}/${userType}`);
 }
@@ -399,7 +399,7 @@ export async function getFollowers(
 // Get following list for a user
 export async function getFollowing(
   userId: number,
-  userType: "member" | "community"
+  userType: "member" | "community",
 ): Promise<{ following: FollowUser[] }> {
   return apiRequest(`/following/${userId}/${userType}`);
 }
@@ -442,7 +442,7 @@ export interface GetPostsParams {
 
 // Get all posts with pagination and filters
 export async function getPosts(
-  params: GetPostsParams = {}
+  params: GetPostsParams = {},
 ): Promise<PostsResponse> {
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set("page", params.page.toString());
@@ -457,14 +457,14 @@ export async function getPosts(
 // Get posts by a specific user (admin endpoint)
 export async function getUserPosts(
   userId: number,
-  userType: "member" | "community"
+  userType: "member" | "community",
 ): Promise<{ posts: Post[] }> {
   return apiRequest(`/admin/posts/${userId}/${userType}`);
 }
 
 // Delete a post (admin)
 export async function deletePost(
-  postId: number
+  postId: number,
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/posts/${postId}`, {
     method: "DELETE",
@@ -498,21 +498,21 @@ export interface PostComment {
 
 // Get post likes (admin)
 export async function getPostLikes(
-  postId: number
+  postId: number,
 ): Promise<{ likes: PostLike[] }> {
   return apiRequest(`/admin/posts/${postId}/likes`);
 }
 
 // Get post comments (admin)
 export async function getPostComments(
-  postId: number
+  postId: number,
 ): Promise<{ comments: PostComment[] }> {
   return apiRequest(`/admin/posts/${postId}/comments`);
 }
 
 // Delete a comment (admin)
 export async function deleteComment(
-  commentId: number
+  commentId: number,
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/comments/${commentId}`, {
     method: "DELETE",
@@ -552,7 +552,7 @@ export async function createSponsorType(sponsorType: {
     {
       method: "POST",
       body: JSON.stringify(sponsorType),
-    }
+    },
   );
   return data.sponsorType;
 }
@@ -560,21 +560,21 @@ export async function createSponsorType(sponsorType: {
 // Update a sponsor type
 export async function updateSponsorType(
   id: number,
-  updates: Partial<SponsorType>
+  updates: Partial<SponsorType>,
 ): Promise<SponsorType> {
   const data = await apiRequest<{ success: boolean; sponsorType: SponsorType }>(
     `/admin/sponsor-types/${id}`,
     {
       method: "PUT",
       body: JSON.stringify(updates),
-    }
+    },
   );
   return data.sponsorType;
 }
 
 // Delete a sponsor type
 export async function deleteSponsorType(
-  id: number
+  id: number,
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/sponsor-types/${id}`, {
     method: "DELETE",
@@ -668,14 +668,14 @@ export interface GetEventsParams {
 // Get event stats for dashboard
 export async function getEventStats(): Promise<EventStats> {
   const data = await apiRequest<{ success: boolean; stats: EventStats }>(
-    "/admin/events/stats"
+    "/admin/events/stats",
   );
   return data.stats;
 }
 
 // Get all events with pagination and filters
 export async function getEvents(
-  params: GetEventsParams = {}
+  params: GetEventsParams = {},
 ): Promise<EventsResponse> {
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set("page", params.page.toString());
@@ -692,14 +692,14 @@ export async function getEvents(
 // Get single event by ID
 export async function getEventById(id: number): Promise<Event> {
   const data = await apiRequest<{ success: boolean; event: Event }>(
-    `/admin/events/${id}`
+    `/admin/events/${id}`,
   );
   return data.event;
 }
 
 // Delete an event
 export async function deleteEvent(
-  id: number
+  id: number,
 ): Promise<{ success: boolean; message: string }> {
   return apiRequest(`/admin/events/${id}`, {
     method: "DELETE",
@@ -708,7 +708,7 @@ export async function deleteEvent(
 
 // Cancel an event
 export async function cancelEvent(
-  id: number
+  id: number,
 ): Promise<{ success: boolean; message: string; event: Event }> {
   return apiRequest(`/admin/events/${id}/cancel`, {
     method: "PATCH",
@@ -778,24 +778,24 @@ export interface EngagementAnalytics {
 // Get overview stats for dashboard
 export async function getOverviewStats(): Promise<OverviewStats> {
   const data = await apiRequest<{ success: boolean; stats: OverviewStats }>(
-    "/admin/analytics/overview"
+    "/admin/analytics/overview",
   );
   return data.stats;
 }
 
 // Get user analytics with growth data
 export async function getUserAnalytics(
-  period: string = "30d"
+  period: string = "30d",
 ): Promise<UserAnalytics> {
   const data = await apiRequest<{ success: boolean; analytics: UserAnalytics }>(
-    `/admin/analytics/users?period=${period}`
+    `/admin/analytics/users?period=${period}`,
   );
   return data.analytics;
 }
 
 // Get event analytics
 export async function getEventAnalytics(
-  period: string = "30d"
+  period: string = "30d",
 ): Promise<EventAnalytics> {
   const data = await apiRequest<{
     success: boolean;
@@ -806,7 +806,7 @@ export async function getEventAnalytics(
 
 // Get engagement analytics
 export async function getEngagementAnalytics(
-  period: string = "30d"
+  period: string = "30d",
 ): Promise<EngagementAnalytics> {
   const data = await apiRequest<{
     success: boolean;
@@ -942,7 +942,7 @@ export async function getReports(params?: {
 
 export async function getReportStats(): Promise<ReportStats> {
   const data = await apiRequest<{ success: boolean; stats: ReportStats }>(
-    "/admin/reports/stats"
+    "/admin/reports/stats",
   );
   return data.stats;
 }
@@ -950,14 +950,14 @@ export async function getReportStats(): Promise<ReportStats> {
 export async function resolveReport(
   id: number,
   status: "resolved" | "dismissed",
-  notes?: string
+  notes?: string,
 ): Promise<Report> {
   const data = await apiRequest<{ success: boolean; report: Report }>(
     `/admin/reports/${id}/resolve`,
     {
       method: "POST",
       body: JSON.stringify({ status, resolution_notes: notes }),
-    }
+    },
   );
   return data.report;
 }
@@ -1031,4 +1031,153 @@ export async function getAuditLog(params?: {
     pagination: PaginatedResponse<AuditLogEntry>["pagination"];
   }>(`/admin/audit-log?${query.toString()}`);
   return { logs: data.logs, pagination: data.pagination };
+}
+
+// ============================================
+// COLLEGE & CAMPUS API
+// ============================================
+
+export interface College {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  website: string | null;
+  logo_url: string | null;
+  status: "pending" | "approved";
+  created_at: string;
+  campus_count: number;
+  community_count: number;
+}
+
+export interface Campus {
+  id: string;
+  college_id: string;
+  campus_name: string;
+  city: string;
+  state: string | null;
+  area: string | null;
+  address: string | null;
+  location_url: string | null;
+  geo_location: string | null;
+  status: "pending" | "active";
+  created_at: string;
+  community_count: number;
+}
+
+export interface CollegesResponse {
+  success: boolean;
+  colleges: College[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GetCollegesParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "all" | "pending" | "approved";
+}
+
+// Get all colleges with filters
+export async function getColleges(
+  params: GetCollegesParams = {},
+): Promise<CollegesResponse> {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page.toString());
+  if (params.limit) queryParams.set("limit", params.limit.toString());
+  if (params.search) queryParams.set("search", params.search);
+  if (params.status) queryParams.set("status", params.status);
+
+  const query = queryParams.toString();
+  return apiRequest(`/admin/colleges${query ? `?${query}` : ""}`);
+}
+
+// Create college
+export async function createCollege(college: {
+  name: string;
+  abbreviation?: string;
+  website?: string;
+  logo_url?: string;
+}): Promise<{ success: boolean; college: College }> {
+  return apiRequest("/admin/colleges", {
+    method: "POST",
+    body: JSON.stringify(college),
+  });
+}
+
+// Update college
+export async function updateCollege(
+  id: string,
+  updates: Partial<College>,
+): Promise<{ success: boolean; college: College }> {
+  return apiRequest(`/admin/colleges/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+// Delete college
+export async function deleteCollege(id: string): Promise<{ success: boolean }> {
+  return apiRequest(`/admin/colleges/${id}`, { method: "DELETE" });
+}
+
+// Get campuses for a college
+export async function getCampuses(
+  collegeId: string,
+): Promise<{ success: boolean; campuses: Campus[] }> {
+  return apiRequest(`/admin/colleges/${collegeId}/campuses`);
+}
+
+// Create campus
+export async function createCampus(campus: {
+  college_id: string;
+  campus_name: string;
+  city: string;
+  state?: string;
+  area?: string;
+  address?: string;
+  location_url?: string;
+}): Promise<{ success: boolean; campus: Campus }> {
+  return apiRequest("/admin/campuses", {
+    method: "POST",
+    body: JSON.stringify(campus),
+  });
+}
+
+// Update campus
+export async function updateCampus(
+  id: string,
+  updates: Partial<Campus>,
+): Promise<{ success: boolean; campus: Campus }> {
+  return apiRequest(`/admin/campuses/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+// Delete campus
+export async function deleteCampus(id: string): Promise<{ success: boolean }> {
+  return apiRequest(`/admin/campuses/${id}`, { method: "DELETE" });
+}
+
+// Get pending count for notification badge
+export async function getCollegePendingCount(): Promise<{
+  success: boolean;
+  pending: { colleges: number; campuses: number; total: number };
+}> {
+  return apiRequest("/admin/colleges/pending-count");
+}
+
+// Upload college logo
+export async function uploadCollegeLogo(
+  base64Image: string,
+): Promise<{ success: boolean; data: { url: string; public_id: string } }> {
+  return apiRequest("/admin/upload/college-logo", {
+    method: "POST",
+    body: JSON.stringify({ image: base64Image }),
+  });
 }

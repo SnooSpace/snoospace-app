@@ -389,6 +389,7 @@ export function getCommunityResumeScreen(lastStep) {
     "CommunityLocationQuestion",
     "CommunityLocation",
     "IndividualLocation",
+    "CollegeHeads",
     "CommunityPhone",
     "CommunityHeadName",
     "CommunitySponsorType",

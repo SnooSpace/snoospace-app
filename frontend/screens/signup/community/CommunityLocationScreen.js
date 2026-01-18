@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -24,6 +24,7 @@ import {
 import { reverseGeocodeStructured } from "../../../utils/geocoding";
 import { isValidGoogleMapsUrl } from "../../../utils/validateGoogleMapsUrl";
 import { parseGoogleMapsLink } from "../../../utils/googleMapsParser";
+import { useLocationName } from "../../../utils/locationNameCache";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -99,6 +100,15 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   const [isUrlFocused, setIsUrlFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Track already-parsed URLs to prevent re-parsing on screen revisit
+  const parsedUrlsRef = useRef(new Set());
+
+  // Use the locationName hook to resolve the location name from Google Maps URL
+  const resolvedLocationName = useLocationName(
+    location?.googleMapsUrl || null,
+    { fallback: "Loading location..." }
+  );
+
   // Hydrate from draft
   useEffect(() => {
     const hydrateFromDraft = async () => {
@@ -109,8 +119,10 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         if (draftData.location.address) {
           setDisplayAddress(draftData.location.address);
         } else if (draftData.location.googleMapsUrl) {
-          setDisplayAddress("Location saved as Google Maps link");
+          // Mark this URL as already parsed to prevent re-parsing
+          parsedUrlsRef.current.add(draftData.location.googleMapsUrl);
           setLocationUrl(draftData.location.googleMapsUrl);
+          setUrlValid(true);
         }
       }
     };
@@ -127,11 +139,15 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     const valid = isValidGoogleMapsUrl(locationUrl);
     setUrlValid(valid);
 
-    // Auto-parse if valid
+    // Auto-parse if valid AND not already parsed
     if (valid) {
-      parseUrl(locationUrl);
+      // Skip parsing if this URL was already parsed (e.g., restored from draft)
+      if (!parsedUrlsRef.current.has(locationUrl)) {
+        parseUrl(locationUrl);
+      }
     } else {
       // Clear location if URL becomes invalid
+      parsedUrlsRef.current.delete(locationUrl);
       setLocation(null);
       setDisplayAddress("");
     }
@@ -162,8 +178,9 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         setLocation({
           googleMapsUrl: url,
         });
-        setDisplayAddress("Location saved as Google Maps link");
       }
+      // Mark as parsed to prevent re-parsing on screen revisit
+      parsedUrlsRef.current.add(url);
     } catch (error) {
       console.error("Error parsing Google Maps URL:", error);
       // Still allow URL-only if it's a valid Google Maps URL
@@ -171,7 +188,8 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         setLocation({
           googleMapsUrl: url,
         });
-        setDisplayAddress("Location saved as Google Maps link");
+        // Mark as parsed
+        parsedUrlsRef.current.add(url);
       } else {
         setLocation(null);
         setDisplayAddress("");
@@ -268,8 +286,14 @@ const CommunityLocationScreen = ({ navigation, route }) => {
         ...commonParams,
         location,
       });
+    } else if (community_type === "college_affiliated") {
+      // College communities go to heads screen (for adding coordinator/members)
+      navigation.navigate("CollegeHeads", {
+        ...commonParams,
+        location,
+      });
     } else {
-      // Go directly to username for non-organization types
+      // Individual organizers go directly to username
       navigation.navigate("CommunityUsername", {
         ...commonParams,
         location,
@@ -281,7 +305,20 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.replace("CommunityLocationQuestion", {
+      // Determine previous screen based on community type
+      // - Student communities skip Category, go back to Bio
+      // - Other college types (event, club) skip LocationQuestion, go back to Category
+      // - Organizations go back to LocationQuestion
+      let previousScreen;
+      if (isStudentCommunity) {
+        previousScreen = "CommunityBio";
+      } else if (community_type === "college_affiliated") {
+        previousScreen = "CommunityCategory";
+      } else {
+        previousScreen = "CommunityLocationQuestion";
+      }
+
+      navigation.replace(previousScreen, {
         email,
         accessToken,
         refreshToken,
@@ -418,12 +455,12 @@ const CommunityLocationScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* Display Address */}
-            {displayAddress && !isParsingUrl && (
+            {/* Display Address - show decoded location like event cards */}
+            {location && !isParsingUrl && (
               <View style={styles.addressContainer}>
                 <Ionicons name="location" size={20} color={COLORS.primary} />
                 <Text style={styles.addressText} numberOfLines={3}>
-                  {displayAddress}
+                  {displayAddress || resolvedLocationName}
                 </Text>
               </View>
             )}

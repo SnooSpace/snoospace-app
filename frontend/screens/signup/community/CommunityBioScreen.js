@@ -84,10 +84,21 @@ const CommunityBioScreen = ({ navigation, route }) => {
   };
 
   const handleSkip = () => {
-    navigation.navigate("CommunityCategory", {
-      ...commonParams,
-      bio: null,
-    });
+    // Student communities skip category AND location screens - go directly to heads
+    if (isStudentCommunity) {
+      navigation.navigate("CollegeHeads", {
+        ...commonParams,
+        bio: null,
+        category: null,
+        categories: [],
+        location: null,
+      });
+    } else {
+      navigation.navigate("CommunityCategory", {
+        ...commonParams,
+        bio: null,
+      });
+    }
   };
 
   const handleNext = async () => {
@@ -102,10 +113,21 @@ const CommunityBioScreen = ({ navigation, route }) => {
       );
     }
 
-    navigation.navigate("CommunityCategory", {
-      ...commonParams,
-      bio: bioText,
-    });
+    // Student communities skip category AND location screens - go directly to heads
+    if (isStudentCommunity) {
+      navigation.navigate("CollegeHeads", {
+        ...commonParams,
+        bio: bioText,
+        category: null,
+        categories: [],
+        location: null,
+      });
+    } else {
+      navigation.navigate("CommunityCategory", {
+        ...commonParams,
+        bio: bioText,
+      });
+    }
   };
 
   const handleCancel = async () => {
