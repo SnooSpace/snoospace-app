@@ -65,7 +65,7 @@ export default function CommunityDashboardScreen({ navigation }) {
           duration: 1200,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     pulseAnimation.start();
     return () => pulseAnimation.stop();
@@ -128,7 +128,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       Alert.alert(
         "No Events",
         "Create an event first before sharing tickets.",
-        [{ text: "OK", style: "default" }]
+        [{ text: "OK", style: "default" }],
       );
       return;
     }
@@ -320,7 +320,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       // Update local state to mark as cancelled
       const updateEvents = (events) =>
         events.map((e) =>
-          e.id === event.id ? { ...e, is_cancelled: true } : e
+          e.id === event.id ? { ...e, is_cancelled: true } : e,
         );
       setUpcomingEvents(updateEvents);
       setPreviousEvents(updateEvents);
@@ -525,6 +525,31 @@ export default function CommunityDashboardScreen({ navigation }) {
 
             <TouchableOpacity
               style={styles.actionButtonContainer}
+              onPress={() => navigation.navigate("OpportunitiesList")}
+            >
+              <LinearGradient
+                colors={["#FFFFFF", "#F5F0FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
+              >
+                <LinearGradient
+                  colors={["#9B59B6", "#8E44AD"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionIconContainer}
+                >
+                  <Ionicons name="briefcase" size={32} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.actionButtonText}>Opportunities</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Second row of quick actions */}
+          <View style={[styles.quickActions, { marginTop: 15 }]}>
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
               onPress={handleShareTickets}
             >
               <LinearGradient
@@ -545,6 +570,28 @@ export default function CommunityDashboardScreen({ navigation }) {
                   <Ionicons name="gift" size={32} color="#FFFFFF" />
                 </Animated.View>
                 <Text style={styles.actionButtonText}>Share Tickets</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={handleCreatePost}
+            >
+              <LinearGradient
+                colors={["#FFFFFF", "#FFF5E6"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
+              >
+                <LinearGradient
+                  colors={["#FF9500", "#FF6B00"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionIconContainer}
+                >
+                  <Ionicons name="create" size={32} color="#FFFFFF" />
+                </LinearGradient>
+                <Text style={styles.actionButtonText}>Create Post</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

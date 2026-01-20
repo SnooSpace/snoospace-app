@@ -131,6 +131,76 @@ export async function reorderCategories(
 }
 
 // ============================================
+// COMMUNITY CATEGORY API
+// ============================================
+
+export interface CommunityCategory {
+  id: number;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  status: "approved" | "pending" | "rejected";
+  created_at: string;
+}
+
+export interface CommunityCategoryResponse {
+  success: boolean;
+  categories: CommunityCategory[];
+  counts: {
+    approved: number;
+    pending: number;
+    rejected: number;
+  };
+}
+
+// Get all community categories (admin view - includes pending)
+export async function getCommunityCategories(
+  status?: string,
+): Promise<CommunityCategoryResponse> {
+  const query = status && status !== "all" ? `?status=${status}` : "";
+  return apiRequest<CommunityCategoryResponse>(
+    `/admin/community-categories${query}`,
+  );
+}
+
+// Create a new community category
+export async function createCommunityCategory(category: {
+  name: string;
+  display_order?: number;
+}): Promise<CommunityCategory> {
+  const data = await apiRequest<{
+    success: boolean;
+    category: CommunityCategory;
+  }>("/admin/community-categories", {
+    method: "POST",
+    body: JSON.stringify(category),
+  });
+  return data.category;
+}
+
+// Update a community category
+export async function updateCommunityCategory(
+  id: number,
+  updates: Partial<CommunityCategory>,
+): Promise<CommunityCategory> {
+  const data = await apiRequest<{
+    success: boolean;
+    category: CommunityCategory;
+  }>(`/admin/community-categories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+  return data.category;
+}
+
+// Delete a community category
+export async function deleteCommunityCategory(id: number): Promise<void> {
+  await apiRequest(`/admin/community-categories/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ============================================
 // INTEREST API
 // ============================================
 

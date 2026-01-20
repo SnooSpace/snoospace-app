@@ -2152,6 +2152,255 @@ const cancelEventAdmin = async (req, res) => {
   }
 };
 
+// ============================================
+// COMMUNITY CATEGORIES
+// ============================================
+
+/**
+ * Get active community categories (Public - for mobile app)
+ * GET /community-categories
+ */
+const getCommunityCategories = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, display_order
+      FROM community_categories
+      WHERE is_active = true AND status = 'approved'
+      ORDER BY display_order ASC
+    `);
+
+    res.json({
+      success: true,
+      categories: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting community categories:", error);
+    res.status(500).json({ error: "Failed to get categories" });
+  }
+};
+
+/**
+ * Request a new community category (Public - like college request)
+ * POST /community-categories/request
+ */
+const requestCommunityCategory = async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Category name is required" });
+    }
+
+    const trimmedName = name.trim();
+
+    // Check if category already exists (case-insensitive)
+    const existingCheck = await pool.query(
+      `SELECT id, status FROM community_categories 
+       WHERE LOWER(name) = LOWER($1)`,
+      [trimmedName],
+    );
+
+    if (existingCheck.rows.length > 0) {
+      const existing = existingCheck.rows[0];
+      if (existing.status === "approved") {
+        return res.json({
+          success: true,
+          message: "Category already exists",
+          category_id: existing.id,
+          status: "approved",
+        });
+      } else if (existing.status === "pending") {
+        return res.json({
+          success: true,
+          message: "Category is pending approval",
+          category_id: existing.id,
+          status: "pending",
+        });
+      }
+    }
+
+    // Get max display_order for new category
+    const maxOrderResult = await pool.query(
+      `SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM community_categories`,
+    );
+    const nextOrder = maxOrderResult.rows[0].next_order;
+
+    // Create pending category request
+    const result = await pool.query(
+      `INSERT INTO community_categories (name, display_order, status)
+       VALUES ($1, $2, 'pending')
+       RETURNING id, name, status`,
+      [trimmedName, nextOrder],
+    );
+
+    console.log(`[CommunityCategories] New category requested: ${trimmedName}`);
+
+    res.json({
+      success: true,
+      message: "Category request submitted. We'll review it shortly.",
+      category_id: result.rows[0].id,
+      status: "pending",
+    });
+  } catch (error) {
+    console.error("Error requesting community category:", error);
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "Category already exists" });
+    }
+    res.status(500).json({ error: "Failed to submit category request" });
+  }
+};
+
+/**
+ * Get all community categories (Admin view - includes pending)
+ * GET /admin/community-categories
+ */
+const getAllCommunityCategoriesAdmin = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let whereClause = "1=1";
+    const params = [];
+
+    if (status && status !== "all") {
+      params.push(status);
+      whereClause += ` AND status = $${params.length}`;
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM community_categories 
+       WHERE ${whereClause}
+       ORDER BY display_order ASC`,
+      params,
+    );
+
+    // Get counts by status
+    const countsResult = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status = 'approved') as approved_count,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count
+      FROM community_categories
+    `);
+
+    res.json({
+      success: true,
+      categories: result.rows,
+      counts: {
+        approved: parseInt(countsResult.rows[0].approved_count || 0),
+        pending: parseInt(countsResult.rows[0].pending_count || 0),
+        rejected: parseInt(countsResult.rows[0].rejected_count || 0),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting community categories (admin):", error);
+    res.status(500).json({ error: "Failed to get categories" });
+  }
+};
+
+/**
+ * Create a community category (Admin only)
+ * POST /admin/community-categories
+ */
+const createCommunityCategory = async (req, res) => {
+  try {
+    const { name, display_order } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    // Get next display_order if not provided
+    let order = display_order;
+    if (order === undefined) {
+      const maxResult = await pool.query(
+        `SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM community_categories`,
+      );
+      order = maxResult.rows[0].next_order;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO community_categories (name, display_order, status, is_active)
+       VALUES (TRIM($1), $2, 'approved', true)
+       RETURNING *`,
+      [name, order],
+    );
+
+    res.status(201).json({
+      success: true,
+      category: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error creating community category:", error);
+    if (error.code === "23505") {
+      return res
+        .status(400)
+        .json({ error: "Category with this name already exists" });
+    }
+    res.status(500).json({ error: "Failed to create category" });
+  }
+};
+
+/**
+ * Update a community category (Admin only)
+ * PATCH /admin/community-categories/:id
+ */
+const updateCommunityCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, display_order, is_active, status } = req.body;
+
+    const result = await pool.query(
+      `UPDATE community_categories SET
+         name = COALESCE($2, name),
+         display_order = COALESCE($3, display_order),
+         is_active = COALESCE($4, is_active),
+         status = COALESCE($5, status)
+       WHERE id = $1
+       RETURNING *`,
+      [id, name, display_order, is_active, status],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    res.json({
+      success: true,
+      category: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error updating community category:", error);
+    res.status(500).json({ error: "Failed to update category" });
+  }
+};
+
+/**
+ * Delete a community category (Admin only)
+ * DELETE /admin/community-categories/:id
+ */
+const deleteCommunityCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM community_categories WHERE id = $1 RETURNING id, name`,
+      [id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Category "${result.rows[0].name}" deleted successfully`,
+    });
+  } catch (error) {
+    console.error("Error deleting community category:", error);
+    res.status(500).json({ error: "Failed to delete category" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -2208,4 +2457,12 @@ module.exports = {
   getEventByIdAdmin,
   deleteEventAdmin,
   cancelEventAdmin,
+
+  // Community category endpoints
+  getCommunityCategories,
+  requestCommunityCategory,
+  getAllCommunityCategoriesAdmin,
+  createCommunityCategory,
+  updateCommunityCategory,
+  deleteCommunityCategory,
 };

@@ -13,6 +13,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -32,9 +33,9 @@ import {
   getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
-
-// --- Initial Data ---
-const defaultCategories = [
+import { apiGet, apiPost } from "../../../api/client";
+// Fallback categories in case API fails
+const fallbackCategories = [
   "Sports",
   "Music",
   "Technology",
@@ -52,7 +53,6 @@ const defaultCategories = [
   "Networking",
 ];
 
-const STORAGE_KEY = "community_categories";
 const MAX_CATEGORIES = 3;
 
 // --- Components ---
@@ -111,58 +111,44 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     isResumingDraft,
   } = route.params || {};
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [availableCategories, setAvailableCategories] =
-    useState(defaultCategories);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
-  // Load saved categories on component mount
+  // Load categories from API on component mount
   useEffect(() => {
-    loadSavedCategories();
+    loadCategoriesFromAPI();
     hydrateFromDraft();
   }, []);
+
+  const loadCategoriesFromAPI = async () => {
+    setLoadingCategories(true);
+    try {
+      const response = await apiGet("/community-categories");
+      if (response?.categories && response.categories.length > 0) {
+        const categoryNames = response.categories.map((c) => c.name);
+        setAvailableCategories(categoryNames);
+      } else {
+        // Fallback to hardcoded if API returns empty
+        setAvailableCategories(fallbackCategories);
+      }
+    } catch (error) {
+      console.error("Error loading categories from API:", error);
+      // Fallback to hardcoded categories on error
+      setAvailableCategories(fallbackCategories);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   const hydrateFromDraft = async () => {
     const draftData = await getCommunityDraftData();
     if (draftData?.categories) {
       console.log("[CommunityCategoryScreen] Hydrating from draft");
       setSelectedCategories(draftData.categories);
-    }
-  };
-
-  const loadSavedCategories = async () => {
-    try {
-      const savedCategories = await AsyncStorage.getItem(STORAGE_KEY);
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        // Ensure unique list by filtering out defaults that might be in savedCategories
-        const uniqueSaved = parsedCategories.filter(
-          (c) => !defaultCategories.includes(c)
-        );
-        setAvailableCategories([...defaultCategories, ...uniqueSaved]);
-      }
-    } catch (error) {
-      console.error("Error loading saved categories:", error);
-    }
-  };
-
-  const saveNewCategory = async (categoryName) => {
-    try {
-      const savedCategories = await AsyncStorage.getItem(STORAGE_KEY);
-      let categories = savedCategories ? JSON.parse(savedCategories) : [];
-
-      // Add new category if it doesn't exist
-      if (
-        !categories.includes(categoryName) &&
-        !defaultCategories.includes(categoryName)
-      ) {
-        categories.push(categoryName);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
-        setAvailableCategories((prev) => [...prev, categoryName]);
-      }
-    } catch (error) {
-      console.error("Error saving new category:", error);
     }
   };
 
@@ -175,7 +161,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       if (prevSelected.length >= MAX_CATEGORIES) {
         Alert.alert(
           "Limit Reached",
-          `You can select up to ${MAX_CATEGORIES} categories.`
+          `You can select up to ${MAX_CATEGORIES} categories.`,
         );
         return prevSelected;
       }
@@ -187,7 +173,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     setShowCreateModal(true);
   };
 
-  const handleCreateCategory = () => {
+  const handleCreateCategory = async () => {
     const trimmedName = newCategoryName.trim();
 
     if (!trimmedName) {
@@ -205,14 +191,41 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       return;
     }
 
-    // Save the new category
-    saveNewCategory(trimmedName);
+    setSubmittingRequest(true);
+    try {
+      const response = await apiPost("/community-categories/request", {
+        name: trimmedName,
+      });
 
-    // Close modal and reset input
-    setShowCreateModal(false);
-    setNewCategoryName("");
+      console.log(
+        "[CommunityCategoryScreen] Category request response:",
+        response,
+      );
 
-    Alert.alert("Success", "New category created successfully!");
+      // Add to local list immediately
+      setAvailableCategories((prev) => [...prev, trimmedName]);
+
+      // Close modal and reset
+      setShowCreateModal(false);
+      setNewCategoryName("");
+
+      if (response?.status === "approved") {
+        Alert.alert("Success", "Category added successfully!");
+      } else {
+        Alert.alert(
+          "Request Submitted",
+          "Thanks! Your category request has been submitted for review. You can still use it now.",
+        );
+      }
+    } catch (error) {
+      console.error("Error requesting category:", error);
+      Alert.alert(
+        "Error",
+        "Failed to submit category request. Please try again.",
+      );
+    } finally {
+      setSubmittingRequest(false);
+    }
   };
 
   const handleCancelCreate = () => {
@@ -228,7 +241,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     if (selectedCategories.length === 0) {
       Alert.alert(
         "Selection Required",
-        "Please select at least one category before proceeding."
+        "Please select at least one category before proceeding.",
       );
       return;
     }
@@ -243,7 +256,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CommunityCategoryScreen] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -285,7 +298,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 

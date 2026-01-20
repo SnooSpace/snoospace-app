@@ -51,6 +51,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
 
   // Request modal state
   const [newCollegeName, setNewCollegeName] = useState("");
+  const [newCollegeCampus, setNewCollegeCampus] = useState("");
   const [newCollegeCity, setNewCollegeCity] = useState("");
   const [newCollegeState, setNewCollegeState] = useState("");
   const [newCollegeWebsite, setNewCollegeWebsite] = useState("");
@@ -72,7 +73,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     setLoading(true);
     try {
       const response = await apiGet(
-        `/colleges?search=${encodeURIComponent(query)}`
+        `/colleges?search=${encodeURIComponent(query)}`,
       );
       setColleges(response?.colleges || []);
     } catch (error) {
@@ -96,7 +97,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CollegeSearch] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -113,6 +114,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const handleRequestCollege = async () => {
     if (
       !newCollegeName.trim() ||
+      !newCollegeCampus.trim() ||
       !newCollegeCity.trim() ||
       !newCollegeState.trim()
     ) {
@@ -123,9 +125,10 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     setSubmitting(true);
     try {
       const response = await apiPost("/colleges/request", {
-        name: newCollegeName.trim(),
+        college_name: newCollegeName.trim(),
+        campus_name: newCollegeCampus.trim(),
         city: newCollegeCity.trim(),
-        state: newCollegeState.trim(),
+        area: newCollegeState.trim(),
         website: newCollegeWebsite.trim() || null,
       });
 
@@ -164,14 +167,14 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                 });
               },
             },
-          ]
+          ],
         );
       }
     } catch (error) {
       console.error("Error requesting college:", error);
       Alert.alert(
         "Error",
-        "Failed to submit college request. Please try again."
+        "Failed to submit college request. Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -182,24 +185,37 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     navigation.goBack();
   };
 
-  const renderCollegeItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.collegeItem}
-      onPress={() => handleCollegeSelect(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.collegeIcon}>
-        <Ionicons name="school-outline" size={24} color={COLORS.primary} />
-      </View>
-      <View style={styles.collegeInfo}>
-        <Text style={styles.collegeName}>{item.name}</Text>
-        <Text style={styles.collegeLocation}>
-          {item.city}, {item.state}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-    </TouchableOpacity>
-  );
+  const renderCollegeItem = ({ item }) => {
+    // If campus_name exists, show it as the primary name (for multi-campus colleges)
+    // Otherwise, show the college name
+    const displayName = item.campus_name ? item.campus_name : item.name;
+    // For subtitle: if there's a campus, show "College Name • City"
+    // Otherwise, just show "City,"
+    const subtitle = item.campus_name
+      ? `${item.name} • ${item.city}`
+      : `${item.city},`;
+
+    return (
+      <TouchableOpacity
+        style={styles.collegeItem}
+        onPress={() => handleCollegeSelect(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.collegeIcon}>
+          <Ionicons name="school-outline" size={24} color={COLORS.primary} />
+        </View>
+        <View style={styles.collegeInfo}>
+          <Text style={styles.collegeName}>{displayName}</Text>
+          <Text style={styles.collegeLocation}>{subtitle}</Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={COLORS.textSecondary}
+        />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -297,6 +313,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
         visible={showRequestModal}
         transparent={true}
         animationType="slide"
+        statusBarTranslucent={true}
         onRequestClose={() => setShowRequestModal(false)}
       >
         <View style={styles.modalOverlay}>
@@ -313,10 +330,22 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                 <Text style={styles.inputLabel}>College Name *</Text>
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="e.g., VIT Vellore"
+                  placeholder="e.g., VIT University"
                   placeholderTextColor={COLORS.textSecondary}
                   value={newCollegeName}
                   onChangeText={setNewCollegeName}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Campus Name *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g., Vellore Campus"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={newCollegeCampus}
+                  onChangeText={setNewCollegeCampus}
                   autoCapitalize="words"
                 />
               </View>

@@ -2,6 +2,8 @@ import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 import CommunityDashboardScreen from "../screens/home/community/CommunityDashboardScreen";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
+import OpportunitiesListScreen from "../screens/home/community/OpportunitiesListScreen";
+import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
 import EventAttendeesScreen from "../screens/events/EventAttendeesScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
@@ -20,6 +22,14 @@ export default function CommunityDashboardStackNavigator() {
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
+      />
+      <Stack.Screen
+        name="OpportunitiesList"
+        component={OpportunitiesListScreen}
+      />
+      <Stack.Screen
+        name="CreateOpportunity"
+        component={CreateOpportunityScreen}
       />
       <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
       <Stack.Screen

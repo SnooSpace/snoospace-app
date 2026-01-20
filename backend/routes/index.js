@@ -28,6 +28,7 @@ const PronounController = require("../controllers/pronounController");
 const AnalyticsController = require("../controllers/analyticsController");
 const ModerationController = require("../controllers/moderationController");
 const CollegeController = require("../controllers/collegeController");
+const OpportunityController = require("../controllers/opportunityController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -526,6 +527,39 @@ router.get("/branches", CollegeController.getBranches);
 router.get("/catalog/states", CollegeController.getIndianStates);
 
 // ============================================
+// COMMUNITY CATEGORIES (For Community Signup)
+// ============================================
+router.get("/community-categories", CategoryController.getCommunityCategories);
+router.post(
+  "/community-categories/request",
+  CategoryController.requestCommunityCategory,
+);
+
+// ============================================
+// ADMIN COMMUNITY CATEGORY MANAGEMENT (Protected)
+// ============================================
+router.get(
+  "/admin/community-categories",
+  adminAuthMiddleware,
+  CategoryController.getAllCommunityCategoriesAdmin,
+);
+router.post(
+  "/admin/community-categories",
+  adminAuthMiddleware,
+  CategoryController.createCommunityCategory,
+);
+router.patch(
+  "/admin/community-categories/:id",
+  adminAuthMiddleware,
+  CategoryController.updateCommunityCategory,
+);
+router.delete(
+  "/admin/community-categories/:id",
+  adminAuthMiddleware,
+  CategoryController.deleteCommunityCategory,
+);
+
+// ============================================
 // ADMIN COLLEGE MANAGEMENT (Protected)
 // ============================================
 router.get(
@@ -605,6 +639,62 @@ router.get(
   "/discover/suggestions",
   authMiddleware,
   DiscoverController.getSuggestedCommunities,
+);
+
+// ============================================
+// OPPORTUNITIES / HIRING
+// ============================================
+router.post(
+  "/opportunities",
+  authMiddleware,
+  OpportunityController.createOpportunity,
+);
+router.get(
+  "/opportunities",
+  authMiddleware,
+  OpportunityController.getOpportunities,
+);
+router.get(
+  "/opportunities/:id",
+  authMiddleware,
+  OpportunityController.getOpportunityDetail,
+);
+router.patch(
+  "/opportunities/:id",
+  authMiddleware,
+  OpportunityController.updateOpportunity,
+);
+router.delete(
+  "/opportunities/:id",
+  authMiddleware,
+  OpportunityController.closeOpportunity,
+);
+router.get(
+  "/discover/opportunities",
+  authMiddleware,
+  OpportunityController.discoverOpportunities,
+);
+
+// Applications
+router.post(
+  "/opportunities/apply",
+  authMiddleware,
+  OpportunityController.applyToOpportunity,
+);
+router.get(
+  "/opportunities/:id/applications",
+  authMiddleware,
+  OpportunityController.getApplications,
+);
+router.get(
+  "/opportunities/applications/:id",
+  authMiddleware,
+  OpportunityController.getApplicationDetail,
+);
+router.patch(
+  "/opportunities/applications/:id",
+  authMiddleware,
+  OpportunityController.updateApplicationStatus,
 );
 
 // Activity & Insights
