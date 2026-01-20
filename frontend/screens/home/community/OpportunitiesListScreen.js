@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,7 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { COLORS } from "../../../constants/theme";
-import { getOpportunities } from "../../../api/opportunities";
+import { getOpportunities, closeOpportunity } from "../../../api/opportunities";
 
 const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
@@ -61,6 +62,32 @@ export default function OpportunitiesListScreen({ navigation }) {
     navigation.navigate("OpportunityDetail", { opportunityId: opportunity.id });
   };
 
+  const handleDeleteOpportunity = (opportunity) => {
+    Alert.alert(
+      "Delete Opportunity",
+      `Are you sure you want to delete "${opportunity.title}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await closeOpportunity(opportunity.id, "delete");
+              // Remove from local state
+              setOpportunities((prev) =>
+                prev.filter((o) => o.id !== opportunity.id),
+              );
+            } catch (error) {
+              console.error("Error deleting opportunity:", error);
+              Alert.alert("Error", "Failed to delete opportunity");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
@@ -78,6 +105,8 @@ export default function OpportunitiesListScreen({ navigation }) {
     <TouchableOpacity
       style={styles.opportunityCard}
       onPress={() => handleViewOpportunity(item)}
+      onLongPress={() => handleDeleteOpportunity(item)}
+      delayLongPress={500}
       activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>

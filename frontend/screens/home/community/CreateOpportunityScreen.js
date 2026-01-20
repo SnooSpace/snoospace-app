@@ -470,7 +470,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error("Error creating opportunity:", error);
-      Alert.alert("Error", error.message || "Failed to save opportunity.");
+      const errorMsg =
+        error?.details || error?.message || "Failed to save opportunity.";
+      Alert.alert("Error", errorMsg);
     } finally {
       setSaving(false);
     }

@@ -169,7 +169,9 @@ const createOpportunity = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating opportunity:", error);
-    res.status(500).json({ error: "Failed to create opportunity" });
+    res
+      .status(500)
+      .json({ error: "Failed to create opportunity", details: error.message });
   }
 };
 
@@ -561,8 +563,8 @@ const discoverOpportunities = async (req, res) => {
           WHEN o.creator_type = 'member' THEN m.username
         END as creator_username
       FROM opportunities o
-      LEFT JOIN communities c ON o.creator_id = c.id AND o.creator_type = 'community'
-      LEFT JOIN members m ON o.creator_id = m.id AND o.creator_type = 'member'
+      LEFT JOIN communities c ON o.creator_id::integer = c.id AND o.creator_type = 'community'
+      LEFT JOIN members m ON o.creator_id::integer = m.id AND o.creator_type = 'member'
       WHERE ${filters.join(" AND ")}
       ORDER BY o.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -615,8 +617,8 @@ const getOpportunityById = async (id) => {
         WHEN o.creator_type = 'member' THEN m.username
       END as creator_username
     FROM opportunities o
-    LEFT JOIN communities c ON o.creator_id = c.id AND o.creator_type = 'community'
-    LEFT JOIN members m ON o.creator_id = m.id AND o.creator_type = 'member'
+    LEFT JOIN communities c ON o.creator_id::integer = c.id AND o.creator_type = 'community'
+    LEFT JOIN members m ON o.creator_id::integer = m.id AND o.creator_type = 'member'
     WHERE o.id = $1`,
     [id],
   );
@@ -690,11 +692,9 @@ const applyToOpportunity = async (req, res) => {
 
     const opp = oppCheck.rows[0];
     if (opp.status !== "active") {
-      return res
-        .status(400)
-        .json({
-          error: "This opportunity is no longer accepting applications",
-        });
+      return res.status(400).json({
+        error: "This opportunity is no longer accepting applications",
+      });
     }
 
     if (!opp.opportunity_types.includes(applied_role)) {

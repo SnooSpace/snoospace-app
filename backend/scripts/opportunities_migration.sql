@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS opportunities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
-  creator_id UUID NOT NULL,
+  creator_id TEXT NOT NULL,
   creator_type TEXT NOT NULL CHECK (creator_type IN ('member', 'community')),
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'closed')),
   
