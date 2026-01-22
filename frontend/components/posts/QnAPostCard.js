@@ -211,7 +211,9 @@ const QnAPostCard = ({ post, onUserPress, currentUserId, currentUserType }) => {
           style={styles.viewAllGradient}
         >
           <Text style={styles.viewAllText}>
-            View all {questionCount} answers
+            {questionCount === 1
+              ? "View 1 answer"
+              : `View all ${questionCount} answers`}
           </Text>
           <Ionicons
             name="arrow-forward"
