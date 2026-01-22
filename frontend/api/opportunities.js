@@ -141,3 +141,13 @@ export async function updateApplicationStatus(applicationId, updateData) {
     token,
   );
 }
+
+/**
+ * Get opportunities from followed communities (for home feed)
+ * @param {number} limit - Max number of opportunities
+ * @returns {Promise<Object>} List of opportunities
+ */
+export async function getFollowedOpportunities(limit = 5) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/opportunities/followed?limit=${limit}`, 15000, token);
+}

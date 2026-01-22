@@ -4,6 +4,8 @@ import CommunityDashboardScreen from "../screens/home/community/CommunityDashboa
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import OpportunitiesListScreen from "../screens/home/community/OpportunitiesListScreen";
 import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
+import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
+import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
 import EventAttendeesScreen from "../screens/events/EventAttendeesScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
@@ -31,6 +33,8 @@ export default function CommunityDashboardStackNavigator() {
         name="CreateOpportunity"
         component={CreateOpportunityScreen}
       />
+      <Stack.Screen name="ApplicantsList" component={ApplicantsListScreen} />
+      <Stack.Screen name="ApplicantDetail" component={ApplicantDetailScreen} />
       <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
       <Stack.Screen
         name="MemberPublicProfile"

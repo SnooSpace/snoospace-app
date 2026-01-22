@@ -965,6 +965,81 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
+// ============================================
+// GET OPPORTUNITIES FROM FOLLOWED COMMUNITIES (For Home Feed)
+// ============================================
+const getFollowedOpportunities = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(403).json({ error: "Only members can access this" });
+    }
+
+    const { limit = 5 } = req.query;
+
+    // Get opportunities from communities the user follows
+    const query = `
+      SELECT 
+        o.id,
+        o.title,
+        o.opportunity_types,
+        o.work_type,
+        o.work_mode,
+        o.payment_type,
+        o.payment_nature,
+        o.budget_range,
+        o.applicant_count,
+        o.created_at,
+        o.creator_id,
+        o.creator_type,
+        c.name as creator_name,
+        c.logo_url as creator_photo,
+        c.username as creator_username
+      FROM opportunities o
+      JOIN follows f ON f.following_id = o.creator_id::integer AND f.following_type = 'community'
+      JOIN communities c ON o.creator_id::integer = c.id
+      WHERE o.status = 'active'
+        AND o.creator_type = 'community'
+        AND f.follower_id = $1
+        AND f.follower_type = 'member'
+      ORDER BY o.created_at DESC
+      LIMIT $2
+    `;
+
+    console.log("[getFollowedOpportunities] userId:", userId, "limit:", limit);
+    const result = await pool.query(query, [userId, parseInt(limit)]);
+    console.log(
+      "[getFollowedOpportunities] Found opportunities:",
+      result.rows.length,
+    );
+
+    // Fetch skill groups for each opportunity
+    const opportunities = await Promise.all(
+      result.rows.map(async (opp) => {
+        const sgResult = await pool.query(
+          `SELECT role FROM opportunity_skill_groups 
+           WHERE opportunity_id = $1 ORDER BY display_order LIMIT 3`,
+          [opp.id],
+        );
+        return {
+          ...opp,
+          roles: sgResult.rows.map((r) => r.role),
+        };
+      }),
+    );
+
+    res.json({
+      success: true,
+      opportunities,
+    });
+  } catch (error) {
+    console.error("Error getting followed opportunities:", error);
+    res.status(500).json({ error: "Failed to get opportunities" });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -976,4 +1051,5 @@ module.exports = {
   getApplications,
   getApplicationDetail,
   updateApplicationStatus,
+  getFollowedOpportunities,
 };

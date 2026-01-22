@@ -25,8 +25,10 @@ import {
   getPendingAttendanceEvent,
   confirmAttendance,
 } from "../api/events";
+import { getFollowedOpportunities } from "../api/opportunities";
 import PostCard from "./PostCard";
 import EventCard from "./EventCard";
+import OpportunityFeedCard from "./OpportunityFeedCard";
 import CommentsModal from "./CommentsModal";
 import AttendanceConfirmationModal from "./AttendanceConfirmationModal";
 import EventBus from "../utils/EventBus";
@@ -104,7 +106,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
-  const [feedItems, setFeedItems] = useState([]); // Combined posts + events
+  const [opportunities, setOpportunities] = useState([]);
+  const [feedItems, setFeedItems] = useState([]); // Combined posts + events + opportunities
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -148,7 +151,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     {
       baseInterval: 3000,
       enabled: true,
-    }
+    },
   );
 
   // Auto-poll for new posts
@@ -170,7 +173,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               return null;
             }
           })(),
-        }))
+        })),
       );
       setPosts(mergedPosts);
       HapticsService.triggerImpactLight();
@@ -189,9 +192,25 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  // Merge posts and events
+  // Load opportunities from followed communities
+  const loadOpportunities = async () => {
+    try {
+      const response = await getFollowedOpportunities(3);
+      if (response?.success && response?.opportunities) {
+        setOpportunities(response.opportunities);
+      }
+    } catch (error) {
+      console.warn("[HomeFeed] Error loading opportunities:", error.message);
+    }
+  };
+
+  // Merge posts, events, and opportunities
   useEffect(() => {
-    if (posts.length === 0 && events.length === 0) {
+    if (
+      posts.length === 0 &&
+      events.length === 0 &&
+      opportunities.length === 0
+    ) {
       setFeedItems([]);
       return;
     }
@@ -228,12 +247,26 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       });
     }
 
+    // Add opportunities after the first few items if available
+    if (opportunities.length > 0 && merged.length > 3) {
+      merged.splice(
+        3,
+        0,
+        ...opportunities.map((opp) => ({ ...opp, itemType: "opportunity" })),
+      );
+    } else {
+      opportunities.forEach((opp) => {
+        merged.push({ ...opp, itemType: "opportunity" });
+      });
+    }
+
     setFeedItems(merged);
-  }, [posts, events]);
+  }, [posts, events, opportunities]);
 
   useEffect(() => {
     loadFeed();
     loadEvents();
+    loadOpportunities();
     loadGreetingName();
     loadMessageUnreadCount();
     const off = EventBus.on("follow-updated", () => {
@@ -281,8 +314,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
                     ? payload.commentCount
                     : post.comment_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
     };
 
@@ -298,18 +331,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
                     ? payload.commentCount
                     : post.comment_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
     };
 
     const unsubscribeLike = EventBus.on(
       "post-like-updated",
-      handlePostLikeUpdate
+      handlePostLikeUpdate,
     );
     const unsubscribeComment = EventBus.on(
       "post-comment-updated",
-      handlePostCommentUpdate
+      handlePostCommentUpdate,
     );
 
     return () => {
@@ -321,21 +354,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   useFocusEffect(
     React.useCallback(() => {
       loadMessageUnreadCount();
-    }, [])
+    }, []),
   );
 
   const { loadInitial: loadNotifications } = useNotifications();
   useFocusEffect(
     React.useCallback(() => {
       loadNotifications();
-    }, [loadNotifications])
+    }, [loadNotifications]),
   );
 
   // Check for pending attendance confirmation on focus
   useFocusEffect(
     React.useCallback(() => {
       checkPendingAttendance();
-    }, [])
+    }, []),
   );
 
   const checkPendingAttendance = async () => {
@@ -429,7 +462,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         "/auth/get-user-profile",
         { email },
         12000,
-        token
+        token,
       );
       const prof = res?.profile || {};
       const name = prof.full_name || prof.name || prof.username || "Member";
@@ -443,7 +476,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadFeed(), loadEvents(), loadMessageUnreadCount()]);
+    await Promise.all([
+      loadFeed(),
+      loadEvents(),
+      loadOpportunities(),
+      loadMessageUnreadCount(),
+    ]);
     setRefreshing(false);
   };
 
@@ -457,8 +495,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               isLiked,
               like_count: Math.max(0, (p.like_count || 0) + (isLiked ? 1 : -1)),
             }
-          : p
-      )
+          : p,
+      ),
     );
   };
 
@@ -471,8 +509,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     return (prevCount) => {
       setPosts((prevPosts) =>
         prevPosts.map((p) =>
-          p.id === postId ? { ...p, comment_count: prevCount } : p
-        )
+          p.id === postId ? { ...p, comment_count: prevCount } : p,
+        ),
       );
     };
   };
@@ -491,7 +529,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: true }
+    { useNativeDriver: true },
   );
 
   const handleLogoPress = useCallback(() => {
@@ -509,6 +547,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           event={item}
           onPress={handleEventPress}
           onInterestedPress={handleInterestedPress}
+        />
+      );
+    }
+
+    if (item.itemType === "opportunity") {
+      return (
+        <OpportunityFeedCard
+          opportunity={item}
+          onPress={(opp) => {
+            navigation.navigate("OpportunityView", {
+              opportunityId: opp.id,
+            });
+          }}
         />
       );
     }
@@ -544,7 +595,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             } else {
               Alert.alert(
                 "Community Profile",
-                `Viewing community: ${actualUserId}`
+                `Viewing community: ${actualUserId}`,
               );
             }
             return;
@@ -573,7 +624,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             } else {
               Alert.alert(
                 "Member Profile",
-                `Viewing member profile: ${actualUserId}`
+                `Viewing member profile: ${actualUserId}`,
               );
             }
             return;
@@ -603,7 +654,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ]}
       >
         <TouchableOpacity onPress={handleLogoPress} activeOpacity={0.7}>
-          <SvgXml xml={SnooSpaceIconSvg} width={60} height={50} />
+          <SvgXml xml={SnooSpaceIconSvg} width={50} height={40} />
         </TouchableOpacity>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -696,7 +747,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ListHeaderComponent={
           <View style={styles.greeting}>
             <Text style={styles.greetingText}>
-              Hi {greetingName || "User"}!
+              Hi, {greetingName || "User"} 👋
             </Text>
             <Text style={styles.greetingSubtext}>
               Discover what's happening
@@ -806,14 +857,15 @@ const styles = StyleSheet.create({
     marginTop: 10, // Added margin top for better spacing after refresh
   },
   greetingText: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 32,
+    fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
-    marginBottom: 5,
+    marginBottom: 4,
+    letterSpacing: -0.5,
   },
   greetingSubtext: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    fontSize: 15,
+    color: "#5e8d9b",
   },
   feed: {
     flex: 1,

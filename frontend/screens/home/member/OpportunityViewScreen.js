@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -51,11 +51,23 @@ export default function OpportunityViewScreen({ route, navigation }) {
     }
   }, [opportunityId]);
 
+  // Hide bottom tab bar
+  useLayoutEffect(() => {
+    navigation.getParent()?.setOptions({ tabBarStyle: { display: "none" } });
+    return () => {
+      navigation.getParent()?.setOptions({ tabBarStyle: undefined });
+    };
+  }, [navigation]);
+
   const fetchOpportunity = async () => {
     try {
       setLoading(true);
-      const data = await getOpportunityDetail(opportunityId);
-      setOpportunity(data);
+      const response = await getOpportunityDetail(opportunityId);
+      if (response?.success && response?.opportunity) {
+        setOpportunity(response.opportunity);
+      } else {
+        setError("Failed to load opportunity");
+      }
     } catch (err) {
       console.error("Error fetching opportunity:", err);
       setError("Failed to load opportunity details");

@@ -18,13 +18,14 @@ import { Ionicons } from "@expo/vector-icons";
 import PostCard from "../../../components/PostCard";
 import { mockData } from "../../../data/mockData";
 import { apiGet } from "../../../api/client";
-import { getAuthToken } from "../../../api/auth";
+import { getAuthToken, getActiveAccount } from "../../../api/auth";
 import { useNotifications } from "../../../context/NotificationsContext";
 import { getUnreadCount as getMessageUnreadCount } from "../../../api/messages";
 import EventBus from "../../../utils/EventBus";
 import CommentsModal from "../../../components/CommentsModal";
 import LikeStateManager from "../../../utils/LikeStateManager";
 import HapticsService from "../../../services/HapticsService";
+import SnooSpaceLogo from "../../../components/SnooSpaceLogo";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -41,6 +42,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const { unread, loadInitial: refreshNotifications } = useNotifications();
+  const [user, setUser] = useState(null);
 
   // Refs for collapsible header animation
   const flatListRef = useRef(null);
@@ -54,7 +56,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
       const apiPosts = Array.isArray(response.posts) ? response.posts : [];
       console.log(
         "[CommunityHomeFeed] Received posts from API:",
-        apiPosts.length
+        apiPosts.length,
       );
 
       // Ensure image_urls is an array (backend sends array; guard for strings)
@@ -63,19 +65,19 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
         image_urls: Array.isArray(p.image_urls)
           ? p.image_urls
           : typeof p.image_urls === "string"
-          ? (() => {
-              try {
-                return JSON.parse(p.image_urls);
-              } catch {
-                return [];
-              }
-            })()
-          : [],
+            ? (() => {
+                try {
+                  return JSON.parse(p.image_urls);
+                } catch {
+                  return [];
+                }
+              })()
+            : [],
       }));
 
       console.log(
         "[CommunityHomeFeed] About to merge like states, posts count:",
-        normalized.length
+        normalized.length,
       );
       if (normalized.length > 0) {
         // Log ALL posts to see like states
@@ -125,10 +127,18 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   }, [loadFeed]);
 
   useEffect(() => {
+    const loadUser = async () => {
+      const account = await getActiveAccount();
+      if (account) setUser(account);
+    };
+    loadUser();
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = EventBus.on("post-like-updated", (payload) => {
       console.log(
         "[CommunityHomeFeed] EventBus post-like-updated received:",
-        payload
+        payload,
       );
       if (!payload?.postId) return;
 
@@ -147,8 +157,8 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
                     ? payload.likeCount
                     : post.like_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
     });
     return () => unsubscribe && unsubscribe();
@@ -167,7 +177,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     useCallback(() => {
       loadMessageUnreadCount();
       refreshNotifications?.();
-    }, [refreshNotifications])
+    }, [refreshNotifications]),
   );
 
   // Listen for refresh triggers from create post screen
@@ -201,7 +211,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: true }
+    { useNativeDriver: true },
   );
 
   // Handle logo press - scroll to top and refresh
@@ -224,11 +234,11 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
               isLiked: nextLiked,
               like_count: Math.max(
                 0,
-                (post.like_count || 0) + (nextLiked ? 1 : -1)
+                (post.like_count || 0) + (nextLiked ? 1 : -1),
               ),
             }
-          : post
-      )
+          : post,
+      ),
     );
   };
 
@@ -264,12 +274,12 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
         } else if (userType === "sponsor") {
           Alert.alert(
             "Sponsor Profile",
-            "Sponsor profile navigation will be implemented soon"
+            "Sponsor profile navigation will be implemented soon",
           );
         } else if (userType === "venue") {
           Alert.alert(
             "Venue Profile",
-            "Venue profile navigation will be implemented soon"
+            "Venue profile navigation will be implemented soon",
           );
         }
       }}
@@ -279,9 +289,10 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   // Greeting component (scrolls with content, only visible at top)
   const renderGreeting = () => (
     <View style={styles.greeting}>
-      <Text style={styles.headerSubtitle}>
-        Stay updated with posts from communities and members you follow
+      <Text style={styles.greetingTitle}>
+        Hi, {user?.name || user?.username || "there"} 👋
       </Text>
+      <Text style={styles.headerSubtitle}>Ready to create today?</Text>
     </View>
   );
 
@@ -325,14 +336,18 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
             left: 0,
             right: 0,
             zIndex: 1000,
-            backgroundColor: COLORS.background,
+            backgroundColor: COLORS.background, // Off-white
             paddingTop: insets.top,
             height: HEADER_HEIGHT + insets.top,
           },
         ]}
       >
-        <TouchableOpacity onPress={handleLogoPress} activeOpacity={0.7}>
-          <Text style={styles.headerTitle}>Community Feed</Text>
+        <TouchableOpacity
+          onPress={handleLogoPress}
+          activeOpacity={0.7}
+          style={{ marginLeft: -12 }}
+        >
+          <SnooSpaceLogo width={128} height={32} />
         </TouchableOpacity>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -340,8 +355,8 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
             onPress={() => navigation.navigate("Notifications")}
           >
             <Ionicons
-              name="notifications-outline"
-              size={24}
+              name="notifications"
+              size={26} // Slightly larger for filled
               color={TEXT_COLOR}
             />
             {unread > 0 && (
@@ -356,11 +371,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
             style={styles.headerButton}
             onPress={() => navigation.navigate("ConversationsList")}
           >
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={24}
-              color={TEXT_COLOR}
-            />
+            <Ionicons name="chatbubble" size={24} color={TEXT_COLOR} />
             {messageUnread > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
@@ -407,8 +418,8 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
           if (selectedPostId) {
             setPosts((prevPosts) =>
               prevPosts.map((p) =>
-                p.id === selectedPostId ? { ...p, comment_count: newCount } : p
-              )
+                p.id === selectedPostId ? { ...p, comment_count: newCount } : p,
+              ),
             );
           }
         }}
@@ -484,6 +495,12 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
+  },
+  greetingTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: TEXT_COLOR,
+    marginBottom: 4,
   },
   emptyContainer: {
     flex: 1,

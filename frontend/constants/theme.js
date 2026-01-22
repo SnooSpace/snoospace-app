@@ -33,6 +33,11 @@ export const COLORS = {
   ],
 };
 
+export const FONTS = {
+  primary: "BasicCommercial-Bold",
+  black: "BasicCommercial-Black",
+};
+
 export const SPACING = {
   xs: 4,
   s: 8,

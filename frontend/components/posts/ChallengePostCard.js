@@ -12,6 +12,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiPost, apiDelete } from "../../api/client";
@@ -28,14 +29,14 @@ const ChallengePostCard = ({
   const typeData = post.type_data || {};
   const [hasJoined, setHasJoined] = useState(post.has_joined || false);
   const [userParticipation, setUserParticipation] = useState(
-    post.user_participation || null
+    post.user_participation || null,
   );
   const [participantCount, setParticipantCount] = useState(
-    typeData.participant_count || 0
+    typeData.participant_count || 0,
   );
   const [isJoining, setIsJoining] = useState(false);
   const [previewSubmission, setPreviewSubmission] = useState(
-    post.preview_submission || null
+    post.preview_submission || null,
   );
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
@@ -80,7 +81,7 @@ const ChallengePostCard = ({
           `/posts/${post.id}/join`,
           {},
           10000,
-          token
+          token,
         );
         if (response.success) {
           setHasJoined(true);
@@ -102,7 +103,7 @@ const ChallengePostCard = ({
 
     if (diffInSeconds < 60) return "Just now";
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}hr`;
     if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d`;
     return `${Math.floor(diffInSeconds / 2592000)}mo`;
   };
@@ -231,58 +232,66 @@ const ChallengePostCard = ({
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header with Type Indicator */}
-      <View style={styles.headerRow}>
-        <View style={styles.typeIndicator}>
-          <MaterialCommunityIcons
-            name="trophy-outline"
-            size={14}
-            color="#FF9500"
+    <LinearGradient
+      colors={["#d0f4f4", "#FFFFFF"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      {/* Decorative Trophy Positioned Absolute */}
+      <View style={styles.trophyContainer}>
+        <Ionicons name="trophy" size={24} color="#1976D2" />
+      </View>
+
+      {/* Header: Author Info + Timestamp */}
+      <View style={styles.cardHeader}>
+        <TouchableOpacity
+          style={styles.authorInfo}
+          onPress={handleUserPress}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={
+              post.author_photo_url
+                ? { uri: post.author_photo_url }
+                : { uri: "https://via.placeholder.com/32" }
+            }
+            style={styles.authorAvatar}
           />
-          <Text style={styles.typeLabel}>{getChallengeTypeLabel()}</Text>
-        </View>
-        <View style={styles.headerRightRow}>
-          <View style={styles.submissionTypeBadge}>
-            <Ionicons
-              name={getSubmissionTypeIcon()}
-              size={12}
-              color={COLORS.textSecondary}
-            />
+          <Text style={styles.authorUsername} numberOfLines={1}>
+            @
+            {post.author_username ||
+              post.author_name?.toLowerCase().replace(/\s+/g, "") ||
+              "user"}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.timestampText}>
+          POSTED {formatTimeAgo(post.created_at).toUpperCase()} AGO
+        </Text>
+      </View>
+
+      {/* Badges Row */}
+      <View style={styles.badgesRow}>
+        {!isExpired && (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>Live Now</Text>
           </View>
-          {post.expires_at && (
-            <Text
-              style={[styles.expiryBadge, isExpired && styles.expiredBadge]}
-            >
-              {formatExpiryTime(post.expires_at)}
-            </Text>
-          )}
+        )}
+        <View style={styles.challengePill}>
+          <Text style={styles.challengePillText}>Challenge</Text>
         </View>
       </View>
 
-      {/* Author Info */}
-      <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
-        <Image
-          source={
-            post.author_photo_url
-              ? { uri: post.author_photo_url }
-              : { uri: "https://via.placeholder.com/40" }
-          }
-          style={styles.profileImage}
-        />
-        <View style={styles.userDetails}>
-          <Text style={styles.authorName}>{post.author_name}</Text>
-          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-        </View>
-      </TouchableOpacity>
+      {/* Title & Description */}
+      <View style={styles.contentContainer}>
+        <Text style={styles.title}>{typeData.title}</Text>
+        {typeData.description && (
+          <Text style={styles.description}>{typeData.description}</Text>
+        )}
+      </View>
 
-      {/* Challenge Title and Description */}
-      <Text style={styles.title}>{typeData.title}</Text>
-      {typeData.description && (
-        <Text style={styles.description}>{typeData.description}</Text>
-      )}
-
-      {/* Progress Bar (for progress challenges) */}
+      {/* Progress Bar (if joined) */}
       {renderProgressBar()}
 
       {/* Preview Submission */}
@@ -305,12 +314,21 @@ const ChallengePostCard = ({
             }
             activeOpacity={0.8}
           >
+            <LinearGradient
+              colors={["#34C759", "#2E7D32"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFillObject}
+            />
             <Ionicons
               name={getSubmissionTypeIcon()}
               size={18}
               color="#FFFFFF"
+              style={{ zIndex: 1 }}
             />
-            <Text style={styles.submitProofButtonText}>Submit Proof</Text>
+            <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
+              Submit Proof
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.leaveButton}
@@ -330,128 +348,190 @@ const ChallengePostCard = ({
         </View>
       ) : (
         <TouchableOpacity
-          style={styles.joinButton}
+          style={styles.joinButtonContainer}
           onPress={handleJoinChallenge}
           disabled={isJoining}
-          activeOpacity={0.8}
+          activeOpacity={0.9}
         >
-          {isJoining ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="hand-clap"
-                size={18}
-                color="#FFFFFF"
-              />
-              <Text style={styles.joinButtonText}>Join Challenge</Text>
-            </>
-          )}
+          <LinearGradient
+            colors={["#448AFF", "#2962FF"]} // Brighter/deeper blue gradient
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.joinButtonGradient}
+          >
+            {isJoining ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.joinButtonText}>Join Challenge</Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={18}
+                  color="#FFFFFF"
+                  style={{ marginLeft: 6 }}
+                />
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       )}
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.participantCountText}>
-          {participantCount} participant{participantCount !== 1 ? "s" : ""}
-          {typeData.completed_count > 0
-            ? ` • ${typeData.completed_count} completed`
-            : ""}
-        </Text>
-        <TouchableOpacity
-          style={styles.viewAllButton}
-          onPress={() => navigation.navigate("ChallengeSubmissions", { post })}
-        >
-          <Text style={styles.viewAllText}>See all →</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      {/* Participant Count (below CTA) */}
+      {participantCount > 0 && (
+        <View style={styles.participantCountContainer}>
+          <View style={styles.participantAvatars}>
+            {/* Generic placeholder avatars - you can enhance with real participant photos */}
+            <View style={[styles.participantAvatar, { zIndex: 3 }]}>
+              <Ionicons name="person" size={10} color="#FFFFFF" />
+            </View>
+            <View
+              style={[styles.participantAvatar, { zIndex: 2, marginLeft: -8 }]}
+            >
+              <Ionicons name="person" size={10} color="#FFFFFF" />
+            </View>
+            <View
+              style={[styles.participantAvatar, { zIndex: 1, marginLeft: -8 }]}
+            >
+              <Ionicons name="person" size={10} color="#FFFFFF" />
+            </View>
+          </View>
+          <Text style={styles.participantCountText}>
+            Joined by{" "}
+            {participantCount >= 1000
+              ? `${(participantCount / 1000).toFixed(1)}k`
+              : participantCount}{" "}
+            creators
+          </Text>
+        </View>
+      )}
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
-    borderRadius: BORDER_RADIUS.xl,
+    borderRadius: BORDER_RADIUS.xl, // 20px
     ...SHADOWS.sm,
-    padding: SPACING.m,
+    padding: SPACING.l,
+    overflow: "hidden", // For gradient
   },
-  headerRow: {
+  trophyContainer: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.08)",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    zIndex: 10, // Ensure it's above other elements
+  },
+  // Header with Author + Timestamp
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.m,
+    paddingRight: 50, // Space for trophy icon
   },
-  typeIndicator: {
+  authorInfo: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
-  typeLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#FF9500",
-    marginLeft: 4,
-    letterSpacing: 0.5,
+  authorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 6,
   },
-  headerRightRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  authorUsername: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#5e8d9b",
+    flex: 1,
   },
-  submissionTypeBadge: {
-    marginRight: SPACING.xs,
-  },
-  expiryBadge: {
-    fontSize: 11,
+  timestampText: {
+    fontSize: 10,
     fontWeight: "600",
-    color: COLORS.textSecondary,
-    backgroundColor: COLORS.screenBackground,
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
+    color: "#5e8d9b",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
-  expiredBadge: {
-    color: COLORS.error,
-    backgroundColor: "#FFEBEE",
-  },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+  headerColumn: {
     marginBottom: SPACING.m,
   },
-  profileImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: SPACING.s,
+  badgesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 8,
   },
-  userDetails: {},
-  authorName: {
-    fontSize: 14,
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#34C759",
+  },
+  liveText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#34C759",
+    letterSpacing: 0.5,
+  },
+  challengePill: {
+    backgroundColor: "#64B5F6", // Light Blue background
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8, // Matching reference chips
+  },
+  challengePillText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF", // White text
+    letterSpacing: 0.5,
+  },
+  timestampText: {
+    fontSize: 10,
     fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  timestamp: {
-    fontSize: 12,
     color: COLORS.textSecondary,
+    textTransform: "uppercase",
+  },
+  contentContainer: {
+    marginBottom: SPACING.m,
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-    lineHeight: 24,
+    marginBottom: 6,
+    lineHeight: 26,
   },
   description: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.m,
+    color: "#5e8d9b",
+    marginBottom: SPACING.s,
     lineHeight: 20,
   },
   // Progress Bar
   progressContainer: {
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "rgba(255, 255, 255, 0.6)", // Transparent white on gradient
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.m,
     marginBottom: SPACING.m,
@@ -490,7 +570,7 @@ const styles = StyleSheet.create({
   // Preview
   previewContainer: {
     flexDirection: "row",
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.s,
     marginBottom: SPACING.m,
@@ -557,19 +637,24 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   // Buttons
-  joinButton: {
+  joinButtonContainer: {
+    borderRadius: 16, // Matching reference (less than pill)
+    overflow: "hidden",
+    marginTop: 8,
+    ...SHADOWS.primaryGlow, // Add glow
+  },
+  joinButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FF9500",
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.m,
+    backgroundColor: "#2979FF", // Fallback
   },
   joinButtonText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#FFFFFF",
-    marginLeft: SPACING.s,
   },
   joinedButtonsRow: {
     flexDirection: "row",
@@ -580,10 +665,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#34C759",
+    backgroundColor: "#34C759", // Overridden by gradient
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.m,
     marginRight: SPACING.s,
+    overflow: "hidden",
+    position: "relative",
   },
   submitProofButtonText: {
     fontSize: 15,
@@ -596,7 +683,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "rgba(255,255,255,0.5)",
     borderRadius: BORDER_RADIUS.m,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -617,16 +704,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: SPACING.m,
+    paddingTop: SPACING.xs,
+  },
+  participantsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   participantCountText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: "#5e8d9b",
+    fontWeight: "500",
   },
-  viewAllButton: {},
   viewAllText: {
     fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: "500",
+    color: "#1976D2",
+    fontWeight: "600",
   },
 });
 

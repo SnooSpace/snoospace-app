@@ -59,7 +59,10 @@ export default function OpportunitiesListScreen({ navigation }) {
   };
 
   const handleViewOpportunity = (opportunity) => {
-    navigation.navigate("OpportunityDetail", { opportunityId: opportunity.id });
+    navigation.navigate("ApplicantsList", {
+      opportunityId: opportunity.id,
+      opportunityTitle: opportunity.title,
+    });
   };
 
   const handleDeleteOpportunity = (opportunity) => {

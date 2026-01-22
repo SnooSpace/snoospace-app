@@ -654,6 +654,12 @@ router.get(
   authMiddleware,
   OpportunityController.getOpportunities,
 );
+// IMPORTANT: Specific paths must come BEFORE wildcard :id
+router.get(
+  "/opportunities/followed",
+  authMiddleware,
+  OpportunityController.getFollowedOpportunities,
+);
 router.get(
   "/opportunities/:id",
   authMiddleware,
