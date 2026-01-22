@@ -101,11 +101,13 @@ const ChallengePostCard = ({
     const postTime = new Date(timestamp);
     const diffInSeconds = Math.floor((now - postTime) / 1000);
 
-    if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}hr`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d`;
-    return `${Math.floor(diffInSeconds / 2592000)}mo`;
+    if (diffInSeconds < 60) return "JUST NOW";
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}M AGO`;
+    if (diffInSeconds < 86400)
+      return `${Math.floor(diffInSeconds / 3600)}H AGO`;
+    if (diffInSeconds < 2592000)
+      return `${Math.floor(diffInSeconds / 86400)}D AGO`;
+    return `${Math.floor(diffInSeconds / 2592000)}MO AGO`;
   };
 
   const formatExpiryTime = (expiresAt) => {
@@ -233,7 +235,7 @@ const ChallengePostCard = ({
 
   return (
     <LinearGradient
-      colors={["#d0f4f4", "#FFFFFF"]}
+      colors={["#C8E9EA", "#E8F7F8"]} // Softer gradient - less white
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -243,13 +245,13 @@ const ChallengePostCard = ({
         <Ionicons name="trophy" size={24} color="#1976D2" />
       </View>
 
-      {/* Header: Author Info + Timestamp */}
-      <View style={styles.cardHeader}>
-        <TouchableOpacity
-          style={styles.authorInfo}
-          onPress={handleUserPress}
-          activeOpacity={0.7}
-        >
+      {/* Header: Author Info */}
+      <TouchableOpacity
+        style={styles.cardHeader}
+        onPress={handleUserPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.authorInfo}>
           <Image
             source={
               post.author_photo_url
@@ -264,11 +266,12 @@ const ChallengePostCard = ({
               post.author_name?.toLowerCase().replace(/\s+/g, "") ||
               "user"}
           </Text>
-        </TouchableOpacity>
-        <Text style={styles.timestampText}>
-          POSTED {formatTimeAgo(post.created_at).toUpperCase()} AGO
-        </Text>
-      </View>
+          <Text style={styles.separator}>•</Text>
+          <Text style={styles.timestampText}>
+            {formatTimeAgo(post.created_at).toUpperCase()}
+          </Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Badges Row */}
       <View style={styles.badgesRow}>
@@ -456,7 +459,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: "#5e8d9b",
-    flex: 1,
   },
   timestampText: {
     fontSize: 10,
@@ -464,6 +466,11 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
     letterSpacing: 0.3,
     textTransform: "uppercase",
+  },
+  separator: {
+    fontSize: 13,
+    color: "#5e8d9b",
+    marginHorizontal: 6,
   },
   headerColumn: {
     marginBottom: SPACING.m,

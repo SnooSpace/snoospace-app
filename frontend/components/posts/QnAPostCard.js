@@ -1,6 +1,6 @@
 /**
  * QnAPostCard
- * Displays a Q&A post with question submission, upvoting, and preview
+ * Displays a Q&A post with question submission, upvoting, and top answer preview
  */
 
 import React, { useState, useEffect } from "react";
@@ -17,34 +17,56 @@ import {
   ActivityIndicator,
   Switch,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiPost, apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+} from "../../constants/theme";
 
 const QnAPostCard = ({ post, onUserPress, currentUserId, currentUserType }) => {
   const navigation = useNavigation();
   const typeData = post.type_data || {};
   const [userQuestionCount, setUserQuestionCount] = useState(
-    post.user_question_count || 0
+    post.user_question_count || 0,
   );
   const [questionCount, setQuestionCount] = useState(
-    typeData.question_count || 0
+    typeData.question_count || 0,
   );
   const [answeredCount, setAnsweredCount] = useState(
-    typeData.answered_count || 0
+    typeData.answered_count || 0,
   );
   const [showAskModal, setShowAskModal] = useState(false);
   const [questionText, setQuestionText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewQuestion, setPreviewQuestion] = useState(
-    post.preview_question || null
+    post.preview_question || null,
   );
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
-  const maxQuestions = typeData.max_questions_per_user || 1;
+
+  // Format time ago utility
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return "";
+    const now = new Date();
+    const postTime = new Date(timestamp);
+    const diffInSeconds = Math.floor((now - postTime) / 1000);
+
+    if (diffInSeconds < 60) return "JUST NOW";
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}M AGO`;
+    if (diffInSeconds < 86400)
+      return `${Math.floor(diffInSeconds / 3600)}H AGO`;
+    if (diffInSeconds < 2592000)
+      return `${Math.floor(diffInSeconds / 86400)}D AGO`;
+    return `${Math.floor(diffInSeconds / 2592000)}MO AGO`;
+  };
 
   // Sync state with props
   useEffect(() => {
@@ -66,586 +88,365 @@ const QnAPostCard = ({ post, onUserPress, currentUserId, currentUserType }) => {
     }
   };
 
-  const handleSubmitQuestion = async () => {
-    if (!questionText.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const token = await getAuthToken();
-      const response = await apiPost(
-        `/posts/${post.id}/questions`,
-        {
-          content: questionText.trim(),
-          is_anonymous: isAnonymous && typeData.allow_anonymous,
-        },
-        15000,
-        token
-      );
-
-      if (response.success) {
-        setUserQuestionCount((prev) => prev + 1);
-        setQuestionCount((prev) => prev + 1);
-        setShowAskModal(false);
-        setQuestionText("");
-        setIsAnonymous(false);
-        // Update preview if this is the first question
-        if (!previewQuestion) {
-          setPreviewQuestion(response.question);
-        }
-      }
-    } catch (error) {
-      console.error("Error submitting question:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleAddAnswer = () => {
+    navigation.navigate("QnAQuestions", { post, autoFocus: true });
   };
 
-  const formatTimeAgo = (timestamp) => {
-    const now = new Date();
-    const postTime = new Date(timestamp);
-    const diffInSeconds = Math.floor((now - postTime) / 1000);
+  // Get participant data from backend
+  const participants = typeData.participants || [];
+  const participantCount = typeData.participant_count || participants.length;
 
-    if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d`;
-    return `${Math.floor(diffInSeconds / 2592000)}mo`;
-  };
-
-  const formatExpiryTime = (expiresAt) => {
-    if (!expiresAt) return null;
-    const now = new Date();
-    const expiry = new Date(expiresAt);
-    const diff = expiry - now;
-
-    if (diff <= 0) return "Ended";
-
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d left`;
-    if (hours > 0) return `${hours}h left`;
-    return "Ending soon";
-  };
-
-  // Render preview question
-  const renderPreviewQuestion = () => {
+  const renderTopAnswer = () => {
+    // If we have a preview question (top answer), display it
     if (!previewQuestion) return null;
 
     return (
-      <TouchableOpacity
-        style={styles.previewContainer}
-        onPress={() => navigation.navigate("QnAQuestions", { post })}
-        activeOpacity={0.7}
-      >
-        <View style={styles.previewHeader}>
-          <View style={styles.upvotePreview}>
-            <Ionicons name="arrow-up" size={14} color={COLORS.primary} />
-            <Text style={styles.upvoteCount}>
-              {previewQuestion.upvote_count || 0}
-            </Text>
+      <View style={styles.topAnswerContainer}>
+        {/* Blue vertical line */}
+        <View style={styles.verticalLine} />
+
+        <View style={styles.topAnswerContent}>
+          {/* Top Answer Header */}
+          <View style={styles.topAnswerHeader}>
+            <View style={styles.topAnswerBadge}>
+              <Text style={styles.topAnswerBadgeText}>TOP ANSWER</Text>
+            </View>
+
+            <View style={styles.topAnswerMeta}>
+              <Text style={styles.topAnswerUsername} numberOfLines={1}>
+                @
+                {previewQuestion.author_username ||
+                  previewQuestion.author_name
+                    ?.toLowerCase()
+                    .replace(/\s+/g, "") ||
+                  "anonymous"}
+              </Text>
+            </View>
+
+            <View style={styles.upvoteContainer}>
+              <Ionicons name="arrow-up" size={14} color={COLORS.primary} />
+              <Text style={styles.upvoteCount}>
+                {previewQuestion.upvote_count || 0}
+              </Text>
+            </View>
           </View>
-          <View style={styles.previewMeta}>
-            {previewQuestion.author_photo_url && (
-              <Image
-                source={{ uri: previewQuestion.author_photo_url }}
-                style={styles.previewAvatar}
-              />
-            )}
-            <Text style={styles.previewAuthorName} numberOfLines={1}>
-              {previewQuestion.author_name || "Anonymous"}
-            </Text>
-            {previewQuestion.is_answered && (
-              <View style={styles.answeredBadge}>
-                <Ionicons name="checkmark-circle" size={12} color="#34C759" />
-                <Text style={styles.answeredBadgeText}>Answered</Text>
-              </View>
-            )}
-          </View>
+
+          {/* Answer Content */}
+          <Text style={styles.answerText} numberOfLines={4}>
+            "{previewQuestion.content}"
+          </Text>
         </View>
-        <Text style={styles.previewContent} numberOfLines={2}>
-          {previewQuestion.content}
-        </Text>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header with Type Indicator */}
+      {/* Header Row: Q&A Badge + Avatar Stack */}
       <View style={styles.headerRow}>
-        <View style={styles.typeIndicator}>
-          <MaterialCommunityIcons
-            name="frequently-asked-questions"
-            size={14}
-            color="#5856D6"
-          />
-          <Text style={styles.typeLabel}>Q&A</Text>
+        <View style={styles.qnaBadge}>
+          <Text style={styles.qnaBadgeText}>Q&A</Text>
         </View>
-        {post.expires_at && (
-          <Text style={[styles.expiryBadge, isExpired && styles.expiredBadge]}>
-            {formatExpiryTime(post.expires_at)}
-          </Text>
-        )}
+
+        <View style={styles.avatarStack}>
+          {participants.slice(0, 2).map((participant, index) => (
+            <Image
+              key={index}
+              source={{
+                uri: participant.photo_url || "https://via.placeholder.com/24",
+              }}
+              style={[
+                styles.stackAvatar,
+                { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
+              ]}
+            />
+          ))}
+          {participantCount > 2 && (
+            <View style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}>
+              <Text style={styles.countText}>+{participantCount - 2}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* Author Info */}
-      <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
+      {/* Author Row */}
+      <TouchableOpacity
+        style={styles.authorRow}
+        onPress={handleUserPress}
+        activeOpacity={0.7}
+      >
         <Image
-          source={
-            post.author_photo_url
-              ? { uri: post.author_photo_url }
-              : { uri: "https://via.placeholder.com/40" }
-          }
-          style={styles.profileImage}
+          source={{
+            uri: post.author_photo_url || "https://via.placeholder.com/24",
+          }}
+          style={styles.authorAvatar}
         />
-        <View style={styles.userDetails}>
-          <Text style={styles.authorName}>{post.author_name}</Text>
-          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-        </View>
+        <Text style={styles.authorUsername}>
+          @
+          {post.author_username ||
+            post.author_name?.toLowerCase().replace(/\s+/g, "") ||
+            "user"}
+        </Text>
+        <Text style={styles.separator}>•</Text>
+        <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
       </TouchableOpacity>
 
-      {/* Q&A Title and Description */}
-      <Text style={styles.title}>{typeData.title}</Text>
-      {typeData.description && (
-        <Text style={styles.description}>{typeData.description}</Text>
-      )}
+      {/* Question Text */}
+      <Text style={styles.questionText} numberOfLines={4}>
+        {typeData.title}
+      </Text>
 
-      {/* Preview Question */}
-      {renderPreviewQuestion()}
+      {/* Top Answer Preview Section */}
+      {renderTopAnswer()}
 
-      {/* Ask Question Button */}
-      {userQuestionCount >= maxQuestions ? (
-        <View style={styles.askedContainer}>
-          <View style={styles.askedHeader}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={COLORS.success}
-            />
-            <Text style={styles.askedText}>
-              {maxQuestions === 1
-                ? "Question submitted"
-                : `${userQuestionCount}/${maxQuestions} questions asked`}
-            </Text>
-          </View>
-        </View>
-      ) : isExpired ? (
-        <View style={styles.expiredContainer}>
-          <Text style={styles.expiredText}>This Q&A session has ended</Text>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={styles.askButton}
-          onPress={() => setShowAskModal(true)}
-          activeOpacity={0.8}
+      {/* View All CTA */}
+      <TouchableOpacity
+        style={styles.viewAllCTA}
+        onPress={() => navigation.navigate("QnAQuestions", { post })}
+      >
+        <LinearGradient
+          colors={["#448AFF", "#2962FF"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.viewAllGradient}
         >
-          <MaterialCommunityIcons name="hand-wave" size={20} color="#5856D6" />
-          <Text style={styles.askButtonText}>
-            {userQuestionCount > 0
-              ? `Ask another question (${userQuestionCount}/${maxQuestions})`
-              : "Ask a question"}
+          <Text style={styles.viewAllText}>
+            View all {questionCount} answers
           </Text>
-        </TouchableOpacity>
-      )}
+          <Ionicons
+            name="arrow-forward"
+            size={18}
+            color="#FFFFFF"
+            style={{ marginLeft: 6 }}
+          />
+        </LinearGradient>
+      </TouchableOpacity>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.questionCountText}>
-          {questionCount} question{questionCount !== 1 ? "s" : ""}
-          {answeredCount > 0 ? ` • ${answeredCount} answered` : ""}
+      {/* Footer Row */}
+      <View style={styles.footerRow}>
+        <Text style={styles.votesText}>
+          {typeData.vote_count || 0} votes total
         </Text>
-        <TouchableOpacity
-          style={styles.viewAllButton}
-          onPress={() => navigation.navigate("QnAQuestions", { post })}
-        >
-          <Text style={styles.viewAllText}>See all →</Text>
+
+        <TouchableOpacity style={styles.addAnswerCTA} onPress={handleAddAnswer}>
+          <Text style={styles.addAnswerText}>Add your answer </Text>
+          <MaterialCommunityIcons
+            name="pencil-outline"
+            size={16}
+            color="#5e8d9b"
+          />
         </TouchableOpacity>
       </View>
-
-      {/* Ask Question Modal */}
-      <Modal
-        visible={showAskModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAskModal(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Ask a Question</Text>
-              <TouchableOpacity
-                onPress={() => setShowAskModal(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalPrompt}>{typeData.title}</Text>
-
-            <TextInput
-              style={styles.textInput}
-              placeholder="Type your question..."
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              maxLength={500}
-              value={questionText}
-              onChangeText={setQuestionText}
-              autoFocus
-            />
-
-            <View style={styles.modalFooter}>
-              <Text style={styles.charCount}>{questionText.length}/500</Text>
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  (!questionText.trim() || isSubmitting) &&
-                    styles.submitButtonDisabled,
-                ]}
-                onPress={handleSubmitQuestion}
-                disabled={!questionText.trim() || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Submit</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {typeData.allow_anonymous ? (
-              <View style={styles.anonymousRow}>
-                <View style={styles.anonymousToggle}>
-                  <Ionicons
-                    name={isAnonymous ? "eye-off" : "eye-off-outline"}
-                    size={16}
-                    color={isAnonymous ? "#5856D6" : COLORS.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.anonymousLabel,
-                      isAnonymous && styles.anonymousLabelActive,
-                    ]}
-                  >
-                    Ask anonymously
-                  </Text>
-                  <Switch
-                    value={isAnonymous}
-                    onValueChange={setIsAnonymous}
-                    trackColor={{ false: COLORS.border, true: "#5856D650" }}
-                    thumbColor={isAnonymous ? "#5856D6" : COLORS.textSecondary}
-                    style={styles.anonymousSwitch}
-                  />
-                </View>
-              </View>
-            ) : (
-              <Text style={styles.visibilityNote}>
-                Your name will be visible with your question
-              </Text>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: "#FFFFFF",
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl,
     ...SHADOWS.sm,
-    padding: SPACING.m,
+    padding: SPACING.l, // 24px
   },
+
+  // Header Row
   headerRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: SPACING.xs,
-  },
-  typeIndicator: {
-    flexDirection: "row",
     alignItems: "center",
+    marginBottom: 12,
   },
-  typeLabel: {
-    fontSize: 11,
+  qnaBadge: {
+    backgroundColor: "#60A5FA", // Blue background
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  qnaBadgeText: {
+    color: "#FFFFFF", // White text
+    fontSize: 10,
     fontWeight: "700",
-    color: "#5856D6",
-    marginLeft: 4,
     letterSpacing: 0.5,
   },
-  expiryBadge: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    backgroundColor: COLORS.screenBackground,
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
-  },
-  expiredBadge: {
-    color: COLORS.error,
-    backgroundColor: "#FFEBEE",
-  },
-  userInfo: {
+
+  // Avatar Stack
+  avatarStack: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.m,
   },
-  profileImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: SPACING.s,
+  stackAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  userDetails: {},
-  authorName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+  countBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#3B82F6", // Brand blue
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  countText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+
+  // Author Row
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  authorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  authorUsername: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#5e8d9b", // Muted teal
+  },
+  separator: {
+    fontSize: 13,
+    color: "#5e8d9b",
+    marginHorizontal: 4,
   },
   timestamp: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#5e8d9b",
+    textTransform: "uppercase",
   },
-  title: {
-    fontSize: 17,
+
+  // Question Text
+  questionText: {
+    fontSize: 20,
+    fontFamily: FONTS.primary || "System", // BasicCommercial-Bold
+    color: "#1D1D1F",
+    lineHeight: 28,
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+
+  // Top Answer Section
+  topAnswerContainer: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  verticalLine: {
+    width: 4,
+    backgroundColor: "#3B82F6", // Blue line
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  topAnswerContent: {
+    flex: 1,
+    backgroundColor: "#F5F7FA", // Light gray
+    borderRadius: 12,
+    padding: 16,
+  },
+  topAnswerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  topAnswerBadge: {
+    backgroundColor: "#E8F4FD", // Light blue background
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  topAnswerBadgeText: {
+    color: "#3B82F6", // Blue text
+    fontSize: 10,
     fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-    lineHeight: 24,
+    letterSpacing: 0.5,
   },
-  description: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.m,
-    lineHeight: 20,
-  },
-  // Preview Question Styles
-  previewContainer: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
-  },
-  previewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.xs,
-  },
-  upvotePreview: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: SPACING.m,
-  },
-  upvoteCount: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.primary,
-    marginLeft: 2,
-  },
-  previewMeta: {
+  topAnswerMeta: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
-  previewAvatar: {
+  topAnswerAvatar: {
     width: 20,
     height: 20,
     borderRadius: 10,
     marginRight: 6,
   },
-  previewAuthorName: {
+  topAnswerUsername: {
     fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
+    fontWeight: "600",
+    color: "#5e8d9b",
     flex: 1,
   },
-  answeredBadge: {
+  upvoteContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
-    marginLeft: SPACING.xs,
+    gap: 4,
   },
-  answeredBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#34C759",
-    marginLeft: 2,
-  },
-  previewContent: {
+  upvoteCount: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    fontStyle: "italic",
+    fontWeight: "600",
+    color: "#3B82F6",
   },
-  // Ask Button
-  askButton: {
+  answerText: {
+    fontSize: 14,
+    color: "#5e8d9b",
+    lineHeight: 22,
+    marginTop: 8,
+  },
+
+  // View All CTA
+  viewAllCTA: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  viewAllGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#5856D610",
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    borderWidth: 1,
-    borderColor: "#5856D630",
-    borderStyle: "dashed",
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.m,
   },
-  askButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#5856D6",
-    marginLeft: SPACING.s,
-  },
-  askedContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E8F5E9",
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-  },
-  askedHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  askedText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.success,
-    marginLeft: SPACING.s,
-  },
-  expiredContainer: {
-    alignItems: "center",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-  },
-  expiredText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  // Footer
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: SPACING.m,
-  },
-  questionCountText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  viewAllButton: {},
   viewAllText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: "500",
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl,
-    padding: SPACING.l,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: SPACING.m,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  modalPrompt: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.m,
-    lineHeight: 20,
-  },
-  textInput: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-  modalFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: SPACING.m,
-  },
-  charCount: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  submitButton: {
-    backgroundColor: "#5856D6",
-    paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.s,
-    borderRadius: BORDER_RADIUS.m,
-    minWidth: 80,
-    alignItems: "center",
-  },
-  submitButtonDisabled: {
-    backgroundColor: COLORS.border,
-  },
-  submitButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
     color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
-  // Anonymous toggle styles
-  anonymousRow: {
-    marginTop: SPACING.m,
+
+  // Footer Row
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 8,
   },
-  anonymousToggle: {
+  votesText: {
+    fontSize: 13,
+    color: "#5e8d9b",
+    fontWeight: "400",
+  },
+  addAnswerCTA: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
   },
-  anonymousLabel: {
+  addAnswerText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginLeft: SPACING.s,
-    flex: 1,
-  },
-  anonymousLabelActive: {
-    color: "#5856D6",
-    fontWeight: "500",
-  },
-  anonymousSwitch: {
-    transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
-  },
-  visibilityNote: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginTop: SPACING.m,
-    fontStyle: "italic",
+    fontWeight: "600",
+    color: "#5e8d9b", // Muted teal
   },
 });
 
