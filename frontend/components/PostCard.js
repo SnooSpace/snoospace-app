@@ -103,7 +103,7 @@ const PostCard = ({
   const [isLiking, setIsLiking] = useState(false);
   const taggedEntities = useMemo(
     () => normalizeTaggedEntities(post.tagged_entities),
-    [post.tagged_entities]
+    [post.tagged_entities],
   );
 
   // Sync state when post prop changes (e.g., after navigation and feed reload)
@@ -178,7 +178,7 @@ const PostCard = ({
         console.warn(
           "[PostCard] author_type is missing for post:",
           post.id,
-          "Attempting to infer from post data"
+          "Attempting to infer from post data",
         );
         // We can't reliably infer, so we'll pass undefined and let the handler deal with it
       }
@@ -362,7 +362,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m, // Card margins from screen edge
     borderRadius: BORDER_RADIUS.xl,
-    ...SHADOWS.sm,
     paddingBottom: 12,
     overflow: "hidden", // Clips image to rounded corners
   },
@@ -394,7 +393,8 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   authorNameInline: {
     fontWeight: "600",
@@ -402,7 +402,8 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   imageContainer: {
     // Container for horizontal scrolling images

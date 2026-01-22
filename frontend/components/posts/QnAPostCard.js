@@ -249,7 +249,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl,
-    ...SHADOWS.sm,
     padding: SPACING.l, // 24px
   },
 
@@ -315,17 +314,18 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#5e8d9b", // Muted teal
   },
   separator: {
     fontSize: 13,
+    fontWeight: "600",
     color: "#5e8d9b",
     marginHorizontal: 4,
   },
   timestamp: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#5e8d9b",
     textTransform: "uppercase",
   },

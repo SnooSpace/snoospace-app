@@ -63,7 +63,7 @@ const PollPostCard = ({
           `/posts/${post.id}/vote`,
           {}, // empty body
           15000,
-          token
+          token,
         );
 
         if (response.success) {
@@ -83,7 +83,7 @@ const PollPostCard = ({
           `/posts/${post.id}/vote`,
           { option_index: optionIndex },
           15000,
-          token
+          token,
         );
 
         if (response.success) {
@@ -149,7 +149,7 @@ const PollPostCard = ({
 
     // Debug logging
     console.log(
-      `[PollPostCard] Rendering option ${index}: "${optionText}", shouldShowResults: ${shouldShowResults}, hasVoted: ${hasVoted}`
+      `[PollPostCard] Rendering option ${index}: "${optionText}", shouldShowResults: ${shouldShowResults}, hasVoted: ${hasVoted}`,
     );
 
     if (shouldShowResults) {
@@ -290,7 +290,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl,
-    ...SHADOWS.sm,
     padding: SPACING.m,
     overflow: "hidden",
   },
@@ -327,7 +326,8 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   question: {
     fontSize: 16,

@@ -36,7 +36,7 @@ export default function EventCard({
   style,
 }) {
   const [isInterested, setIsInterested] = useState(
-    Boolean(event?.is_interested)
+    Boolean(event?.is_interested),
   );
   const [userRole, setUserRole] = useState(null);
   const [interestLoading, setInterestLoading] = useState(false);
@@ -53,7 +53,7 @@ export default function EventCard({
         }
       })
       .catch((err) =>
-        console.error("[EventCard] Error fetching account:", err)
+        console.error("[EventCard] Error fetching account:", err),
       );
   }, []);
 
@@ -407,7 +407,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.l,
     overflow: "hidden",
-    ...SHADOWS.md,
   },
   imageContainer: {
     height: 160,
@@ -477,8 +476,8 @@ const styles = StyleSheet.create({
   communityName: {
     flex: 1,
     fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   followingBadge: {
     backgroundColor: "#E3F2FD",
@@ -503,7 +502,8 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
     maxWidth: 120,
   },
   bottomRow: {
@@ -521,7 +521,8 @@ const styles = StyleSheet.create({
   },
   attendeeText: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   interestedButton: {
     borderRadius: BORDER_RADIUS.m,

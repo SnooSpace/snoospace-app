@@ -36,6 +36,7 @@ import LikeStateManager from "../utils/LikeStateManager";
 import { useMessagePolling } from "../hooks/useMessagePolling";
 import { useFeedPolling } from "../hooks/useFeedPolling";
 import SkeletonCard from "./SkeletonCard";
+import HomeGreetingHeader from "./HomeGreetingHeader";
 import HapticsService from "../services/HapticsService";
 import { SvgXml } from "react-native-svg";
 
@@ -744,16 +745,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        ListHeaderComponent={
-          <View style={styles.greeting}>
-            <Text style={styles.greetingText}>
-              Hi, {greetingName || "User"} 👋
-            </Text>
-            <Text style={styles.greetingSubtext}>
-              Discover what's happening
-            </Text>
-          </View>
-        }
+        ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
           !loading ? (
             <View style={styles.emptyContainer}>
@@ -851,22 +843,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
   },
-  greeting: {
-    paddingHorizontal: 20,
-    marginBottom: 10,
-    marginTop: 10, // Added margin top for better spacing after refresh
-  },
-  greetingText: {
-    fontSize: 32,
-    fontFamily: "BasicCommercial-Black",
-    color: TEXT_COLOR,
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  greetingSubtext: {
-    fontSize: 15,
-    color: "#5e8d9b",
-  },
+  // Greeting styles moved to HomeGreetingHeader component
   feed: {
     flex: 1,
   },

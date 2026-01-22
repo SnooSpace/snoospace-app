@@ -34,13 +34,13 @@ const PromptPostCard = ({
   const typeData = post.type_data || {};
   const [hasSubmitted, setHasSubmitted] = useState(post.has_submitted || false);
   const [submissionStatus, setSubmissionStatus] = useState(
-    post.submission_status || null
+    post.submission_status || null,
   );
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submissionText, setSubmissionText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionCount, setSubmissionCount] = useState(
-    typeData.submission_count || 0
+    typeData.submission_count || 0,
   );
   const totalReplyCount = typeData.total_reply_count || 0;
 
@@ -63,7 +63,7 @@ const PromptPostCard = ({
         `/posts/${post.id}/submissions`,
         { content: submissionText.trim() },
         15000,
-        token
+        token,
       );
 
       if (response.success) {
@@ -315,7 +315,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl,
-    ...SHADOWS.sm,
     padding: SPACING.m,
   },
   headerRow: {
@@ -354,7 +353,8 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontWeight: "600",
+    color: "#5e8d9b",
   },
   promptText: {
     fontSize: 16,

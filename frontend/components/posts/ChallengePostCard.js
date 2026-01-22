@@ -416,7 +416,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl, // 20px
-    ...SHADOWS.sm,
     padding: SPACING.l,
     overflow: "hidden", // For gradient
   },
@@ -430,10 +429,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    ...SHADOWS.sm,
-    shadowColor: "rgba(0,0,0,0.08)",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
     zIndex: 10, // Ensure it's above other elements
   },
   // Header with Author + Timestamp
@@ -457,7 +452,7 @@ const styles = StyleSheet.create({
   },
   authorUsername: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#5e8d9b",
   },
   timestampText: {
@@ -469,6 +464,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     fontSize: 13,
+    fontWeight: "600",
     color: "#5e8d9b",
     marginHorizontal: 6,
   },
@@ -514,12 +510,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // White text
     letterSpacing: 0.5,
   },
-  timestampText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-  },
+
   contentContainer: {
     marginBottom: SPACING.m,
   },
