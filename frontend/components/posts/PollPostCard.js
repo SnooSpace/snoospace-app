@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiDelete } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import AnimatedProgressBar from "./AnimatedProgressBar";
 
 const PollPostCard = ({
   post,
@@ -140,119 +141,94 @@ const PollPostCard = ({
     const percentage =
       totalVotes > 0 ? Math.round((option.vote_count / totalVotes) * 100) : 0;
 
-    // Determine if we should show results view (with bars and percentages)
     const shouldShowResults =
       hasVoted || isExpired || typeData.show_results_before_vote === true;
 
-    // Fallback text if text is somehow missing
     const optionText = option.text || `Option ${index + 1}`;
 
-    // Debug logging
-    console.log(
-      `[PollPostCard] Rendering option ${index}: "${optionText}", shouldShowResults: ${shouldShowResults}, hasVoted: ${hasVoted}`,
-    );
-
-    if (shouldShowResults) {
-      // Results view - show bar and percentage
+    if (!shouldShowResults) {
+      // Pre-vote state
       return (
         <TouchableOpacity
-          key={`poll-opt-${option.index}-${index}`}
-          style={[
-            styles.optionResult,
-            isSelected && styles.optionResultSelected,
-          ]}
+          key={option.index}
+          style={styles.optionButton}
           onPress={() => handleVote(option.index)}
-          disabled={isExpired || isVoting}
-          activeOpacity={0.7}
+          disabled={isVoting || isExpired}
+          activeOpacity={0.8}
         >
-          {/* Background progress bar - now using simple View with width percentage */}
-          <View
-            style={[
-              styles.resultBarInline,
-              isSelected && styles.resultBarInlineSelected,
-              { width: `${percentage}%` },
-            ]}
-          />
-
-          {/* Content overlay */}
-          <View style={styles.optionContentOverlay}>
-            <View style={styles.optionTextRow}>
-              {isSelected && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={18}
-                  color={COLORS.primary}
-                  style={styles.checkIcon}
-                />
-              )}
-              <Text
-                style={[
-                  styles.optionText,
-                  isSelected && styles.optionTextSelected,
-                ]}
-                numberOfLines={2}
-              >
-                {optionText}
-              </Text>
-            </View>
-            <Text style={styles.percentageText}>{percentage}%</Text>
-          </View>
-
-          {isVoting && votingIndex === option.index && (
-            <ActivityIndicator
-              size="small"
-              color={COLORS.primary}
-              style={styles.votingIndicator}
-            />
-          )}
+          <Text style={styles.optionButtonText}>{optionText}</Text>
         </TouchableOpacity>
       );
     }
 
-    // Voting view (before any vote)
     return (
       <TouchableOpacity
-        key={`poll-opt-${option.index}-${index}`}
-        style={[styles.optionButton, isVoting && styles.optionButtonDisabled]}
+        key={option.index}
+        style={styles.optionResult}
         onPress={() => handleVote(option.index)}
         disabled={isVoting || isExpired}
-        activeOpacity={0.7}
+        activeOpacity={0.85}
       >
-        <Text style={styles.optionButtonText} numberOfLines={2}>
-          {optionText}
-        </Text>
-        {isVoting && votingIndex === option.index && (
-          <ActivityIndicator size="small" color={COLORS.primary} />
-        )}
+        {/* Animated Progress fill */}
+        <AnimatedProgressBar percentage={percentage} isSelected={isSelected} />
+
+        {/* Content */}
+        <View style={styles.optionContent}>
+          <View style={styles.optionTextRow}>
+            <Text
+              style={[
+                styles.optionText,
+                isSelected && styles.optionTextSelected,
+              ]}
+              numberOfLines={2}
+            >
+              {optionText}
+            </Text>
+
+            {isSelected && (
+              <Ionicons name="checkmark" size={18} color="#ffffff" />
+            )}
+          </View>
+
+          <Text
+            style={[
+              styles.percentageText,
+              percentage === 100 && styles.percentageTextFull,
+            ]}
+          >
+            {percentage}%
+          </Text>
+        </View>
       </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.typeIndicator}>
-          <MaterialCommunityIcons name="poll" size={14} color="#7B1FA2" />
-          <Text style={styles.typeLabel}>POLL</Text>
+      {/* Header with Type Indicator & Chat Icon */}
+      <View style={styles.headerRow}>
+        <View style={styles.pollBadge}>
+          <Text style={styles.pollBadgeText}>POLL</Text>
         </View>
-        <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
-          <Image
-            source={
-              post.author_photo_url
-                ? { uri: post.author_photo_url }
-                : { uri: "https://via.placeholder.com/40" }
-            }
-            style={styles.profileImage}
-          />
-          <View style={styles.userDetails}>
-            <Text style={styles.authorName}>{post.author_name}</Text>
-            <Text style={styles.timestamp}>
-              {formatTimeAgo(post.created_at)}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <Ionicons name="stats-chart" size={20} color="#334456" />
       </View>
+
+      {/* Author Info */}
+      <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
+        <Image
+          source={
+            post.author_photo_url
+              ? { uri: post.author_photo_url }
+              : { uri: "https://via.placeholder.com/40" }
+          }
+          style={styles.profileImage}
+        />
+        <Text style={styles.authorName}>
+          @{post.author_username || post.author_name}
+        </Text>
+        <Text style={styles.separator}>•</Text>
+        <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+      </TouchableOpacity>
 
       {/* Question */}
       <Text style={styles.question}>{typeData.question}</Text>
@@ -293,124 +269,156 @@ const styles = StyleSheet.create({
     padding: SPACING.m,
     overflow: "hidden",
   },
-  header: {
-    marginBottom: SPACING.m,
-  },
-  typeIndicator: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.s,
+    justifyContent: "space-between",
+    marginBottom: SPACING.xs,
   },
-  typeLabel: {
-    fontSize: 11,
+  pollBadge: {
+    backgroundColor: "#daecf8",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pollBadgeText: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#7B1FA2",
-    marginLeft: 4,
+    color: "#3665f3",
     letterSpacing: 0.5,
   },
-  userInfo: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: SPACING.m,
   },
   profileImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: SPACING.s,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
   },
-  userDetails: {},
   authorName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: COLORS.textPrimary,
+    color: "#314151",
+  },
+  separator: {
+    fontSize: 13,
+    fontWeight: "400",
+    color: "#9CA3AF",
+    marginHorizontal: 4,
   },
   timestamp: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5e8d9b",
+    fontSize: 13,
+    fontWeight: "400",
+    color: "#9CA3AF",
   },
   question: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 24,
+    color: "#1D1D1F",
     marginBottom: SPACING.m,
-    lineHeight: 22,
+    lineHeight: 30,
   },
   optionsContainer: {
     gap: SPACING.s,
   },
   optionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: "#f9fafc",
+    borderRadius: 14,
+    padding: 14,
   },
   optionButtonDisabled: {
     opacity: 0.6,
   },
   optionButtonText: {
     fontSize: 14,
-    color: COLORS.textPrimary,
     fontWeight: "500",
+    color: "#1D1D1F",
   },
   optionResult: {
+    backgroundColor: "#f9fafc",
+    borderRadius: 14,
+    overflow: "hidden",
+    minHeight: 52,
     position: "relative",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    minHeight: 48,
-    // No overflow hidden - this was causing issues
   },
   optionResultSelected: {
-    borderWidth: 1,
-    borderColor: COLORS.primary,
+    backgroundColor: "#3665f3", // Solid blue for selected
+    borderWidth: 0,
   },
+  progressFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+  },
+
+  optionContent: {
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
   // The progress bar that sits behind the content
   resultBarInline: {
     position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "#E3F2FD",
-    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#E5E7EB",
     zIndex: 0,
   },
   resultBarInlineSelected: {
-    backgroundColor: "#BBDEFB",
+    backgroundColor: "#3665f3", // Same as container for selected (full fill illusion)
+    opacity: 0, // Hide progress bar for selected item since it's full solid color
   },
   // Content that sits on top of the bar
   optionContentOverlay: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: SPACING.m,
+    padding: 14,
     zIndex: 1,
     position: "relative",
   },
   optionTextRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     flex: 1,
   },
   checkIcon: {
-    marginRight: 6,
+    marginRight: 8,
+    fontSize: 16,
+    color: "#FFFFFF", // White checkmark
   },
   optionText: {
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 14,
-    color: COLORS.textPrimary,
-    fontWeight: "500",
+    color: "#314151",
   },
+
   optionTextSelected: {
+    color: "#ffffff",
     fontWeight: "600",
-    color: COLORS.primary,
   },
+
   percentageText: {
     fontSize: 14,
+    fontFamily: "BasicCommercial-Bold",    
     fontWeight: "600",
-    color: COLORS.textSecondary,
+    color: "#AFC8EA",
+  },
+
+  percentageTextFull: {
+    color: "#ffffff",
+  },
+
+  percentageTextSelected: {
+    color: "#ffffff",
   },
   footer: {
     flexDirection: "row",

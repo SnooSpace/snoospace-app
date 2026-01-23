@@ -159,21 +159,16 @@ const PromptPostCard = ({
 
   return (
     <View style={styles.container}>
-      {/* Header with Type Indicator and Status Badge */}
+      {/* Header with Type Indicator & Star */}
       <View style={styles.headerRow}>
-        <View style={styles.typeIndicator}>
-          <MaterialCommunityIcons
-            name="chat-question"
-            size={14}
-            color="#00838F"
-          />
-          <Text style={styles.typeLabel}>PROMPT</Text>
+        <View style={styles.nudgeBadge}>
+          <Text style={styles.nudgeBadgeText}>NUDGE</Text>
         </View>
-        {getStatusBadge()}
+        <Ionicons name="star" size={20} color="#FFD700" />
       </View>
 
       {/* Author Info */}
-      <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
+      <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
         <Image
           source={
             post.author_photo_url
@@ -182,10 +177,11 @@ const PromptPostCard = ({
           }
           style={styles.profileImage}
         />
-        <View style={styles.userDetails}>
-          <Text style={styles.authorName}>{post.author_name}</Text>
-          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-        </View>
+        <Text style={styles.authorName}>
+          @{post.author_username || post.author_name}
+        </Text>
+        <Text style={styles.separator}>•</Text>
+        <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
       </TouchableOpacity>
 
       {/* Prompt Text */}
@@ -212,16 +208,14 @@ const PromptPostCard = ({
         </View>
       ) : (
         <TouchableOpacity
-          style={styles.submitButton}
+          style={styles.tapToAnswerButton}
           onPress={() => setShowSubmitModal(true)}
           activeOpacity={0.8}
         >
-          <Ionicons
-            name="add-circle-outline"
-            size={20}
-            color={COLORS.primary}
-          />
-          <Text style={styles.submitButtonText}>Add your response</Text>
+          <View style={styles.tapIconContainer}>
+            <Ionicons name="pencil" size={16} color="#9CA3AF" />
+          </View>
+          <Text style={styles.tapToAnswerText}>Tap to answer...</Text>
         </TouchableOpacity>
       )}
 
@@ -323,62 +317,72 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: SPACING.xs,
   },
-  typeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
+  nudgeBadge: {
+    backgroundColor: "#EC4899", // Pink
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  typeLabel: {
-    fontSize: 11,
+  nudgeBadgeText: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#00838F",
-    marginLeft: 4,
+    color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  userInfo: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: SPACING.m,
   },
   profileImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: SPACING.s,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
   },
-  userDetails: {},
   authorName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: COLORS.textPrimary,
+    color: "#5e8d9b",
+  },
+  separator: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#5e8d9b",
+    marginHorizontal: 4,
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: "#5e8d9b",
   },
   promptText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: "#1D1D1F",
     marginBottom: SPACING.m,
-    lineHeight: 22,
+    lineHeight: 28,
   },
-  submitButton: {
+  tapToAnswerButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: "dashed",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 14,
   },
-  submitButtonText: {
-    fontSize: 14,
+  tapIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  tapToAnswerText: {
+    fontSize: 15,
+    color: "#9CA3AF",
     fontWeight: "500",
-    color: COLORS.primary,
-    marginLeft: SPACING.s,
   },
   submittedContainer: {
     flexDirection: "row",

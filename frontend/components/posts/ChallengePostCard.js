@@ -3,7 +3,7 @@
  * Displays a Challenge post with joining, progress, and submission preview
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -43,6 +44,9 @@ const ChallengePostCard = ({
   const challengeType = typeData.challenge_type || "single";
   const submissionType = typeData.submission_type || "image";
 
+  // Pulse animation for Live Now badge
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
   // Sync state with props
   useEffect(() => {
     setHasJoined(post.has_joined || false);
@@ -55,6 +59,28 @@ const ChallengePostCard = ({
     typeData.participant_count,
     post.preview_submission,
   ]);
+
+  // Animate Live Now badge
+  useEffect(() => {
+    if (!isExpired) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [isExpired, pulseAnim]);
 
   const handleUserPress = () => {
     if (onUserPress) {
@@ -240,51 +266,51 @@ const ChallengePostCard = ({
       end={{ x: 1, y: 1 }}
       style={styles.container}
     >
-      {/* Decorative Trophy Positioned Absolute */}
-      <View style={styles.trophyContainer}>
-        <Ionicons name="trophy" size={24} color="#1976D2" />
+      {/* Header Row: Badge & Trophy Icon */}
+      <View style={styles.headerRow}>
+        <View style={styles.badgesRow}>
+          {!isExpired && (
+            <Animated.View
+              style={[styles.liveBadge, { transform: [{ scale: pulseAnim }] }]}
+            >
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>Live Now</Text>
+            </Animated.View>
+          )}
+          <View style={styles.challengePill}>
+            <Text style={styles.challengePillText}>Challenge</Text>
+          </View>
+        </View>
+        <View style={styles.trophyContainer}>
+          <Ionicons name="trophy" size={24} color="#1976D2" />
+        </View>
       </View>
 
-      {/* Header: Author Info */}
+      {/* Author Row */}
       <TouchableOpacity
-        style={styles.cardHeader}
+        style={styles.authorRow}
         onPress={handleUserPress}
         activeOpacity={0.7}
       >
-        <View style={styles.authorInfo}>
-          <Image
-            source={
-              post.author_photo_url
-                ? { uri: post.author_photo_url }
-                : { uri: "https://via.placeholder.com/32" }
-            }
-            style={styles.authorAvatar}
-          />
-          <Text style={styles.authorUsername} numberOfLines={1}>
-            @
-            {post.author_username ||
-              post.author_name?.toLowerCase().replace(/\s+/g, "") ||
-              "user"}
-          </Text>
-          <Text style={styles.separator}>•</Text>
-          <Text style={styles.timestampText}>
-            {formatTimeAgo(post.created_at).toUpperCase()}
-          </Text>
-        </View>
+        <Image
+          source={
+            post.author_photo_url
+              ? { uri: post.author_photo_url }
+              : { uri: "https://via.placeholder.com/32" }
+          }
+          style={styles.authorAvatar}
+        />
+        <Text style={styles.authorUsername} numberOfLines={1}>
+          @
+          {post.author_username ||
+            post.author_name?.toLowerCase().replace(/\s+/g, "") ||
+            "user"}
+        </Text>
+        <Text style={styles.separator}>•</Text>
+        <Text style={styles.timestampText}>
+          {formatTimeAgo(post.created_at).toUpperCase()}
+        </Text>
       </TouchableOpacity>
-
-      {/* Badges Row */}
-      <View style={styles.badgesRow}>
-        {!isExpired && (
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>Live Now</Text>
-          </View>
-        )}
-        <View style={styles.challengePill}>
-          <Text style={styles.challengePillText}>Challenge</Text>
-        </View>
-      </View>
 
       {/* Title & Description */}
       <View style={styles.contentContainer}>
@@ -419,41 +445,41 @@ const styles = StyleSheet.create({
     padding: SPACING.l,
     overflow: "hidden", // For gradient
   },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   trophyContainer: {
-    position: "absolute",
-    top: 16,
-    right: 16,
     width: 44,
     height: 44,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10, // Ensure it's above other elements
   },
-  // Header with Author + Timestamp
-  cardHeader: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: SPACING.m,
-    paddingRight: 50, // Space for trophy icon
-  },
-  authorInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
+    marginBottom: 4,
   },
   authorAvatar: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginRight: 6,
+    marginRight: 8,
   },
   authorUsername: {
     fontSize: 13,
     fontWeight: "600",
     color: "#5e8d9b",
+  },
+  separator: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#5e8d9b",
+    marginHorizontal: 4,
   },
   timestampText: {
     fontSize: 10,
@@ -462,19 +488,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
-  separator: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    marginHorizontal: 6,
-  },
   headerColumn: {
     marginBottom: SPACING.m,
   },
   badgesRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
     gap: 8,
   },
   liveBadge: {

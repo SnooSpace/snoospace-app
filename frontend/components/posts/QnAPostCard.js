@@ -142,30 +142,37 @@ const QnAPostCard = ({ post, onUserPress, currentUserId, currentUserType }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header Row: Q&A Badge + Avatar Stack */}
+      {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
       <View style={styles.headerRow}>
         <View style={styles.qnaBadge}>
           <Text style={styles.qnaBadgeText}>Q&A</Text>
         </View>
 
-        <View style={styles.avatarStack}>
-          {participants.slice(0, 2).map((participant, index) => (
-            <Image
-              key={index}
-              source={{
-                uri: participant.photo_url || "https://via.placeholder.com/24",
-              }}
-              style={[
-                styles.stackAvatar,
-                { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
-              ]}
-            />
-          ))}
-          {participantCount > 2 && (
-            <View style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}>
-              <Text style={styles.countText}>+{participantCount - 2}</Text>
-            </View>
-          )}
+        <View style={styles.rightHeaderContent}>
+          <View style={styles.avatarStack}>
+            {participants.slice(0, 2).map((participant, index) => (
+              <Image
+                key={index}
+                source={{
+                  uri:
+                    participant.photo_url || "https://via.placeholder.com/24",
+                }}
+                style={[
+                  styles.stackAvatar,
+                  { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
+                ]}
+              />
+            ))}
+            {participantCount > 2 && (
+              <View style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}>
+                <Text style={styles.countText}>+{participantCount - 2}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.questionIconContainer}>
+            <Ionicons name="help-circle" size={28} color="#334456" />
+          </View>
         </View>
       </View>
 
@@ -272,6 +279,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
+  // Right side of header (avatar stack + icon)
+  rightHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
   // Avatar Stack
   avatarStack: {
     flexDirection: "row",
@@ -298,6 +312,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 9,
     fontWeight: "700",
+  },
+
+  // Question Icon
+  questionIconContainer: {
+    width: 44,
+    height: 44,
+    backgroundColor: "#cbf3f2",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Author Row

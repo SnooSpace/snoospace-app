@@ -52,28 +52,33 @@ const OpportunityFeedCard = ({ opportunity, onPress }) => {
         end={{ x: 1, y: 1 }}
         style={styles.card}
       >
-        {/* Header Row */}
+        {/* Header Row: Badge & Icon */}
         <View style={styles.headerRow}>
-          <View style={styles.leftHeader}>
-            {/* Type Badge */}
-            <View style={styles.typeBadge}>
-              <Text style={styles.typeBadgeText}>GIG</Text>
-            </View>
-
-            {/* Author Info */}
-            <Text style={styles.authorUsername} numberOfLines={1}>
-              {username}
-            </Text>
-            <Text style={styles.separator}>•</Text>
-            <Text style={styles.timestamp}>
-              {formatTimeAgo(opportunity.created_at)}
-            </Text>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>GIG</Text>
           </View>
-
-          {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="briefcase" size={24} color="#1976D2" />
+            <Ionicons name="briefcase" size={24} color="#2D3748" />
           </View>
+        </View>
+
+        {/* Author Row */}
+        <View style={styles.authorRow}>
+          <Image
+            source={
+              opportunity.creator_photo
+                ? { uri: opportunity.creator_photo }
+                : { uri: "https://via.placeholder.com/24" }
+            }
+            style={styles.authorAvatar}
+          />
+          <Text style={styles.authorUsername} numberOfLines={1}>
+            {username}
+          </Text>
+          <Text style={styles.separator}>•</Text>
+          <Text style={styles.timestamp}>
+            {formatTimeAgo(opportunity.created_at)}
+          </Text>
         </View>
 
         {/* Title */}
@@ -180,28 +185,37 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 4,
-  },
-  leftHeader: {
-    flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    flexWrap: "wrap",
-    gap: 8,
+    marginBottom: 2,
   },
   typeBadge: {
-    borderWidth: 1,
-    borderColor: "#C0C0C0",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
   },
   typeBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#1D1D1F",
+    color: "#4A5568",
     letterSpacing: 0.5,
+  },
+  iconContainer: {
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    borderRadius: 25,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  authorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
   },
   authorUsername: {
     fontSize: 13,
@@ -213,17 +227,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#5e8d9b",
+    marginHorizontal: 4,
   },
   timestamp: {
     fontSize: 13,
     fontWeight: "600",
     color: "#5e8d9b",
-  },
-  iconContainer: {
-    backgroundColor: "#E3F2FD",
-    padding: 8,
-    borderRadius: 20,
-    marginLeft: 8,
   },
   title: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
