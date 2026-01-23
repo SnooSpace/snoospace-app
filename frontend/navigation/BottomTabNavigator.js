@@ -73,60 +73,51 @@ const BottomTabNavigator = ({ navigation, route }) => {
             iconName = focused ? "person" : "person-outline";
           }
 
-          return <TabIcon name={iconName} focused={focused} color={color} />;
+          return (
+            <View style={{ alignItems: "center", justifyContent: "center" }}>
+              {focused && (
+                <View
+                  style={{
+                    position: "absolute",
+                    width: 48,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: "rgba(53, 101, 242, 0.1)", // Light blue pill background
+                    zIndex: -1,
+                  }}
+                />
+              )}
+              <Ionicons
+                name={iconName}
+                size={24}
+                color={focused ? "#3565F2" : "#9E9E9E"}
+              />
+            </View>
+          );
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: "#00C6FF",
-        tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarStyle: {
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: "transparent", // Transparent to let BlurView show
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          height: 85, // Fixed height for docked bar
+          backgroundColor: "#FFFFFF", // Solid white
+          borderTopLeftRadius: 0, // Removed radius for solid connection
+          borderTopRightRadius: 0,
+          height: Platform.OS === "ios" ? 85 : 65,
           borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
-          paddingBottom: 0,
+          paddingBottom: Platform.OS === "ios" ? 20 : 0,
         },
+        // Custom background to add the subtle top divider
         tabBarBackground: () => (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                overflow: "hidden",
-                // Fallback color for Android if blur fails or loads slowly
-                backgroundColor: "rgba(255,255,255,0.6)",
-              },
-            ]}
-          >
-            <BlurView
-              // Switch to "systemThickMaterialLight" for a denser, heavier glass on iOS
-              // Keep "light" if you want it purely white but just blurrier
-              tint={
-                Platform.OS === "ios" ? "systemThickMaterialLight" : "light"
-              }
-              // Max out intensity to 100
-              intensity={100}
-              // CRITICAL for Android: Enables real blur instead of just transparency
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-
-            {/* Subtle Top Border */}
+          <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
             <View
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
                 height: 1,
-                backgroundColor: "rgba(0,0,0,0.1)", // Slightly darker border for better contrast
+                backgroundColor: "rgba(0,0,0,0.05)", // Subtle separator
+                width: "100%",
               }}
             />
           </View>
@@ -154,14 +145,12 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "transparent",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              height: 85,
+              backgroundColor: "#FFFFFF",
+              height: Platform.OS === "ios" ? 85 : 65,
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: 0,
+              paddingBottom: Platform.OS === "ios" ? 20 : 0,
             };
           })(),
         })}
@@ -192,14 +181,12 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "transparent",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              height: 85,
+              backgroundColor: "#FFFFFF",
+              height: Platform.OS === "ios" ? 85 : 65,
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: 0,
+              paddingBottom: Platform.OS === "ios" ? 20 : 0,
             };
           })(),
         })}
@@ -224,14 +211,12 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "transparent",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              height: 85,
+              backgroundColor: "#FFFFFF",
+              height: Platform.OS === "ios" ? 85 : 65,
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: 0,
+              paddingBottom: Platform.OS === "ios" ? 20 : 0,
             };
           })(),
         })}

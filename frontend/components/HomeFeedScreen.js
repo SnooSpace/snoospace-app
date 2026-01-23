@@ -129,20 +129,19 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
   return (
     <TouchableOpacity
       onPress={handlePress}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
       style={styles.iconButton}
     >
       <RNAnimated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-        }}
+        style={[
+          styles.iconContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+          },
+        ]}
       >
-        <IconComponent
-          size={24}
-          color={COLORS.textSecondary} // Muted neutral gray
-          strokeWidth={2}
-        />
+        <IconComponent size={22} color={COLORS.textPrimary} strokeWidth={2} />
         {showDot && <View style={styles.indicatorDot} />}
       </RNAnimated.View>
     </TouchableOpacity>
@@ -858,24 +857,32 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
-    gap: 20, // Increased gap to separate icons
+    gap: 16, // Increased gap to move bell icon slightly to the left
     alignItems: "center",
   },
   iconButton: {
-    padding: 8, // Increased hit slop
+    // Removed specific padding as container handles it
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(53, 101, 242, 0.08)", // Primary Blue with very low opacity
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(53, 101, 242, 0.1)", // Subtle border
   },
   indicatorDot: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: 9,
+    right: 9,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.error, // Red dot
+    backgroundColor: "#FF3B30", // System Red
     borderWidth: 1.5,
-    borderColor: COLORS.surface, // Inner stroke to separate from icon
+    borderColor: COLORS.background, // Creates a gap effect against the icon
   },
   // Greeting styles moved to HomeGreetingHeader component
   feed: {
