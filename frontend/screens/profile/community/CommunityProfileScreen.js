@@ -61,6 +61,7 @@ import MentionTextRenderer from "../../../components/MentionTextRenderer";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
+import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import {
   COLORS,
   SPACING,

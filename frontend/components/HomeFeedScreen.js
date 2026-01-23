@@ -9,6 +9,8 @@ import {
   Alert,
   FlatList,
   Platform,
+  Easing,
+  Animated as RNAnimated,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -18,7 +20,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { MessageSquare, Bell } from "lucide-react-native";
 import { useNotifications } from "../context/NotificationsContext";
 import { apiGet, apiPost } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
@@ -75,6 +77,77 @@ const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 // Header height for animations
 const HEADER_HEIGHT = 50;
+
+/**
+ * Animated Header Icon Component
+ * - Subtly animates on mount (fade + slide up)
+ * - Micro-interaction on press (scale)
+ * - Muted gray by default
+ * - Minimalist dot for unread state
+ */
+const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
+  const fadeAnim = useRef(new RNAnimated.Value(0)).current;
+  const slideAnim = useRef(new RNAnimated.Value(5)).current;
+  const scaleAnim = useRef(new RNAnimated.Value(1)).current;
+
+  useEffect(() => {
+    // Entrance animation
+    RNAnimated.parallel([
+      RNAnimated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      RNAnimated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+    ]).start();
+  }, []);
+
+  const handlePress = () => {
+    HapticsService.triggerImpactLight();
+    // Micro-scale interaction
+    RNAnimated.sequence([
+      RNAnimated.timing(scaleAnim, {
+        toValue: 0.92,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    onPress && onPress();
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.7}
+      style={styles.iconButton}
+    >
+      <RNAnimated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        }}
+      >
+        <IconComponent
+          size={24}
+          color={COLORS.textSecondary} // Muted neutral gray
+          strokeWidth={2}
+        />
+        {showDot && <View style={styles.indicatorDot} />}
+      </RNAnimated.View>
+    </TouchableOpacity>
+  );
+};
 
 export default function HomeFeedScreen({ navigation, role = "member" }) {
   const insets = useSafeAreaInsets();
@@ -646,44 +719,20 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           <SvgXml xml={SnooSpaceIconSvg} width={50} height={40} />
         </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerButton}
+          <HeaderIcon
+            IconComponent={Bell}
+            showDot={unread > 0}
             onPress={() => {
               navigation.navigate("Notifications");
             }}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={TEXT_COLOR}
-            />
-            {unread > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {unread > 9 ? "9+" : String(unread)}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
+          />
+          <HeaderIcon
+            IconComponent={MessageSquare}
+            showDot={messageUnread > 0}
             onPress={() => {
               navigation.navigate("ConversationsList");
             }}
-          >
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={24}
-              color={TEXT_COLOR}
-            />
-            {messageUnread > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {messageUnread > 9 ? "9+" : String(messageUnread)}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          />
         </View>
       </PremiumHeader>
 
@@ -809,27 +858,24 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
-    gap: 15,
-  },
-  headerButton: {
-    padding: 5,
-  },
-  badge: {
-    position: "absolute",
-    right: 0,
-    top: -2,
-    backgroundColor: "#D93025",
-    borderRadius: 8,
-    minWidth: 16,
-    paddingHorizontal: 4,
-    height: 16,
+    gap: 20, // Increased gap to separate icons
     alignItems: "center",
-    justifyContent: "center",
   },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
+  iconButton: {
+    padding: 8, // Increased hit slop
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  indicatorDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.error, // Red dot
+    borderWidth: 1.5,
+    borderColor: COLORS.surface, // Inner stroke to separate from icon
   },
   // Greeting styles moved to HomeGreetingHeader component
   feed: {
