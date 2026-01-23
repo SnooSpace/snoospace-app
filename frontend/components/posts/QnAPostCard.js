@@ -267,13 +267,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   qnaBadge: {
-    backgroundColor: "#60A5FA", // Blue background
+    backgroundColor: "#EAF1FF",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   qnaBadgeText: {
-    color: "#FFFFFF", // White text
+    color: "#3F7CF4",
     fontSize: 10,
     fontFamily: "BasicCommercial-Bold",
     letterSpacing: 0.5,
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   questionIconContainer: {
     width: 44,
     height: 44,
-    backgroundColor: "#cbf3f2",
+    backgroundColor: "#EAF1FF",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",

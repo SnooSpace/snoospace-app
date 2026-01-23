@@ -22,7 +22,13 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+} from "../../constants/theme";
 
 const PromptPostCard = ({
   post,
@@ -93,6 +99,13 @@ const PromptPostCard = ({
     return `${Math.floor(diffInSeconds / 2592000)}mo`;
   };
 
+  // Format numbers with k/M suffix
+  const formatNumber = (num) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return num.toString();
+  };
+
   const getStatusBadge = () => {
     if (!hasSubmitted) return null;
 
@@ -125,38 +138,6 @@ const PromptPostCard = ({
     );
   };
 
-  // Render preview response
-  const renderPreviewResponse = () => {
-    const preview = post.preview_submission;
-    if (!preview) return null;
-
-    return (
-      <View style={styles.previewContainer}>
-        <View style={styles.previewHeader}>
-          <Image
-            source={
-              preview.author_photo_url
-                ? { uri: preview.author_photo_url }
-                : { uri: "https://via.placeholder.com/32" }
-            }
-            style={styles.previewAvatar}
-          />
-          <Text style={styles.previewAuthorName} numberOfLines={1}>
-            {preview.author_name || "Anonymous"}
-          </Text>
-          {preview.is_pinned && (
-            <View style={styles.pinnedBadge}>
-              <Ionicons name="pin" size={10} color="#FF9500" />
-            </View>
-          )}
-        </View>
-        <Text style={styles.previewContent} numberOfLines={2}>
-          "{preview.content}"
-        </Text>
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
       {/* Header with Type Indicator & Star */}
@@ -164,7 +145,9 @@ const PromptPostCard = ({
         <View style={styles.nudgeBadge}>
           <Text style={styles.nudgeBadgeText}>NUDGE</Text>
         </View>
-        <Ionicons name="star" size={20} color="#FFD700" />
+        <View style={styles.starIconContainer}>
+          <Ionicons name="star" size={24} color="#FFB800" />
+        </View>
       </View>
 
       {/* Author Info */}
@@ -187,20 +170,16 @@ const PromptPostCard = ({
       {/* Prompt Text */}
       <Text style={styles.promptText}>{typeData.prompt_text}</Text>
 
-      {/* Preview Response */}
-      {renderPreviewResponse()}
-
       {/* Submission Area */}
       {hasSubmitted ? (
         <View style={styles.submittedContainer}>
-          <View style={styles.submittedHeader}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={COLORS.success}
-            />
-            <Text style={styles.submittedText}>Response submitted</Text>
-          </View>
+          <Ionicons
+            name="lock-closed"
+            size={14}
+            color="#9CA3AF"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.submittedText}>You've already responded</Text>
         </View>
       ) : isExpired ? (
         <View style={styles.expiredContainer}>
@@ -222,16 +201,23 @@ const PromptPostCard = ({
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.responseCount}>
-          {submissionCount} response{submissionCount !== 1 ? "s" : ""}
+          {formatNumber(submissionCount)} response
+          {submissionCount !== 1 ? "s" : ""}
           {totalReplyCount > 0
-            ? ` • ${totalReplyCount} repl${totalReplyCount !== 1 ? "ies" : "y"}`
+            ? ` • ${formatNumber(totalReplyCount)} repl${totalReplyCount !== 1 ? "ies" : "y"}`
             : ""}
         </Text>
         <TouchableOpacity
           style={styles.viewAllButton}
           onPress={() => navigation.navigate("PromptSubmissions", { post })}
         >
-          <Text style={styles.viewAllText}>View all →</Text>
+          <Text style={styles.viewAllText}>View all</Text>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={COLORS.primary}
+            style={{ marginLeft: 4 }}
+          />
         </TouchableOpacity>
       </View>
 
@@ -318,7 +304,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
   },
   nudgeBadge: {
-    backgroundColor: "#60A5FA", // Light blue
+    backgroundColor: "#FFE8E0", // Soft coral/peach
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -326,7 +312,7 @@ const styles = StyleSheet.create({
   nudgeBadgeText: {
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    color: "#FFFFFF",
+    color: "#C85A47", // Muted coral-red
     letterSpacing: 0.5,
   },
   authorRow: {
@@ -357,11 +343,12 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
   },
   promptText: {
-    fontFamily: "BasicCommercial-Bold",
-    fontSize: 24,
+    fontFamily: FONTS.black || "BasicCommercial-Black",
+    fontSize: 28,
     color: "#1D1D1F",
     marginBottom: SPACING.m,
-    lineHeight: 30,
+    lineHeight: 34,
+    letterSpacing: -0.5,
   },
   tapToAnswerButton: {
     flexDirection: "row",
@@ -387,69 +374,17 @@ const styles = StyleSheet.create({
   submittedContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F5F5F5",
     borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-  },
-  submittedHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    padding: 14,
+    marginBottom: SPACING.m,
   },
   submittedText: {
     fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.success,
-    marginLeft: SPACING.s,
+    fontWeight: "400",
+    color: "#9CA3AF",
   },
-  // Preview response styles
-  previewContainer: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
-  },
-  previewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.xs,
-  },
-  previewAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: SPACING.xs,
-  },
-  previewAuthorName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    flex: 1,
-  },
-  previewContent: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    fontStyle: "italic",
-    lineHeight: 20,
-  },
-  pinnedBadge: {
-    backgroundColor: "#FF950020",
-    borderRadius: 10,
-    padding: 4,
-    marginLeft: SPACING.xs,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.s,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
+
   expiredContainer: {
     alignItems: "center",
     backgroundColor: COLORS.screenBackground,
@@ -467,14 +402,26 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
   },
   responseCount: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontWeight: "400",
   },
-  viewAllButton: {},
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   viewAllText: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.primary,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  starIconContainer: {
+    width: 44,
+    height: 44,
+    backgroundColor: "#FFF9E6",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Modal styles
   modalOverlay: {

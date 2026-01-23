@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   pollBadge: {
-    backgroundColor: "#daecf8",
+    backgroundColor: "#E8EDF5", // Muted light blue
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   pollBadgeText: {
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    color: "#3b65e4",
+    color: "#5B6B7C", // Deeper neutral blue
     letterSpacing: 0.5,
   },
   authorRow: {

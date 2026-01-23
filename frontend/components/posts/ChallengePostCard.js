@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   challengePill: {
-    backgroundColor: "#64B5F6", // Light Blue background
+    backgroundColor: "#FFF4E0", // Muted amber/soft gold
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12, // Matching reference chips
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
   challengePillText: {
     fontSize: 10.5,
     fontFamily: "BasicCommercial-Bold",
-    color: "#FFFFFF", // White text
+    color: "#A67C52", // Warm brown-gold
     letterSpacing: 0.5,
   },
 
