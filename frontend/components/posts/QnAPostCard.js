@@ -269,13 +269,13 @@ const styles = StyleSheet.create({
   qnaBadge: {
     backgroundColor: "#60A5FA", // Blue background
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   qnaBadgeText: {
     color: "#FFFFFF", // White text
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: "BasicCommercial-Bold",
     letterSpacing: 0.5,
   },
 

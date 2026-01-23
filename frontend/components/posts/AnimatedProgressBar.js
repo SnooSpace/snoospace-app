@@ -1,43 +1,40 @@
 /**
  * AnimatedProgressBar
- * A reusable animated progress bar component using react-native-reanimated v2
+ * A reusable animated progress bar component using React Native Animated API
+ * (Using RN Animated instead of Reanimated to avoid worklet conflicts)
  */
 
-import React, { useEffect } from "react";
-import { StyleSheet } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
+import React, { useEffect, useRef, memo } from "react";
+import { Animated, StyleSheet } from "react-native";
 
-const AnimatedProgressBar = ({ percentage, isSelected }) => {
-  const width = useSharedValue(0);
+const AnimatedProgressBar = memo(({ percentage, isSelected }) => {
+  const widthAnim = useRef(new Animated.Value(percentage)).current;
 
   useEffect(() => {
-    width.value = withTiming(percentage, {
+    Animated.timing(widthAnim, {
+      toValue: percentage,
       duration: 400,
-    });
-  }, [percentage]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      width: `${width.value}%`,
-    };
-  });
+      useNativeDriver: false, // width animation can't use native driver
+    }).start();
+  }, [percentage, widthAnim]);
 
   return (
     <Animated.View
       style={[
         styles.progressFill,
-        animatedStyle,
         {
+          width: widthAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ["0%", "100%"],
+          }),
           backgroundColor: isSelected ? "#3665f3" : "#daecf8",
         },
       ]}
     />
   );
-};
+});
+
+AnimatedProgressBar.displayName = "AnimatedProgressBar";
 
 const styles = StyleSheet.create({
   progressFill: {

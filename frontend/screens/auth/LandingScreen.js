@@ -17,6 +17,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
+import GradientSafeArea from "../../components/GradientSafeArea";
+import DynamicStatusBar from "../../components/DynamicStatusBar";
 
 const FONT_SIZES = {
   header: 32,
@@ -155,6 +157,12 @@ const LandingScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.screenContainer}>
+      {/* Dynamic Status Bar */}
+      <DynamicStatusBar style="light-content" />
+
+      {/* Gradient overlay for status bar – only visible at top, gradient already handles visual */}
+      <GradientSafeArea variant="primary" height={100} />
+
       {fromSwitcher && (
         <TouchableOpacity
           style={[styles.backButton, { top: Math.max(insets.top, 20) + 10 }]}

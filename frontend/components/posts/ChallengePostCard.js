@@ -519,13 +519,13 @@ const styles = StyleSheet.create({
   },
   challengePill: {
     backgroundColor: "#64B5F6", // Light Blue background
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8, // Matching reference chips
+    borderRadius: 12, // Matching reference chips
   },
   challengePillText: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 10.5,
+    fontFamily: "BasicCommercial-Bold",
     color: "#FFFFFF", // White text
     letterSpacing: 0.5,
   },

@@ -8,9 +8,12 @@ import {
   RefreshControl,
   Alert,
   FlatList,
-  Animated,
   Platform,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+} from "react-native-reanimated";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -39,6 +42,9 @@ import SkeletonCard from "./SkeletonCard";
 import HomeGreetingHeader from "./HomeGreetingHeader";
 import HapticsService from "../services/HapticsService";
 import { SvgXml } from "react-native-svg";
+import GradientSafeArea from "./GradientSafeArea";
+import DynamicStatusBar from "./DynamicStatusBar";
+import PremiumHeader, { getPremiumHeaderTotalHeight } from "./PremiumHeader";
 
 import { COLORS } from "../constants/theme";
 
@@ -74,7 +80,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const insets = useSafeAreaInsets();
 
   // Calculate total header height including status bar
-  const totalHeaderHeight = HEADER_HEIGHT + insets.top;
+  const totalHeaderHeight = getPremiumHeaderTotalHeight(insets);
 
   // Determine header title based on role
   const getHeaderTitle = () => {
@@ -124,25 +130,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
 
-  // Refs for collapsible header animation
+  // Refs for scroll handling
   const flatListRef = useRef(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // --- INSTAGRAM HEADER ANIMATION LOGIC ---
+  // Reanimated shared value for premium scroll-reactive header
+  const scrollY = useSharedValue(0);
 
-  // 1. Fix the "Glitch" & Implement Hysteresis:
-  // We use useMemo to preserve the diffClamp state across re-renders.
-  // We clamp the scrollY input to 0 so that pull-to-refresh (negative scroll)
-  // doesn't affect the header position calculation.
-  const SCROLL_THRESHOLD = 50; // Distance to scroll up before header appears
-
-  // 1. Sticky Header Logic:
-  // The header remains visible at the top (translateY = 0).
-  const headerTranslateY = 0;
-
-  // 2. Dynamic Border:
-  // Fade in the bottom border only when content scrolls under the header
-  // (Moved inside useMemo above)
+  // Scroll handler using Reanimated for performant tracking
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      // Clamp to 0 to prevent negative values during pull-to-refresh
+      scrollY.value = Math.max(0, event.contentOffset.y);
+    },
+  });
 
   // Auto-poll for message count updates (Instagram-like)
   useMessagePolling(
@@ -528,10 +528,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     // No additional feedback needed here
   };
 
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: true },
-  );
+  // Note: handleScroll is now replaced by scrollHandler using Reanimated
 
   const handleLogoPress = useCallback(() => {
     HapticsService.triggerImpactLight();
@@ -637,23 +634,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
-      {/* Animated Collapsible Header */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            transform: [{ translateY: headerTranslateY }],
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 1000,
-            backgroundColor: COLORS.background,
-            paddingTop: insets.top,
-            height: totalHeaderHeight,
-          },
-        ]}
-      >
+      {/* Dynamic Status Bar */}
+      <DynamicStatusBar style="light-content" />
+
+      {/* Premium Gradient Overlay for Status Bar Contrast */}
+      <GradientSafeArea variant="primary" />
+
+      {/* Premium Scroll-Reactive Header */}
+      <PremiumHeader scrollY={scrollY}>
         <TouchableOpacity onPress={handleLogoPress} activeOpacity={0.7}>
           <SvgXml xml={SnooSpaceIconSvg} width={50} height={40} />
         </TouchableOpacity>
@@ -697,7 +685,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             )}
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </PremiumHeader>
 
       {errorMsg ? (
         <View style={[styles.errorBanner, { marginTop: totalHeaderHeight }]}>
@@ -743,7 +731,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           />
         }
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>

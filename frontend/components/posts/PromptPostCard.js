@@ -231,7 +231,7 @@ const PromptPostCard = ({
           style={styles.viewAllButton}
           onPress={() => navigation.navigate("PromptSubmissions", { post })}
         >
-          <Text style={styles.viewAllText}>See all →</Text>
+          <Text style={styles.viewAllText}>View all →</Text>
         </TouchableOpacity>
       </View>
 
@@ -309,23 +309,23 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.m,
+    padding: SPACING.l,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.m,
   },
   nudgeBadge: {
-    backgroundColor: "#EC4899", // Pink
+    backgroundColor: "#60A5FA", // Light blue
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   nudgeBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    fontWeight: "700",
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
@@ -335,9 +335,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
   },
   profileImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 8,
   },
   authorName: {
@@ -358,10 +358,10 @@ const styles = StyleSheet.create({
   },
   promptText: {
     fontFamily: "BasicCommercial-Bold",
-    fontSize: 22,
+    fontSize: 24,
     color: "#1D1D1F",
     marginBottom: SPACING.m,
-    lineHeight: 28,
+    lineHeight: 30,
   },
   tapToAnswerButton: {
     flexDirection: "row",

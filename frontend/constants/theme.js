@@ -31,6 +31,14 @@ export const COLORS = {
     { bg: "#FBE9E7", text: "#D84315" }, // Deep Orange
     { bg: "#FFF8E1", text: "#F9A825" }, // Amber
   ],
+
+  // Status Bar Gradients
+  // Premium gradients for creating contrast with white status bar icons
+  statusBarGradients: {
+    primary: ["rgba(25, 118, 210, 0.15)", "rgba(25, 118, 210, 0)"],
+    secondary: ["rgba(66, 133, 244, 0.12)", "rgba(66, 133, 244, 0)"],
+    neutral: ["rgba(0, 0, 0, 0.05)", "rgba(0, 0, 0, 0)"],
+  },
 };
 
 export const FONTS = {

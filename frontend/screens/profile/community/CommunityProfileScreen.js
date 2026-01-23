@@ -812,7 +812,7 @@ export default function CommunityProfileScreen({ navigation }) {
   if (!initialLoadCompleted && (loading || !profile)) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="transparent" style="dark" />
+        <DynamicStatusBar style="dark" />
         <ScrollView scrollEnabled={false}>
           <SkeletonProfileHeader type="community" />
           <SkeletonPostGrid />
@@ -846,7 +846,11 @@ export default function CommunityProfileScreen({ navigation }) {
   }
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" style="dark" />
+      <DynamicStatusBar style="light-content" />
+
+      {/* Add gradient overlay only when no banner */}
+      {!profile.banner_url && <GradientSafeArea variant="primary" />}
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={

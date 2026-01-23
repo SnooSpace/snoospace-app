@@ -26,6 +26,8 @@ import CommentsModal from "../../../components/CommentsModal";
 import LikeStateManager from "../../../utils/LikeStateManager";
 import HapticsService from "../../../services/HapticsService";
 import SnooSpaceLogo from "../../../components/SnooSpaceLogo";
+import GradientSafeArea from "../../../components/GradientSafeArea";
+import DynamicStatusBar from "../../../components/DynamicStatusBar";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -325,6 +327,12 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+      {/* Dynamic Status Bar */}
+      <DynamicStatusBar style="light-content" />
+
+      {/* Premium Gradient Overlay */}
+      <GradientSafeArea variant="primary" />
+
       {/* Animated Collapsible Header */}
       <Animated.View
         style={[
@@ -336,7 +344,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
             left: 0,
             right: 0,
             zIndex: 1000,
-            backgroundColor: COLORS.background, // Off-white
+            backgroundColor: "transparent",
             paddingTop: insets.top,
             height: HEADER_HEIGHT + insets.top,
           },

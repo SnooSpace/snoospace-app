@@ -20,6 +20,7 @@ import {
 import NotificationBanner from "./components/NotificationBanner";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
+import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -80,11 +81,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
-        <AuthStateProvider>
-          <NotificationsProvider>
-            <AppContent />
-          </NotificationsProvider>
-        </AuthStateProvider>
+        <StatusBarManagerProvider>
+          <AuthStateProvider>
+            <NotificationsProvider>
+              <AppContent />
+            </NotificationsProvider>
+          </AuthStateProvider>
+        </StatusBarManagerProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
   );

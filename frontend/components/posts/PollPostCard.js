@@ -186,7 +186,11 @@ const PollPostCard = ({
             </Text>
 
             {isSelected && (
-              <Ionicons name="checkmark" size={18} color="#ffffff" />
+              <MaterialCommunityIcons
+                name="check-bold"
+                size={16}
+                color="#ffffff"
+              />
             )}
           </View>
 
@@ -210,7 +214,9 @@ const PollPostCard = ({
         <View style={styles.pollBadge}>
           <Text style={styles.pollBadgeText}>POLL</Text>
         </View>
-        <Ionicons name="stats-chart" size={20} color="#334456" />
+        <View style={styles.pollIconContainer}>
+          <Ionicons name="stats-chart" size={24} color="#3b65e4" />
+        </View>
       </View>
 
       {/* Author Info */}
@@ -273,7 +279,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.m,
+  },
+  pollIconContainer: {
+    width: 44,
+    height: 44,
+    backgroundColor: "rgba(59, 101, 228, 0.08)",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   pollBadge: {
     backgroundColor: "#daecf8",
@@ -282,9 +296,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pollBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    fontWeight: "700",
-    color: "#3665f3",
+    color: "#3b65e4",
     letterSpacing: 0.5,
   },
   authorRow: {
@@ -408,8 +422,7 @@ const styles = StyleSheet.create({
 
   percentageText: {
     fontSize: 14,
-    fontFamily: "BasicCommercial-Bold",    
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: "#AFC8EA",
   },
 

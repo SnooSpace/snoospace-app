@@ -36,7 +36,7 @@ export function AuthStateProvider({ children }) {
     const handleUnexpectedLogout = (details) => {
       console.log(
         "[AuthStateProvider] Received unexpectedLogout event:",
-        details
+        details,
       );
       setIsUnexpectedlyLoggedOut(true);
       setLogoutDetails(details);
@@ -60,7 +60,7 @@ export function AuthStateProvider({ children }) {
         if (activeAccount.isLoggedIn === false) {
           console.log(
             "[AuthStateProvider] Active account is logged out:",
-            activeAccount.email
+            activeAccount.email,
           );
           setIsUnexpectedlyLoggedOut(true);
           setLogoutDetails({
