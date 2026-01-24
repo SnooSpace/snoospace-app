@@ -29,6 +29,7 @@ const AnalyticsController = require("../controllers/analyticsController");
 const ModerationController = require("../controllers/moderationController");
 const CollegeController = require("../controllers/collegeController");
 const OpportunityController = require("../controllers/opportunityController");
+const ViewsController = require("../controllers/viewsController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -840,6 +841,23 @@ router.get(
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
+
+// Post Views (Qualified View System)
+router.post(
+  "/posts/views/batch",
+  authMiddleware,
+  ViewsController.submitViewsBatch,
+);
+router.get(
+  "/posts/views/check",
+  authMiddleware,
+  ViewsController.getViewedPosts,
+);
+router.get(
+  "/posts/:postId/analytics",
+  authMiddleware,
+  ViewsController.getPostViewAnalytics,
+);
 
 // Poll routes
 router.post("/posts/:postId/vote", authMiddleware, PollController.vote);

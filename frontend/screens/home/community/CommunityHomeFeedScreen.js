@@ -16,6 +16,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "../../../components/EditorialPostCard";
+import QualifiedViewWrapper from "../../../components/QualifiedViewWrapper";
 import { mockData } from "../../../data/mockData";
 import { apiGet } from "../../../api/client";
 import { getAuthToken, getActiveAccount } from "../../../api/auth";
@@ -275,37 +276,48 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     }
   };
 
-  const renderPost = ({ item }) => (
-    <EditorialPostCard
-      post={item}
-      onLike={handleLike}
-      onComment={handleComment}
-      onFollow={handleFollow}
-      isVideoPlaying={item.id === visibleVideoPostId}
-      showFollowButton={true}
-      onUserPress={(userId, userType) => {
-        if (userType === "member" || !userType) {
-          // Navigate to member profile within Community's Home stack
-          navigation.navigate("MemberPublicProfile", { memberId: userId });
-        } else if (userType === "community") {
-          navigation.navigate("Profile", {
-            screen: "CommunityPublicProfile",
-            params: { communityId: userId },
-          });
-        } else if (userType === "sponsor") {
-          Alert.alert(
-            "Sponsor Profile",
-            "Sponsor profile navigation will be implemented soon",
-          );
-        } else if (userType === "venue") {
-          Alert.alert(
-            "Venue Profile",
-            "Venue profile navigation will be implemented soon",
-          );
-        }
-      }}
-    />
-  );
+  const renderPost = ({ item }) => {
+    // Determine post type for qualified view tracking
+    const postType = item.media_types?.includes("video")
+      ? "video"
+      : item.image_urls?.length > 0
+        ? "image"
+        : "text";
+
+    return (
+      <QualifiedViewWrapper postId={item.id} postType={postType}>
+        <EditorialPostCard
+          post={item}
+          onLike={handleLike}
+          onComment={handleComment}
+          onFollow={handleFollow}
+          isVideoPlaying={item.id === visibleVideoPostId}
+          showFollowButton={true}
+          onUserPress={(userId, userType) => {
+            if (userType === "member" || !userType) {
+              // Navigate to member profile within Community's Home stack
+              navigation.navigate("MemberPublicProfile", { memberId: userId });
+            } else if (userType === "community") {
+              navigation.navigate("Profile", {
+                screen: "CommunityPublicProfile",
+                params: { communityId: userId },
+              });
+            } else if (userType === "sponsor") {
+              Alert.alert(
+                "Sponsor Profile",
+                "Sponsor profile navigation will be implemented soon",
+              );
+            } else if (userType === "venue") {
+              Alert.alert(
+                "Venue Profile",
+                "Venue profile navigation will be implemented soon",
+              );
+            }
+          }}
+        />
+      </QualifiedViewWrapper>
+    );
+  };
 
   // Greeting component (scrolls with content, only visible at top)
   const renderGreeting = () => (

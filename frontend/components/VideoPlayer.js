@@ -28,12 +28,17 @@ const VideoPlayer = ({
   onError,
   onPress, // NEW: Callback when video is tapped (for fullscreen)
   containerWidth = SCREEN_WIDTH,
+  // Qualified view tracking callbacks
+  onUnmute,
+  onPlaybackStart,
+  onFullscreen,
 }) => {
   const videoRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(autoplay);
   const [isMuted, setIsMuted] = useState(muted);
   const [isLoading, setIsLoading] = useState(true);
   const [showPlayButton, setShowPlayButton] = useState(!autoplay);
+  const hasNotifiedPlaybackRef = useRef(false);
 
   // Handle visibility changes (for feed scrolling)
   useEffect(() => {
@@ -46,12 +51,23 @@ const VideoPlayer = ({
     }
   }, [isVisible, isPlaying]);
 
-  const handlePlaybackStatusUpdate = useCallback((status) => {
-    if (status.isLoaded) {
-      setIsLoading(false);
-      setIsPlaying(status.isPlaying);
-    }
-  }, []);
+  const handlePlaybackStatusUpdate = useCallback(
+    (status) => {
+      if (status.isLoaded) {
+        setIsLoading(false);
+        setIsPlaying(status.isPlaying);
+
+        // Notify parent when playback starts (for qualified view tracking)
+        if (status.isPlaying && !hasNotifiedPlaybackRef.current) {
+          hasNotifiedPlaybackRef.current = true;
+          onPlaybackStart?.(true);
+        } else if (!status.isPlaying && hasNotifiedPlaybackRef.current) {
+          onPlaybackStart?.(false);
+        }
+      }
+    },
+    [onPlaybackStart],
+  );
 
   const handleLoad = useCallback(
     (status) => {
@@ -96,10 +112,20 @@ const VideoPlayer = ({
       const newMuted = !isMuted;
       await videoRef.current.setIsMutedAsync(newMuted);
       setIsMuted(newMuted);
+
+      // Notify parent when unmuted (for qualified view tracking)
+      if (!newMuted) {
+        onUnmute?.();
+      }
     } catch (error) {
       console.error("[VideoPlayer] Toggle mute error:", error);
     }
-  }, [isMuted]);
+  }, [isMuted, onUnmute]);
+
+  const handleFullscreen = useCallback(() => {
+    onFullscreen?.();
+    onPress?.();
+  }, [onFullscreen, onPress]);
 
   const videoHeight = containerWidth / aspectRatio;
 
@@ -155,7 +181,7 @@ const VideoPlayer = ({
           {onPress && (
             <TouchableOpacity
               style={[styles.muteButton, { marginRight: 8 }]}
-              onPress={onPress}
+              onPress={handleFullscreen}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="expand" size={18} color="#fff" />

@@ -34,6 +34,7 @@ import MentionTextRenderer from "./MentionTextRenderer";
 import VideoPlayer from "./VideoPlayer";
 import FullscreenVideoModal from "./FullscreenVideoModal";
 import FollowButton from "./FollowButton";
+import { viewQueueService } from "../services/ViewQueueService";
 
 // Import type-specific card components for special post types
 import PollPostCard from "./posts/PollPostCard";
@@ -146,6 +147,100 @@ const EditorialPostCard = ({
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(post.is_saved || false);
   const [fullscreenVideo, setFullscreenVideo] = useState(null);
+  const [videoViewCounted, setVideoViewCounted] = useState(false);
+  const [imageViewCounted, setImageViewCounted] = useState(false);
+
+  // Check if post has media and determine type
+  const hasMedia = post.image_urls && post.image_urls.length > 0;
+  const firstMediaType = post.media_types?.[0] || "image";
+  const isVideo = firstMediaType === "video";
+  const isImage = hasMedia && !isVideo;
+  const isTextOnly = !hasMedia;
+
+  // Image/text dwell time tracking - starts timer when component mounts
+  const imageDwellStartRef = React.useRef(null);
+  const imageDwellTimerRef = React.useRef(null);
+
+  useEffect(() => {
+    // Skip if video (handled separately) or already counted
+    if (isVideo || viewQueueService.hasViewed(post.id)) {
+      return;
+    }
+
+    const dwellThreshold = isImage ? 1500 : 2000; // 1.5s for images, 2s for text
+
+    // Start dwell timer when component mounts (becomes visible)
+    imageDwellStartRef.current = Date.now();
+
+    imageDwellTimerRef.current = setTimeout(() => {
+      if (!imageViewCounted && !viewQueueService.hasViewed(post.id)) {
+        setImageViewCounted(true);
+        viewQueueService.addQualifiedView(post.id, {
+          postType: isImage ? "image" : "text",
+          trigger: "dwell",
+          dwellTime: dwellThreshold,
+        });
+      }
+    }, dwellThreshold);
+
+    return () => {
+      if (imageDwellTimerRef.current) {
+        clearTimeout(imageDwellTimerRef.current);
+      }
+    };
+  }, [post.id, isVideo, isImage, imageViewCounted]);
+
+  // Video qualified view tracking callbacks
+  const handleVideoUnmute = useCallback(() => {
+    if (!videoViewCounted && !viewQueueService.hasViewed(post.id)) {
+      setVideoViewCounted(true);
+      viewQueueService.addQualifiedView(post.id, {
+        postType: "video",
+        trigger: "unmute",
+      });
+    }
+  }, [post.id, videoViewCounted]);
+
+  const handleVideoFullscreen = useCallback(() => {
+    if (!videoViewCounted && !viewQueueService.hasViewed(post.id)) {
+      setVideoViewCounted(true);
+      viewQueueService.addQualifiedView(post.id, {
+        postType: "video",
+        trigger: "fullscreen",
+      });
+    }
+  }, [post.id, videoViewCounted]);
+
+  // Track playback time for 2-second threshold
+  const playbackStartTimeRef = React.useRef(null);
+  const handleVideoPlaybackChange = useCallback(
+    (isPlaying) => {
+      if (isPlaying) {
+        playbackStartTimeRef.current = Date.now();
+        // Check after 2 seconds if still playing
+        setTimeout(() => {
+          if (
+            playbackStartTimeRef.current &&
+            !videoViewCounted &&
+            !viewQueueService.hasViewed(post.id)
+          ) {
+            const elapsed = Date.now() - playbackStartTimeRef.current;
+            if (elapsed >= 2000) {
+              setVideoViewCounted(true);
+              viewQueueService.addQualifiedView(post.id, {
+                postType: "video",
+                trigger: "playback",
+                dwellTime: elapsed,
+              });
+            }
+          }
+        }, 2000);
+      } else {
+        playbackStartTimeRef.current = null;
+      }
+    },
+    [post.id, videoViewCounted],
+  );
 
   const taggedEntities = useMemo(
     () => normalizeTaggedEntities(post.tagged_entities),
@@ -238,12 +333,9 @@ const EditorialPostCard = ({
     }
   };
 
-  // Check if post has media
-  const hasMedia = post.image_urls && post.image_urls.length > 0;
+  // Get additional media info for rendering
   const firstMediaUrl = hasMedia ? post.image_urls.flat()[0] : null;
-  const firstMediaType = post.media_types?.[0] || "image";
   const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
-  const isVideo = firstMediaType === "video";
 
   // Check if author is the current user (to hide follow button)
   const isOwnPost =
@@ -338,6 +430,9 @@ const EditorialPostCard = ({
                 loop={false}
                 showControls={true}
                 isVisible={isVideoPlaying}
+                onUnmute={handleVideoUnmute}
+                onFullscreen={handleVideoFullscreen}
+                onPlaybackStart={handleVideoPlaybackChange}
                 onPress={() =>
                   setFullscreenVideo({
                     url: firstMediaUrl,
@@ -396,7 +491,7 @@ const EditorialPostCard = ({
             color={COLORS.editorial.textSecondary}
           />
           <Text style={styles.engagementCount}>
-            {formatCount(post.view_count || 0)}
+            {formatCount(post.public_view_count || post.view_count || 0)}
           </Text>
         </View>
 
