@@ -31,7 +31,7 @@ import {
   confirmAttendance,
 } from "../api/events";
 import { getFollowedOpportunities } from "../api/opportunities";
-import PostCard from "./PostCard";
+import EditorialPostCard from "./EditorialPostCard";
 import EventCard from "./EventCard";
 import OpportunityFeedCard from "./OpportunityFeedCard";
 import CommentsModal from "./CommentsModal";
@@ -639,10 +639,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
 
     return (
-      <PostCard
+      <EditorialPostCard
         post={item}
         onLike={handleLikeUpdate}
         onComment={handleCommentPress}
+        showFollowButton={true}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;

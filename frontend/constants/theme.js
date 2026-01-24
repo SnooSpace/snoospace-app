@@ -10,9 +10,22 @@ export const COLORS = {
   screenBackground: "#FAF9F7", // Align with standard background
 
   // Typography
-  textPrimary: "#1D1D1F", // Nearly black
-  textSecondary: "#8E8E93", // Gray
+  textPrimary: "#1A1A1A", // Nearly black (editorial)
+  textSecondary: "#6B7280", // Gray (usernames, timestamps)
+  textMuted: "#9CA3AF", // Even lighter gray (engagement counts)
   textInverted: "#FFFFFF", // White text on dark/gradient
+
+  // Editorial Feed Colors
+  editorial: {
+    textPrimary: "#1A1A1A",
+    textSecondary: "#6B7280",
+    textMuted: "#9CA3AF",
+    background: "#FFFFFF",
+    feedBackground: "#FAFAFA",
+    border: "#E5E7EB",
+    accent: "#3B82F6", // Follow button blue
+    mediaPlaceholder: "#E5E7EB",
+  },
 
   // Functional
   error: "#FF3B30",
@@ -84,6 +97,52 @@ export const SHADOWS = {
     shadowRadius: 10,
     elevation: 8,
   },
+};
+
+// Editorial Feed Typography Tokens
+export const EDITORIAL_TYPOGRAPHY = {
+  displayName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.editorial.textPrimary,
+  },
+  username: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: COLORS.editorial.textSecondary,
+  },
+  timestamp: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: COLORS.editorial.textSecondary,
+  },
+  postText: {
+    fontSize: 15,
+    fontWeight: "400",
+    lineHeight: 23, // 1.55 line-height
+    color: COLORS.editorial.textPrimary,
+  },
+  engagementCount: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.editorial.textMuted,
+  },
+  followButton: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+};
+
+// Editorial Feed Spacing Tokens
+export const EDITORIAL_SPACING = {
+  cardPadding: 16,
+  sectionGap: 12,
+  mediaGap: 14,
+  engagementGroupGap: 24,
+  iconCountGap: 4,
+  profileImageSize: 44,
+  iconSize: 20,
+  mediaCornerRadius: 12,
 };
 
 export const LAYOUT = {

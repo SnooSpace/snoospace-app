@@ -15,7 +15,7 @@ import {
 } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import PostCard from "../../../components/PostCard";
+import EditorialPostCard from "../../../components/EditorialPostCard";
 import { mockData } from "../../../data/mockData";
 import { apiGet } from "../../../api/client";
 import { getAuthToken, getActiveAccount } from "../../../api/auth";
@@ -28,6 +28,7 @@ import HapticsService from "../../../services/HapticsService";
 import SnooSpaceLogo from "../../../components/SnooSpaceLogo";
 import GradientSafeArea from "../../../components/GradientSafeArea";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import { COLORS } from "../../../constants/theme";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -43,6 +44,7 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [visibleVideoPostId, setVisibleVideoPostId] = useState(null); // Track which video post is in view
   const { unread, loadInitial: refreshNotifications } = useNotifications();
   const [user, setUser] = useState(null);
 
@@ -226,6 +228,21 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
     }, 300);
   }, [handleRefresh]);
 
+  // Viewability configuration for video autoplay - item must be 60% visible
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 60,
+    minimumViewTime: 100,
+  }).current;
+
+  // Track which video post is visible for autoplay
+  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    // Find the first viewable post that contains a video
+    const videoPost = viewableItems.find((item) =>
+      item.item.media_types?.includes("video"),
+    );
+    setVisibleVideoPostId(videoPost?.item.id || null);
+  }, []);
+
   const handleLike = (postId, nextLiked) => {
     setPosts((prevPosts) =>
       prevPosts.map((post) =>
@@ -259,11 +276,13 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
   };
 
   const renderPost = ({ item }) => (
-    <PostCard
+    <EditorialPostCard
       post={item}
       onLike={handleLike}
       onComment={handleComment}
       onFollow={handleFollow}
+      isVideoPlaying={item.id === visibleVideoPostId}
+      showFollowButton={true}
       onUserPress={(userId, userType) => {
         if (userType === "member" || !userType) {
           // Navigate to member profile within Community's Home stack
@@ -413,6 +432,8 @@ export default function CommunityHomeFeedScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
       />
 
       <CommentsModal

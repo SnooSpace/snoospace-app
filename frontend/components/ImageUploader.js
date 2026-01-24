@@ -52,16 +52,19 @@ const ImageUploader = forwardRef(
       maxImages = 10,
       minRequired = 0, // Minimum required photos
       onImagesChange,
-      onAspectRatiosChange, // NEW: Callback to pass aspect ratios to parent
+      onAspectRatiosChange, // Callback to pass aspect ratios to parent
+      onMediaTypesChange, // NEW: Callback to pass media types to parent
       initialImages = [],
-      initialAspectRatios = [], // NEW: Initial aspect ratios
+      initialAspectRatios = [], // Initial aspect ratios
+      initialMediaTypes = [], // NEW: Initial media types ('image' | 'video')
       style,
       enableCrop = true, // Enable crop by default for feed posts
       cropPreset = "feed_portrait", // Default to 4:5 with toggle to 1:1
       horizontal = false, // Support horizontal media tray
       hingeStyle = false, // Enable Hinge-style 2x3 grid
+      allowVideos = false, // NEW: Enable video picking
     },
-    ref
+    ref,
   ) => {
     useImperativeHandle(ref, () => ({
       pick: handleAddImages,
@@ -85,12 +88,12 @@ const ImageUploader = forwardRef(
     };
 
     const [images, setImages] = useState(() =>
-      initializeState(initialImages, maxImages)
+      initializeState(initialImages, maxImages),
     );
     // For auxiliary arrays in Hinge mode, we need to ensure they match images format
     // But since they start empty, we just init with empty or null-filled based on mode
     const [originalUris, setOriginalUris] = useState(() =>
-      hingeStyle ? new Array(maxImages).fill(null) : []
+      hingeStyle ? new Array(maxImages).fill(null) : [],
     );
     const [aspectRatios, setAspectRatios] = useState(() => {
       if (hingeStyle) {
@@ -103,11 +106,22 @@ const ImageUploader = forwardRef(
       return initialAspectRatios;
     });
     const [presetKeys, setPresetKeys] = useState(() =>
-      hingeStyle ? new Array(maxImages).fill(null) : []
+      hingeStyle ? new Array(maxImages).fill(null) : [],
     );
     const [cropMetadata, setCropMetadata] = useState(() =>
-      hingeStyle ? new Array(maxImages).fill(null) : []
+      hingeStyle ? new Array(maxImages).fill(null) : [],
     );
+    // NEW: Track media types (image or video)
+    const [mediaTypes, setMediaTypes] = useState(() => {
+      if (hingeStyle) {
+        const arr = new Array(maxImages).fill(null);
+        initialMediaTypes.forEach((t, i) => {
+          if (i < maxImages) arr[i] = t;
+        });
+        return arr;
+      }
+      return initialMediaTypes;
+    });
 
     const [uploading, setUploading] = useState(false);
     const [progressByIndex, setProgressByIndex] = useState({});
@@ -133,7 +147,7 @@ const ImageUploader = forwardRef(
       console.log("[ImageUploader] URL at position B:", images[indexB]);
       console.log(
         "[ImageUploader] Are they the same?",
-        images[indexA] === images[indexB]
+        images[indexA] === images[indexB],
       );
 
       const swap = (arr) => {
@@ -158,8 +172,8 @@ const ImageUploader = forwardRef(
       console.log(
         "[ImageUploader] After swap - newImages:",
         newImages.map((img, i) =>
-          img ? `[${i}]: ${img.substring(0, 30)}...` : `[${i}]: null`
-        )
+          img ? `[${i}]: ${img.substring(0, 30)}...` : `[${i}]: null`,
+        ),
       );
 
       setImages(newImages);
@@ -177,7 +191,7 @@ const ImageUploader = forwardRef(
         onAspectRatiosChange(
           hingeStyle
             ? newAspectRatios.filter((r, i) => newImages[i])
-            : newAspectRatios
+            : newAspectRatios,
         );
       }
     };
@@ -208,7 +222,7 @@ const ImageUploader = forwardRef(
       if (remainingSlots <= 0) {
         Alert.alert(
           "Limit Reached",
-          `You can only add up to ${maxImages} images.`
+          `You can only add up to ${maxImages} images.`,
         );
         return;
       }
@@ -226,7 +240,7 @@ const ImageUploader = forwardRef(
         if (status !== "granted") {
           Alert.alert(
             "Permission Required",
-            "Please grant access to your photo library."
+            "Please grant access to your photo library.",
           );
           return;
         }
@@ -240,7 +254,9 @@ const ImageUploader = forwardRef(
           : Math.min(remainingSlots, 10);
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: allowVideos
+            ? ImagePicker.MediaTypeOptions.All
+            : ImagePicker.MediaTypeOptions.Images,
           allowsMultipleSelection: !isSingleReplace,
           quality: 1,
           selectionLimit: selectionLimit,
@@ -260,60 +276,109 @@ const ImageUploader = forwardRef(
       }
     };
 
-    // Process images WITH crop
+    // Process media WITH crop (only for images, videos skip crop)
     const processWithCrop = async (assets, targetIndex) => {
-      // Get image URIs and normalize orientation
-      const rawImageUris = assets.map((asset) => asset.uri);
-      const imageUris = await Promise.all(
-        rawImageUris.map((uri) => normalizeImageOrientation(uri))
-      );
+      // Separate images from videos - videos don't need cropping
+      const imageAssets = assets.filter((a) => !a.type?.startsWith("video"));
+      const videoAssets = assets.filter((a) => a.type?.startsWith("video"));
 
-      // Navigate to BatchCropScreen
-      const croppedResults = await new Promise((resolve) => {
-        resolveRef.current = resolve;
-        navigation.navigate("BatchCropScreen", {
-          imageUris: imageUris,
-          defaultPreset: cropPreset,
-          onComplete: (results) => {
-            if (resolveRef.current) {
-              resolveRef.current(results);
-              resolveRef.current = null;
-            }
-          },
-          onCancel: () => {
-            if (resolveRef.current) {
-              resolveRef.current(null);
-              resolveRef.current = null;
-            }
-          },
+      let croppedResults = [];
+
+      // Process images through crop screen
+      if (imageAssets.length > 0) {
+        const rawImageUris = imageAssets.map((asset) => asset.uri);
+        const imageUris = await Promise.all(
+          rawImageUris.map((uri) => normalizeImageOrientation(uri)),
+        );
+
+        // Navigate to BatchCropScreen for images
+        croppedResults = await new Promise((resolve) => {
+          resolveRef.current = resolve;
+          navigation.navigate("BatchCropScreen", {
+            imageUris: imageUris,
+            defaultPreset: cropPreset,
+            onComplete: (results) => {
+              if (resolveRef.current) {
+                resolveRef.current(results);
+                resolveRef.current = null;
+              }
+            },
+            onCancel: () => {
+              if (resolveRef.current) {
+                resolveRef.current(null);
+                resolveRef.current = null;
+              }
+            },
+          });
         });
+
+        if (!croppedResults) croppedResults = [];
+        // Mark all as images
+        croppedResults = croppedResults.map((r) => ({
+          ...r,
+          metadata: { ...r.metadata, mediaType: "image" },
+        }));
+      }
+
+      // Process videos (no cropping, just get aspect ratio)
+      const videoResults = videoAssets.map((asset) => {
+        // Calculate aspect ratio from width/height if available
+        let aspectRatio = 16 / 9; // Default to landscape video
+        if (asset.width && asset.height) {
+          aspectRatio = asset.width / asset.height;
+        }
+        return {
+          uri: asset.uri,
+          metadata: {
+            originalUri: asset.uri,
+            aspectRatio: aspectRatio,
+            preset: "video",
+            mediaType: "video",
+          },
+        };
       });
 
-      if (!croppedResults || croppedResults.length === 0) return;
-      updateStateWithResults(croppedResults, targetIndex);
+      const allResults = [...croppedResults, ...videoResults];
+      if (allResults.length === 0) return;
+      updateStateWithResults(allResults, targetIndex);
     };
 
-    // Process images WITHOUT crop
+    // Process media WITHOUT crop
     const processWithoutCrop = (assets, targetIndex) => {
-      const results = assets.map((a) => ({
-        uri: a.uri,
-        metadata: { originalUri: a.uri },
-      }));
+      const results = assets.map((a) => {
+        const isVideo = a.type?.startsWith("video");
+        let aspectRatio = 0.8; // Default 4:5
+        if (a.width && a.height) {
+          aspectRatio = a.width / a.height;
+        }
+        return {
+          uri: a.uri,
+          metadata: {
+            originalUri: a.uri,
+            aspectRatio: aspectRatio,
+            mediaType: isVideo ? "video" : "image",
+          },
+        };
+      });
       updateStateWithResults(results, targetIndex);
     };
 
     const updateStateWithResults = (results, targetIndex) => {
       const newImageUris = results.map((r) => r.uri);
       const newOriginalUris = results.map(
-        (r) => r.metadata?.originalUri || r.uri
+        (r) => r.metadata?.originalUri || r.uri,
       );
       const newAspectRatios = results.map(
-        (r) => r.metadata?.aspectRatio || 0.8
+        (r) => r.metadata?.aspectRatio || 0.8,
       );
       const newPresetKeys = results.map(
-        (r) => r.metadata?.preset || cropPreset
+        (r) => r.metadata?.preset || cropPreset,
       );
       const newCropMetadata = results.map((r) => r.metadata || {});
+      // NEW: Track media types
+      const newMediaTypes = results.map(
+        (r) => r.metadata?.mediaType || "image",
+      );
 
       if (hingeStyle) {
         // Sparse update
@@ -322,6 +387,7 @@ const ImageUploader = forwardRef(
         const nextRatios = [...aspectRatios];
         const nextPresets = [...presetKeys];
         const nextMeta = [...cropMetadata];
+        const nextMediaTypes = [...mediaTypes];
 
         let resultIdx = 0;
 
@@ -333,6 +399,7 @@ const ImageUploader = forwardRef(
           nextRatios[targetIndex] = newAspectRatios[0];
           nextPresets[targetIndex] = newPresetKeys[0];
           nextMeta[targetIndex] = newCropMetadata[0];
+          nextMediaTypes[targetIndex] = newMediaTypes[0];
           // If more results (not expected if selectionLimit=1), could fill subsequent empty slots
         } else {
           // Auto-fill empty slots
@@ -347,6 +414,7 @@ const ImageUploader = forwardRef(
               nextRatios[i] = newAspectRatios[resultIdx];
               nextPresets[i] = newPresetKeys[resultIdx];
               nextMeta[i] = newCropMetadata[resultIdx];
+              nextMediaTypes[i] = newMediaTypes[resultIdx];
               resultIdx++;
             }
           }
@@ -357,28 +425,35 @@ const ImageUploader = forwardRef(
         setAspectRatios(nextRatios);
         setPresetKeys(nextPresets);
         setCropMetadata(nextMeta);
+        setMediaTypes(nextMediaTypes);
 
         if (onImagesChange) onImagesChange(nextImages.filter(Boolean));
         if (onAspectRatiosChange)
           onAspectRatiosChange(nextRatios.filter((_, i) => nextImages[i]));
+        if (onMediaTypesChange)
+          onMediaTypesChange(nextMediaTypes.filter((_, i) => nextImages[i]));
       } else {
         // Dense update (append)
         const updatedImages = [...images, ...newImageUris].slice(0, maxImages);
         const updatedOriginalUris = [...originalUris, ...newOriginalUris].slice(
           0,
-          maxImages
+          maxImages,
         );
         const updatedAspectRatios = [...aspectRatios, ...newAspectRatios].slice(
           0,
-          maxImages
+          maxImages,
         );
         const updatedPresetKeys = [...presetKeys, ...newPresetKeys].slice(
           0,
-          maxImages
+          maxImages,
         );
         const updatedCropMetadata = [...cropMetadata, ...newCropMetadata].slice(
           0,
-          maxImages
+          maxImages,
+        );
+        const updatedMediaTypes = [...mediaTypes, ...newMediaTypes].slice(
+          0,
+          maxImages,
         );
 
         setImages(updatedImages);
@@ -386,9 +461,11 @@ const ImageUploader = forwardRef(
         setAspectRatios(updatedAspectRatios);
         setPresetKeys(updatedPresetKeys);
         setCropMetadata(updatedCropMetadata);
+        setMediaTypes(updatedMediaTypes);
 
         if (onImagesChange) onImagesChange(updatedImages);
         if (onAspectRatiosChange) onAspectRatiosChange(updatedAspectRatios);
+        if (onMediaTypesChange) onMediaTypesChange(updatedMediaTypes);
       }
     };
 
@@ -505,7 +582,7 @@ const ImageUploader = forwardRef(
           images,
           (index, progress) => {
             setProgressByIndex((prev) => ({ ...prev, [index]: progress }));
-          }
+          },
         );
 
         setImages(uploadedUrls);
@@ -529,7 +606,7 @@ const ImageUploader = forwardRef(
       // Calculate available width and subtract extra buffer for rounding errors/borders
       const availableWidth = width - containerPadding - 2;
       const slotWidth = Math.floor(
-        (availableWidth - gap * (numColumns - 1)) / numColumns
+        (availableWidth - gap * (numColumns - 1)) / numColumns,
       );
       const slotHeight = slotWidth * 1.25; // 4:5 aspect ratio
       const isRequired = (index) => index < minRequired;
@@ -610,13 +687,13 @@ const ImageUploader = forwardRef(
                           "[ImageUploader] Image load error at index",
                           index,
                           ":",
-                          e.nativeEvent.error
+                          e.nativeEvent.error,
                         )
                       }
                       onLoad={() =>
                         console.log(
                           "[ImageUploader] Image loaded successfully at index",
-                          index
+                          index,
                         )
                       }
                     />
@@ -706,8 +783,8 @@ const ImageUploader = forwardRef(
             const ratio = Array.isArray(ar)
               ? ar[0] / ar[1]
               : typeof ar === "number"
-              ? ar
-              : 1;
+                ? ar
+                : 1;
 
             // Adjusted sizes for premium look
             const thumbWidth = horizontal ? 140 : (width - 60) / 2;
@@ -790,7 +867,7 @@ const ImageUploader = forwardRef(
         {renderImageGrid()}
       </View>
     );
-  }
+  },
 );
 
 const styles = StyleSheet.create({

@@ -33,7 +33,10 @@ import QnACreateForm from "../../../components/posts/QnACreateForm";
 import ChallengeCreateForm from "../../../components/posts/ChallengeCreateForm";
 import { apiPost } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
-import { uploadMultipleImages } from "../../../api/cloudinary";
+import {
+  uploadMultipleImages,
+  uploadMultipleMedia,
+} from "../../../api/cloudinary";
 import { getCommunityProfile } from "../../../api/communities";
 import EventBus from "../../../utils/EventBus";
 import { COLORS, SHADOWS } from "../../../constants/theme";
@@ -46,6 +49,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]); // Track aspect ratios for images
+  const [mediaTypes, setMediaTypes] = useState([]); // Track media types (image | video)
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [pollData, setPollData] = useState({
     question: "",
@@ -115,9 +119,14 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setImages(selectedUris);
   };
 
-  // NEW: Handle aspect ratios from ImageUploader
+  // Handle aspect ratios from ImageUploader
   const handleAspectRatiosChange = (newAspectRatios) => {
     setAspectRatios(newAspectRatios);
+  };
+
+  // Handle media types from ImageUploader (image | video)
+  const handleMediaTypesChange = (newMediaTypes) => {
+    setMediaTypes(newMediaTypes);
   };
 
   const handlePost = async () => {
@@ -137,28 +146,43 @@ export default function CommunityCreatePostScreen({ navigation }) {
       }
 
       let finalImageUrls = [];
+      let finalMediaTypes = [...mediaTypes];
       if (images.length > 0) {
-        const localUris = [];
-        const remoteUris = [];
-        images.forEach((uri) => {
+        const localItems = [];
+        const remoteItems = [];
+        images.forEach((uri, index) => {
+          const type = mediaTypes[index] || "image";
           if (uri && uri.startsWith("http")) {
-            remoteUris.push(uri);
+            remoteItems.push({ uri, type, index });
           } else if (uri) {
-            localUris.push(uri);
+            localItems.push({ uri, type, index });
           }
         });
 
-        let uploadedUrls = [];
-        if (localUris.length > 0) {
-          uploadedUrls = await uploadMultipleImages(localUris);
+        // Upload local items using uploadMultipleMedia
+        let uploadedItems = [];
+        if (localItems.length > 0) {
+          const uploadPayload = localItems.map((item) => ({
+            uri: item.uri,
+            type: item.type,
+          }));
+          uploadedItems = await uploadMultipleMedia(uploadPayload);
         }
 
-        let uploadIndex = 0;
-        images.forEach((uri) => {
+        // Build final URLs array maintaining order
+        let localIndex = 0;
+        images.forEach((uri, index) => {
           if (uri && uri.startsWith("http")) {
             finalImageUrls.push(uri);
           } else if (uri) {
-            finalImageUrls.push(uploadedUrls[uploadIndex++] || null);
+            const uploaded = uploadedItems[localIndex++];
+            if (uploaded) {
+              finalImageUrls.push(uploaded.url);
+              // Update media type from upload result if available
+              if (uploaded.type) {
+                finalMediaTypes[index] = uploaded.type;
+              }
+            }
           }
         });
 
@@ -201,6 +225,10 @@ export default function CommunityCreatePostScreen({ navigation }) {
           aspectRatios:
             formattedAspectRatios.length === finalImageUrls.length
               ? formattedAspectRatios
+              : null,
+          mediaTypes:
+            finalMediaTypes.length === finalImageUrls.length
+              ? finalMediaTypes
               : null,
           taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
         };
@@ -263,7 +291,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           ...typePayload,
         },
         15000,
-        token
+        token,
       );
 
       EventBus.emit("post-created");
@@ -287,7 +315,8 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setShowCelebration(false);
     setCaption("");
     setImages([]);
-    setAspectRatios([]); // NEW: Reset aspect ratios
+    setAspectRatios([]); // Reset aspect ratios
+    setMediaTypes([]); // Reset media types
     setTaggedEntities([]);
 
     // DELAYED END: Navigate after potential interaction
@@ -315,11 +344,12 @@ export default function CommunityCreatePostScreen({ navigation }) {
               setCaption("");
               setImages([]);
               setAspectRatios([]);
+              setMediaTypes([]);
               setTaggedEntities([]);
               navigation.goBack();
             },
           },
-        ]
+        ],
       );
     } else {
       HapticsService.triggerImpactLight();
@@ -374,15 +404,15 @@ export default function CommunityCreatePostScreen({ navigation }) {
     postType === "media"
       ? images.length > 0 || caption.trim().length > 0
       : postType === "poll"
-      ? pollData.question.trim().length > 0 &&
-        pollData.options.filter((o) => o.trim()).length >= 2
-      : postType === "prompt"
-      ? promptData.prompt_text.trim().length > 0
-      : postType === "qna"
-      ? qnaData.title.trim().length >= 3
-      : postType === "challenge"
-      ? challengeData.title.trim().length >= 3
-      : false;
+        ? pollData.question.trim().length > 0 &&
+          pollData.options.filter((o) => o.trim()).length >= 2
+        : postType === "prompt"
+          ? promptData.prompt_text.trim().length > 0
+          : postType === "qna"
+            ? qnaData.title.trim().length >= 3
+            : postType === "challenge"
+              ? challengeData.title.trim().length >= 3
+              : false;
 
   return (
     <View style={styles.container}>
@@ -510,9 +540,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
                   ref={imageUploaderRef}
                   onImagesChange={handleImageSelect}
                   onAspectRatiosChange={handleAspectRatiosChange}
+                  onMediaTypesChange={handleMediaTypesChange}
                   maxImages={5}
                   horizontal={true}
                   initialImages={images}
+                  allowVideos={true}
                 />
               </View>
             </>

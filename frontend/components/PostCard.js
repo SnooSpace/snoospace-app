@@ -20,6 +20,8 @@ import PollPostCard from "./posts/PollPostCard";
 import PromptPostCard from "./posts/PromptPostCard";
 import QnAPostCard from "./posts/QnAPostCard";
 import ChallengePostCard from "./posts/ChallengePostCard";
+import VideoPlayer from "./VideoPlayer";
+import FullscreenVideoModal from "./FullscreenVideoModal";
 
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
 
@@ -47,6 +49,7 @@ const PostCard = ({
   onComment,
   currentUserId,
   currentUserType,
+  isVideoPlaying = false, // NEW: Whether this post's video should play (viewport detection)
 }) => {
   // Route to type-specific card components
   const postType = post.post_type || "media";
@@ -105,6 +108,9 @@ const PostCard = ({
     () => normalizeTaggedEntities(post.tagged_entities),
     [post.tagged_entities],
   );
+
+  // Fullscreen video state
+  const [fullscreenVideo, setFullscreenVideo] = useState(null);
 
   // Sync state when post prop changes (e.g., after navigation and feed reload)
   useEffect(() => {
@@ -269,7 +275,7 @@ const PostCard = ({
         <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
       </View>
 
-      {/* Images */}
+      {/* Media (Images and Videos) */}
       {post.image_urls && post.image_urls.length > 0 && (
         <ScrollView
           horizontal
@@ -277,21 +283,52 @@ const PostCard = ({
           showsHorizontalScrollIndicator={false}
           style={styles.imageContainer}
         >
-          {post.image_urls.flat().map((imageUrl, index) => {
-            // Ensure imageUrl is a string and is a valid URL format
-            if (typeof imageUrl !== "string" || !imageUrl.startsWith("http")) {
+          {post.image_urls.flat().map((mediaUrl, index) => {
+            // Ensure mediaUrl is a string and is a valid URL format
+            if (typeof mediaUrl !== "string" || !mediaUrl.startsWith("http")) {
               return null;
             }
-            // Get aspect ratio for this image, default to 4:5 for backward compatibility
-            const imageAspectRatio = post.aspect_ratios?.[index] || 4 / 5;
+            // Get aspect ratio for this media item, default to 4:5 for backward compatibility
+            const mediaAspectRatio = post.aspect_ratios?.[index] || 4 / 5;
+            // Check if this is a video (from media_types array)
+            const isVideo = post.media_types?.[index] === "video";
+
+            if (isVideo) {
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.imageWrapper,
+                    { aspectRatio: mediaAspectRatio },
+                  ]}
+                >
+                  <VideoPlayer
+                    source={mediaUrl}
+                    aspectRatio={mediaAspectRatio}
+                    containerWidth={width - 2 * SPACING.m}
+                    autoplay={true}
+                    muted={true}
+                    loop={true}
+                    showControls={true}
+                    isVisible={isVideoPlaying}
+                    onPress={() =>
+                      setFullscreenVideo({
+                        url: mediaUrl,
+                        aspectRatio: mediaAspectRatio,
+                      })
+                    }
+                  />
+                </View>
+              );
+            }
 
             return (
               <View
                 key={index}
-                style={[styles.imageWrapper, { aspectRatio: imageAspectRatio }]}
+                style={[styles.imageWrapper, { aspectRatio: mediaAspectRatio }]}
               >
                 <Image
-                  source={{ uri: imageUrl }}
+                  source={{ uri: mediaUrl }}
                   style={styles.postImage}
                   resizeMode="cover"
                 />
@@ -352,6 +389,15 @@ const PostCard = ({
 
       {/* Tagged Entities */}
       {renderTaggedEntities()}
+
+      {/* Fullscreen Video Modal */}
+      <FullscreenVideoModal
+        visible={!!fullscreenVideo}
+        source={fullscreenVideo?.url}
+        aspectRatio={fullscreenVideo?.aspectRatio || 16 / 9}
+        onClose={() => setFullscreenVideo(null)}
+        initialMuted={false}
+      />
     </View>
   );
 };

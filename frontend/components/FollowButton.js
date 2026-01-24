@@ -11,29 +11,29 @@ import { apiPost, apiDelete } from "../api/client";
 import { getAuthToken } from "../api/auth";
 
 const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
+  primary: "#3B82F6", // Editorial accent blue
+  textDark: "#1A1A1A",
+  textLight: "#6B7280",
   background: "#FFFFFF",
   white: "#fff",
   error: "#FF4444",
   success: "#00C851",
-  border: "#E5E5E5",
+  border: "#E5E7EB",
 };
 
-const FollowButton = ({ 
-  userId, 
-  userType, 
-  isFollowing = false, 
+const FollowButton = ({
+  userId,
+  userType,
+  isFollowing = false,
   onFollowChange,
   style,
   textStyle,
-  isLoading: externalLoading = false
+  isLoading: externalLoading = false,
 }) => {
   // Fully controlled component - no internal state, just use props
   const handleFollowToggle = async () => {
     if (externalLoading) return;
-    
+
     try {
       // Just call the callback - let parent handle API calls and state management
       if (onFollowChange) {

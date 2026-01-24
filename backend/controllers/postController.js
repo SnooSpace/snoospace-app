@@ -17,7 +17,7 @@ const createPost = async (req, res) => {
     const userType = req.user?.type;
 
     console.log(
-      `[createPost] Attempting to create ${post_type} post for author_id: ${userId}, author_type: ${userType}`
+      `[createPost] Attempting to create ${post_type} post for author_id: ${userId}, author_type: ${userType}`,
     );
 
     if (!userId || !userType) {
@@ -41,7 +41,8 @@ const createPost = async (req, res) => {
     }
 
     // Media post logic (existing behavior)
-    const { caption, imageUrls, taggedEntities, aspectRatios } = req.body;
+    const { caption, imageUrls, taggedEntities, aspectRatios, mediaTypes } =
+      req.body;
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
       return res.status(400).json({ error: "At least one image is required" });
@@ -57,7 +58,7 @@ const createPost = async (req, res) => {
       // Ensure aspect ratios array length matches image urls length
       if (aspectRatios.length !== imageUrls.length) {
         console.warn(
-          "[createPost] aspectRatios length mismatch, defaulting to 0.8 (4:5)"
+          "[createPost] aspectRatios length mismatch, defaulting to 0.8 (4:5)",
         );
         validatedAspectRatios = imageUrls.map(() => 0.8); // Default 4:5
       } else {
@@ -88,9 +89,25 @@ const createPost = async (req, res) => {
       }
     }
 
+    // Validate media types if provided
+    let validatedMediaTypes = null;
+    if (mediaTypes && Array.isArray(mediaTypes)) {
+      if (mediaTypes.length !== imageUrls.length) {
+        console.warn(
+          "[createPost] mediaTypes length mismatch, defaulting to 'image'",
+        );
+        validatedMediaTypes = imageUrls.map(() => "image");
+      } else {
+        validatedMediaTypes = mediaTypes.map((mt) => {
+          if (mt === "video" || mt === "image") return mt;
+          return "image"; // Default to image
+        });
+      }
+    }
+
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, created_at
     `;
 
@@ -101,6 +118,7 @@ const createPost = async (req, res) => {
       JSON.stringify(imageUrls),
       taggedEntities ? JSON.stringify(taggedEntities) : null,
       validatedAspectRatios ? JSON.stringify(validatedAspectRatios) : null,
+      validatedMediaTypes ? JSON.stringify(validatedMediaTypes) : null,
     ];
 
     const result = await pool.query(query, values);
@@ -121,7 +139,7 @@ const createPost = async (req, res) => {
         if (userType === "member") {
           const actorResult = await pool.query(
             "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -131,7 +149,7 @@ const createPost = async (req, res) => {
         } else if (userType === "community") {
           const actorResult = await pool.query(
             "SELECT name, username, logo_url FROM communities WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -141,7 +159,7 @@ const createPost = async (req, res) => {
         } else if (userType === "sponsor") {
           const actorResult = await pool.query(
             "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -151,7 +169,7 @@ const createPost = async (req, res) => {
         } else if (userType === "venue") {
           const actorResult = await pool.query(
             "SELECT name, username FROM venues WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -178,7 +196,7 @@ const createPost = async (req, res) => {
                   actorAvatar,
                   postId: post.id,
                 }),
-              ]
+              ],
             );
 
             // Send push notification for tag
@@ -191,7 +209,7 @@ const createPost = async (req, res) => {
               {
                 type: "tag",
                 postId: post.id,
-              }
+              },
             );
           }
         }
@@ -210,6 +228,7 @@ const createPost = async (req, res) => {
         caption,
         image_urls: imageUrls,
         aspect_ratios: validatedAspectRatios || imageUrls.map(() => 0.8), // Default 4:5
+        media_types: validatedMediaTypes || imageUrls.map(() => "image"), // Default to image
         tagged_entities: taggedEntities,
         like_count: 0,
         comment_count: 0,
@@ -328,6 +347,16 @@ const getFeed = async (req, res) => {
               return null;
             }
           })(),
+          media_types: (() => {
+            try {
+              if (!post.media_types) return null;
+              if (Array.isArray(post.media_types)) return post.media_types;
+              const parsed = JSON.parse(post.media_types);
+              return Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              return null;
+            }
+          })(),
           type_data: (() => {
             try {
               if (!post.type_data) return {};
@@ -345,11 +374,11 @@ const getFeed = async (req, res) => {
             const voteResult = await pool.query(
               `SELECT option_index FROM poll_votes 
                WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-              [post.id, viewerId, viewerType]
+              [post.id, viewerId, viewerType],
             );
             parsedPost.has_voted = voteResult.rows.length > 0;
             parsedPost.voted_indexes = voteResult.rows.map(
-              (r) => r.option_index
+              (r) => r.option_index,
             );
           } catch (e) {
             parsedPost.has_voted = false;
@@ -370,13 +399,13 @@ const getFeed = async (req, res) => {
                   JOIN prompt_submissions ps ON pr.submission_id = ps.id
                   WHERE ps.post_id = $1 AND ps.status = 'approved'
                 ), 0) as total_reply_count`,
-              [post.id]
+              [post.id],
             );
             parsedPost.type_data = {
               ...parsedPost.type_data,
               submission_count: parseInt(countResult.rows[0]?.count || 0),
               total_reply_count: parseInt(
-                countResult.rows[0]?.total_reply_count || 0
+                countResult.rows[0]?.total_reply_count || 0,
               ),
             };
 
@@ -385,7 +414,7 @@ const getFeed = async (req, res) => {
               const subResult = await pool.query(
                 `SELECT id, status FROM prompt_submissions 
                  WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-                [post.id, viewerId, viewerType]
+                [post.id, viewerId, viewerType],
               );
               parsedPost.has_submitted = subResult.rows.length > 0;
               parsedPost.submission_status = subResult.rows[0]?.status || null;
@@ -414,7 +443,7 @@ const getFeed = async (req, res) => {
                 s.is_pinned DESC,
                 s.created_at DESC
               LIMIT 1`,
-              [post.id]
+              [post.id],
             );
             parsedPost.preview_submission = previewResult.rows[0] || null;
           } catch (e) {
@@ -433,15 +462,15 @@ const getFeed = async (req, res) => {
                 COUNT(*) FILTER (WHERE answered_at IS NOT NULL) as answered_count
                FROM qna_questions 
                WHERE post_id = $1 AND is_hidden = false`,
-              [post.id]
+              [post.id],
             );
             parsedPost.type_data = {
               ...parsedPost.type_data,
               question_count: parseInt(
-                countResult.rows[0]?.question_count || 0
+                countResult.rows[0]?.question_count || 0,
               ),
               answered_count: parseInt(
-                countResult.rows[0]?.answered_count || 0
+                countResult.rows[0]?.answered_count || 0,
               ),
             };
 
@@ -450,10 +479,10 @@ const getFeed = async (req, res) => {
               const userQuestionResult = await pool.query(
                 `SELECT COUNT(*) as count FROM qna_questions 
                  WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-                [post.id, viewerId, viewerType]
+                [post.id, viewerId, viewerType],
               );
               parsedPost.user_question_count = parseInt(
-                userQuestionResult.rows[0]?.count || 0
+                userQuestionResult.rows[0]?.count || 0,
               );
             } else {
               parsedPost.user_question_count = 0;
@@ -478,7 +507,7 @@ const getFeed = async (req, res) => {
                WHERE q.post_id = $1 AND q.is_hidden = false
                ORDER BY q.is_pinned DESC, q.upvote_count DESC, q.created_at DESC
                LIMIT 1`,
-              [post.id]
+              [post.id],
             );
             parsedPost.preview_question = previewResult.rows[0] || null;
           } catch (e) {
@@ -498,15 +527,15 @@ const getFeed = async (req, res) => {
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_count
                FROM challenge_participations 
                WHERE post_id = $1`,
-              [post.id]
+              [post.id],
             );
             parsedPost.type_data = {
               ...parsedPost.type_data,
               participant_count: parseInt(
-                countResult.rows[0]?.participant_count || 0
+                countResult.rows[0]?.participant_count || 0,
               ),
               completed_count: parseInt(
-                countResult.rows[0]?.completed_count || 0
+                countResult.rows[0]?.completed_count || 0,
               ),
             };
 
@@ -515,7 +544,7 @@ const getFeed = async (req, res) => {
               const joinedResult = await pool.query(
                 `SELECT id, status, progress FROM challenge_participations 
                  WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
-                [post.id, viewerId, viewerType]
+                [post.id, viewerId, viewerType],
               );
               parsedPost.has_joined = joinedResult.rows.length > 0;
               parsedPost.user_participation = joinedResult.rows[0] || null;
@@ -542,7 +571,7 @@ const getFeed = async (req, res) => {
                WHERE cs.post_id = $1 AND cs.status = 'approved'
                ORDER BY cs.is_featured DESC, cs.like_count DESC, cs.created_at DESC
                LIMIT 1`,
-              [post.id]
+              [post.id],
             );
             if (previewResult.rows[0]) {
               const preview = previewResult.rows[0];
@@ -570,7 +599,7 @@ const getFeed = async (req, res) => {
         }
 
         return parsedPost;
-      })
+      }),
     );
 
     console.log("Parsed posts:", posts.length);
@@ -679,7 +708,7 @@ const likePost = async (req, res) => {
     // Check if already liked
     const existingLike = await pool.query(
       "SELECT id FROM post_likes WHERE post_id = $1 AND liker_id = $2 AND liker_type = $3",
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (existingLike.rows.length > 0) {
@@ -689,20 +718,20 @@ const likePost = async (req, res) => {
     // Add like
     await pool.query(
       "INSERT INTO post_likes (post_id, liker_id, liker_type) VALUES ($1, $2, $3)",
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     // Update like count
     await pool.query(
       "UPDATE posts SET like_count = like_count + 1 WHERE id = $1",
-      [postId]
+      [postId],
     );
 
     // Create notification for post author (skip if user likes their own post)
     try {
       const postResult = await pool.query(
         "SELECT author_id, author_type FROM posts WHERE id = $1",
-        [postId]
+        [postId],
       );
       const postAuthor = postResult.rows[0];
 
@@ -718,7 +747,7 @@ const likePost = async (req, res) => {
         if (userType === "member") {
           const actorResult = await pool.query(
             "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -728,7 +757,7 @@ const likePost = async (req, res) => {
         } else if (userType === "community") {
           const actorResult = await pool.query(
             "SELECT name, username, logo_url FROM communities WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -738,7 +767,7 @@ const likePost = async (req, res) => {
         } else if (userType === "sponsor") {
           const actorResult = await pool.query(
             "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -748,7 +777,7 @@ const likePost = async (req, res) => {
         } else if (userType === "venue") {
           const actorResult = await pool.query(
             "SELECT name, username FROM venues WHERE id = $1",
-            [userId]
+            [userId],
           );
           if (actorResult.rows[0]) {
             actorName = actorResult.rows[0].name;
@@ -772,7 +801,7 @@ const likePost = async (req, res) => {
               actorAvatar,
               postId,
             }),
-          ]
+          ],
         );
 
         // Send push notification for like
@@ -785,7 +814,7 @@ const likePost = async (req, res) => {
           {
             type: "like",
             postId: parseInt(postId),
-          }
+          },
         );
       }
     } catch (e) {
@@ -814,7 +843,7 @@ const unlikePost = async (req, res) => {
     // Remove like
     const result = await pool.query(
       "DELETE FROM post_likes WHERE post_id = $1 AND liker_id = $2 AND liker_type = $3",
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (result.rowCount === 0) {
@@ -824,14 +853,14 @@ const unlikePost = async (req, res) => {
     // Update like count
     await pool.query(
       "UPDATE posts SET like_count = like_count - 1 WHERE id = $1",
-      [postId]
+      [postId],
     );
 
     // Delete the like notification if it exists
     try {
       const postResult = await pool.query(
         "SELECT author_id, author_type FROM posts WHERE id = $1",
-        [postId]
+        [postId],
       );
       const postAuthor = postResult.rows[0];
 
@@ -850,7 +879,7 @@ const unlikePost = async (req, res) => {
             userId,
             userType,
             postId,
-          ]
+          ],
         );
       }
     } catch (e) {
@@ -949,17 +978,17 @@ const getPost = async (req, res) => {
       // Check if user has voted
       const voteResult = await pool.query(
         `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-        [postId, userId, userType]
+        [postId, userId, userType],
       );
       interactionStatus.has_voted = voteResult.rows.length > 0;
       interactionStatus.voted_indexes = voteResult.rows.map(
-        (r) => r.option_index
+        (r) => r.option_index,
       );
     } else if (postType === "prompt" && userId && userType) {
       // Check if user has submitted
       const subResult = await pool.query(
         `SELECT id, status FROM prompt_submissions WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-        [postId, userId, userType]
+        [postId, userId, userType],
       );
       interactionStatus.has_submitted = subResult.rows.length > 0;
       if (subResult.rows[0]) {
@@ -998,10 +1027,10 @@ const getUserPosts = async (req, res) => {
     const viewerType = req.user?.type || null;
 
     console.log(
-      `[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`
+      `[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`,
     );
     console.log(
-      `[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`
+      `[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`,
     );
 
     const query = `
@@ -1052,7 +1081,7 @@ const getUserPosts = async (req, res) => {
     ]);
 
     console.log(
-      `[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`
+      `[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`,
     );
 
     // Parse JSON fields
@@ -1106,7 +1135,7 @@ const deletePost = async (req, res) => {
     // Check if post exists and belongs to user
     const postCheck = await pool.query(
       "SELECT id FROM posts WHERE id = $1 AND author_id = $2 AND author_type = $3",
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (postCheck.rows.length === 0) {
