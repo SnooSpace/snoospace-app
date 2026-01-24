@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { View, StyleSheet, Platform, Dimensions } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { House, Search, LayoutGrid, Inbox, User } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import Animated, {
   useSharedValue,
@@ -16,111 +16,112 @@ import CommunitySearchStackNavigator from "./CommunitySearchStackNavigator";
 import CommunityDashboardStackNavigator from "./CommunityDashboardStackNavigator";
 import CommunityRequestsScreen from "../screens/home/community/CommunityRequestsScreen";
 import CommunityProfileStackNavigator from "./CommunityProfileStackNavigator";
+import ProfileTabIcon from "../components/ProfileTabIcon";
 
 const Tab = createBottomTabNavigator();
 
 const PRIMARY_COLOR = "#5f27cd";
 const LIGHT_TEXT_COLOR = "#6c757d";
 
-const TabIcon = ({ name, focused, color }) => {
-  const scale = useSharedValue(focused ? 1.2 : 1);
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(scale.value, { damping: 10 }) }],
-  }));
-
-  useEffect(() => {
-    scale.value = focused ? 1.2 : 1;
-  }, [focused]);
-
-  return (
-    <Animated.View
-      style={[
-        { alignItems: "center", justifyContent: "center", top: 10 },
-        animatedStyle,
-      ]}
-    >
-      <Ionicons name={name} size={24} color={color} />
-    </Animated.View>
-  );
-};
-
 const CommunityBottomTabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let IconComponent;
 
           if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline";
+            IconComponent = House;
           } else if (route.name === "Search") {
-            iconName = focused ? "search" : "search-outline";
+            IconComponent = Search;
           } else if (route.name === "Dashboard") {
-            iconName = focused ? "grid" : "grid-outline";
+            IconComponent = LayoutGrid;
           } else if (route.name === "Requests") {
-            iconName = focused ? "mail" : "mail-outline";
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline";
+            IconComponent = Inbox;
           }
 
-          return <TabIcon name={iconName} focused={focused} color={color} />;
+          if (route.name === "Profile") {
+            return (
+              <ProfileTabIcon
+                focused={focused}
+                color={color}
+                userType="community"
+              />
+            );
+          }
+
+          return (
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <IconComponent
+                size={26}
+                color={focused ? "#3565F2" : "#999999"}
+                fill={focused ? "rgba(53, 101, 242, 0.15)" : "transparent"}
+                strokeWidth={focused ? 2.5 : 2.2}
+              />
+            </View>
+          );
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: "#00C6FF", // Cyan color
-        tabBarInactiveTintColor: LIGHT_TEXT_COLOR,
         tabBarStyle: {
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: "transparent", // Transparent to let BlurView show
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          height: 85, // Fixed height for docked bar
+          backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
           borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
-          paddingBottom: 0,
+          height: Platform.OS === "ios" ? 95 : 80,
+          paddingTop: 12, // Add top padding for breathing room
+          paddingBottom: Platform.OS === "ios" ? 20 : 10,
         },
-        tabBarBackground: () => (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                overflow: "hidden",
-                // Fallback color for Android if blur fails or loads slowly
-                backgroundColor: "rgba(255,255,255,0.6)",
-              },
-            ]}
-          >
-            <BlurView
-              // Switch to "systemThickMaterialLight" for a denser, heavier glass on iOS
-              // Keep "light" if you want it purely white but just blurrier
-              tint={
-                Platform.OS === "ios" ? "systemThickMaterialLight" : "light"
-              }
-              // Max out intensity to 100
-              intensity={100}
-              // CRITICAL for Android: Enables real blur instead of just transparency
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-
-            {/* Subtle Top Border */}
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 1,
-                backgroundColor: "rgba(0,0,0,0.1)", // Slightly darker border for better contrast
-              }}
-            />
-          </View>
-        ),
+        tabBarBackground: () =>
+          Platform.OS === "ios" ? (
+            <View style={StyleSheet.absoluteFill}>
+              {/* 
+                iOS Glass Implementation:
+                - tint="systemChromeMaterialLight": Matches native iOS navigation bars (the "standard" blur).
+                - intensity={100}: Ensures complete smoothing of content behind.
+              */}
+              <BlurView
+                tint="systemChromeMaterialLight"
+                intensity={100}
+                style={StyleSheet.absoluteFill}
+              />
+              {/* Subtle Top Divider: 0.5px hairline for crisp separation */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: StyleSheet.hairlineWidth, // ~0.33px on retina, 0.5px on standard
+                  backgroundColor: "rgba(0, 0, 0, 0.2)", // Standard iOS separator opacity
+                }}
+              />
+            </View>
+          ) : (
+            // Android Fallback: Solid white with subtle divider
+            <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                  backgroundColor: "rgba(0, 0, 0, 0.05)",
+                }}
+              />
+            </View>
+          ),
         headerShown: false,
       })}
     >
@@ -145,14 +146,14 @@ const CommunityBottomTabNavigator = () => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "transparent",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              height: 85,
+              backgroundColor:
+                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
             };
           })(),
         })}

@@ -980,7 +980,10 @@ export default function CommunityProfileScreen({ navigation }) {
             <TouchableOpacity
               style={styles.statItem}
               onPress={() =>
-                navigation.navigate("FollowersList", { type: "followers" })
+                navigation.navigate("CommunityFollowersList", {
+                  communityId: profile.id,
+                  title: "Followers",
+                })
               }
             >
               <Text style={styles.statNumber}>{profile.follower_count}</Text>

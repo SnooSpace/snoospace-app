@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { View, StyleSheet, Platform, Dimensions } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { House, Search, Compass, Calendar, User } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import Animated, {
   useSharedValue,
@@ -16,6 +16,7 @@ import SearchStackNavigator from "./SearchStackNavigator";
 import ProfileStackNavigator from "./ProfileStackNavigator";
 import DiscoverStackNavigator from "./DiscoverStackNavigator";
 import EventsStackNavigator from "./EventsStackNavigator";
+import ProfileTabIcon from "../components/ProfileTabIcon";
 
 const Tab = createBottomTabNavigator();
 
@@ -59,38 +60,42 @@ const BottomTabNavigator = ({ navigation, route }) => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let IconComponent;
 
           if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline";
+            IconComponent = House;
           } else if (route.name === "Search") {
-            iconName = focused ? "search" : "search-outline";
+            IconComponent = Search;
           } else if (route.name === "Discover") {
-            iconName = focused ? "compass" : "compass-outline";
+            IconComponent = Compass;
           } else if (route.name === "YourEvents") {
-            iconName = focused ? "calendar" : "calendar-outline";
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline";
+            IconComponent = Calendar;
+          }
+
+          if (route.name === "Profile") {
+            return (
+              <ProfileTabIcon
+                focused={focused}
+                color={color}
+                userType="member"
+              />
+            );
           }
 
           return (
-            <View style={{ alignItems: "center", justifyContent: "center" }}>
-              {focused && (
-                <View
-                  style={{
-                    position: "absolute",
-                    width: 48,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: "rgba(53, 101, 242, 0.1)", // Light blue pill background
-                    zIndex: -1,
-                  }}
-                />
-              )}
-              <Ionicons
-                name={iconName}
-                size={24}
-                color={focused ? "#3565F2" : "#9E9E9E"}
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <IconComponent
+                size={26}
+                color={focused ? "#3565F2" : "#999999"}
+                fill={focused ? "rgba(53, 101, 242, 0.15)" : "transparent"}
+                strokeWidth={focused ? 2.5 : 2.2}
               />
             </View>
           );
@@ -101,27 +106,54 @@ const BottomTabNavigator = ({ navigation, route }) => {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#FFFFFF", // Solid white
-          borderTopLeftRadius: 0, // Removed radius for solid connection
-          borderTopRightRadius: 0,
-          height: Platform.OS === "ios" ? 85 : 65,
+          backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
           borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
-          paddingBottom: Platform.OS === "ios" ? 20 : 0,
+          height: Platform.OS === "ios" ? 95 : 80,
+          paddingTop: 12, // Add top padding for breathing room
+          paddingBottom: Platform.OS === "ios" ? 20 : 10,
         },
-        // Custom background to add the subtle top divider
-        tabBarBackground: () => (
-          <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-            <View
-              style={{
-                height: 1,
-                backgroundColor: "rgba(0,0,0,0.05)", // Subtle separator
-                width: "100%",
-              }}
-            />
-          </View>
-        ),
+        tabBarBackground: () =>
+          Platform.OS === "ios" ? (
+            <View style={StyleSheet.absoluteFill}>
+              {/* 
+                iOS Glass Implementation:
+                - tint="systemChromeMaterialLight": Matches native iOS navigation bars (the "standard" blur).
+                - intensity={100}: Ensures complete smoothing of content behind.
+              */}
+              <BlurView
+                tint="systemChromeMaterialLight"
+                intensity={100}
+                style={StyleSheet.absoluteFill}
+              />
+              {/* Subtle Top Divider: 0.5px hairline for crisp separation */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: StyleSheet.hairlineWidth, // ~0.33px on retina, 0.5px on standard
+                  backgroundColor: "rgba(0, 0, 0, 0.2)", // Standard iOS separator opacity
+                }}
+              />
+            </View>
+          ) : (
+            // Android Fallback: Solid white with subtle divider
+            <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 1,
+                  backgroundColor: "rgba(0, 0, 0, 0.05)",
+                }}
+              />
+            </View>
+          ),
         headerShown: false,
       })}
     >
@@ -132,12 +164,13 @@ const BottomTabNavigator = ({ navigation, route }) => {
           tabBarLabel: "Home",
           tabBarStyle: (() => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "HomeFeed";
-            if (
-              routeName === "ConversationsList" ||
-              routeName === "Chat" ||
-              routeName === "CreatePost" ||
-              routeName === "PromptReplies"
-            ) {
+            const hiddenRoutes = [
+              "ConversationsList",
+              "Chat",
+              "CreatePost",
+              "PromptReplies",
+            ];
+            if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };
             }
             return {
@@ -145,12 +178,14 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "#FFFFFF",
-              height: Platform.OS === "ios" ? 85 : 65,
+              backgroundColor:
+                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: Platform.OS === "ios" ? 20 : 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
             };
           })(),
         })}
@@ -168,12 +203,13 @@ const BottomTabNavigator = ({ navigation, route }) => {
           tabBarStyle: (() => {
             const routeName =
               getFocusedRouteNameFromRoute(route) ?? "DiscoverHome";
-            if (
-              routeName === "ProfileFeed" ||
-              routeName === "NetworkingProfile" ||
-              routeName === "Chat" ||
-              routeName === "EditDiscoverProfile"
-            ) {
+            const hiddenRoutes = [
+              "ProfileFeed",
+              "NetworkingProfile",
+              "Chat",
+              "EditDiscoverProfile",
+            ];
+            if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };
             }
             return {
@@ -181,12 +217,14 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "#FFFFFF",
-              height: Platform.OS === "ios" ? 85 : 65,
+              backgroundColor:
+                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: Platform.OS === "ios" ? 20 : 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
             };
           })(),
         })}
@@ -203,7 +241,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
           tabBarLabel: "Profile",
           tabBarStyle: (() => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
-            if (routeName === "CreatePost" || routeName === "EditProfile") {
+            const hiddenRoutes = ["CreatePost", "EditProfile"];
+            if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };
             }
             return {
@@ -211,12 +250,14 @@ const BottomTabNavigator = ({ navigation, route }) => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: "#FFFFFF",
-              height: Platform.OS === "ios" ? 85 : 65,
+              backgroundColor:
+                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
-              paddingBottom: Platform.OS === "ios" ? 20 : 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
             };
           })(),
         })}
