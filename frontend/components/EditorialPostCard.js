@@ -45,6 +45,8 @@ import {
   COLORS,
   EDITORIAL_TYPOGRAPHY,
   EDITORIAL_SPACING,
+  BORDER_RADIUS,
+  SPACING,
 } from "../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -398,11 +400,8 @@ const EditorialPostCard = ({
           </Text>
         </View>
 
-        {/* Spacer */}
-        <View style={styles.engagementSpacer} />
-
         {/* Share */}
-        <Pressable style={styles.engagementButtonIcon} onPress={handleShare}>
+        <Pressable style={styles.engagementButton} onPress={handleShare}>
           <Send
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -410,7 +409,7 @@ const EditorialPostCard = ({
         </Pressable>
 
         {/* Bookmark */}
-        <Pressable style={styles.engagementButtonIcon} onPress={handleSave}>
+        <Pressable style={styles.engagementButton} onPress={handleSave}>
           <Bookmark
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -435,8 +434,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.editorial.background,
     paddingVertical: EDITORIAL_SPACING.cardPadding,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.editorial.border,
+    marginBottom: SPACING.m,
   },
 
   // Author Row
@@ -527,7 +525,7 @@ const styles = StyleSheet.create({
   // Media Container
   mediaContainer: {
     paddingHorizontal: EDITORIAL_SPACING.cardPadding,
-    marginBottom: EDITORIAL_SPACING.mediaGap,
+    marginBottom: 8,
   },
   mediaWrapper: {
     width: CONTENT_WIDTH,
@@ -544,15 +542,16 @@ const styles = StyleSheet.create({
   engagementRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: EDITORIAL_SPACING.cardPadding,
+    justifyContent: "space-between",
+    paddingHorizontal: EDITORIAL_SPACING.cardPadding + 4,
+    marginTop: 0,
   },
   engagementButton: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: EDITORIAL_SPACING.engagementGroupGap,
-  },
-  engagementButtonIcon: {
-    marginLeft: 16,
+    minHeight: 40,
+    minWidth: 40,
+    justifyContent: "center",
   },
   engagementCount: {
     ...EDITORIAL_TYPOGRAPHY.engagementCount,
@@ -560,9 +559,6 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
-  },
-  engagementSpacer: {
-    flex: 1,
   },
 });
 

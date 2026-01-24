@@ -141,7 +141,7 @@ export const EDITORIAL_SPACING = {
   engagementGroupGap: 24,
   iconCountGap: 4,
   profileImageSize: 44,
-  iconSize: 20,
+  iconSize: 23,
   mediaCornerRadius: 12,
 };
 

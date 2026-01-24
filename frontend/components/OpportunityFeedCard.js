@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, FONTS } from "../constants/theme";
+import { COLORS, FONTS, BORDER_RADIUS, SPACING } from "../constants/theme";
 
 const OpportunityFeedCard = ({ opportunity, onPress }) => {
   const formatTimeAgo = (dateStr) => {
@@ -176,11 +176,10 @@ const OpportunityFeedCard = ({ opportunity, onPress }) => {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 20,
+    borderRadius: BORDER_RADIUS.xl,
     padding: 20,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    // Add shadow if needed, but gradient usually suffices
+    marginHorizontal: SPACING.m,
+    marginBottom: SPACING.m,
   },
   headerRow: {
     flexDirection: "row",
