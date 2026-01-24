@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { apiPost, apiDelete } from "../../api/client";
+import { apiPost, apiDelete, apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
@@ -39,6 +39,7 @@ const ChallengePostCard = ({
   const [previewSubmission, setPreviewSubmission] = useState(
     post.preview_submission || null,
   );
+  const [participantPreviews, setParticipantPreviews] = useState([]);
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const challengeType = typeData.challenge_type || "single";
@@ -59,6 +60,27 @@ const ChallengePostCard = ({
     typeData.participant_count,
     post.preview_submission,
   ]);
+
+  // Fetch participant previews for avatar stack
+  useEffect(() => {
+    const fetchPreviews = async () => {
+      if (participantCount === 0) return;
+      try {
+        const token = await getAuthToken();
+        const response = await apiGet(
+          `/posts/${post.id}/participant-previews`,
+          10000,
+          token,
+        );
+        if (response.success && response.previews) {
+          setParticipantPreviews(response.previews);
+        }
+      } catch (error) {
+        console.log("Error fetching participant previews:", error);
+      }
+    };
+    fetchPreviews();
+  }, [post.id, participantCount]);
 
   // Animate Live Now badge
   useEffect(() => {
@@ -405,33 +427,74 @@ const ChallengePostCard = ({
         </TouchableOpacity>
       )}
 
-      {/* Participant Count (below CTA) */}
+      {/* Participant Count (below CTA) - Clickable to view all */}
       {participantCount > 0 && (
-        <View style={styles.participantCountContainer}>
-          <View style={styles.participantAvatars}>
-            {/* Generic placeholder avatars - you can enhance with real participant photos */}
-            <View style={[styles.participantAvatar, { zIndex: 3 }]}>
-              <Ionicons name="person" size={10} color="#FFFFFF" />
-            </View>
-            <View
-              style={[styles.participantAvatar, { zIndex: 2, marginLeft: -8 }]}
-            >
-              <Ionicons name="person" size={10} color="#FFFFFF" />
-            </View>
-            <View
-              style={[styles.participantAvatar, { zIndex: 1, marginLeft: -8 }]}
-            >
-              <Ionicons name="person" size={10} color="#FFFFFF" />
-            </View>
+        <TouchableOpacity
+          style={styles.participantCountContainer}
+          onPress={() => navigation.navigate("ChallengeSubmissions", { post })}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.participantCountText}>Joined by</Text>
+          <View style={[styles.participantAvatars, { marginLeft: 8 }]}>
+            {participantPreviews.length > 0 ? (
+              <>
+                {participantPreviews.slice(0, 3).map((participant, index) => (
+                  <View
+                    key={`${participant.participant_id}-${participant.participant_type}`}
+                    style={[
+                      styles.participantAvatarImage,
+                      { zIndex: 3 - index, marginLeft: index > 0 ? -10 : 0 },
+                    ]}
+                  >
+                    {participant.participant_photo_url ? (
+                      <Image
+                        source={{ uri: participant.participant_photo_url }}
+                        style={styles.participantAvatarImg}
+                      />
+                    ) : (
+                      <View style={styles.participantAvatarPlaceholder}>
+                        <Ionicons name="person" size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {participantCount > 3 && (
+                  <View
+                    style={[styles.participantCountBadge, { marginLeft: -10 }]}
+                  >
+                    <Text style={styles.participantCountBadgeText}>
+                      +{participantCount - 3}
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              // Fallback to placeholder if no previews loaded yet
+              <>
+                <View style={[styles.participantAvatar, { zIndex: 3 }]}>
+                  <Ionicons name="person" size={10} color="#FFFFFF" />
+                </View>
+                <View
+                  style={[
+                    styles.participantAvatar,
+                    { zIndex: 2, marginLeft: -8 },
+                  ]}
+                >
+                  <Ionicons name="person" size={10} color="#FFFFFF" />
+                </View>
+                {participantCount > 2 && (
+                  <View
+                    style={[styles.participantCountBadge, { marginLeft: -8 }]}
+                  >
+                    <Text style={styles.participantCountBadgeText}>
+                      +{participantCount - 2}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
           </View>
-          <Text style={styles.participantCountText}>
-            Joined by{" "}
-            {participantCount >= 1000
-              ? `${(participantCount / 1000).toFixed(1)}k`
-              : participantCount}{" "}
-            creators
-          </Text>
-        </View>
+        </TouchableOpacity>
       )}
     </LinearGradient>
   );
@@ -733,10 +796,52 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
     fontWeight: "500",
   },
+  participantCountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: SPACING.s,
+  },
   viewAllText: {
     fontSize: 13,
     color: "#1976D2",
     fontWeight: "600",
+  },
+  // New avatar stack styles
+  participantAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  participantAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+  },
+  participantAvatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#90CAF9",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+  },
+  participantCountBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#1976D2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  participantCountBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });
 

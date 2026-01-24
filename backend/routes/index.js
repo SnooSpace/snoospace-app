@@ -953,6 +953,11 @@ router.get(
   authMiddleware,
   ChallengeController.getParticipants,
 );
+router.get(
+  "/posts/:postId/participant-previews",
+  authMiddleware,
+  ChallengeController.getParticipantPreviews,
+);
 router.post(
   "/posts/:postId/challenge-submissions",
   authMiddleware,

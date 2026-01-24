@@ -35,6 +35,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("submissions"); // submissions, participants
   const [filter, setFilter] = useState("approved"); // approved, featured
+  const [visibilityInfo, setVisibilityInfo] = useState(null);
 
   const fetchSubmissions = useCallback(
     async (showLoading = true) => {
@@ -44,11 +45,12 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         const response = await apiGet(
           `/posts/${post.id}/challenge-submissions?filter=${filter}`,
           15000,
-          token
+          token,
         );
 
         if (response.success) {
           setSubmissions(response.submissions || []);
+          setVisibilityInfo(response.visibility_info || null);
         }
       } catch (error) {
         console.error("Error fetching submissions:", error);
@@ -57,7 +59,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         setIsRefreshing(false);
       }
     },
-    [post.id, filter]
+    [post.id, filter],
   );
 
   const fetchParticipants = useCallback(async () => {
@@ -66,7 +68,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       const response = await apiGet(
         `/posts/${post.id}/participants`,
         15000,
-        token
+        token,
       );
 
       if (response.success) {
@@ -108,8 +110,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 like_count: hasLiked ? s.like_count - 1 : s.like_count + 1,
                 has_liked: !hasLiked,
               }
-            : s
-        )
+            : s,
+        ),
       );
 
       if (hasLiked) {
@@ -117,14 +119,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           `/challenge-submissions/${submissionId}/like`,
           {},
           10000,
-          token
+          token,
         );
       } else {
         await apiPost(
           `/challenge-submissions/${submissionId}/like`,
           {},
           10000,
-          token
+          token,
         );
       }
     } catch (error) {
@@ -293,8 +295,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             {item.status === "completed"
               ? "Completed"
               : item.status === "in_progress"
-              ? "In Progress"
-              : "Joined"}
+                ? "In Progress"
+                : "Joined"}
           </Text>
         </View>
       </View>
@@ -407,23 +409,51 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <MaterialCommunityIcons
-        name={
-          activeTab === "submissions" ? "image-off" : "account-group-outline"
-        }
-        size={48}
-        color={COLORS.textSecondary}
-      />
-      <Text style={styles.emptyTitle}>
-        {activeTab === "submissions"
-          ? "No submissions yet"
-          : "No participants yet"}
-      </Text>
-      <Text style={styles.emptySubtitle}>
-        {activeTab === "submissions"
-          ? "Be the first to submit proof!"
-          : "Join the challenge to get started"}
-      </Text>
+      {/* Show visibility info message when proofs are hidden */}
+      {activeTab === "submissions" &&
+        visibilityInfo &&
+        !visibilityInfo.proofs_visible && (
+          <View style={styles.visibilityInfoContainer}>
+            <Ionicons name="eye-off-outline" size={32} color="#FF9500" />
+            <Text style={styles.visibilityInfoTitle}>
+              Proofs are currently hidden
+            </Text>
+            <Text style={styles.visibilityInfoText}>
+              {visibilityInfo.reason ||
+                "Proofs will be visible after the challenge ends"}
+            </Text>
+            {visibilityInfo.expires_at && (
+              <Text style={styles.visibilityInfoSubtext}>
+                Ends: {new Date(visibilityInfo.expires_at).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+        )}
+      {(activeTab !== "submissions" ||
+        !visibilityInfo ||
+        visibilityInfo.proofs_visible) && (
+        <>
+          <MaterialCommunityIcons
+            name={
+              activeTab === "submissions"
+                ? "image-off"
+                : "account-group-outline"
+            }
+            size={48}
+            color={COLORS.textSecondary}
+          />
+          <Text style={styles.emptyTitle}>
+            {activeTab === "submissions"
+              ? "No submissions yet"
+              : "No participants yet"}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {activeTab === "submissions"
+              ? "Be the first to submit proof!"
+              : "Join the challenge to get started"}
+          </Text>
+        </>
+      )}
     </View>
   );
 
@@ -786,6 +816,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
+  },
+  // Visibility info styles
+  visibilityInfoContainer: {
+    alignItems: "center",
+    padding: SPACING.l,
+    backgroundColor: "#FFF8E1",
+    borderRadius: BORDER_RADIUS.l,
+    marginHorizontal: SPACING.m,
+  },
+  visibilityInfoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FF9500",
+    marginTop: SPACING.s,
+    textAlign: "center",
+  },
+  visibilityInfoText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+    textAlign: "center",
+  },
+  visibilityInfoSubtext: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+    fontWeight: "500",
   },
   // FAB
   fab: {

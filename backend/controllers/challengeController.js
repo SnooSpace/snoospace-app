@@ -40,6 +40,7 @@ const createChallengePost = async (req, res) => {
       target_count = 1,
       max_submissions_per_user = 1,
       require_approval = true,
+      show_proofs_immediately = true, // If false, participants only see others' proofs after challenge ends
       deadline,
     } = req.body;
 
@@ -56,6 +57,7 @@ const createChallengePost = async (req, res) => {
       target_count: parseInt(target_count) || 1,
       max_submissions_per_user: parseInt(max_submissions_per_user) || 1,
       require_approval,
+      show_proofs_immediately,
       participant_count: 0,
       submission_count: 0,
       completed_count: 0,
@@ -79,7 +81,7 @@ const createChallengePost = async (req, res) => {
     const post = result.rows[0];
 
     console.log(
-      `[Challenge] Created Challenge post ${post.id} by ${userType}:${userId}`
+      `[Challenge] Created Challenge post ${post.id} by ${userType}:${userId}`,
     );
 
     res.status(201).json({
@@ -122,7 +124,7 @@ const joinChallenge = async (req, res) => {
     const postResult = await pool.query(
       `SELECT id, author_id, author_type, type_data, expires_at 
        FROM posts WHERE id = $1 AND post_type = 'challenge'`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -140,7 +142,7 @@ const joinChallenge = async (req, res) => {
     const existingResult = await pool.query(
       `SELECT id FROM challenge_participations 
        WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (existingResult.rows.length > 0) {
@@ -153,7 +155,7 @@ const joinChallenge = async (req, res) => {
        (post_id, participant_id, participant_type, status, progress)
        VALUES ($1, $2, $3, 'joined', 0)
        RETURNING id, created_at`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     const participation = insertResult.rows[0];
@@ -167,11 +169,11 @@ const joinChallenge = async (req, res) => {
           participant_count: (typeData.participant_count || 0) + 1,
         }),
         postId,
-      ]
+      ],
     );
 
     console.log(
-      `[Challenge] User ${userType}:${userId} joined challenge ${postId}`
+      `[Challenge] User ${userType}:${userId} joined challenge ${postId}`,
     );
 
     res.status(201).json({
@@ -209,7 +211,7 @@ const leaveChallenge = async (req, res) => {
       `DELETE FROM challenge_participations 
        WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3
        RETURNING id`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (deleteResult.rowCount === 0) {
@@ -223,7 +225,7 @@ const leaveChallenge = async (req, res) => {
          '{participant_count}', 
          (GREATEST(COALESCE((type_data->>'participant_count')::int, 1) - 1, 0))::text::jsonb
        ) WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     res.json({
@@ -271,13 +273,13 @@ const getParticipants = async (req, res) => {
        WHERE cp.post_id = $1
        ORDER BY cp.is_highlighted DESC, cp.progress DESC, cp.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [postId, parseInt(limit), offset]
+      [postId, parseInt(limit), offset],
     );
 
     // Get total count
     const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM challenge_participations WHERE post_id = $1`,
-      [postId]
+      [postId],
     );
 
     res.json({
@@ -293,6 +295,54 @@ const getParticipants = async (req, res) => {
     });
   } catch (error) {
     console.error("[Challenge] Error getting participants:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Get preview avatars for participant stack display
+ * GET /posts/:postId/participant-previews
+ * Returns first 3 participants with photos for card display
+ */
+const getParticipantPreviews = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    // Get first 3 participants with their photos
+    const result = await pool.query(
+      `SELECT 
+        cp.participant_id,
+        cp.participant_type,
+        CASE 
+          WHEN cp.participant_type = 'member' THEN m.name
+          WHEN cp.participant_type = 'community' THEN c.name
+        END as participant_name,
+        CASE 
+          WHEN cp.participant_type = 'member' THEN m.profile_photo_url
+          WHEN cp.participant_type = 'community' THEN c.logo_url
+        END as participant_photo_url
+       FROM challenge_participations cp
+       LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
+       LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
+       WHERE cp.post_id = $1
+       ORDER BY cp.created_at ASC
+       LIMIT 3`,
+      [postId],
+    );
+
+    // Get total count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM challenge_participations WHERE post_id = $1`,
+      [postId],
+    );
+
+    res.json({
+      success: true,
+      previews: result.rows,
+      total_count: parseInt(countResult.rows[0].total),
+    });
+  } catch (error) {
+    console.error("[Challenge] Error getting participant previews:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -324,7 +374,7 @@ const submitProof = async (req, res) => {
        LEFT JOIN challenge_participations cp ON cp.post_id = p.id 
          AND cp.participant_id = $2 AND cp.participant_type = $3
        WHERE p.id = $1 AND p.post_type = 'challenge'`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (postResult.rows.length === 0) {
@@ -350,7 +400,7 @@ const submitProof = async (req, res) => {
     const submissionCountResult = await pool.query(
       `SELECT COUNT(*) as count FROM challenge_submissions 
        WHERE participant_id = $1`,
-      [post.participation_id]
+      [post.participation_id],
     );
 
     const maxSubmissions = typeData.max_submissions_per_user || 1;
@@ -397,7 +447,7 @@ const submitProof = async (req, res) => {
         video_thumbnail || null,
         submissionType,
         initialStatus,
-      ]
+      ],
     );
 
     const submission = insertResult.rows[0];
@@ -409,7 +459,7 @@ const submitProof = async (req, res) => {
          '{submission_count}', 
          (COALESCE((type_data->>'submission_count')::int, 0) + 1)::text::jsonb
        ) WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     // Update participant progress for progress-based challenges
@@ -419,7 +469,7 @@ const submitProof = async (req, res) => {
         parseInt(submissionCountResult.rows[0].count) + 1;
       const progress = Math.min(
         100,
-        Math.round((newSubmissionCount / targetCount) * 100)
+        Math.round((newSubmissionCount / targetCount) * 100),
       );
 
       await pool.query(
@@ -428,7 +478,7 @@ const submitProof = async (req, res) => {
              status = CASE WHEN $1 >= 100 THEN 'completed' ELSE 'in_progress' END,
              completed_at = CASE WHEN $1 >= 100 THEN NOW() ELSE completed_at END
          WHERE id = $2`,
-        [progress, post.participation_id]
+        [progress, post.participation_id],
       );
 
       // Update completed count if just completed
@@ -439,7 +489,7 @@ const submitProof = async (req, res) => {
              '{completed_count}', 
              (COALESCE((type_data->>'completed_count')::int, 0) + 1)::text::jsonb
            ) WHERE id = $1`,
-          [postId]
+          [postId],
         );
       }
     }
@@ -451,7 +501,7 @@ const submitProof = async (req, res) => {
         if (userType === "member") {
           const nameResult = await pool.query(
             "SELECT name FROM members WHERE id = $1",
-            [userId]
+            [userId],
           );
           participantName = nameResult.rows[0]?.name || "Someone";
         }
@@ -466,7 +516,7 @@ const submitProof = async (req, res) => {
             type: "challenge_submission",
             postId: parseInt(postId),
             submissionId: submission.id,
-          }
+          },
         );
       } catch (e) {
         console.error("[Challenge] Failed to send notification:", e);
@@ -474,7 +524,7 @@ const submitProof = async (req, res) => {
     }
 
     console.log(
-      `[Challenge] Submission ${submission.id} created for post ${postId}`
+      `[Challenge] Submission ${submission.id} created for post ${postId}`,
     );
 
     res.status(201).json({
@@ -499,6 +549,12 @@ const submitProof = async (req, res) => {
 /**
  * Get submissions for a challenge
  * GET /posts/:postId/challenge-submissions
+ *
+ * Visibility logic:
+ * - Challenge author: Always see all submissions
+ * - Participants: See own submissions always; see others' proofs based on:
+ *   - show_proofs_immediately = true: See all approved submissions
+ *   - show_proofs_immediately = false: See others only after challenge ends
  */
 const getSubmissions = async (req, res) => {
   try {
@@ -508,14 +564,35 @@ const getSubmissions = async (req, res) => {
     const userType = req.user?.type;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Check if user is post author (can see all)
+    // Get post details including type_data and expires_at
     const postResult = await pool.query(
-      `SELECT author_id, author_type FROM posts WHERE id = $1`,
-      [postId]
+      `SELECT author_id, author_type, type_data, expires_at FROM posts WHERE id = $1`,
+      [postId],
     );
-    const isAuthor =
-      postResult.rows[0]?.author_id === userId &&
-      postResult.rows[0]?.author_type === userType;
+
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: "Challenge not found" });
+    }
+
+    const post = postResult.rows[0];
+    const typeData = post.type_data || {};
+    const isAuthor = post.author_id === userId && post.author_type === userType;
+
+    // Check visibility settings
+    const showProofsImmediately = typeData.show_proofs_immediately !== false; // Default true
+    const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
+    const canSeeAllProofs = isAuthor || showProofsImmediately || isExpired;
+
+    // Get user's participation ID if they're a participant
+    let userParticipationId = null;
+    if (userId && userType) {
+      const participationResult = await pool.query(
+        `SELECT id FROM challenge_participations 
+         WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
+        [postId, userId, userType],
+      );
+      userParticipationId = participationResult.rows[0]?.id || null;
+    }
 
     // Build filter clause
     let filterClause = "";
@@ -525,6 +602,30 @@ const getSubmissions = async (req, res) => {
       filterClause = "AND cs.is_featured = true AND cs.status = 'approved'";
     } else {
       filterClause = "AND cs.status = 'approved'";
+    }
+
+    // Add visibility restriction if user can't see all proofs
+    let visibilityClause = "";
+    if (!canSeeAllProofs && userParticipationId) {
+      // User can only see their own submissions
+      visibilityClause = `AND cs.participant_id = ${userParticipationId}`;
+    } else if (!canSeeAllProofs && !userParticipationId) {
+      // Non-participant, non-author, proofs hidden - show nothing
+      return res.json({
+        success: true,
+        submissions: [],
+        visibility_info: {
+          proofs_visible: false,
+          reason: "Proofs will be visible after the challenge ends",
+          expires_at: post.expires_at,
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          has_more: false,
+        },
+      });
     }
 
     const result = await pool.query(
@@ -555,15 +656,16 @@ const getSubmissions = async (req, res) => {
             WHERE csl.submission_id = cs.id AND csl.user_id = $4 AND csl.user_type = $5
           )
           ELSE false
-        END as has_liked
+        END as has_liked,
+        (cp.participant_id = $4 AND cp.participant_type = $5) as is_own_submission
        FROM challenge_submissions cs
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
        LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
-       WHERE cs.post_id = $1 ${filterClause}
+       WHERE cs.post_id = $1 ${filterClause} ${visibilityClause}
        ORDER BY cs.is_featured DESC, cs.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [postId, parseInt(limit), offset, userId || null, userType || null]
+      [postId, parseInt(limit), offset, userId || null, userType || null],
     );
 
     // Parse media_urls
@@ -580,16 +682,24 @@ const getSubmissions = async (req, res) => {
       })(),
     }));
 
-    // Get total count
+    // Get total count with same visibility restrictions
     const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM challenge_submissions cs
-       WHERE cs.post_id = $1 ${filterClause}`,
-      [postId]
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       WHERE cs.post_id = $1 ${filterClause} ${visibilityClause}`,
+      [postId],
     );
 
     res.json({
       success: true,
       submissions,
+      visibility_info: {
+        proofs_visible: canSeeAllProofs,
+        is_author: isAuthor,
+        show_proofs_immediately: showProofsImmediately,
+        is_expired: isExpired,
+        expires_at: post.expires_at,
+      },
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -638,7 +748,7 @@ const updateProgress = async (req, res) => {
            updated_at = NOW()
        WHERE post_id = $2 AND participant_id = $3 AND participant_type = $4
        RETURNING id, progress, status, completed_at`,
-      [progress, postId, userId, userType]
+      [progress, postId, userId, userType],
     );
 
     if (updateResult.rowCount === 0) {
@@ -657,7 +767,7 @@ const updateProgress = async (req, res) => {
            '{completed_count}', 
            (COALESCE((type_data->>'completed_count')::int, 0) + 1)::text::jsonb
          ) WHERE id = $1`,
-        [postId]
+        [postId],
       );
     }
 
@@ -697,7 +807,7 @@ const markComplete = async (req, res) => {
        WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3
          AND status != 'completed'
        RETURNING id`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (updateResult.rowCount === 0) {
@@ -705,7 +815,7 @@ const markComplete = async (req, res) => {
       const existingResult = await pool.query(
         `SELECT status FROM challenge_participations 
          WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
-        [postId, userId, userType]
+        [postId, userId, userType],
       );
 
       if (existingResult.rows.length === 0) {
@@ -725,7 +835,7 @@ const markComplete = async (req, res) => {
          '{completed_count}', 
          (COALESCE((type_data->>'completed_count')::int, 0) + 1)::text::jsonb
        ) WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     res.json({
@@ -772,7 +882,7 @@ const moderateSubmission = async (req, res) => {
        JOIN posts p ON cs.post_id = p.id
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        WHERE cs.id = $1`,
-      [id]
+      [id],
     );
 
     if (submissionResult.rows.length === 0) {
@@ -796,7 +906,7 @@ const moderateSubmission = async (req, res) => {
       `UPDATE challenge_submissions 
        SET status = $1, moderated_by = $2, moderated_at = NOW()
        WHERE id = $3`,
-      [status, userId, id]
+      [status, userId, id],
     );
 
     // Send notification to submitter
@@ -819,7 +929,7 @@ const moderateSubmission = async (req, res) => {
           postId: submission.post_id,
           submissionId: parseInt(id),
           status,
-        }
+        },
       );
     } catch (e) {
       console.error("[Challenge] Failed to send moderation notification:", e);
@@ -858,7 +968,7 @@ const featureSubmission = async (req, res) => {
        JOIN posts p ON cs.post_id = p.id
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        WHERE cs.id = $1`,
-      [id]
+      [id],
     );
 
     if (submissionResult.rows.length === 0) {
@@ -879,7 +989,7 @@ const featureSubmission = async (req, res) => {
     // Update featured status
     await pool.query(
       `UPDATE challenge_submissions SET is_featured = $1 WHERE id = $2`,
-      [is_featured, id]
+      [is_featured, id],
     );
 
     // Send notification to submitter if featuring
@@ -895,7 +1005,7 @@ const featureSubmission = async (req, res) => {
             type: "challenge_featured",
             postId: submission.post_id,
             submissionId: parseInt(id),
-          }
+          },
         );
       } catch (e) {
         console.error("[Challenge] Failed to send feature notification:", e);
@@ -933,7 +1043,7 @@ const highlightParticipant = async (req, res) => {
        FROM challenge_participations cp
        JOIN posts p ON cp.post_id = p.id
        WHERE cp.id = $1`,
-      [id]
+      [id],
     );
 
     if (participationResult.rows.length === 0) {
@@ -954,7 +1064,7 @@ const highlightParticipant = async (req, res) => {
     // Update highlighted status
     await pool.query(
       `UPDATE challenge_participations SET is_highlighted = $1 WHERE id = $2`,
-      [is_highlighted, id]
+      [is_highlighted, id],
     );
 
     res.json({
@@ -989,7 +1099,7 @@ const likeSubmission = async (req, res) => {
     const existingLike = await pool.query(
       `SELECT id FROM challenge_submission_likes 
        WHERE submission_id = $1 AND user_id = $2 AND user_type = $3`,
-      [id, userId, userType]
+      [id, userId, userType],
     );
 
     if (existingLike.rows.length > 0) {
@@ -1000,7 +1110,7 @@ const likeSubmission = async (req, res) => {
     await pool.query(
       `INSERT INTO challenge_submission_likes (submission_id, user_id, user_type)
        VALUES ($1, $2, $3)`,
-      [id, userId, userType]
+      [id, userId, userType],
     );
 
     // Update like count
@@ -1009,7 +1119,7 @@ const likeSubmission = async (req, res) => {
        SET like_count = like_count + 1 
        WHERE id = $1
        RETURNING like_count`,
-      [id]
+      [id],
     );
 
     res.json({
@@ -1040,7 +1150,7 @@ const unlikeSubmission = async (req, res) => {
     const deleteResult = await pool.query(
       `DELETE FROM challenge_submission_likes 
        WHERE submission_id = $1 AND user_id = $2 AND user_type = $3`,
-      [id, userId, userType]
+      [id, userId, userType],
     );
 
     if (deleteResult.rowCount === 0) {
@@ -1053,7 +1163,7 @@ const unlikeSubmission = async (req, res) => {
        SET like_count = GREATEST(like_count - 1, 0) 
        WHERE id = $1
        RETURNING like_count`,
-      [id]
+      [id],
     );
 
     res.json({
@@ -1075,6 +1185,7 @@ module.exports = {
   joinChallenge,
   leaveChallenge,
   getParticipants,
+  getParticipantPreviews,
   submitProof,
   getSubmissions,
   updateProgress,

@@ -51,6 +51,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
   const [targetCount, setTargetCount] = useState(1);
   const [maxSubmissionsPerUser, setMaxSubmissionsPerUser] = useState(1);
   const [requireApproval, setRequireApproval] = useState(true);
+  const [showProofsImmediately, setShowProofsImmediately] = useState(true);
   const [hasDeadline, setHasDeadline] = useState(false);
   const [deadline, setDeadline] = useState(null);
 
@@ -64,6 +65,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
       target_count: targetCount,
       max_submissions_per_user: maxSubmissionsPerUser,
       require_approval: requireApproval,
+      show_proofs_immediately: showProofsImmediately,
       deadline: hasDeadline && deadline ? deadline.toISOString() : null,
     });
   }, [
@@ -74,6 +76,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     targetCount,
     maxSubmissionsPerUser,
     requireApproval,
+    showProofsImmediately,
     hasDeadline,
     deadline,
   ]);
@@ -278,7 +281,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
               style={styles.counterButton}
               onPress={() =>
                 setMaxSubmissionsPerUser(
-                  Math.min(10, maxSubmissionsPerUser + 1)
+                  Math.min(10, maxSubmissionsPerUser + 1),
                 )
               }
             >
@@ -307,6 +310,32 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
             onValueChange={setRequireApproval}
             trackColor={{ false: COLORS.border, true: "#FF950050" }}
             thumbColor={requireApproval ? "#FF9500" : COLORS.textSecondary}
+          />
+        </View>
+
+        {/* Show Proofs Immediately Toggle */}
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Ionicons
+              name="eye-outline"
+              size={20}
+              color={COLORS.textSecondary}
+            />
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Show proofs immediately</Text>
+              <Text style={styles.settingDescription}>
+                When off, proofs are hidden until challenge ends (you can always
+                view)
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={showProofsImmediately}
+            onValueChange={setShowProofsImmediately}
+            trackColor={{ false: COLORS.border, true: "#FF950050" }}
+            thumbColor={
+              showProofsImmediately ? "#FF9500" : COLORS.textSecondary
+            }
           />
         </View>
 
