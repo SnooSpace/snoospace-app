@@ -147,6 +147,11 @@ export const CROP_PRESETS = {
    * Feed Post Landscape
    * Used for: Timeline posts (landscape orientation)
    */
+  /**
+   * Feed Post Landscape (Video/Photo 16:9)
+   * Used for: Timeline posts (landscape orientation)
+   * Note: For photos, we prefer 1.91:1 (FEED_LANDSCAPE_PHOTO), but this exists for video compatibility
+   */
   FEED_LANDSCAPE: {
     key: "feed_landscape",
     label: "16:9",
@@ -155,6 +160,24 @@ export const CROP_PRESETS = {
     minHeight: 360,
     recommendedWidth: 1280,
     recommendedHeight: 720,
+    maxZoom: 5,
+    showGrid: true,
+    isCircular: false,
+    safeZone: null,
+  },
+
+  /**
+   * Feed Post Landscape Photo (1.91:1)
+   * Used for: Timeline photos (standard landscape link Preview ratio)
+   */
+  FEED_LANDSCAPE_PHOTO: {
+    key: "feed_landscape_photo",
+    label: "1.91:1",
+    aspectRatio: [191, 100],
+    minWidth: 600,
+    minHeight: 315,
+    recommendedWidth: 1080,
+    recommendedHeight: 566,
     maxZoom: 5,
     showGrid: true,
     isCircular: false,
@@ -169,7 +192,7 @@ export const CROP_PRESETS = {
  */
 export const getPreset = (key) => {
   const presetKey = Object.keys(CROP_PRESETS).find(
-    (k) => CROP_PRESETS[k].key === key
+    (k) => CROP_PRESETS[k].key === key,
   );
   return presetKey ? CROP_PRESETS[presetKey] : CROP_PRESETS.AVATAR;
 };

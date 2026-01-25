@@ -69,6 +69,7 @@ const BatchCropScreen = ({ route, navigation }) => {
     "feed_square",
     "feed_portrait",
     "feed_landscape",
+    "feed_landscape_photo",
   ].includes(currentPresetKey);
 
   // Store crop data from CropView
@@ -92,13 +93,15 @@ const BatchCropScreen = ({ route, navigation }) => {
         [currentIndex]: { ...data, presetKey: currentPresetKey },
       }));
     },
-    [currentIndex, currentPresetKey]
+    [currentIndex, currentPresetKey],
   );
 
-  // Toggle between feed aspect ratios (1:1 <-> 4:5)
+  // Toggle between feed aspect ratios (1:1 -> 4:5 -> 1.91:1)
   const handleAspectToggle = useCallback(() => {
     if (currentPresetKey === "feed_square") {
       setCurrentPresetKey("feed_portrait");
+    } else if (currentPresetKey === "feed_portrait") {
+      setCurrentPresetKey("feed_landscape_photo");
     } else {
       setCurrentPresetKey("feed_square");
     }
@@ -114,7 +117,7 @@ const BatchCropScreen = ({ route, navigation }) => {
       }));
       setCurrentIndex(index);
     },
-    [currentIndex, currentPresetKey]
+    [currentIndex, currentPresetKey],
   );
 
   // Mark current image as cropped when user explicitly crops it
@@ -141,13 +144,13 @@ const BatchCropScreen = ({ route, navigation }) => {
           scale: cropData.scale,
           translateX: cropData.translateX,
           translateY: cropData.translateY,
-        })
+        }),
       );
       console.log(
         "[DEBUG Crop] initialScale:",
         initialScale,
         "effectiveScale:",
-        effectiveScale
+        effectiveScale,
       );
 
       const cropRegion = calculateCropRegion({
@@ -182,7 +185,7 @@ const BatchCropScreen = ({ route, navigation }) => {
         {
           compress: 0.85,
           format: ImageManipulator.SaveFormat.JPEG,
-        }
+        },
       );
 
       console.log(
@@ -191,7 +194,7 @@ const BatchCropScreen = ({ route, navigation }) => {
           width: result.width,
           height: result.height,
           uri: result.uri,
-        })
+        }),
       );
 
       // Mark as cropped with the result
@@ -211,7 +214,7 @@ const BatchCropScreen = ({ route, navigation }) => {
 
       // Auto-advance to next uncropped image
       const nextUncropped = imageUris.findIndex(
-        (_, i) => i > currentIndex && !croppedImages[i]
+        (_, i) => i > currentIndex && !croppedImages[i],
       );
       if (nextUncropped !== -1) {
         setCurrentIndex(nextUncropped);
@@ -255,7 +258,7 @@ const BatchCropScreen = ({ route, navigation }) => {
               index: i,
               width: croppedImages[i].width,
               height: croppedImages[i].height,
-            })
+            }),
           );
           results.push(croppedImages[i]);
           continue;
@@ -331,11 +334,11 @@ const BatchCropScreen = ({ route, navigation }) => {
         };
         console.log(
           "[BatchCropScreen] Image URI being cropped:",
-          imageUri.substring(0, 80) + "..."
+          imageUri.substring(0, 80) + "...",
         );
         console.log(
           "[BatchCropScreen] ImageManipulator crop params:",
-          cropParams
+          cropParams,
         );
         console.log(
           "[BatchCropScreen] Expected: cropping from Y=" +
@@ -344,18 +347,18 @@ const BatchCropScreen = ({ route, navigation }) => {
             (cropParams.originY + cropParams.height) +
             " (out of " +
             savedCropData.imageHeight +
-            " total)"
+            " total)",
         );
 
         // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
         // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)
         console.log(
-          "[BatchCropScreen] Step 1: Re-encoding image to force proper pixel buffer"
+          "[BatchCropScreen] Step 1: Re-encoding image to force proper pixel buffer",
         );
         const reEncodedImage = await ImageManipulator.manipulateAsync(
           imageUri,
           [{ resize: { width: savedCropData.imageWidth } }], // Resize to same width (forces re-encode)
-          { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+          { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
         );
         console.log("[BatchCropScreen] Re-encoded image:", {
           uri: reEncodedImage.uri.substring(0, 50) + "...",
@@ -366,7 +369,7 @@ const BatchCropScreen = ({ route, navigation }) => {
         // Step 2: Now crop the re-encoded image
         console.log(
           "[BatchCropScreen] Step 2: Cropping re-encoded image with params:",
-          cropParams
+          cropParams,
         );
         const actions = [{ crop: cropParams }];
 
@@ -377,7 +380,7 @@ const BatchCropScreen = ({ route, navigation }) => {
 
         console.log(
           "[BatchCropScreen] Final crop actions:",
-          JSON.stringify(actions)
+          JSON.stringify(actions),
         );
 
         const result = await ImageManipulator.manipulateAsync(
@@ -386,7 +389,7 @@ const BatchCropScreen = ({ route, navigation }) => {
           {
             compress: 0.85,
             format: ImageManipulator.SaveFormat.JPEG,
-          }
+          },
         );
 
         console.log("[BatchCropScreen] ImageManipulator result:", {
@@ -502,14 +505,20 @@ const BatchCropScreen = ({ route, navigation }) => {
                   name={
                     currentPresetKey === "feed_square"
                       ? "square-outline"
-                      : "tablet-portrait-outline"
+                      : currentPresetKey === "feed_portrait"
+                        ? "tablet-portrait-outline"
+                        : "image-outline"
                   }
                   size={18}
                   color="#FFFFFF"
                 />
               </View>
               <Text style={styles.aspectToggleText}>
-                {currentPresetKey === "feed_square" ? "1:1" : "4:5"}
+                {currentPresetKey === "feed_square"
+                  ? "1:1"
+                  : currentPresetKey === "feed_portrait"
+                    ? "4:5"
+                    : "1.91:1"}
               </Text>
             </TouchableOpacity>
           )}

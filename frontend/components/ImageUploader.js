@@ -320,18 +320,39 @@ const ImageUploader = forwardRef(
         }));
       }
 
-      // Process videos (no cropping, just get aspect ratio)
+      // Process videos (no cropping, just get aspect ratio and snap to allowed)
       const videoResults = videoAssets.map((asset) => {
-        // Calculate aspect ratio from width/height if available
-        let aspectRatio = 16 / 9; // Default to landscape video
+        // Calculate raw aspect ratio from width/height if available
+        let rawRatio = 16 / 9; // Default
         if (asset.width && asset.height) {
-          aspectRatio = asset.width / asset.height;
+          rawRatio = asset.width / asset.height;
         }
+
+        // Snap to nearest allowed ratio: 1:1 (1.0), 4:5 (0.8), 16:9 (1.77)
+        // This ensures the EditorialPostCard renders the container correctly
+        let snappedRatio = 1.0;
+        const diff1 = Math.abs(rawRatio - 1.0);
+        const diffPortrait = Math.abs(rawRatio - 0.8);
+        const diffLandscape = Math.abs(rawRatio - 1.77);
+
+        if (diffPortrait < diff1 && diffPortrait < diffLandscape) {
+          snappedRatio = 0.8;
+        } else if (diffLandscape < diff1 && diffLandscape < diffPortrait) {
+          snappedRatio = 1.77; // 16:9
+        } else {
+          snappedRatio = 1.0;
+        }
+
+        console.log("[ImageUploader] Snapped video ratio:", {
+          raw: rawRatio,
+          snapped: snappedRatio,
+        });
+
         return {
           uri: asset.uri,
           metadata: {
             originalUri: asset.uri,
-            aspectRatio: aspectRatio,
+            aspectRatio: snappedRatio,
             preset: "video",
             mediaType: "video",
           },

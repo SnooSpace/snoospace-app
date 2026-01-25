@@ -55,9 +55,6 @@ export default function UniversalFollowingScreen({ route, navigation }) {
         // Robust check for is_following/you_follow_them handling booleans, numbers (0/1), etc.
         let isFollowing = true;
 
-        const rawIsFollowing = entry.is_following;
-        const rawYouFollowThem = entry.you_follow_them;
-
         // Check standard flag
         if (entry.is_following !== undefined && entry.is_following !== null) {
           isFollowing = !!entry.is_following;
@@ -70,7 +67,7 @@ export default function UniversalFollowingScreen({ route, navigation }) {
           isFollowing = !!entry.you_follow_them;
         }
 
-        const item = {
+        return {
           id: entry.following_id || entry.id,
           name: entry.following_name || entry.full_name || entry.name,
           username: entry.following_username || entry.username,
@@ -78,36 +75,16 @@ export default function UniversalFollowingScreen({ route, navigation }) {
           type: entry.following_type || "member",
           isFollowing,
         };
-
-        console.log(
-          `[UniversalFollowing] Processing item: ${item.name} (ID: ${item.id})`,
-        );
-        console.log(
-          `  - Raw flags: is_following=${rawIsFollowing} (${typeof rawIsFollowing}), you_follow_them=${rawYouFollowThem} (${typeof rawYouFollowThem})`,
-        );
-        console.log(`  - Resolved isFollowing: ${isFollowing}`);
-
-        return item;
       });
 
       // Filter out duplicates AND items that are not followed
       const seen = new Set();
       const unique = normalized.filter((item) => {
         // If the API returns someone we don't follow, filter them out
-        if (!item.isFollowing) {
-          console.log(
-            `[UniversalFollowing] FILTERING OUT: ${item.name} (isFollowing=false)`,
-          );
-          return false;
-        }
+        if (!item.isFollowing) return false;
 
         const id = String(item.id);
-        if (seen.has(id)) {
-          console.log(
-            `[UniversalFollowing] FILTERING OUT DUPLICATE: ${item.name}`,
-          );
-          return false;
-        }
+        if (seen.has(id)) return false;
         seen.add(id);
         return true;
       });

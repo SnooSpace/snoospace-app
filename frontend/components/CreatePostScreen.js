@@ -63,7 +63,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
     } else {
       pulseAnim.setValue(1);
@@ -83,7 +83,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           "/auth/get-user-profile",
           { email },
           15000,
-          token
+          token,
         );
 
         const userData = userProfileResponse?.profile;
@@ -160,7 +160,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
       console.log(
         "[CreatePostScreen] Formatted aspectRatios:",
-        formattedAspectRatios
+        formattedAspectRatios,
       );
 
       await apiPost(
@@ -175,7 +175,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           taggedEntities: taggedEntitiesData,
         },
         15000,
-        token
+        token,
       );
 
       // Emit event to refresh feed
@@ -201,9 +201,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                 if (!userType) {
                   // Fallback: try to get from AsyncStorage if not available in state/params
                   try {
-                    const storedUserType = await AsyncStorage.getItem(
-                      "user_type"
-                    ); // If we store this
+                    const storedUserType =
+                      await AsyncStorage.getItem("user_type"); // If we store this
                     // Or try to fetch profile again quickly if needed, but for now default to member
                     // Actually, let's try to infer from the previous screen or just default to member
                     // But wait, if we are community, we MUST know it.
@@ -213,9 +212,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
                     // If we are here, it means load failed or is too slow.
                     // Let's check if we have a stored profile in AsyncStorage
-                    const storedProfile = await AsyncStorage.getItem(
-                      "user_profile"
-                    );
+                    const storedProfile =
+                      await AsyncStorage.getItem("user_profile");
                     if (storedProfile) {
                       const parsed = JSON.parse(storedProfile);
                       userType = parsed.user_type || parsed.role;
@@ -252,7 +250,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                 }
 
                 console.log(
-                  `[CreatePostScreen] Navigating to ${targetScreen} for user type ${userType}`
+                  `[CreatePostScreen] Navigating to ${targetScreen} for user type ${userType}`,
                 );
 
                 // Navigate to the target screen
@@ -273,7 +271,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       console.error("Error creating post:", error);
       Alert.alert(
         "Error",
-        error.message || "Failed to create post. Please try again."
+        error.message || "Failed to create post. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -297,7 +295,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               navigation.goBack();
             },
           },
-        ]
+        ],
       );
     } else {
       navigation.goBack();
@@ -430,6 +428,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               onAspectRatiosChange={handleAspectRatiosChange}
               initialImages={images}
               horizontal={true}
+              allowVideos={true}
             />
           </View>
         </ScrollView>
