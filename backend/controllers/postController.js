@@ -288,7 +288,15 @@ const getFeed = async (req, res) => {
             WHERE l.post_id = p.id AND l.liker_id = $5 AND l.liker_type = $6
           )
           ELSE false
-        END AS is_liked
+        END AS is_liked,
+        CASE 
+          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM follows f2
+            WHERE f2.follower_id = $5 AND f2.follower_type = $6 
+            AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+          )
+          ELSE false
+        END AS is_following
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id

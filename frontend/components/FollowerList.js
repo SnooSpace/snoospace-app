@@ -30,6 +30,7 @@ export default function FollowerList({
   onToggleFollow,
   onItemPress,
   emptyMessage,
+  removeOnUnfollow = false, // New prop to remove items from list when unfollowed
   primaryColor = DEFAULT_PRIMARY,
   placeholderImage = "https://via.placeholder.com/64",
 }) {
@@ -91,7 +92,17 @@ export default function FollowerList({
           limit: PAGE_SIZE,
         });
         const newItems = Array.isArray(result?.items) ? result.items : [];
-        setItems((prev) => (reset ? newItems : [...prev, ...newItems]));
+        setItems((prev) => {
+          const combined = reset ? newItems : [...prev, ...newItems];
+          // Duplicate filtering
+          const seen = new Set();
+          return combined.filter((item) => {
+            const id = String(item.id);
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+        });
         const received = newItems.length;
         const hasNext =
           typeof result?.hasMore === "boolean"
@@ -107,7 +118,7 @@ export default function FollowerList({
         setRefreshing(false);
       }
     },
-    [fetchPage, hasMore, loadingMore, offset, refreshing]
+    [fetchPage, hasMore, loadingMore, offset, refreshing],
   );
 
   useEffect(() => {
@@ -118,14 +129,21 @@ export default function FollowerList({
   useEffect(() => {
     const handleFollowUpdate = (data) => {
       // Update the isFollowing state for the affected user in the list
-      if (data?.memberId) {
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === data.memberId
+      if (data?.id) {
+        setItems((prev) => {
+          const targetId = String(data.id);
+
+          if (removeOnUnfollow && !data.isFollowing) {
+            // Remove item from list if unfollowed
+            return prev.filter((item) => String(item.id) !== targetId);
+          }
+
+          return prev.map((item) =>
+            String(item.id) === targetId
               ? { ...item, isFollowing: data.isFollowing }
-              : item
-          )
-        );
+              : item,
+          );
+        });
       }
     };
 
@@ -133,33 +151,40 @@ export default function FollowerList({
     return () => {
       EventBus.off("follow-updated", handleFollowUpdate);
     };
-  }, []);
+  }, [removeOnUnfollow]);
 
   // Refresh list when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       load({ reset: true, refresh: true });
-    }, [])
+    }, []),
   );
 
   const handleToggleFollow = useCallback(
     async (id, isFollowing, entityType = "member") => {
       if (!onToggleFollow) return;
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, isFollowing: !isFollowing } : item
-        )
-      );
+
+      // Optimistic update
+      setItems((prev) => {
+        if (removeOnUnfollow && isFollowing) {
+          return prev.filter((item) => String(item.id) !== String(id));
+        }
+        return prev.map((item) =>
+          String(item.id) === String(id)
+            ? { ...item, isFollowing: !isFollowing }
+            : item,
+        );
+      });
+
       try {
         await onToggleFollow(id, isFollowing, entityType);
       } catch (error) {
         console.warn("[FollowerList] onToggleFollow failed", error);
-        setItems((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, isFollowing } : item))
-        );
+        // On error, let the scroll/focus refresh handle it or re-fetch
+        load({ reset: true });
       }
     },
-    [onToggleFollow]
+    [onToggleFollow, removeOnUnfollow, load],
   );
 
   const renderItem = useCallback(
@@ -203,7 +228,7 @@ export default function FollowerList({
                 handleToggleFollow(
                   item.id,
                   !!item.isFollowing,
-                  item.type || "member"
+                  item.type || "member",
                 )
               }
             >
@@ -228,7 +253,7 @@ export default function FollowerList({
       onToggleFollow,
       placeholderImage,
       primaryColor,
-    ]
+    ],
   );
 
   const listEmptyComponent = useMemo(() => {

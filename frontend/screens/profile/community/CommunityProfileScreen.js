@@ -992,10 +992,9 @@ export default function CommunityProfileScreen({ navigation }) {
             <TouchableOpacity
               style={styles.statItem}
               onPress={() =>
-                navigation.navigate("CommunityFollowersList", {
+                navigation.navigate("CommunityFollowingList", {
                   communityId: profile.id,
                   title: "Following",
-                  type: "following",
                 })
               }
             >

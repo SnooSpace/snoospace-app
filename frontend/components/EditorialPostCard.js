@@ -338,8 +338,22 @@ const EditorialPostCard = ({
   const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
 
   // Check if author is the current user (to hide follow button)
+  // Convert both to strings since author_id from API is string but currentUserId might be number
   const isOwnPost =
-    post.author_id === currentUserId && post.author_type === currentUserType;
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
+
+  console.log("[EditorialPostCard] isOwnPost check:", {
+    postId: post.id,
+    authorId: post.author_id,
+    authorType: post.author_type,
+    currentUserId,
+    currentUserType,
+    isOwnPost,
+    showFollowButton,
+    willShowButton: showFollowButton && !isOwnPost,
+    isFollowing: post.is_following,
+  });
 
   return (
     <View style={styles.container}>
@@ -593,7 +607,6 @@ const styles = StyleSheet.create({
     ...EDITORIAL_TYPOGRAPHY.timestamp,
   },
   followButton: {
-    backgroundColor: COLORS.editorial.accent,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
@@ -601,7 +614,6 @@ const styles = StyleSheet.create({
   },
   followButtonText: {
     ...EDITORIAL_TYPOGRAPHY.followButton,
-    color: "#FFFFFF",
   },
 
   // Post Text

@@ -22,7 +22,7 @@ import {
 } from "react-native-safe-area-context";
 import { MessageSquare, Bell } from "lucide-react-native";
 import { useNotifications } from "../context/NotificationsContext";
-import { apiGet, apiPost } from "../api/client";
+import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { getUnreadCount as getMessageUnreadCount } from "../api/messages";
 import {
@@ -200,6 +200,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [greetingName, setGreetingName] = useState(null);
   const [messageUnread, setMessageUnread] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
 
   // Attendance confirmation state
   const [pendingAttendanceEvent, setPendingAttendanceEvent] = useState(null);
@@ -545,6 +546,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const name = prof.full_name || prof.name || prof.username || "Member";
       setGreetingName(name);
       setCurrentUserId(prof.id);
+      const userType = res?.role || role; // API returns role at top level, not prof.type
+      console.log("[HomeFeed] Setting currentUserType:", {
+        apiRole: res?.role,
+        role,
+        finalType: userType,
+        profId: prof.id,
+      });
+      setCurrentUserType(userType);
     } catch (e) {
       console.error("[HomeFeed] Error loading greeting name:", e);
       setGreetingName("Member");
@@ -604,6 +613,38 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     // No additional feedback needed here
   };
 
+  const handleFollow = async (userId, userType, shouldFollow) => {
+    try {
+      const token = await getAuthToken();
+      if (shouldFollow) {
+        await apiPost(
+          "/follow",
+          { followingId: userId, followingType: userType },
+          15000,
+          token,
+        );
+      } else {
+        await apiDelete(
+          "/follow",
+          { followingId: userId, followingType: userType },
+          15000,
+          token,
+        );
+      }
+      // Update local state for all posts by this author
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.author_id === userId && post.author_type === userType
+            ? { ...post, is_following: shouldFollow }
+            : post,
+        ),
+      );
+    } catch (error) {
+      console.error("Error following entity:", error);
+      Alert.alert("Error", "Failed to update follow status");
+    }
+  };
+
   // Note: handleScroll is now replaced by scrollHandler using Reanimated
 
   const handleLogoPress = useCallback(() => {
@@ -643,7 +684,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         post={item}
         onLike={handleLikeUpdate}
         onComment={handleCommentPress}
+        onFollow={handleFollow}
         showFollowButton={true}
+        currentUserId={currentUserId}
+        currentUserType={currentUserType}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;

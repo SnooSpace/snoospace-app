@@ -1,144 +1,21 @@
-import React, { useCallback } from "react";
-import {
-  getMemberFollowers,
-  followMember,
-  unfollowMember,
-  getFollowStatusForMember,
-} from "../../../api/members";
-import {
-  followCommunity,
-  unfollowCommunity,
-  getFollowStatusForCommunity,
-} from "../../../api/communities";
-import { getAuthToken } from "../../../api/auth";
-import { apiGet } from "../../../api/client";
-import FollowerList from "../../../components/FollowerList";
-import { ensureFollowStatus } from "../../../utils/followerListUtils";
-
-const PRIMARY_COLOR = "#6A0DAD";
+// Backward compatibility wrapper for UniversalFollowersScreen
+import UniversalFollowersScreen from "../UniversalFollowersScreen";
 
 export default function FollowersListScreen({ route, navigation }) {
+  // Extract memberId from route params and pass as userId with userType="member"
   const memberId = route?.params?.memberId;
-  const title = route?.params?.title || "Followers";
+  const title = route?.params?.title;
 
-  const fetchFollowersPage = useCallback(
-    async ({ offset, limit }) => {
-      const data = await getMemberFollowers(memberId, { limit, offset });
-      const raw = data?.results || data?.followers || data?.items || data || [];
-      const baseList = raw.map((entry) => ({
-        id: entry.follower_id || entry.id,
-        name: entry.follower_name || entry.full_name || entry.name,
-        username: entry.follower_username || entry.username,
-        avatarUrl: entry.follower_photo_url || entry.profile_photo_url,
-        type: entry.follower_type || "member", // Extract follower type
-        isFollowing:
-          typeof entry.is_following === "boolean"
-            ? entry.is_following
-            : entry.you_follow_them,
-      }));
-      // Check follow status based on entity type
-      const normalized = await ensureFollowStatus(
-        baseList,
-        async (targetId, item) => {
-          const entityType = item?.type || "member";
-          if (entityType === "community") {
-            const status = await getFollowStatusForCommunity(targetId);
-            return !!status?.isFollowing;
-          }
-          const status = await getFollowStatusForMember(targetId);
-          return !!status?.isFollowing;
-        }
-      );
-      return {
-        items: normalized,
-        hasMore: normalized.length >= (limit || 30),
-      };
+  return UniversalFollowersScreen({
+    route: {
+      ...route,
+      params: {
+        ...route?.params,
+        userId: memberId,
+        userType: "member",
+        title,
+      },
     },
-    [memberId]
-  );
-
-  const resolveMyId = useCallback(async () => {
-    const { getActiveAccount } = await import("../../../api/auth");
-    const activeAccount = await getActiveAccount();
-    if (activeAccount) {
-      return {
-        id: activeAccount.id,
-        type: activeAccount.type || "member",
-      };
-    }
-    return null;
-  }, []);
-
-  // Handle follow/unfollow based on entity type
-  const handleToggleFollow = useCallback(
-    async (id, isFollowing, entityType = "member") => {
-      if (entityType === "community") {
-        if (isFollowing) {
-          await unfollowCommunity(id);
-        } else {
-          await followCommunity(id);
-        }
-      } else {
-        if (isFollowing) {
-          await unfollowMember(id);
-        } else {
-          await followMember(id);
-        }
-      }
-    },
-    []
-  );
-
-  const handleItemPress = useCallback(
-    (item, myId) => {
-      const entityType = (item.type || "member").toLowerCase();
-
-      // Check if it's the current user's own profile (works for both members and communities)
-      // myId can be either a simple ID or an object {id, type} from resolveMyId
-      // Use String() and toLowerCase() to ensure reliable comparison regardless of type
-      const currentId =
-        typeof myId === "object" ? String(myId?.id) : String(myId);
-      const currentType =
-        (typeof myId === "object" ? myId?.type : "member")?.toLowerCase() ||
-        "member";
-      const itemId = String(item.id);
-
-      if (itemId === currentId && entityType === currentType) {
-        const root = navigation.getParent()?.getParent();
-        if (entityType === "community") {
-          // Navigate to community's own profile
-          if (root) {
-            root.navigate("Profile");
-          }
-        } else {
-          // Navigate to member's own profile
-          if (root) {
-            root.navigate("MemberHome", { screen: "Profile" });
-          }
-        }
-        return;
-      }
-
-      // Navigate based on entity type
-      if (entityType === "community") {
-        navigation.navigate("CommunityPublicProfile", { communityId: item.id });
-      } else {
-        navigation.navigate("MemberPublicProfile", { memberId: item.id });
-      }
-    },
-    [navigation]
-  );
-
-  return (
-    <FollowerList
-      title={title}
-      navigation={navigation}
-      fetchPage={fetchFollowersPage}
-      resolveMyId={resolveMyId}
-      onToggleFollow={handleToggleFollow}
-      onItemPress={handleItemPress}
-      emptyMessage="If someone follows you, you'll be able to see them here"
-      primaryColor={PRIMARY_COLOR}
-    />
-  );
+    navigation,
+  });
 }
