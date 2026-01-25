@@ -73,7 +73,7 @@ const PRIMARY_COLOR = COLORS.primary;
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
   console.log(
-    "[Profile] MemberProfileScreen component function START (mount or render)"
+    "[Profile] MemberProfileScreen component function START (mount or render)",
   );
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -102,6 +102,11 @@ export default function MemberProfileScreen({ navigation }) {
   });
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [activeEmail, setActiveEmail] = useState("");
+
+  // Cursor-based pagination state for posts
+  const [postCursor, setPostCursor] = useState(null);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
@@ -169,7 +174,7 @@ export default function MemberProfileScreen({ navigation }) {
         "/auth/get-user-profile",
         { email },
         15000,
-        token
+        token,
       );
       console.log("[Profile] userProfileResponse:", userProfileResponse);
       const fullProfile = userProfileResponse?.profile;
@@ -178,7 +183,7 @@ export default function MemberProfileScreen({ navigation }) {
         console.log(
           "[Profile] No fullProfile or not member:",
           fullProfile,
-          userRole
+          userRole,
         );
         throw new Error("Failed to fetch member profile or incorrect role.");
       }
@@ -186,7 +191,7 @@ export default function MemberProfileScreen({ navigation }) {
       const userType = "member";
       const [countsResponse, postsResponse] = await Promise.all([
         apiGet(`/follow/counts/${userId}/${userType}`, 15000, token),
-        apiGet(`/posts/user/${userId}/${userType}`, 15000, token),
+        apiGet(`/posts/user/${userId}/${userType}?limit=20`, 15000, token),
       ]);
       console.log("[Profile] countsResponse:", countsResponse);
       console.log("[Profile] postsResponse:", postsResponse);
@@ -212,13 +217,13 @@ export default function MemberProfileScreen({ navigation }) {
         interests: Array.isArray(fullProfile.interests)
           ? fullProfile.interests
           : fullProfile.interests
-          ? JSON.parse(fullProfile.interests)
-          : [],
+            ? JSON.parse(fullProfile.interests)
+            : [],
         pronouns: Array.isArray(fullProfile.pronouns)
           ? fullProfile.pronouns
           : fullProfile.pronouns
-          ? [fullProfile.pronouns]
-          : null,
+            ? [fullProfile.pronouns]
+            : null,
         location:
           typeof fullProfile.location === "string"
             ? JSON.parse(fullProfile.location)
@@ -232,8 +237,11 @@ export default function MemberProfileScreen({ navigation }) {
         userPosts.map((post) => ({
           ...post,
           isLiked: !!post.is_liked,
-        }))
+        })),
       );
+      // Update pagination state from initial load
+      setPostCursor(postsResponse?.next_cursor || null);
+      setHasMorePosts(postsResponse?.has_more === true);
       // Initialize counts polling with initial values
       initializeCounts({
         follower_count: followerCount,
@@ -251,7 +259,7 @@ export default function MemberProfileScreen({ navigation }) {
         setLoading(false);
       }
       console.log(
-        "[Profile] loadProfile: finally, loading/refreshing set to false"
+        "[Profile] loadProfile: finally, loading/refreshing set to false",
       );
     }
   };
@@ -288,7 +296,7 @@ export default function MemberProfileScreen({ navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadProfile(true);
-    }, [])
+    }, []),
   );
 
   // Navigation listener to detect when returning from EditProfile with changes
@@ -298,7 +306,7 @@ export default function MemberProfileScreen({ navigation }) {
       const params = route.params;
       if (params?.refreshProfile === true) {
         console.log(
-          "[Profile] Navigation listener: returning from EditProfile with changes, reloading profile"
+          "[Profile] Navigation listener: returning from EditProfile with changes, reloading profile",
         );
         if (loadProfileRef.current) {
           loadProfileRef.current();
@@ -347,10 +355,10 @@ export default function MemberProfileScreen({ navigation }) {
     try {
       const allAccounts = await getAllAccounts();
       const loggedInAccounts = allAccounts.filter(
-        (acc) => acc.isLoggedIn !== false
+        (acc) => acc.isLoggedIn !== false,
       );
       const currentAccount = allAccounts.find(
-        (acc) => String(acc.id) === String(profile?.id)
+        (acc) => String(acc.id) === String(profile?.id),
       );
 
       setLogoutModalData({
@@ -386,14 +394,14 @@ export default function MemberProfileScreen({ navigation }) {
       "[MemberProfile] Navigating to:",
       routeName,
       "for account type:",
-      accountType
+      accountType,
     );
 
     rootNavigator.dispatch(
       CommonActions.reset({
         index: 0,
         routes: [{ name: routeName }],
-      })
+      }),
     );
   };
 
@@ -422,7 +430,7 @@ export default function MemberProfileScreen({ navigation }) {
 
       console.log(
         "[MemberProfile] Navigating to login with email:",
-        emailToUse
+        emailToUse,
       );
 
       // Navigate to Login screen with email pre-filled
@@ -440,7 +448,7 @@ export default function MemberProfileScreen({ navigation }) {
               params: { email: emailToUse },
             },
           ],
-        })
+        }),
       );
     } catch (error) {
       console.error("Error during relogin:", error);
@@ -480,7 +488,7 @@ export default function MemberProfileScreen({ navigation }) {
           CommonActions.reset({
             index: 0,
             routes: [{ name: "Landing" }],
-          })
+          }),
         );
       } else {
         // Logout current account only
@@ -490,7 +498,7 @@ export default function MemberProfileScreen({ navigation }) {
 
         if (navigateToLanding) {
           console.log(
-            "[MemberProfile] No other logged-in accounts, navigating to landing"
+            "[MemberProfile] No other logged-in accounts, navigating to landing",
           );
           // No other logged-in accounts
           let rootNavigator = navigation;
@@ -505,13 +513,13 @@ export default function MemberProfileScreen({ navigation }) {
             CommonActions.reset({
               index: 0,
               routes: [{ name: "Landing" }],
-            })
+            }),
           );
         } else if (switchToAccount) {
           console.log(
             "[MemberProfile] Switching to account:",
             switchToAccount.type,
-            switchToAccount.username
+            switchToAccount.username,
           );
           // Navigate to the appropriate screen for the account type
           navigateToAccountHome(switchToAccount.type);
@@ -540,8 +548,8 @@ export default function MemberProfileScreen({ navigation }) {
                 isLiked: pending.is_liked,
                 like_count: pending.like_count,
               }
-            : p
-        )
+            : p,
+        ),
       );
       pendingPostUpdateRef.current = null;
     }
@@ -566,10 +574,52 @@ export default function MemberProfileScreen({ navigation }) {
   function updatePostsGlobalState(postId, isLiked, likes) {
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
-        p.id === postId ? { ...p, isLiked, like_count: likes } : p
-      )
+        p.id === postId ? { ...p, isLiked, like_count: likes } : p,
+      ),
     );
   }
+
+  // Load more posts with cursor-based pagination
+  const loadMorePosts = async () => {
+    // Prevent duplicate calls
+    if (loadingMorePosts) return;
+    if (!hasMorePosts) return;
+    if (!profile?.id) return;
+
+    try {
+      setLoadingMorePosts(true);
+      const token = await getAuthToken();
+      if (!token) return;
+
+      // Build URL with cursor for pagination
+      const url = postCursor
+        ? `/posts/user/${profile.id}/member?cursor=${encodeURIComponent(postCursor)}&limit=20`
+        : `/posts/user/${profile.id}/member?limit=20`;
+
+      const response = await apiGet(url, 15000, token);
+      const newPosts = Array.isArray(response?.posts) ? response.posts : [];
+
+      // Append new posts, deduplicating by ID
+      setPosts((prevPosts) => {
+        const existingIds = new Set(prevPosts.map((p) => p.id));
+        const uniqueNew = newPosts
+          .filter((p) => !existingIds.has(p.id))
+          .map((post) => ({
+            ...post,
+            isLiked: !!post.is_liked,
+          }));
+        return [...prevPosts, ...uniqueNew];
+      });
+
+      // Update pagination state
+      setPostCursor(response?.next_cursor || null);
+      setHasMorePosts(response?.has_more === true);
+    } catch (err) {
+      console.error("[Profile] loadMorePosts error:", err);
+    } finally {
+      setLoadingMorePosts(false);
+    }
+  };
 
   const renderPostGrid = () => {
     // Edge-to-edge grid configuration
@@ -614,7 +664,7 @@ export default function MemberProfileScreen({ navigation }) {
                     ? item.image_urls
                         .flat()
                         .find(
-                          (u) => typeof u === "string" && u.startsWith("http")
+                          (u) => typeof u === "string" && u.startsWith("http"),
                         )
                     : undefined;
                   return (
@@ -657,6 +707,19 @@ export default function MemberProfileScreen({ navigation }) {
               No posts
             </Text>
           </View>
+        }
+        onEndReached={() => {
+          if (!loading && !loadingMorePosts && hasMorePosts) {
+            loadMorePosts();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMorePosts ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            </View>
+          ) : null
         }
       />
     );
@@ -750,7 +813,7 @@ export default function MemberProfileScreen({ navigation }) {
 
                 // Remove post from local state
                 setPosts((prevPosts) =>
-                  prevPosts.filter((p) => p.id !== post.id)
+                  prevPosts.filter((p) => p.id !== post.id),
                 );
 
                 // Clear comments modal if it was open for this post
@@ -769,7 +832,7 @@ export default function MemberProfileScreen({ navigation }) {
               }
             },
           },
-        ]
+        ],
       );
     };
 
@@ -915,7 +978,7 @@ export default function MemberProfileScreen({ navigation }) {
                     uri:
                       post.author_photo_url ||
                       `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        post.author_name || "User"
+                        post.author_name || "User",
                       )}&background=6A0DAD&color=FFFFFF`,
                   }}
                   style={styles.postModalHeaderAvatar}
@@ -947,7 +1010,7 @@ export default function MemberProfileScreen({ navigation }) {
                       keyExtractor={(_, idx) => idx.toString()}
                       onMomentumScrollEnd={(e) => {
                         const index = Math.round(
-                          e.nativeEvent.contentOffset.x / screenWidth
+                          e.nativeEvent.contentOffset.x / screenWidth,
                         );
                         setCurrentImageIndex(index);
                       }}
@@ -1224,6 +1287,22 @@ export default function MemberProfileScreen({ navigation }) {
             colors={[PRIMARY_COLOR]}
           />
         }
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const paddingToBottom = 100;
+          const isCloseToBottom =
+            layoutMeasurement.height + contentOffset.y >=
+            contentSize.height - paddingToBottom;
+          if (
+            isCloseToBottom &&
+            !loading &&
+            !loadingMorePosts &&
+            hasMorePosts
+          ) {
+            loadMorePosts();
+          }
+        }}
+        scrollEventThrottle={400}
       >
         {/* Profile Section */}
         <View style={styles.profileSection}>
@@ -1235,7 +1314,7 @@ export default function MemberProfileScreen({ navigation }) {
                   /^https?:\/\//.test(profile.profile_photo_url)
                     ? profile.profile_photo_url
                     : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        profile.name || "Member"
+                        profile.name || "Member",
                       )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
               }}
               style={styles.profileImage}
@@ -1413,13 +1492,13 @@ export default function MemberProfileScreen({ navigation }) {
               prevPosts.map((p) =>
                 p.id === commentsModalState.postId
                   ? { ...p, comment_count: newCount }
-                  : p
-              )
+                  : p,
+              ),
             );
             // Update selectedPost so PostModal's comment count updates immediately
             if (selectedPost && selectedPost.id === commentsModalState.postId) {
               setSelectedPost((prev) =>
-                prev ? { ...prev, comment_count: newCount } : prev
+                prev ? { ...prev, comment_count: newCount } : prev,
               );
             }
           }
@@ -1439,12 +1518,12 @@ export default function MemberProfileScreen({ navigation }) {
             account.type === "member"
               ? "MemberHome"
               : account.type === "community"
-              ? "CommunityHome"
-              : account.type === "sponsor"
-              ? "SponsorHome"
-              : account.type === "venue"
-              ? "VenueHome"
-              : "Landing";
+                ? "CommunityHome"
+                : account.type === "sponsor"
+                  ? "SponsorHome"
+                  : account.type === "venue"
+                    ? "VenueHome"
+                    : "Landing";
 
           // Get the ROOT navigator (go up the parent chain)
           let rootNavigator = navigation;
@@ -1462,7 +1541,7 @@ export default function MemberProfileScreen({ navigation }) {
           } catch (error) {
             console.warn(
               "[AccountSwitch] Could not get root navigator:",
-              error
+              error,
             );
           }
 
@@ -1490,7 +1569,7 @@ export default function MemberProfileScreen({ navigation }) {
 
           console.log(
             "[MemberProfile] Navigating to Login for logged-out account:",
-            account.email
+            account.email,
           );
 
           // Navigate to Login screen
@@ -1502,7 +1581,7 @@ export default function MemberProfileScreen({ navigation }) {
           } catch (error) {
             console.error(
               "[MemberProfile] Failed to navigate to Login:",
-              error
+              error,
             );
             // Fallback: reset to Landing which has Login
             rootNavigator.reset({
@@ -1632,7 +1711,7 @@ export default function MemberProfileScreen({ navigation }) {
                           CommonActions.reset({
                             index: 0,
                             routes: [{ name: "Landing" }],
-                          })
+                          }),
                         );
                       } else {
                         // Switch to other account
@@ -1648,13 +1727,13 @@ export default function MemberProfileScreen({ navigation }) {
                           CommonActions.reset({
                             index: 0,
                             routes: [{ name: routeName }],
-                          })
+                          }),
                         );
                       }
                     } catch (e) {
                       Alert.alert(
                         "Delete failed",
-                        e?.message || "Could not delete account"
+                        e?.message || "Could not delete account",
                       );
                     } finally {
                       setDeleting(false);

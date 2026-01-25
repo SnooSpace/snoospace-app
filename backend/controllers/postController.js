@@ -1049,19 +1049,23 @@ const getPost = async (req, res) => {
 const getUserPosts = async (req, res) => {
   try {
     const { userId, userType } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
+    // Support cursor-based pagination (preferred) with fallback to offset
+    const { cursor, limit = 20 } = req.query;
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 50); // Clamp between 1-50
 
     // Get viewer info from auth (the person viewing the profile)
     const viewerId = req.user?.id || null;
     const viewerType = req.user?.type || null;
 
     console.log(
-      `[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}`,
+      `[getUserPosts] Fetching posts for user_id: ${userId}, user_type: ${userType}, cursor: ${cursor}`,
     );
     console.log(
       `[getUserPosts] Viewer info - viewerId: ${viewerId}, viewerType: ${viewerType}`,
     );
+
+    // Build cursor condition for stable pagination
+    const cursorCondition = cursor ? `AND p.created_at < $5` : "";
 
     const query = `
       SELECT 
@@ -1085,9 +1089,9 @@ const getUserPosts = async (req, res) => {
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
         CASE 
-          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
-            WHERE l.post_id = p.id AND l.liker_id = $5 AND l.liker_type = $6
+            WHERE l.post_id = p.id AND l.liker_id = $3 AND l.liker_type = $4
           )
           ELSE false
         END AS is_liked
@@ -1097,18 +1101,18 @@ const getUserPosts = async (req, res) => {
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
       WHERE p.author_id = $1 AND p.author_type = $2
+      ${cursorCondition}
       ORDER BY p.created_at DESC
-      LIMIT $3 OFFSET $4
+      LIMIT ${parsedLimit + 1}
     `;
 
-    const result = await pool.query(query, [
-      userId,
-      userType,
-      limit,
-      offset,
-      viewerId,
-      viewerType,
-    ]);
+    // Build query params: $1=userId, $2=userType, $3=viewerId, $4=viewerType, $5=cursor (optional)
+    const queryParams = cursor
+      ? [userId, userType, viewerId, viewerType, cursor]
+      : [userId, userType, viewerId, viewerType];
+
+    // Note: We fetch limit+1 to determine if there are more results
+    const result = await pool.query(query, queryParams);
 
     console.log(
       `[getUserPosts] Found ${result.rows.length} posts for user_id: ${userId}`,
@@ -1144,7 +1148,22 @@ const getUserPosts = async (req, res) => {
       })(),
     }));
 
-    res.json({ posts });
+    // Determine pagination metadata
+    const hasMore = posts.length > parsedLimit;
+    const trimmedPosts = hasMore ? posts.slice(0, parsedLimit) : posts;
+    const nextCursor =
+      trimmedPosts.length > 0
+        ? trimmedPosts[trimmedPosts.length - 1].created_at
+        : null;
+
+    console.log(
+      `[getUserPosts] hasMore: ${hasMore}, nextCursor: ${nextCursor}`,
+    );
+    res.json({
+      posts: trimmedPosts,
+      next_cursor: nextCursor,
+      has_more: hasMore,
+    });
   } catch (error) {
     console.error("Error getting user posts:", error);
     res.status(500).json({ error: "Internal server error" });
