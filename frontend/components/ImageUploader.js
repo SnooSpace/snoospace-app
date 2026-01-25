@@ -295,7 +295,7 @@ const ImageUploader = forwardRef(
         // If there are already images, lock the preset to the first image's preset
         const existingPreset = presetKeys.find((p) => p != null);
         const shouldLock = images.filter(Boolean).length > 0 && existingPreset;
-        
+
         croppedResults = await new Promise((resolve) => {
           resolveRef.current = resolve;
           navigation.navigate("BatchCropScreen", {
@@ -325,7 +325,7 @@ const ImageUploader = forwardRef(
         }));
       }
 
-      // Process videos (no cropping, just get aspect ratio and snap to allowed)
+      // Process videos (no cropping, snap aspect ratio to allowed values)
       const videoResults = videoAssets.map((asset) => {
         // Calculate raw aspect ratio from width/height if available
         let rawRatio = 16 / 9; // Default
@@ -498,6 +498,25 @@ const ImageUploader = forwardRef(
     // Edit/crop an existing image - uses ORIGINAL URI and saved preset
     const handleEditImage = async (index) => {
       if (!enableCrop) return;
+
+      // Check if this is a video - videos cannot be cropped
+      const thisMediaType = mediaTypes[index];
+      const mediaUrl = images[index] || originalUris[index] || "";
+      const isVideo =
+        thisMediaType === "video" ||
+        mediaUrl.toLowerCase().includes(".mp4") ||
+        mediaUrl.toLowerCase().includes(".mov") ||
+        mediaUrl.toLowerCase().includes(".webm");
+
+      if (isVideo) {
+        // Videos don't support cropping - just inform the user
+        Alert.alert(
+          "Video Editing",
+          "Videos maintain their original aspect ratio and cannot be cropped.",
+          [{ text: "OK" }],
+        );
+        return;
+      }
 
       try {
         // Use ORIGINAL URI (not cropped) for re-editing, and the saved preset

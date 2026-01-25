@@ -80,27 +80,27 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         interests: Array.isArray(p?.interests)
           ? p.interests.filter((i) => i && String(i).trim())
           : typeof p?.interests === "string" && p.interests
-          ? (() => {
-              try {
-                const parsed = JSON.parse(p.interests);
-                return Array.isArray(parsed)
-                  ? parsed.filter((i) => i && String(i).trim())
-                  : [];
-              } catch {
-                return [];
-              }
-            })()
-          : [],
+            ? (() => {
+                try {
+                  const parsed = JSON.parse(p.interests);
+                  return Array.isArray(parsed)
+                    ? parsed.filter((i) => i && String(i).trim())
+                    : [];
+                } catch {
+                  return [];
+                }
+              })()
+            : [],
         pronouns: Array.isArray(p?.pronouns)
           ? p.pronouns.filter(
               (pron) =>
-                pron && String(pron).trim() && pron !== "Prefer not to say"
+                pron && String(pron).trim() && pron !== "Prefer not to say",
             )
           : p?.pronouns &&
-            String(p.pronouns).trim() &&
-            p.pronouns !== "Prefer not to say"
-          ? [String(p.pronouns).trim()]
-          : [],
+              String(p.pronouns).trim() &&
+              p.pronouns !== "Prefer not to say"
+            ? [String(p.pronouns).trim()]
+            : [],
       };
       setProfile(normalized);
       setIsFollowing(!!p?.is_following);
@@ -135,7 +135,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
         console.log(
           "[MemberPublicProfile] About to merge like states, posts count:",
-          normalizedPosts.length
+          normalizedPosts.length,
         );
         if (normalizedPosts.length > 0) {
           normalizedPosts.forEach((post, idx) => {
@@ -171,14 +171,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         setLoadingMore(false);
       }
     },
-    [memberId, offset, posts, hasMore, loadingMore]
+    [memberId, offset, posts, hasMore, loadingMore],
   );
 
   // Refresh profile when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
       loadProfile();
-    }, [loadProfile])
+    }, [loadProfile]),
   );
 
   useEffect(() => {
@@ -217,8 +217,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     ? payload.commentCount
                     : post.comment_count,
               }
-            : post
-        )
+            : post,
+        ),
       );
       // Also update selectedPost if it matches
       setSelectedPost((prevSelected) => {
@@ -291,8 +291,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 isLiked: pending.is_liked,
                 like_count: pending.like_count,
               }
-            : p
-        )
+            : p,
+        ),
       );
       pendingPostUpdateRef.current = null;
     }
@@ -307,16 +307,35 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           .flat()
           .find((u) => typeof u === "string" && u.startsWith("http"))
       : undefined;
+
+    // Detect video by: explicit video_url OR URL extension
+    const isVideo =
+      !!item.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+    let mediaUrl = item.video_thumbnail;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      firstImageUrl &&
+      firstImageUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = firstImageUrl.replace(/\.[^/.]+$/, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = firstImageUrl || item.video_url;
+    }
+
     return (
       <TouchableOpacity
         activeOpacity={0.9}
         style={{
           width: ITEM_SIZE,
           height: ITEM_SIZE * 1.35, // Increased height for portrait/taller look
-          // No borderRadius for edge-to-edge feel, or small radius? User didn't specify, but "starting from edge" usually means square sharp or very small radius.
-          // Let's keep small radius or remove it. "edge of the screen" implies full bleed. I will remove radius for a cleaner grid.
-          // Actually, let's keep it simple: width/height update.
-          // Removing marginRight as 'gap' in columnWrapper handles it.
           marginBottom: 0,
           borderRadius: 3,
           overflow: "hidden",
@@ -325,10 +344,26 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         disabled={!item}
       >
         {item ? (
-          <Image
-            source={{ uri: firstImageUrl || "https://via.placeholder.com/150" }}
-            style={{ width: "100%", height: "100%", resizeMode: "cover" }}
-          />
+          <>
+            <Image
+              source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
+              style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+            />
+            {isVideo && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <Ionicons name="play" size={16} color="#FFF" />
+              </View>
+            )}
+          </>
         ) : (
           <View style={{ flex: 1, backgroundColor: "#F2F2F7" }} />
         )}
@@ -418,7 +453,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         <Text style={styles.chipText}>
                           {String(profile.pronouns[0]).replace(
                             /^[{\"]+|[}\"]+$/g,
-                            ""
+                            "",
                           )}
                         </Text>
                       </View>
@@ -590,7 +625,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                   followers_count:
                                     (prev.followers_count || 0) + 1,
                                 }
-                              : prev
+                              : prev,
                           );
                         } else {
                           await unfollowMember(memberId);
@@ -601,10 +636,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                   ...prev,
                                   followers_count: Math.max(
                                     0,
-                                    (prev.followers_count || 0) - 1
+                                    (prev.followers_count || 0) - 1,
                                   ),
                                 }
-                              : prev
+                              : prev,
                           );
                         }
                         EventBus.emit("follow-updated", {
@@ -621,7 +656,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             ...prev,
                             followers_count: Math.max(
                               0,
-                              (prev.followers_count || 0) + delta
+                              (prev.followers_count || 0) + delta,
                             ),
                           };
                         });
@@ -864,7 +899,7 @@ const PostModal = ({
                   uri:
                     post.author_photo_url ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      post.author_name || "User"
+                      post.author_name || "User",
                     )}&background=6A0DAD&color=FFFFFF`,
                 }}
                 style={postModalStyles.postModalHeaderAvatar}
@@ -896,7 +931,7 @@ const PostModal = ({
                     keyExtractor={(_, idx) => idx.toString()}
                     onMomentumScrollEnd={(e) => {
                       const index = Math.round(
-                        e.nativeEvent.contentOffset.x / screenWidth
+                        e.nativeEvent.contentOffset.x / screenWidth,
                       );
                       setCurrentImageIndex(index);
                     }}

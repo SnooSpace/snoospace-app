@@ -386,6 +386,24 @@ const getFeed = async (req, res) => {
           })(),
         };
 
+        // Extract video data if present
+        if (parsedPost.media_types && Array.isArray(parsedPost.media_types)) {
+          const videoIndex = parsedPost.media_types.findIndex(
+            (type) => type === "video",
+          );
+          if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+            parsedPost.video_url = parsedPost.image_urls[videoIndex];
+
+            // Generate thumbnail from Cloudinary URL by changing extension to .jpg
+            if (parsedPost.video_url.includes("cloudinary.com")) {
+              parsedPost.video_thumbnail = parsedPost.video_url.replace(
+                /\.[^/.]+$/,
+                ".jpg",
+              );
+            }
+          }
+        }
+
         // For poll posts, check if user has voted
         if (parsedPost.post_type === "poll" && viewerId && viewerType) {
           try {
@@ -1119,34 +1137,68 @@ const getUserPosts = async (req, res) => {
     );
 
     // Parse JSON fields
-    const posts = result.rows.map((post) => ({
-      ...post,
-      image_urls: (() => {
-        try {
-          if (!post.image_urls) return [];
-          const parsed = JSON.parse(post.image_urls);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return post.image_urls ? [post.image_urls] : [];
+    const posts = result.rows.map((post) => {
+      const parsedPost = {
+        ...post,
+        image_urls: (() => {
+          try {
+            if (!post.image_urls) return [];
+            const parsed = JSON.parse(post.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return post.image_urls ? [post.image_urls] : [];
+          }
+        })(),
+        media_types: (() => {
+          try {
+            if (!post.media_types) return null;
+            const parsed = JSON.parse(post.media_types);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+        tagged_entities: (() => {
+          try {
+            return post.tagged_entities
+              ? JSON.parse(post.tagged_entities)
+              : null;
+          } catch {
+            return null; // Fallback on parsing error
+          }
+        })(),
+        aspect_ratios: (() => {
+          try {
+            if (!post.aspect_ratios) return null;
+            const parsed = JSON.parse(post.aspect_ratios);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+      };
+
+      // Extract video data if present
+      if (parsedPost.media_types && Array.isArray(parsedPost.media_types)) {
+        const videoIndex = parsedPost.media_types.findIndex(
+          (type) => type === "video",
+        );
+        if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+          parsedPost.video_url = parsedPost.image_urls[videoIndex];
+
+          // Generate thumbnail from Cloudinary URL by changing extension to .jpg
+          // Handles .mp4, .mov, etc.
+          if (parsedPost.video_url.includes("cloudinary.com")) {
+            parsedPost.video_thumbnail = parsedPost.video_url.replace(
+              /\.[^/.]+$/,
+              ".jpg",
+            );
+          }
         }
-      })(),
-      tagged_entities: (() => {
-        try {
-          return post.tagged_entities ? JSON.parse(post.tagged_entities) : null;
-        } catch {
-          return null; // Fallback on parsing error
-        }
-      })(),
-      aspect_ratios: (() => {
-        try {
-          if (!post.aspect_ratios) return null;
-          const parsed = JSON.parse(post.aspect_ratios);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return null;
-        }
-      })(),
-    }));
+      }
+
+      return parsedPost;
+    });
 
     // Determine pagination metadata
     const hasMore = posts.length > parsedLimit;

@@ -159,7 +159,25 @@ const EditorialPostCard = ({
 
   // Check if post has media and determine type
   const hasMedia = post.image_urls && post.image_urls.length > 0;
-  const firstMediaType = post.media_types?.[0] || "image";
+  const firstMediaUrl = hasMedia ? post.image_urls.flat()[0] : null;
+
+  // Determine if first media is video: check media_types OR fallback to URL extension
+  const firstMediaType =
+    post.media_types?.[0] ||
+    (() => {
+      if (firstMediaUrl) {
+        const lowerUrl = firstMediaUrl.toLowerCase();
+        if (
+          lowerUrl.includes(".mp4") ||
+          lowerUrl.includes(".mov") ||
+          lowerUrl.includes(".webm") ||
+          lowerUrl.includes(".avi")
+        ) {
+          return "video";
+        }
+      }
+      return "image";
+    })();
   const isVideo = firstMediaType === "video";
   const isImage = hasMedia && !isVideo;
   const isTextOnly = !hasMedia;
@@ -345,8 +363,7 @@ const EditorialPostCard = ({
     }
   };
 
-  // Get additional media info for rendering
-  const firstMediaUrl = hasMedia ? post.image_urls.flat()[0] : null;
+  // Get additional media info for rendering (firstMediaUrl already defined above)
   const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
 
   // Check if author is the current user (to hide follow button)

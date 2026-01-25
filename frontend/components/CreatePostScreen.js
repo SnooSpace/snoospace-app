@@ -38,6 +38,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]);
+  const [mediaTypes, setMediaTypes] = useState([]); // NEW: Track 'image' or 'video' for each media item
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -114,6 +115,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     setAspectRatios(newAspectRatios);
   };
 
+  // NEW: Handle media types change from ImageUploader
+  const handleMediaTypesChange = (newMediaTypes) => {
+    setMediaTypes(newMediaTypes);
+  };
+
   const handleSubmit = async () => {
     if (images.length === 0) {
       Alert.alert("No Images", "Please add at least one image to your post");
@@ -172,6 +178,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             formattedAspectRatios.length === imageUrls.length
               ? formattedAspectRatios
               : null,
+          mediaTypes:
+            mediaTypes.length === imageUrls.length ? mediaTypes : null, // NEW: Send media types
           taggedEntities: taggedEntitiesData,
         },
         15000,
@@ -426,6 +434,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               maxImages={10}
               onImagesChange={handleImagesChange}
               onAspectRatiosChange={handleAspectRatiosChange}
+              onMediaTypesChange={handleMediaTypesChange} // NEW: Capture media types
               initialImages={images}
               horizontal={true}
               allowVideos={true}

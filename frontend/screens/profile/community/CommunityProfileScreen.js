@@ -48,6 +48,7 @@ import {
 import { uploadImage } from "../../../api/cloudinary";
 import { useCrop } from "../../../components/MediaCrop";
 import PostCard from "../../../components/PostCard";
+import VideoPlayer from "../../../components/VideoPlayer";
 import { mockData } from "../../../data/mockData";
 import HeadsEditorModal from "../../../components/modals/HeadsEditorModal";
 import CommentsModal from "../../../components/CommentsModal";
@@ -1172,16 +1173,55 @@ export default function CommunityProfileScreen({ navigation }) {
                             firstImageUrl = item.image_urls;
                           }
                         }
-                        return firstImageUrl ? (
-                          <Image
-                            source={{ uri: firstImageUrl }}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              backgroundColor: "#E5E5EA",
-                            }}
-                            resizeMode="cover"
-                          />
+
+                        // Detect video by: explicit video_url OR URL extension
+                        const isVideo =
+                          !!item.video_url ||
+                          (firstImageUrl &&
+                            (firstImageUrl.toLowerCase().includes(".mp4") ||
+                              firstImageUrl.toLowerCase().includes(".mov") ||
+                              firstImageUrl.toLowerCase().includes(".webm")));
+
+                        // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+                        let mediaUrl = item.video_thumbnail;
+                        if (
+                          !mediaUrl &&
+                          isVideo &&
+                          firstImageUrl &&
+                          firstImageUrl.includes("cloudinary.com")
+                        ) {
+                          mediaUrl = firstImageUrl.replace(/\.[^/.]+$/, ".jpg");
+                        }
+                        if (!mediaUrl) {
+                          mediaUrl = firstImageUrl || item.video_url;
+                        }
+
+                        return mediaUrl ? (
+                          <>
+                            <Image
+                              source={{ uri: mediaUrl }}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                backgroundColor: "#E5E5EA",
+                              }}
+                              resizeMode="cover"
+                            />
+                            {isVideo && (
+                              <View
+                                style={{
+                                  position: "absolute",
+                                  top: 8,
+                                  right: 8,
+                                  backgroundColor: "rgba(0,0,0,0.5)",
+                                  borderRadius: 12,
+                                  padding: 4,
+                                }}
+                              >
+                                <Ionicons name="play" size={16} color="#FFF" />
+                              </View>
+                            )}
+                          </>
                         ) : (
                           <View
                             style={{
@@ -1870,15 +1910,39 @@ const PostModal = ({
                       );
                       setCurrentImageIndex(index);
                     }}
-                    renderItem={({ item }) => (
-                      <View style={postModalStyles.postModalImageFrame}>
-                        <Image
-                          source={{ uri: item }}
-                          style={postModalStyles.postModalImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    )}
+                    renderItem={({ item, index }) => {
+                      // Detect if this media item is a video by URL extension
+                      const isVideo =
+                        item.toLowerCase().includes(".mp4") ||
+                        item.toLowerCase().includes(".mov") ||
+                        item.toLowerCase().includes(".webm");
+
+                      // Get aspect ratio for this media item
+                      const aspectRatio = post.aspect_ratios?.[index] || 4 / 5;
+
+                      return (
+                        <View style={postModalStyles.postModalImageFrame}>
+                          {isVideo ? (
+                            <VideoPlayer
+                              source={item}
+                              aspectRatio={aspectRatio}
+                              containerWidth={screenWidth}
+                              autoplay={false}
+                              muted={true}
+                              loop={false}
+                              showControls={true}
+                              isVisible={visible}
+                            />
+                          ) : (
+                            <Image
+                              source={{ uri: item }}
+                              style={postModalStyles.postModalImage}
+                              resizeMode="cover"
+                            />
+                          )}
+                        </View>
+                      );
+                    }}
                     style={postModalStyles.modalImageCarousel}
                   />
                   {images.length > 1 && (

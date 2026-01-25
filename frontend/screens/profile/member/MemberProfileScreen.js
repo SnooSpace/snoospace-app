@@ -42,6 +42,7 @@ import {
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
 import PostCard from "../../../components/PostCard"; // Assuming PostCard exists for a full post view
+import VideoPlayer from "../../../components/VideoPlayer";
 import CommentsModal from "../../../components/CommentsModal";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
@@ -667,13 +668,53 @@ export default function MemberProfileScreen({ navigation }) {
                           (u) => typeof u === "string" && u.startsWith("http"),
                         )
                     : undefined;
+
+                  // Detect video by: explicit video_url OR URL extension
+                  const isVideo =
+                    !!item.video_url ||
+                    (firstImageUrl &&
+                      (firstImageUrl.toLowerCase().includes(".mp4") ||
+                        firstImageUrl.toLowerCase().includes(".mov") ||
+                        firstImageUrl.toLowerCase().includes(".webm")));
+
+                  // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+                  let mediaUrl = item.video_thumbnail;
+                  if (
+                    !mediaUrl &&
+                    isVideo &&
+                    firstImageUrl &&
+                    firstImageUrl.includes("cloudinary.com")
+                  ) {
+                    // Convert Cloudinary video URL to thumbnail by changing extension
+                    mediaUrl = firstImageUrl.replace(/\.[^/.]+$/, ".jpg");
+                  }
+                  if (!mediaUrl) {
+                    mediaUrl = firstImageUrl || item.video_url;
+                  }
+
                   return (
-                    <Image
-                      source={{
-                        uri: firstImageUrl || "https://via.placeholder.com/150",
-                      }}
-                      style={styles.postImage}
-                    />
+                    <>
+                      <Image
+                        source={{
+                          uri: mediaUrl || "https://via.placeholder.com/150",
+                        }}
+                        style={styles.postImage}
+                      />
+                      {isVideo && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "rgba(0,0,0,0.5)",
+                            borderRadius: 12,
+                            padding: 4,
+                          }}
+                        >
+                          <Ionicons name="play" size={16} color="#FFF" />
+                        </View>
+                      )}
+                    </>
                   );
                 })()
               ) : (
@@ -1014,15 +1055,40 @@ export default function MemberProfileScreen({ navigation }) {
                         );
                         setCurrentImageIndex(index);
                       }}
-                      renderItem={({ item }) => (
-                        <View style={styles.postModalImageFrame}>
-                          <Image
-                            source={{ uri: item }}
-                            style={styles.postModalImage}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      )}
+                      renderItem={({ item, index }) => {
+                        // Detect if this media item is a video by URL extension
+                        const isVideo =
+                          item.toLowerCase().includes(".mp4") ||
+                          item.toLowerCase().includes(".mov") ||
+                          item.toLowerCase().includes(".webm");
+
+                        // Get aspect ratio for this media item
+                        const aspectRatio =
+                          post.aspect_ratios?.[index] || 4 / 5;
+
+                        return (
+                          <View style={styles.postModalImageFrame}>
+                            {isVideo ? (
+                              <VideoPlayer
+                                source={item}
+                                aspectRatio={aspectRatio}
+                                containerWidth={screenWidth}
+                                autoplay={false}
+                                muted={true}
+                                loop={false}
+                                showControls={true}
+                                isVisible={visible}
+                              />
+                            ) : (
+                              <Image
+                                source={{ uri: item }}
+                                style={styles.postModalImage}
+                                resizeMode="cover"
+                              />
+                            )}
+                          </View>
+                        );
+                      }}
                       style={styles.modalImageCarousel}
                     />
                     {images.length > 1 && (
