@@ -292,11 +292,16 @@ const ImageUploader = forwardRef(
         );
 
         // Navigate to BatchCropScreen for images
+        // If there are already images, lock the preset to the first image's preset
+        const existingPreset = presetKeys.find((p) => p != null);
+        const shouldLock = images.filter(Boolean).length > 0 && existingPreset;
+        
         croppedResults = await new Promise((resolve) => {
           resolveRef.current = resolve;
           navigation.navigate("BatchCropScreen", {
             imageUris: imageUris,
-            defaultPreset: cropPreset,
+            defaultPreset: existingPreset || cropPreset,
+            lockedPreset: shouldLock ? existingPreset : null, // Lock if images exist
             onComplete: (results) => {
               if (resolveRef.current) {
                 resolveRef.current(results);
@@ -808,8 +813,33 @@ const ImageUploader = forwardRef(
                 : 1;
 
             // Adjusted sizes for premium look
-            const thumbWidth = horizontal ? 140 : (width - 60) / 2;
-            const thumbHeight = horizontal ? 180 : thumbWidth / ratio;
+            // For horizontal tray, use variable heights to balance visual weight (constant area-ish)
+            // For grid, fix width and let height vary by ratio (as before)
+            let thumbWidth, thumbHeight;
+
+            if (horizontal) {
+              if (ratio > 1.5) {
+                // Landscape (e.g. 1.91:1) - shorter to prevent being too huge
+                thumbHeight = 120;
+              } else if (ratio > 0.9) {
+                // Square (1:1) - increased size to balance visual weight with Portrait
+                thumbHeight = 200;
+              } else {
+                // Portrait (4:5) - match 1:1's width (180px)
+                // 180 / 0.8 = 225
+                thumbHeight = 225;
+              }
+
+              thumbWidth = thumbHeight * ratio;
+
+              // Cap width to prevent ultra-wide thumbnails (just in case)
+              if (thumbWidth > 320) thumbWidth = 320;
+              // Enforce min width to be tappable
+              if (thumbWidth < 80) thumbWidth = 80;
+            } else {
+              thumbWidth = (width - 60) / 2;
+              thumbHeight = thumbWidth / ratio;
+            }
 
             return (
               <View
@@ -857,7 +887,7 @@ const ImageUploader = forwardRef(
             <TouchableOpacity
               style={[
                 styles.addMoreButton,
-                horizontal && { width: 140, height: 180 },
+                horizontal && { width: 100, height: 120 },
               ]}
               onPress={handleAddImages}
             >
@@ -931,6 +961,7 @@ const styles = StyleSheet.create({
     flexWrap: "nowrap",
     paddingRight: 20,
     gap: 12,
+    alignItems: "center", // Center thumbnails vertically
   },
   imageContainer: {
     position: "relative",

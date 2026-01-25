@@ -10,7 +10,13 @@
  * 3. Media Container (optional, variable height based on aspect ratio)
  * 4. Engagement Row (like, comment, views, share, bookmark)
  */
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -19,6 +25,7 @@ import {
   StyleSheet,
   Dimensions,
   Pressable,
+  ScrollView,
 } from "react-native";
 import {
   Heart,
@@ -156,6 +163,11 @@ const EditorialPostCard = ({
   const isVideo = firstMediaType === "video";
   const isImage = hasMedia && !isVideo;
   const isTextOnly = !hasMedia;
+  const hasMultipleMedia = hasMedia && post.image_urls.length > 1;
+
+  // Carousel state
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const scrollViewRef = useRef(null);
 
   // Image/text dwell time tracking - starts timer when component mounts
   const imageDwellStartRef = React.useRef(null);
@@ -455,7 +467,57 @@ const EditorialPostCard = ({
                 }
               />
             </View>
+          ) : hasMultipleMedia ? (
+            // Carousel for multiple images
+            <View>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={(event) => {
+                  const offsetX = event.nativeEvent.contentOffset.x;
+                  const index = Math.round(offsetX / CONTENT_WIDTH);
+                  setCurrentMediaIndex(index);
+                }}
+                scrollEventThrottle={16}
+              >
+                {post.image_urls.map((url, index) => {
+                  const aspectRatio =
+                    post.aspect_ratios?.[index] || firstAspectRatio;
+                  return (
+                    <View
+                      key={index}
+                      style={[
+                        styles.mediaWrapper,
+                        { aspectRatio, width: CONTENT_WIDTH },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: url }}
+                        style={styles.mediaImage}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Pagination Dots */}
+              <View style={styles.paginationContainer}>
+                {post.image_urls.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.paginationDot,
+                      index === currentMediaIndex && styles.paginationDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
           ) : (
+            // Single image
             <View
               style={[styles.mediaWrapper, { aspectRatio: firstAspectRatio }]}
             >
@@ -643,6 +705,25 @@ const styles = StyleSheet.create({
   mediaImage: {
     width: "100%",
     height: "100%",
+  },
+  paginationContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 6,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.editorial.border,
+  },
+  paginationDotActive: {
+    backgroundColor: COLORS.editorial.textPrimary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   // Engagement Row

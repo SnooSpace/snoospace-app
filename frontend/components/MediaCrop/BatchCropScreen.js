@@ -43,12 +43,15 @@ const BatchCropScreen = ({ route, navigation }) => {
   const {
     imageUris = [],
     defaultPreset = "feed_portrait",
+    lockedPreset = null, // If set, aspect ratio is locked and toggle is hidden
     onComplete,
     onCancel,
   } = route?.params || {};
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [currentPresetKey, setCurrentPresetKey] = useState(defaultPreset);
+  const [currentPresetKey, setCurrentPresetKey] = useState(
+    lockedPreset || defaultPreset,
+  );
   const [processing, setProcessing] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
 
@@ -65,12 +68,15 @@ const BatchCropScreen = ({ route, navigation }) => {
   const preset = getPreset(currentPresetKey);
 
   // Check if this is a feed post mode (allows 1:1 <-> 4:5 toggle)
-  const isFeedMode = [
-    "feed_square",
-    "feed_portrait",
-    "feed_landscape",
-    "feed_landscape_photo",
-  ].includes(currentPresetKey);
+  // But only if NOT locked
+  const isFeedMode =
+    !lockedPreset &&
+    [
+      "feed_square",
+      "feed_portrait",
+      "feed_landscape",
+      "feed_landscape_photo",
+    ].includes(currentPresetKey);
 
   // Store crop data from CropView
   const cropDataRef = useRef({
@@ -97,7 +103,10 @@ const BatchCropScreen = ({ route, navigation }) => {
   );
 
   // Toggle between feed aspect ratios (1:1 -> 4:5 -> 1.91:1)
+  // Only allowed for the FIRST image in a carousel
   const handleAspectToggle = useCallback(() => {
+    if (currentIndex !== 0) return; // Only first image can change aspect ratio
+
     if (currentPresetKey === "feed_square") {
       setCurrentPresetKey("feed_portrait");
     } else if (currentPresetKey === "feed_portrait") {
@@ -105,7 +114,7 @@ const BatchCropScreen = ({ route, navigation }) => {
     } else {
       setCurrentPresetKey("feed_square");
     }
-  }, [currentPresetKey]);
+  }, [currentPresetKey, currentIndex]);
 
   // Handle thumbnail tap to switch image
   const handleThumbnailPress = useCallback(
@@ -494,8 +503,8 @@ const BatchCropScreen = ({ route, navigation }) => {
             initialTranslateY={cropDataMap[currentIndex]?.translateY}
           />
 
-          {/* Aspect Ratio Toggle Button - only for feed presets */}
-          {isFeedMode && (
+          {/* Aspect Ratio Toggle Button - only for first image in feed mode */}
+          {isFeedMode && currentIndex === 0 && (
             <TouchableOpacity
               style={styles.aspectToggleButton}
               onPress={handleAspectToggle}
@@ -522,6 +531,37 @@ const BatchCropScreen = ({ route, navigation }) => {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* Locked aspect ratio indicator - show when preset is locked */}
+          {lockedPreset && (
+            <View style={styles.aspectLockedBadge}>
+              <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+              <Text style={styles.aspectLockedText}>
+                {currentPresetKey === "feed_square"
+                  ? "1:1"
+                  : currentPresetKey === "feed_portrait"
+                    ? "4:5"
+                    : "1.91:1"}
+              </Text>
+            </View>
+          )}
+
+          {/* Locked indicator for non-first images in multi-select (no lockedPreset) */}
+          {!lockedPreset &&
+            isFeedMode &&
+            currentIndex > 0 &&
+            imageUris.length > 1 && (
+              <View style={styles.aspectLockedBadge}>
+                <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+                <Text style={styles.aspectLockedText}>
+                  {currentPresetKey === "feed_square"
+                    ? "1:1"
+                    : currentPresetKey === "feed_portrait"
+                      ? "4:5"
+                      : "1.91:1"}
+                </Text>
+              </View>
+            )}
         </View>
 
         {/* Bottom Controls with Thumbnail Strip */}
@@ -733,6 +773,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 6,
+  },
+  aspectLockedBadge: {
+    position: "absolute",
+    left: 16,
+    bottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  aspectLockedText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
 

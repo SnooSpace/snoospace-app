@@ -11,6 +11,7 @@ import {
   Platform,
   Easing,
   Animated as RNAnimated,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -201,6 +202,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+
+  // Cursor-based pagination state
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Attendance confirmation state
   const [pendingAttendanceEvent, setPendingAttendanceEvent] = useState(null);
@@ -486,15 +492,31 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  const loadFeed = async () => {
+  const loadFeed = async (reset = true) => {
+    // Prevent duplicate calls while loading
+    if (loadingMore) return;
+    if (!hasMore && !reset) return;
+
     try {
-      setLoading(true);
+      if (reset) {
+        setLoading(true);
+        setCursor(null);
+        setHasMore(true);
+      } else {
+        setLoadingMore(true);
+      }
       setErrorMsg("");
       const token = await getAuthToken();
       if (!token) throw new Error("Authentication token not found.");
 
-      const response = await apiGet("/posts/feed", 15000, token);
-      const posts = (response.posts || []).map((post) => {
+      // Build URL with cursor param for pagination
+      const cursorToUse = reset ? null : cursor;
+      const url = cursorToUse
+        ? `/posts/feed?cursor=${encodeURIComponent(cursorToUse)}&limit=20`
+        : "/posts/feed?limit=20";
+
+      const response = await apiGet(url, 15000, token);
+      const newPosts = (response.posts || []).map((post) => {
         const mappedPost = {
           ...post,
           author_id: post.author_id,
@@ -513,10 +535,22 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         return mappedPost;
       });
 
-      const mergedPosts = LikeStateManager.mergeLikeStates(posts);
-      setPosts(mergedPosts);
+      const mergedPosts = LikeStateManager.mergeLikeStates(newPosts);
 
-      if (mergedPosts.length > 0 && mergedPosts[0]?.created_at) {
+      // Append or replace based on reset flag
+      setPosts((prevPosts) => {
+        if (reset) return mergedPosts;
+        // Deduplicate by ID when appending
+        const existingIds = new Set(prevPosts.map((p) => p.id));
+        const uniqueNew = mergedPosts.filter((p) => !existingIds.has(p.id));
+        return [...prevPosts, ...uniqueNew];
+      });
+
+      // Update pagination state from API response
+      setCursor(response.next_cursor || null);
+      setHasMore(response.has_more === true);
+
+      if (reset && mergedPosts.length > 0 && mergedPosts[0]?.created_at) {
         initializeTimestamp(mergedPosts[0].created_at);
       }
     } catch (error) {
@@ -524,6 +558,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setErrorMsg(error?.message || "Failed to load posts");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -843,6 +878,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
                   <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
               ) : null}
+            </View>
+          ) : null
+        }
+        onEndReached={() => {
+          if (!loading && !loadingMore && hasMore) {
+            loadFeed(false);
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
             </View>
           ) : null
         }

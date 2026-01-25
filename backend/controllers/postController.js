@@ -246,20 +246,30 @@ const getFeed = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
-    const { page = 1, limit = 10 } = req.query;
+    // Support cursor-based pagination (preferred) with fallback to offset
+    const { cursor, limit = 20 } = req.query;
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 50); // Clamp between 1-50
 
-    console.log("Feed request - userId:", userId, "userType:", userType);
+    console.log(
+      "Feed request - userId:",
+      userId,
+      "userType:",
+      userType,
+      "cursor:",
+      cursor,
+    );
 
     if (!userId || !userType) {
       console.log("Authentication failed - missing userId or userType");
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const offset = (page - 1) * limit;
-
     // Get posts from followed entities AND own posts
     const viewerId = req.user?.id || null;
     const viewerType = req.user?.type || null;
+
+    // Build cursor condition for stable pagination
+    const cursorCondition = cursor ? `AND p.created_at < $6` : "";
 
     const query = `
       SELECT 
@@ -283,16 +293,16 @@ const getFeed = async (req, res) => {
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
         CASE 
-          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
-            WHERE l.post_id = p.id AND l.liker_id = $5 AND l.liker_type = $6
+            WHERE l.post_id = p.id AND l.liker_id = $4 AND l.liker_type = $5
           )
           ELSE false
         END AS is_liked,
         CASE 
-          WHEN $5::int IS NOT NULL AND $6::text IS NOT NULL THEN EXISTS (
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM follows f2
-            WHERE f2.follower_id = $5 AND f2.follower_type = $6 
+            WHERE f2.follower_id = $4 AND f2.follower_type = $5 
             AND f2.following_id = p.author_id AND f2.following_type = p.author_type
           )
           ELSE false
@@ -305,18 +315,18 @@ const getFeed = async (req, res) => {
       LEFT JOIN follows f ON f.following_id = p.author_id AND f.following_type = p.author_type
         AND f.follower_id = $1 AND f.follower_type = $2
       WHERE (f.id IS NOT NULL OR (p.author_id = $1 AND p.author_type = $2))
+      ${cursorCondition}
       ORDER BY p.created_at DESC
-      LIMIT $3 OFFSET $4
+      LIMIT $3
     `;
 
-    const result = await pool.query(query, [
-      userId,
-      userType,
-      limit,
-      offset,
-      viewerId,
-      viewerType,
-    ]);
+    // Build query params: $1=userId, $2=userType, $3=limit, $4=viewerId, $5=viewerType, $6=cursor (optional)
+    const queryParams = cursor
+      ? [userId, userType, parsedLimit + 1, viewerId, viewerType, cursor]
+      : [userId, userType, parsedLimit + 1, viewerId, viewerType];
+
+    // Note: We fetch limit+1 to determine if there are more results
+    const result = await pool.query(query, queryParams);
 
     console.log("Feed query result:", result.rows.length, "posts found");
 
@@ -610,8 +620,20 @@ const getFeed = async (req, res) => {
       }),
     );
 
-    console.log("Parsed posts:", posts.length);
-    res.json({ posts });
+    // Determine pagination metadata
+    const hasMore = posts.length > parsedLimit;
+    const trimmedPosts = hasMore ? posts.slice(0, parsedLimit) : posts;
+    const nextCursor =
+      trimmedPosts.length > 0
+        ? trimmedPosts[trimmedPosts.length - 1].created_at
+        : null;
+
+    console.log("Parsed posts:", trimmedPosts.length, "hasMore:", hasMore);
+    res.json({
+      posts: trimmedPosts,
+      next_cursor: nextCursor,
+      has_more: hasMore,
+    });
   } catch (error) {
     console.error("Error getting feed:", error);
     res.status(500).json({ error: "Internal server error" });
