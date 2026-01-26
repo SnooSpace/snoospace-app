@@ -38,6 +38,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]);
+  const [cropMetadata, setCropMetadata] = useState([]); // NEW: Track crop metadata (scale, translate)
   const [mediaTypes, setMediaTypes] = useState([]); // NEW: Track 'image' or 'video' for each media item
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,6 +116,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     setAspectRatios(newAspectRatios);
   };
 
+  // NEW: Handle crop metadata change from ImageUploader
+  const handleCropMetadataChange = (newMetadata) => {
+    setCropMetadata(newMetadata);
+  };
+
   // NEW: Handle media types change from ImageUploader
   const handleMediaTypesChange = (newMediaTypes) => {
     setMediaTypes(newMediaTypes);
@@ -180,6 +186,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               : null,
           mediaTypes:
             mediaTypes.length === imageUrls.length ? mediaTypes : null, // NEW: Send media types
+          cropMetadata:
+            cropMetadata.length === imageUrls.length ? cropMetadata : null, // NEW: Send crop metadata
           taggedEntities: taggedEntitiesData,
         },
         15000,
@@ -435,7 +443,10 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               onImagesChange={handleImagesChange}
               onAspectRatiosChange={handleAspectRatiosChange}
               onMediaTypesChange={handleMediaTypesChange} // NEW: Capture media types
+              onCropMetadataChange={handleCropMetadataChange} // NEW: Capture crop metadata
               initialImages={images}
+              caption={caption} // NEW: Pass caption for preview
+              currentUser={currentUser} // NEW: Pass user for preview
               horizontal={true}
               allowVideos={true}
             />

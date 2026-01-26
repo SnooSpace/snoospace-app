@@ -13,13 +13,63 @@ import {
   Image,
   Alert,
   Dimensions,
+  Modal,
+  SafeAreaView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  X,
+  Plus,
+  Heart,
+  MessageCircle,
+  ChartNoAxesCombined,
+  Send,
+  Bookmark,
+} from "lucide-react-native";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  EDITORIAL_TYPOGRAPHY,
+  EDITORIAL_SPACING,
+} from "../constants/theme";
+
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useNavigation } from "@react-navigation/native";
 import { uploadMultipleImages } from "../api/cloudinary";
+
 import { useCrop } from "./MediaCrop";
+import VideoPlayer from "./VideoPlayer";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+
+// Mock Feed Card Header for Preview
+const FeedCardHeader = ({ name = "You" }) => (
+  <View style={styles.previewHeader}>
+    <View style={styles.previewAvatar} />
+    <View>
+      <Text style={styles.previewName}>{name}</Text>
+      <Text style={styles.previewTime}>Just now • Public</Text>
+    </View>
+    <View style={{ flex: 1 }} />
+    <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+  </View>
+);
+
+// Mock Feed Card Footer for Preview
+const FeedCardFooter = () => (
+  <View style={styles.previewFooter}>
+    <View style={styles.previewActionRow}>
+      <Ionicons name="heart-outline" size={24} color="#333" />
+      <Ionicons name="chatbubble-outline" size={24} color="#333" />
+      <Ionicons name="paper-plane-outline" size={24} color="#333" />
+      <View style={{ flex: 1 }} />
+      <Ionicons name="bookmark-outline" size={24} color="#333" />
+    </View>
+  </View>
+);
 
 /**
  * Normalize image orientation by processing through ImageManipulator.
@@ -36,7 +86,7 @@ const normalizeImageOrientation = async (uri) => {
 
 const { width } = Dimensions.get("window");
 
-const COLORS = {
+const LEGACY_COLORS = {
   primary: "#0072FF",
   textDark: "#282C35",
   textLight: "#808080",
@@ -54,9 +104,12 @@ const ImageUploader = forwardRef(
       onImagesChange,
       onAspectRatiosChange, // Callback to pass aspect ratios to parent
       onMediaTypesChange, // NEW: Callback to pass media types to parent
+      onCropMetadataChange, // NEW: Callback to pass crop metadata to parent
       initialImages = [],
       initialAspectRatios = [], // Initial aspect ratios
       initialMediaTypes = [], // NEW: Initial media types ('image' | 'video')
+      caption = "", // NEW: Caption for preview
+      currentUser = null, // NEW: User data for preview
       style,
       enableCrop = true, // Enable crop by default for feed posts
       cropPreset = "feed_portrait", // Default to 4:5 with toggle to 1:1
@@ -126,8 +179,16 @@ const ImageUploader = forwardRef(
     const [uploading, setUploading] = useState(false);
     const [progressByIndex, setProgressByIndex] = useState({});
     const [selectedForReorder, setSelectedForReorder] = useState(null); // Index of photo selected for reordering
+
+    // NEW: Video Preview State
+    const [previewVideoUri, setPreviewVideoUri] = useState(null);
+    const [previewVideoMetadata, setPreviewVideoMetadata] = useState(null);
+    const [previewVideoIndex, setPreviewVideoIndex] = useState(null);
+    const [isVideoPreviewVisible, setIsVideoPreviewVisible] = useState(false);
+
     const { cropImage } = useCrop();
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const resolveRef = useRef(null);
     const hasInitializedRef = useRef(false);
 
@@ -192,6 +253,13 @@ const ImageUploader = forwardRef(
           hingeStyle
             ? newAspectRatios.filter((r, i) => newImages[i])
             : newAspectRatios,
+        );
+      }
+      if (onCropMetadataChange) {
+        onCropMetadataChange(
+          hingeStyle
+            ? newCropMetadata.filter((m, i) => newImages[i])
+            : newCropMetadata,
         );
       }
     };
@@ -276,97 +344,52 @@ const ImageUploader = forwardRef(
       }
     };
 
-    // Process media WITH crop (only for images, videos skip crop)
+    // Process media WITH crop (images and videos both go through crop)
     const processWithCrop = async (assets, targetIndex) => {
-      // Separate images from videos - videos don't need cropping
-      const imageAssets = assets.filter((a) => !a.type?.startsWith("video"));
-      const videoAssets = assets.filter((a) => a.type?.startsWith("video"));
+      // Route ALL assets to BatchCropScreen - updated BatchCropScreen handles videos now
+      const urisToProcess = assets.map((asset) => asset.uri);
+
+      // Determine if we are starting with a video
+      const isVideo = assets[0]?.type?.startsWith("video") || false;
+
+      // If we have mixed types or just videos, we treat everything as crop-able now
+      // Logic inside BatchCropScreen handles skipping ImageManipulator for videos
 
       let croppedResults = [];
 
-      // Process images through crop screen
-      if (imageAssets.length > 0) {
-        const rawImageUris = imageAssets.map((asset) => asset.uri);
-        const imageUris = await Promise.all(
-          rawImageUris.map((uri) => normalizeImageOrientation(uri)),
-        );
+      // Navigate to BatchCropScreen
+      // If there are already images, lock the preset to the first image's preset
+      const existingPreset = presetKeys.find((p) => p != null);
+      const shouldLock = images.filter(Boolean).length > 0 && existingPreset;
 
-        // Navigate to BatchCropScreen for images
-        // If there are already images, lock the preset to the first image's preset
-        const existingPreset = presetKeys.find((p) => p != null);
-        const shouldLock = images.filter(Boolean).length > 0 && existingPreset;
+      // Default to 'story' (9:16) for videos if no preset is locked
+      const targetDefaultPreset =
+        existingPreset || (isVideo ? "story" : cropPreset);
 
-        croppedResults = await new Promise((resolve) => {
-          resolveRef.current = resolve;
-          navigation.navigate("BatchCropScreen", {
-            imageUris: imageUris,
-            defaultPreset: existingPreset || cropPreset,
-            lockedPreset: shouldLock ? existingPreset : null, // Lock if images exist
-            onComplete: (results) => {
-              if (resolveRef.current) {
-                resolveRef.current(results);
-                resolveRef.current = null;
-              }
-            },
-            onCancel: () => {
-              if (resolveRef.current) {
-                resolveRef.current(null);
-                resolveRef.current = null;
-              }
-            },
-          });
-        });
-
-        if (!croppedResults) croppedResults = [];
-        // Mark all as images
-        croppedResults = croppedResults.map((r) => ({
-          ...r,
-          metadata: { ...r.metadata, mediaType: "image" },
-        }));
-      }
-
-      // Process videos (no cropping, snap aspect ratio to allowed values)
-      const videoResults = videoAssets.map((asset) => {
-        // Calculate raw aspect ratio from width/height if available
-        let rawRatio = 16 / 9; // Default
-        if (asset.width && asset.height) {
-          rawRatio = asset.width / asset.height;
-        }
-
-        // Snap to nearest allowed ratio: 1:1 (1.0), 4:5 (0.8), 16:9 (1.77)
-        // This ensures the EditorialPostCard renders the container correctly
-        let snappedRatio = 1.0;
-        const diff1 = Math.abs(rawRatio - 1.0);
-        const diffPortrait = Math.abs(rawRatio - 0.8);
-        const diffLandscape = Math.abs(rawRatio - 1.77);
-
-        if (diffPortrait < diff1 && diffPortrait < diffLandscape) {
-          snappedRatio = 0.8;
-        } else if (diffLandscape < diff1 && diffLandscape < diffPortrait) {
-          snappedRatio = 1.77; // 16:9
-        } else {
-          snappedRatio = 1.0;
-        }
-
-        console.log("[ImageUploader] Snapped video ratio:", {
-          raw: rawRatio,
-          snapped: snappedRatio,
-        });
-
-        return {
-          uri: asset.uri,
-          metadata: {
-            originalUri: asset.uri,
-            aspectRatio: snappedRatio,
-            preset: "video",
-            mediaType: "video",
+      croppedResults = await new Promise((resolve) => {
+        resolveRef.current = resolve;
+        navigation.navigate("BatchCropScreen", {
+          imageUris: urisToProcess,
+          defaultPreset: targetDefaultPreset,
+          lockedPreset: shouldLock ? existingPreset : null, // Lock if images exist
+          onComplete: (results) => {
+            if (resolveRef.current) {
+              resolveRef.current(results);
+              resolveRef.current = null;
+            }
           },
-        };
+          onCancel: () => {
+            if (resolveRef.current) {
+              resolveRef.current(null);
+              resolveRef.current = null;
+            }
+          },
+        });
       });
 
-      const allResults = [...croppedResults, ...videoResults];
-      if (allResults.length === 0) return;
-      updateStateWithResults(allResults, targetIndex);
+      if (!croppedResults) return;
+
+      updateStateWithResults(croppedResults, targetIndex);
     };
 
     // Process media WITHOUT crop
@@ -458,6 +481,8 @@ const ImageUploader = forwardRef(
           onAspectRatiosChange(nextRatios.filter((_, i) => nextImages[i]));
         if (onMediaTypesChange)
           onMediaTypesChange(nextMediaTypes.filter((_, i) => nextImages[i]));
+        if (onCropMetadataChange)
+          onCropMetadataChange(nextMeta.filter((_, i) => nextImages[i]));
       } else {
         // Dense update (append)
         const updatedImages = [...images, ...newImageUris].slice(0, maxImages);
@@ -492,48 +517,38 @@ const ImageUploader = forwardRef(
         if (onImagesChange) onImagesChange(updatedImages);
         if (onAspectRatiosChange) onAspectRatiosChange(updatedAspectRatios);
         if (onMediaTypesChange) onMediaTypesChange(updatedMediaTypes);
+        if (onCropMetadataChange) onCropMetadataChange(updatedCropMetadata);
       }
     };
 
-    // Edit/crop an existing image - uses ORIGINAL URI and saved preset
+    // Edit/crop an existing image or video - uses ORIGINAL URI and saved preset
     const handleEditImage = async (index) => {
       if (!enableCrop) return;
-
-      // Check if this is a video - videos cannot be cropped
-      const thisMediaType = mediaTypes[index];
-      const mediaUrl = images[index] || originalUris[index] || "";
-      const isVideo =
-        thisMediaType === "video" ||
-        mediaUrl.toLowerCase().includes(".mp4") ||
-        mediaUrl.toLowerCase().includes(".mov") ||
-        mediaUrl.toLowerCase().includes(".webm");
-
-      if (isVideo) {
-        // Videos don't support cropping - just inform the user
-        Alert.alert(
-          "Video Editing",
-          "Videos maintain their original aspect ratio and cannot be cropped.",
-          [{ text: "OK" }],
-        );
-        return;
-      }
 
       try {
         // Use ORIGINAL URI (not cropped) for re-editing, and the saved preset
         const originalUri = originalUris[index] || images[index];
         const savedPreset = presetKeys[index] || cropPreset;
         const savedCropData = cropMetadata[index] || null;
+        const thisMediaType = mediaTypes[index];
 
-        console.log("[ImageUploader] Re-editing image:", {
+        console.log("[ImageUploader] Re-editing media:", {
           index,
           originalUri: originalUri.substring(0, 50) + "...",
           savedPreset,
+          mediaType: thisMediaType,
           hasSavedCropData: !!savedCropData,
         });
+
+        // For videos, the preset is locked (can't change aspect ratio)
+        // For images, preset can be changed unless locked by existing media
+        const isVideo = thisMediaType === "video";
+        const lockedPreset = isVideo ? savedPreset : null;
 
         // Pass saved crop data for position restoration
         const result = await cropImage(originalUri, savedPreset, {
           initialCropData: savedCropData,
+          lockedPreset: lockedPreset, // Lock preset for videos
         });
 
         if (result) {
@@ -565,6 +580,9 @@ const ImageUploader = forwardRef(
           if (onAspectRatiosChange) {
             onAspectRatiosChange(updatedAspectRatios);
           }
+          if (onCropMetadataChange) {
+            onCropMetadataChange(updatedCropMetadata);
+          }
         }
       } catch (error) {
         console.error("Error editing image:", error);
@@ -572,6 +590,11 @@ const ImageUploader = forwardRef(
     };
 
     const removeImage = (index) => {
+      // Clear preview if removing the currently previewed video
+      if (index === previewVideoIndex) {
+        closeVideoPreview();
+      }
+
       if (hingeStyle) {
         // Sparse removal: set to null
         const update = (arr, val) => {
@@ -585,6 +608,10 @@ const ImageUploader = forwardRef(
         const nextPresets = update(presetKeys, null);
         const nextMeta = update(cropMetadata, null);
 
+        // Also update media types
+        const nextMediaTypes = update(mediaTypes, null);
+        setMediaTypes(nextMediaTypes);
+
         setImages(nextImages);
         setOriginalUris(nextOriginals);
         setAspectRatios(nextRatios);
@@ -594,6 +621,10 @@ const ImageUploader = forwardRef(
         if (onImagesChange) onImagesChange(nextImages.filter(Boolean));
         if (onAspectRatiosChange)
           onAspectRatiosChange(nextRatios.filter((_, i) => nextImages[i]));
+        if (onMediaTypesChange)
+          onMediaTypesChange(nextMediaTypes.filter((_, i) => nextImages[i]));
+        if (onCropMetadataChange)
+          onCropMetadataChange(nextMeta.filter((_, i) => nextImages[i]));
       } else {
         // Dense removal: filter out
         const updatedImages = images.filter((_, i) => i !== index);
@@ -601,12 +632,14 @@ const ImageUploader = forwardRef(
         const updatedAspectRatios = aspectRatios.filter((_, i) => i !== index);
         const updatedPresetKeys = presetKeys.filter((_, i) => i !== index);
         const updatedCropMetadata = cropMetadata.filter((_, i) => i !== index);
+        const updatedMediaTypes = mediaTypes.filter((_, i) => i !== index);
 
         setImages(updatedImages);
         setOriginalUris(updatedOriginalUris);
         setAspectRatios(updatedAspectRatios);
         setPresetKeys(updatedPresetKeys);
         setCropMetadata(updatedCropMetadata);
+        setMediaTypes(updatedMediaTypes);
 
         if (onImagesChange) {
           onImagesChange(updatedImages);
@@ -614,6 +647,51 @@ const ImageUploader = forwardRef(
         if (onAspectRatiosChange) {
           onAspectRatiosChange(updatedAspectRatios);
         }
+        if (onMediaTypesChange) {
+          onMediaTypesChange(updatedMediaTypes);
+        }
+        if (onCropMetadataChange) {
+          onCropMetadataChange(updatedCropMetadata);
+        }
+      }
+    };
+
+    // NEW: Handle thumbnail tap
+    const handleThumbnailTap = (index) => {
+      const isVideo = mediaTypes[index] === "video";
+      if (isVideo) {
+        // Show Preview for Video
+        const uri = images[index];
+        const metadata = cropMetadata[index] || {};
+        // Override aspectRatio in metadata with current aspectRatios state if available
+        if (aspectRatios[index]) {
+          metadata.aspectRatio = aspectRatios[index];
+        }
+
+        setPreviewVideoUri(uri);
+        setPreviewVideoMetadata(metadata);
+        setPreviewVideoIndex(index);
+        setIsVideoPreviewVisible(true);
+      } else {
+        // Edit Image (existing behavior)
+        handleEditImage(index);
+      }
+    };
+
+    const closeVideoPreview = () => {
+      setIsVideoPreviewVisible(false);
+      setPreviewVideoUri(null);
+      setPreviewVideoMetadata(null);
+      setPreviewVideoIndex(null);
+    };
+
+    const handleEditFromPreview = () => {
+      if (previewVideoIndex !== null) {
+        closeVideoPreview();
+        // Small delay to allow modal to close before navigating
+        setTimeout(() => {
+          handleEditImage(previewVideoIndex);
+        }, 300);
       }
     };
 
@@ -692,7 +770,9 @@ const ImageUploader = forwardRef(
                       <Ionicons
                         name="person-add-outline"
                         size={24}
-                        color={isRequiredSlot ? "#B8627D" : COLORS.textLight}
+                        color={
+                          isRequiredSlot ? "#B8627D" : LEGACY_COLORS.textLight
+                        }
                       />
                       <View
                         style={[
@@ -804,7 +884,11 @@ const ImageUploader = forwardRef(
         if (horizontal) return null;
         return (
           <TouchableOpacity style={styles.addButton} onPress={handleAddImages}>
-            <Ionicons name="camera-outline" size={40} color={COLORS.primary} />
+            <Ionicons
+              name="camera-outline"
+              size={40}
+              color={LEGACY_COLORS.primary}
+            />
             <Text style={styles.addButtonText}>Add Photos</Text>
             <Text style={styles.addButtonSubtext}>
               Tap to select up to {maxImages} images
@@ -869,19 +953,70 @@ const ImageUploader = forwardRef(
                 ]}
               >
                 <TouchableOpacity
-                  onPress={() => handleEditImage(index)}
+                  onPress={() => handleThumbnailTap(index)}
+                  onLongPress={() => handleEditImage(index)} // Allow direct edit via long press
                   activeOpacity={enableCrop ? 0.7 : 1}
                   disabled={!enableCrop}
                   style={styles.imageTouch}
                 >
-                  <Image
-                    source={{ uri: imageUri, cache: "reload" }}
-                    style={styles.image}
-                    resizeMode="cover"
-                  />
+                  {mediaTypes[index] === "video" && cropMetadata[index] ? (
+                    // Video Thumbnail with Crop Transform
+                    <View
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        overflow: "hidden",
+                        backgroundColor: "#000",
+                      }}
+                      pointerEvents="none"
+                    >
+                      <View
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          transform: [
+                            { scale: cropMetadata[index].scale || 1 },
+                            {
+                              translateX:
+                                (cropMetadata[index].translateX || 0) *
+                                (cropMetadata[index].displayWidth
+                                  ? thumbWidth /
+                                    cropMetadata[index].displayWidth
+                                  : 1),
+                            },
+                            {
+                              translateY:
+                                (cropMetadata[index].translateY || 0) *
+                                (cropMetadata[index].displayHeight
+                                  ? thumbHeight /
+                                    cropMetadata[index].displayHeight
+                                  : 1),
+                            },
+                          ],
+                        }}
+                      >
+                        <Image
+                          source={{ uri: imageUri }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    // Standard Image/Video Thumbnail (fallback)
+                    <Image
+                      source={{ uri: imageUri, cache: "reload" }}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                  )}
                   {enableCrop && (
                     <View style={styles.editHint}>
-                      <Ionicons name="crop" size={14} color="#fff" />
+                      <Ionicons
+                        name={mediaTypes[index] === "video" ? "play" : "crop"}
+                        size={14}
+                        color="#fff"
+                      />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -896,7 +1031,11 @@ const ImageUploader = forwardRef(
                   style={styles.removeButton}
                   onPress={() => removeImage(index)}
                 >
-                  <Ionicons name="close" size={16} color={COLORS.white} />
+                  <Ionicons
+                    name="close"
+                    size={16}
+                    color={LEGACY_COLORS.white}
+                  />
                 </TouchableOpacity>
               </View>
             );
@@ -910,11 +1049,212 @@ const ImageUploader = forwardRef(
               ]}
               onPress={handleAddImages}
             >
-              <Ionicons name="add" size={32} color={COLORS.primary} />
+              <Ionicons name="add" size={32} color={LEGACY_COLORS.primary} />
               {horizontal && <Text style={styles.addMoreText}>Add more</Text>}
             </TouchableOpacity>
           )}
         </ScrollView>
+      );
+    };
+
+    // Render Video Preview Modal
+    const renderVideoPreviewModal = () => {
+      if (!isVideoPreviewVisible || !previewVideoUri) return null;
+
+      const metadata = previewVideoMetadata || {};
+      const scale = metadata.scale || 1;
+
+      // Calculate scale factor for translation based on preview dimensions vs original crop dimensions
+      const contentWidth = width - EDITORIAL_SPACING.cardPadding * 2;
+
+      // Get aspect ratio
+      const aspectRatio = Array.isArray(metadata.aspectRatio)
+        ? metadata.aspectRatio[0] / metadata.aspectRatio[1]
+        : metadata.aspectRatio || 0.8;
+
+      const contentHeight = contentWidth / aspectRatio;
+
+      // Scale factors for X and Y based on the actual display size vs crop size
+      const scaleFactorX = metadata.displayWidth
+        ? contentWidth / metadata.displayWidth
+        : 1;
+      const scaleFactorY = metadata.displayHeight
+        ? contentHeight / metadata.displayHeight
+        : 1;
+
+      const translateX = (metadata.translateX || 0) * scaleFactorX;
+      const translateY = (metadata.translateY || 0) * scaleFactorY;
+
+      console.log("[ImageUploader] Video Preview Transform:", {
+        scale,
+        translateX,
+        translateY,
+        metadata: {
+          scale: metadata.scale,
+          translateX: metadata.translateX,
+          translateY: metadata.translateY,
+          displayWidth: metadata.displayWidth,
+          displayHeight: metadata.displayHeight,
+        },
+        calculated: {
+          contentWidth,
+          contentHeight,
+          scaleFactorX,
+          scaleFactorY,
+        },
+      });
+
+      // Transform style for the video content
+      const transformStyle = {
+        transform: [
+          { scale: scale },
+          { translateX: translateX },
+          { translateY: translateY },
+        ],
+      };
+
+      return (
+        <Modal
+          visible={isVideoPreviewVisible}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={closeVideoPreview}
+          statusBarTranslucent={true}
+        >
+          <SafeAreaView
+            style={[styles.previewContainer, { paddingTop: insets.top }]}
+          >
+            {/* Detailed Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={closeVideoPreview}
+                style={styles.modalCloseButton}
+              >
+                <X size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Preview</Text>
+              <TouchableOpacity
+                onPress={handleEditFromPreview}
+                style={styles.modalEditButton}
+              >
+                <Text style={styles.modalEditText}>Edit Crop</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.previewScroll}
+              contentContainerStyle={styles.previewScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Feed Card Mockup - Editorial Style */}
+              <View style={styles.feedCard}>
+                {/* Author Row */}
+                <View style={styles.authorRow}>
+                  <View style={styles.authorInfo}>
+                    {currentUser?.profile_photo_url ? (
+                      <Image
+                        source={{ uri: currentUser.profile_photo_url }}
+                        style={styles.profileImage}
+                      />
+                    ) : (
+                      <View style={styles.profileImagePlaceholder}>
+                        <Text style={styles.profileInitials}>
+                          {currentUser?.name?.charAt(0)?.toUpperCase() || "Y"}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.authorTextContainer}>
+                      <View style={styles.authorNameRow}>
+                        <Text style={styles.displayName}>
+                          {currentUser?.name || "You"}
+                        </Text>
+                      </View>
+                      <View style={styles.usernameRow}>
+                        <Text style={styles.username}>
+                          @{currentUser?.username || "username"}
+                        </Text>
+                        <Text style={styles.separator}>•</Text>
+                        <Text style={styles.timestamp}>just now</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Caption */}
+                {caption && (
+                  <View style={styles.textContainer}>
+                    <Text style={styles.postText}>{caption}</Text>
+                  </View>
+                )}
+
+                {/* Media Container */}
+                <View style={styles.mediaContainer}>
+                  <View
+                    style={[
+                      styles.mediaWrapper,
+                      { aspectRatio: aspectRatio, overflow: "hidden" },
+                    ]}
+                  >
+                    {/* We apply the transform to a container inside the overflow hidden wrapper */}
+                    <View
+                      style={[
+                        { width: "100%", height: "100%" },
+                        transformStyle,
+                      ]}
+                    >
+                      <VideoPlayer
+                        source={previewVideoUri}
+                        aspectRatio={aspectRatio}
+                        autoplay={true}
+                        muted={false}
+                        loop={true}
+                        showControls={false}
+                        containerWidth={contentWidth} // Pass correct width
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Engagement Row */}
+                <View style={styles.engagementRow}>
+                  <View style={styles.engagementButton}>
+                    <Heart
+                      size={EDITORIAL_SPACING.iconSize}
+                      color={COLORS.editorial.textSecondary}
+                    />
+                    <Text style={styles.engagementCount}>0</Text>
+                  </View>
+                  <View style={styles.engagementButton}>
+                    <MessageCircle
+                      size={EDITORIAL_SPACING.iconSize}
+                      color={COLORS.editorial.textSecondary}
+                    />
+                    <Text style={styles.engagementCount}>0</Text>
+                  </View>
+                  <View style={styles.engagementButton}>
+                    <ChartNoAxesCombined
+                      size={EDITORIAL_SPACING.iconSize}
+                      color={COLORS.editorial.textSecondary}
+                    />
+                    <Text style={styles.engagementCount}>0</Text>
+                  </View>
+                  <View style={styles.engagementButton}>
+                    <Send
+                      size={EDITORIAL_SPACING.iconSize}
+                      color={COLORS.editorial.textSecondary}
+                    />
+                  </View>
+                  <View style={styles.engagementButton}>
+                    <Bookmark
+                      size={EDITORIAL_SPACING.iconSize}
+                      color={COLORS.editorial.textSecondary}
+                    />
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
       );
     };
 
@@ -935,6 +1275,7 @@ const ImageUploader = forwardRef(
           </Text>
         )}
         {renderImageGrid()}
+        {renderVideoPreviewModal()}
       </View>
     );
   },
@@ -947,7 +1288,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textDark,
+    color: LEGACY_COLORS.textDark,
     marginBottom: 12,
   },
   addButton: {
@@ -963,12 +1304,12 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.primary,
+    color: LEGACY_COLORS.primary,
     marginTop: 8,
   },
   addButtonSubtext: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: LEGACY_COLORS.textLight,
     marginTop: 4,
   },
   imageGrid: {
@@ -1013,7 +1354,7 @@ const styles = StyleSheet.create({
     width: (width - 60) / 2,
     height: 120, // Match default thumb height concept
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: LEGACY_COLORS.border,
     borderStyle: "dashed",
     borderRadius: 12,
     alignItems: "center",
@@ -1023,12 +1364,12 @@ const styles = StyleSheet.create({
   addMoreText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.primary,
+    color: LEGACY_COLORS.primary,
     marginTop: 8,
   },
   uploadButton: {
     marginTop: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: LEGACY_COLORS.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
@@ -1110,7 +1451,7 @@ const styles = StyleSheet.create({
   },
   hingePhotoSelected: {
     borderWidth: 3,
-    borderColor: COLORS.primary,
+    borderColor: LEGACY_COLORS.primary,
   },
   hingeSelectedOverlay: {
     position: "absolute",
@@ -1167,6 +1508,163 @@ const styles = StyleSheet.create({
   hingeHintText: {
     fontSize: 12,
     color: "#999999",
+  },
+
+  // Preview Modal Styles
+  previewContainer: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+  },
+  previewScroll: {
+    flex: 1,
+  },
+  previewScrollContent: {
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  modalCloseButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  modalEditButton: {
+    padding: 8,
+    marginRight: -8,
+  },
+  modalEditText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+  feedCard: {
+    backgroundColor: COLORS.editorial.background,
+    paddingVertical: EDITORIAL_SPACING.cardPadding,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: COLORS.editorial.border,
+    marginHorizontal: EDITORIAL_SPACING.cardPadding, // Visual separation in preview
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  // Author Row Styles
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: EDITORIAL_SPACING.cardPadding,
+    marginBottom: EDITORIAL_SPACING.sectionGap,
+  },
+  authorInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  profileImagePlaceholder: {
+    width: EDITORIAL_SPACING.profileImageSize,
+    height: EDITORIAL_SPACING.profileImageSize,
+    borderRadius: EDITORIAL_SPACING.profileImageSize / 2,
+    backgroundColor: COLORS.editorial.mediaPlaceholder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileInitials: {
+    ...EDITORIAL_TYPOGRAPHY.displayName,
+    color: COLORS.textSecondary,
+  },
+  authorTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  authorNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  displayName: {
+    ...EDITORIAL_TYPOGRAPHY.displayName,
+    flexShrink: 1,
+  },
+  usernameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  username: {
+    ...EDITORIAL_TYPOGRAPHY.username,
+  },
+  separator: {
+    ...EDITORIAL_TYPOGRAPHY.username,
+    marginHorizontal: 6,
+  },
+  timestamp: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+  },
+  // Text Styles
+  textContainer: {
+    paddingHorizontal: EDITORIAL_SPACING.cardPadding,
+    marginBottom: EDITORIAL_SPACING.sectionGap,
+  },
+  postText: {
+    ...EDITORIAL_TYPOGRAPHY.postText,
+  },
+  // Media Styles
+  mediaContainer: {
+    paddingHorizontal: EDITORIAL_SPACING.cardPadding,
+    marginBottom: 8,
+  },
+  mediaWrapper: {
+    width: "100%",
+    borderRadius: EDITORIAL_SPACING.mediaCornerRadius,
+    backgroundColor: COLORS.editorial.mediaPlaceholder,
+  },
+  // Engagement Styles
+  engagementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: EDITORIAL_SPACING.cardPadding + 4,
+    marginTop: 0,
+  },
+  engagementButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 40,
+    minWidth: 40,
+    justifyContent: "center",
+  },
+  engagementCount: {
+    ...EDITORIAL_TYPOGRAPHY.engagementCount,
+    marginLeft: EDITORIAL_SPACING.iconCountGap,
+  },
+  profileImage: {
+    width: EDITORIAL_SPACING.profileImageSize,
+    height: EDITORIAL_SPACING.profileImageSize,
+    borderRadius: EDITORIAL_SPACING.profileImageSize / 2,
+    backgroundColor: COLORS.editorial.mediaPlaceholder,
+  },
+  verifiedBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.editorial.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  verifiedIcon: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
 });
 

@@ -230,4 +230,12 @@ export const calculateFrameDimensions = (preset, screenWidth, maxHeight) => {
   return { frameWidth, frameHeight };
 };
 
+/**
+ * Get presets available for video cropping
+ * @returns {Array} List of preset keys supported for video
+ */
+export const getVideoPresets = () => {
+  return ["story", "feed_portrait", "feed_square", "feed_landscape"];
+};
+
 export default CROP_PRESETS;

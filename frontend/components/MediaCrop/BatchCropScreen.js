@@ -22,7 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImageManipulator from "expo-image-manipulator";
 import CropView from "./CropView";
-import { getPreset } from "./CropPresets";
+import { getPreset, getVideoPresets } from "./CropPresets";
 import { calculateCropRegion } from "./CropUtils";
 import { COLORS } from "../../constants/theme";
 
@@ -76,6 +76,8 @@ const BatchCropScreen = ({ route, navigation }) => {
       "feed_portrait",
       "feed_landscape",
       "feed_landscape_photo",
+      // Add video presets to feed mode allowlist
+      "story",
     ].includes(currentPresetKey);
 
   // Store crop data from CropView
@@ -107,14 +109,34 @@ const BatchCropScreen = ({ route, navigation }) => {
   const handleAspectToggle = useCallback(() => {
     if (currentIndex !== 0) return; // Only first image can change aspect ratio
 
-    if (currentPresetKey === "feed_square") {
-      setCurrentPresetKey("feed_portrait");
-    } else if (currentPresetKey === "feed_portrait") {
-      setCurrentPresetKey("feed_landscape_photo");
+    // Check if current media is video
+    const isVideo =
+      currentImageUri.toLowerCase().includes(".mp4") ||
+      currentImageUri.toLowerCase().includes(".mov") ||
+      currentImageUri.toLowerCase().includes(".webm");
+
+    if (isVideo) {
+      // Toggle between video presets: 9:16 -> 4:5 -> 1:1 -> 16:9 -> 9:16
+      if (currentPresetKey === "story") {
+        setCurrentPresetKey("feed_portrait");
+      } else if (currentPresetKey === "feed_portrait") {
+        setCurrentPresetKey("feed_square");
+      } else if (currentPresetKey === "feed_square") {
+        setCurrentPresetKey("feed_landscape");
+      } else {
+        setCurrentPresetKey("story");
+      }
     } else {
-      setCurrentPresetKey("feed_square");
+      // Existing logic for images
+      if (currentPresetKey === "feed_square") {
+        setCurrentPresetKey("feed_portrait");
+      } else if (currentPresetKey === "feed_portrait") {
+        setCurrentPresetKey("feed_landscape_photo");
+      } else {
+        setCurrentPresetKey("feed_square");
+      }
     }
-  }, [currentPresetKey, currentIndex]);
+  }, [currentPresetKey, currentIndex, currentImageUri]);
 
   // Handle thumbnail tap to switch image
   const handleThumbnailPress = useCallback(
@@ -256,6 +278,21 @@ const BatchCropScreen = ({ route, navigation }) => {
     setProcessing(true);
 
     try {
+      // CRITICAL: Save current crop data before processing
+      // This ensures the currently viewed video/image has its crop data saved
+      const updatedCropDataMap = {
+        ...cropDataMap,
+        [currentIndex]: { ...cropDataRef.current, presetKey: currentPresetKey },
+      };
+
+      console.log(
+        "[BatchCropScreen] Saving current crop data before processing:",
+        {
+          currentIndex,
+          cropData: cropDataRef.current,
+        },
+      );
+
       const results = [];
 
       for (let i = 0; i < imageUris.length; i++) {
@@ -275,9 +312,57 @@ const BatchCropScreen = ({ route, navigation }) => {
 
         // Otherwise, crop with current/default settings
         const imageUri = imageUris[i];
-        const savedCropData = cropDataMap[i] || cropDataRef.current;
+        const savedCropData = updatedCropDataMap[i] || cropDataRef.current;
         const presetKey = savedCropData.presetKey || currentPresetKey;
         const currentPreset = getPreset(presetKey);
+
+        // Check if this is a video - videos should NOT be processed through ImageManipulator
+        const isVideo =
+          imageUri.toLowerCase().includes(".mp4") ||
+          imageUri.toLowerCase().includes(".mov") ||
+          imageUri.toLowerCase().includes(".webm") ||
+          imageUri.toLowerCase().includes(".avi");
+
+        if (isVideo) {
+          // For videos, return original URI with metadata (no image manipulation)
+          console.log(
+            "[BatchCropScreen] Saving video crop metadata:",
+            imageUri.substring(0, 50),
+          );
+
+          // Ensure we capture latest crop data
+          const finalCropData = cropDataMap[i] || cropDataRef.current;
+
+          // DEBUG: Log what we're saving
+          console.log("[BatchCropScreen] finalCropData for video:", {
+            scale: finalCropData.scale,
+            translateX: finalCropData.translateX,
+            translateY: finalCropData.translateY,
+            displayWidth: finalCropData.displayWidth,
+            displayHeight: finalCropData.displayHeight,
+            imageWidth: finalCropData.imageWidth,
+            imageHeight: finalCropData.imageHeight,
+          });
+
+          results.push({
+            uri: imageUri, // Keep original video URI
+            width: finalCropData.imageWidth || 1080,
+            height: finalCropData.imageHeight || 1920,
+            metadata: {
+              preset: presetKey,
+              aspectRatio: currentPreset.aspectRatio,
+              originalUri: imageUri,
+              mediaType: "video", // Mark as video
+              // Save crop position and display dimensions
+              scale: finalCropData.scale,
+              translateX: finalCropData.translateX,
+              translateY: finalCropData.translateY,
+              displayWidth: finalCropData.displayWidth,
+              displayHeight: finalCropData.displayHeight,
+            },
+          });
+          continue;
+        }
 
         // If no crop data, just resize the image
         if (!savedCropData.imageWidth || !savedCropData.imageHeight) {
@@ -501,6 +586,13 @@ const BatchCropScreen = ({ route, navigation }) => {
             initialScale={cropDataMap[currentIndex]?.scale}
             initialTranslateX={cropDataMap[currentIndex]?.translateX}
             initialTranslateY={cropDataMap[currentIndex]?.translateY}
+            mediaType={
+              currentImageUri.toLowerCase().includes(".mp4") ||
+              currentImageUri.toLowerCase().includes(".mov") ||
+              currentImageUri.toLowerCase().includes(".webm")
+                ? "video"
+                : "image"
+            }
           />
 
           {/* Aspect Ratio Toggle Button - only for first image in feed mode */}
@@ -527,7 +619,11 @@ const BatchCropScreen = ({ route, navigation }) => {
                   ? "1:1"
                   : currentPresetKey === "feed_portrait"
                     ? "4:5"
-                    : "1.91:1"}
+                    : currentPresetKey === "feed_landscape"
+                      ? "16:9" // Video landscape
+                      : currentPresetKey === "story"
+                        ? "9:16" // Video full
+                        : "1.91:1"}
               </Text>
             </TouchableOpacity>
           )}
@@ -741,7 +837,7 @@ const styles = StyleSheet.create({
   aspectToggleButton: {
     position: "absolute",
     left: 16,
-    bottom: 16,
+    bottom: 3, // Moved lower as requested
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
@@ -777,7 +873,7 @@ const styles = StyleSheet.create({
   aspectLockedBadge: {
     position: "absolute",
     left: 16,
-    bottom: 16,
+    bottom: 4,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",

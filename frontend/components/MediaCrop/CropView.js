@@ -13,10 +13,12 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Video, ResizeMode } from "expo-av";
 import CropOverlay from "./CropOverlay";
 import { calculateBounds, calculateInitialScale, clamp } from "./CropUtils";
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
+const AnimatedVideo = Animated.createAnimatedComponent(Video);
 
 // Spring configuration for smooth animations
 const SPRING_CONFIG = {
@@ -40,8 +42,10 @@ const SPRING_CONFIG = {
  * @param {Function} props.onCropChange - Callback with crop metadata
  * @param {Function} props.onImageLoad - Callback when image loads with dimensions
  * @param {number} props.initialScale - Initial scale for position restoration
+ * @param {number} props.initialScale - Initial scale for position restoration
  * @param {number} props.initialTranslateX - Initial X translation for position restoration
  * @param {number} props.initialTranslateY - Initial Y translation for position restoration
+ * @param {string} props.mediaType - 'image' or 'video'
  */
 const CropView = ({
   imageUri,
@@ -56,6 +60,7 @@ const CropView = ({
   initialScale,
   initialTranslateX,
   initialTranslateY,
+  mediaType = "image",
 }) => {
   const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -170,21 +175,21 @@ const CropView = ({
       // Clamp translation
       translateX.value = withSpring(
         clamp(translateX.value, -maxTranslateX, maxTranslateX),
-        SPRING_CONFIG
+        SPRING_CONFIG,
       );
       translateY.value = withSpring(
         clamp(translateY.value, -maxTranslateY, maxTranslateY),
-        SPRING_CONFIG
+        SPRING_CONFIG,
       );
       savedTranslateX.value = clamp(
         translateX.value,
         -maxTranslateX,
-        maxTranslateX
+        maxTranslateX,
       );
       savedTranslateY.value = clamp(
         translateY.value,
         -maxTranslateY,
-        maxTranslateY
+        maxTranslateY,
       );
 
       runOnJS(reportCropChange)();
@@ -211,22 +216,22 @@ const CropView = ({
       // Clamp to prevent empty areas
       translateX.value = withSpring(
         clamp(translateX.value, -maxTranslateX, maxTranslateX),
-        SPRING_CONFIG
+        SPRING_CONFIG,
       );
       translateY.value = withSpring(
         clamp(translateY.value, -maxTranslateY, maxTranslateY),
-        SPRING_CONFIG
+        SPRING_CONFIG,
       );
 
       savedTranslateX.value = clamp(
         translateX.value,
         -maxTranslateX,
-        maxTranslateX
+        maxTranslateX,
       );
       savedTranslateY.value = clamp(
         translateY.value,
         -maxTranslateY,
-        maxTranslateY
+        maxTranslateY,
       );
 
       runOnJS(reportCropChange)();
@@ -255,7 +260,7 @@ const CropView = ({
   // Compose gestures: simultaneous pinch + pan, with double-tap
   const composedGestures = Gesture.Race(
     doubleTapGesture,
-    Gesture.Simultaneous(pinchGesture, panGesture)
+    Gesture.Simultaneous(pinchGesture, panGesture),
   );
 
   // Animated image style
@@ -270,7 +275,33 @@ const CropView = ({
   // Handle image load
   const handleImageLoad = useCallback(
     (event) => {
-      const { width, height } = event.nativeEvent.source;
+      // Handle both Image 'onLoad' event and Video 'onLoad' status
+      let width, height;
+
+      if (mediaType === "video" && event && event.naturalSize) {
+        // Video component returns status object with naturalSize
+        width = event.naturalSize.width;
+        height = event.naturalSize.height;
+      } else if (mediaType === "video" && event && event.isLoaded) {
+        // Android Video component - try to get dimensions from the event
+        // The video is loaded but dimensions might not be in naturalSize
+        // We'll use a fallback approach
+        console.log(
+          "[CropView] Video loaded on Android, using fallback dimensions",
+        );
+        // For now, use standard HD video dimensions as fallback
+        // This will be updated when we can properly detect video dimensions
+        width = 1080;
+        height = 1920;
+      } else if (event && event.nativeEvent && event.nativeEvent.source) {
+        // Image component returns nativeEvent with source
+        width = event.nativeEvent.source.width;
+        height = event.nativeEvent.source.height;
+      } else {
+        console.warn("[CropView] Unknown load event structure:", event);
+        return;
+      }
+
       imageWidth.value = width;
       imageHeight.value = height;
 
@@ -363,7 +394,7 @@ const CropView = ({
         });
       }
     },
-    [frameWidth, frameHeight, onImageLoad, onCropChange]
+    [frameWidth, frameHeight, onImageLoad, onCropChange],
   );
 
   return (
@@ -384,24 +415,47 @@ const CropView = ({
       >
         <GestureDetector gesture={composedGestures}>
           <Animated.View style={styles.imageWrapper}>
-            <AnimatedImage
-              source={{ uri: imageUri }}
-              style={[
-                animatedImageStyle,
-                // Use calculated dimensions if available, otherwise fill container
-                displayDimensions.width > 0
-                  ? {
-                      width: displayDimensions.width,
-                      height: displayDimensions.height,
-                    }
-                  : {
-                      width: frameWidth * 2,
-                      height: frameHeight * 2,
-                    },
-              ]}
-              onLoad={handleImageLoad}
-              resizeMode="cover"
-            />
+            {mediaType === "video" ? (
+              <AnimatedVideo
+                source={{ uri: imageUri }}
+                style={[
+                  animatedImageStyle,
+                  displayDimensions.width > 0
+                    ? {
+                        width: displayDimensions.width,
+                        height: displayDimensions.height,
+                      }
+                    : {
+                        width: "100%",
+                        height: "100%",
+                      },
+                ]}
+                onLoad={handleImageLoad}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay={true}
+                isLooping={true}
+                isMuted={true}
+              />
+            ) : (
+              <AnimatedImage
+                source={{ uri: imageUri }}
+                style={[
+                  animatedImageStyle,
+                  // Use calculated dimensions if available, otherwise fill container
+                  displayDimensions.width > 0
+                    ? {
+                        width: displayDimensions.width,
+                        height: displayDimensions.height,
+                      }
+                    : {
+                        width: frameWidth * 2,
+                        height: frameHeight * 2,
+                      },
+                ]}
+                onLoad={handleImageLoad}
+                resizeMode="cover"
+              />
+            )}
           </Animated.View>
         </GestureDetector>
       </View>

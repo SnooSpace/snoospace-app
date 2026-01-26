@@ -59,21 +59,43 @@ const CropScreen = ({ route, navigation }) => {
   // Current preset configuration
   const preset = getPreset(currentPresetKey);
 
-  // Check if this is a feed post mode (allows 1:1 <-> 4:5 toggle)
+  // Check if this is a video
+  const isVideo =
+    imageUri?.toLowerCase().includes(".mp4") ||
+    imageUri?.toLowerCase().includes(".mov") ||
+    imageUri?.toLowerCase().includes(".webm");
+
+  // Check if this is a feed post mode (allows toggling)
   const isFeedMode = [
     "feed_square",
     "feed_portrait",
     "feed_landscape",
+    "feed_landscape_photo",
+    "story", // Video support
   ].includes(currentPresetKey);
 
-  // Toggle between feed aspect ratios (1:1 <-> 4:5)
+  // Toggle between feed aspect ratios
   const handleAspectToggle = useCallback(() => {
-    if (currentPresetKey === "feed_square") {
-      setCurrentPresetKey("feed_portrait");
-    } else if (currentPresetKey === "feed_portrait") {
-      setCurrentPresetKey("feed_square");
+    if (isVideo) {
+      // Toggle between video presets: 9:16 -> 4:5 -> 1:1 -> 16:9 -> 9:16
+      if (currentPresetKey === "story") {
+        setCurrentPresetKey("feed_portrait");
+      } else if (currentPresetKey === "feed_portrait") {
+        setCurrentPresetKey("feed_square");
+      } else if (currentPresetKey === "feed_square") {
+        setCurrentPresetKey("feed_landscape");
+      } else {
+        setCurrentPresetKey("story");
+      }
+    } else {
+      // Existing logic for images
+      if (currentPresetKey === "feed_square") {
+        setCurrentPresetKey("feed_portrait");
+      } else if (currentPresetKey === "feed_portrait") {
+        setCurrentPresetKey("feed_square");
+      }
     }
-  }, [currentPresetKey]);
+  }, [currentPresetKey, isVideo]);
 
   // Store crop data from CropView
   const cropDataRef = useRef({
@@ -95,7 +117,7 @@ const CropScreen = ({ route, navigation }) => {
         setImageLoaded(true);
       }
     },
-    [imageLoaded]
+    [imageLoaded],
   );
 
   // Handle image load and validate dimensions (skip for re-edit since image was already approved)
@@ -110,7 +132,7 @@ const CropScreen = ({ route, navigation }) => {
         width,
         height,
         preset.minWidth,
-        preset.minHeight
+        preset.minHeight,
       );
 
       if (!validation.valid) {
@@ -119,7 +141,7 @@ const CropScreen = ({ route, navigation }) => {
         ]);
       }
     },
-    [preset, initialCropData]
+    [preset, initialCropData],
   );
 
   // Handle cancel
@@ -163,12 +185,40 @@ const CropScreen = ({ route, navigation }) => {
         displayHeight: cropData.displayHeight,
       });
 
+      if (isVideo) {
+        // For videos, skip ImageManipulator and return metadata
+        const cropMetadata = {
+          preset: currentPresetKey,
+          aspectRatio: preset.aspectRatio,
+          scale: cropData.scale,
+          translateX: cropData.translateX,
+          translateY: cropData.translateY,
+          originalWidth: cropData.imageWidth,
+          originalHeight: cropData.imageHeight,
+          originalUri: imageUri,
+          mediaType: "video",
+          timestamp: Date.now(),
+        };
+
+        if (onComplete) {
+          onComplete({
+            uri: imageUri, // Keep original URI
+            width: cropData.imageWidth,
+            height: cropData.imageHeight,
+            metadata: cropMetadata,
+          });
+        }
+
+        if (navigation.canGoBack()) navigation.goBack();
+        return;
+      }
+
       // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
       // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)
       const reEncodedImage = await ImageManipulator.manipulateAsync(
         imageUri,
         [{ resize: { width: cropData.imageWidth } }], // Resize to same width (forces re-encode)
-        { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
+        { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
       );
 
       // Step 2: Now crop the re-encoded image
@@ -192,7 +242,7 @@ const CropScreen = ({ route, navigation }) => {
         {
           compress: 0.85,
           format: ImageManipulator.SaveFormat.JPEG,
-        }
+        },
       );
 
       // Build crop metadata for storage
@@ -250,7 +300,7 @@ const CropScreen = ({ route, navigation }) => {
   // Available presets for selection
   const availablePresets = allowPresetChange
     ? Object.values(CROP_PRESETS).filter(
-        (p) => p.key !== "story" // Exclude story from general selection
+        (p) => p.key !== "story", // Exclude story from general selection
       )
     : [preset];
 
@@ -310,6 +360,7 @@ const CropScreen = ({ route, navigation }) => {
             initialScale={initialCropData?.scale}
             initialTranslateX={initialCropData?.translateX}
             initialTranslateY={initialCropData?.translateY}
+            mediaType={isVideo ? "video" : "image"}
           />
 
           {/* Floating Aspect Ratio Toggle Button (for feed posts) */}
@@ -330,7 +381,15 @@ const CropScreen = ({ route, navigation }) => {
                 />
               </View>
               <Text style={styles.aspectToggleText}>
-                {currentPresetKey === "feed_square" ? "1:1" : "4:5"}
+                {currentPresetKey === "feed_square"
+                  ? "1:1"
+                  : currentPresetKey === "feed_portrait"
+                    ? "4:5"
+                    : currentPresetKey === "feed_landscape"
+                      ? "16:9"
+                      : currentPresetKey === "story"
+                        ? "9:16"
+                        : "4:5"}
               </Text>
             </TouchableOpacity>
           )}
@@ -543,7 +602,7 @@ const styles = StyleSheet.create({
   aspectToggleButton: {
     position: "absolute",
     left: 16,
-    bottom: 16,
+    bottom: 8,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
