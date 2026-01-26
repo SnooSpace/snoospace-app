@@ -122,9 +122,11 @@ const CropView = ({
   const reportCropChange = useCallback(() => {
     if (onCropChange && imageWidth.value && imageHeight.value) {
       onCropChange({
-        scale: scale.value,
-        translateX: translateX.value,
-        translateY: translateY.value,
+        // CRITICAL FIX: Use saved* values which represent the TARGET clamped values
+        // instead of current animating values (which might be invalid, e.g. < 1.0 during spring back)
+        scale: savedScale.value,
+        translateX: savedTranslateX.value,
+        translateY: savedTranslateY.value,
         imageWidth: imageWidth.value,
         imageHeight: imageHeight.value,
         frameWidth,

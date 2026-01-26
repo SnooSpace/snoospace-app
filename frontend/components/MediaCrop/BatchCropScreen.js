@@ -153,6 +153,21 @@ const BatchCropScreen = ({ route, navigation }) => {
 
   // Mark current image as cropped when user explicitly crops it
   const handleCropCurrent = useCallback(async () => {
+    // CRITICAL: Videos should NEVER be cropped as images
+    // They should only save metadata (handled in handleDone)
+    const isVideo =
+      currentImageUri.toLowerCase().includes(".mp4") ||
+      currentImageUri.toLowerCase().includes(".mov") ||
+      currentImageUri.toLowerCase().includes(".webm") ||
+      currentImageUri.toLowerCase().includes(".avi");
+
+    if (isVideo) {
+      console.log(
+        "[BatchCropScreen] Skipping handleCropCurrent for video - videos use metadata only",
+      );
+      return;
+    }
+
     const cropData = cropDataRef.current;
 
     if (!cropData.imageWidth || !cropData.imageHeight) {
@@ -296,27 +311,10 @@ const BatchCropScreen = ({ route, navigation }) => {
       const results = [];
 
       for (let i = 0; i < imageUris.length; i++) {
-        // If already cropped, use existing result
-        if (croppedImages[i]) {
-          console.log(
-            "[DEBUG Done] Using pre-cropped image:",
-            JSON.stringify({
-              index: i,
-              width: croppedImages[i].width,
-              height: croppedImages[i].height,
-            }),
-          );
-          results.push(croppedImages[i]);
-          continue;
-        }
-
-        // Otherwise, crop with current/default settings
         const imageUri = imageUris[i];
-        const savedCropData = updatedCropDataMap[i] || cropDataRef.current;
-        const presetKey = savedCropData.presetKey || currentPresetKey;
-        const currentPreset = getPreset(presetKey);
 
-        // Check if this is a video - videos should NOT be processed through ImageManipulator
+        // Check if this is a video FIRST - videos should always regenerate metadata
+        // to ensure displayWidth/displayHeight are included
         const isVideo =
           imageUri.toLowerCase().includes(".mp4") ||
           imageUri.toLowerCase().includes(".mov") ||
@@ -330,8 +328,8 @@ const BatchCropScreen = ({ route, navigation }) => {
             imageUri.substring(0, 50),
           );
 
-          // Ensure we capture latest crop data
-          const finalCropData = cropDataMap[i] || cropDataRef.current;
+          // Use updated crop data map to get latest crop data
+          const finalCropData = updatedCropDataMap[i] || cropDataRef.current;
 
           // DEBUG: Log what we're saving
           console.log("[BatchCropScreen] finalCropData for video:", {
@@ -343,6 +341,9 @@ const BatchCropScreen = ({ route, navigation }) => {
             imageWidth: finalCropData.imageWidth,
             imageHeight: finalCropData.imageHeight,
           });
+
+          const presetKey = finalCropData.presetKey || currentPresetKey;
+          const currentPreset = getPreset(presetKey);
 
           results.push({
             uri: imageUri, // Keep original video URI
@@ -363,6 +364,25 @@ const BatchCropScreen = ({ route, navigation }) => {
           });
           continue;
         }
+
+        // For images: If already cropped, use existing result
+        if (croppedImages[i]) {
+          console.log(
+            "[DEBUG Done] Using pre-cropped image:",
+            JSON.stringify({
+              index: i,
+              width: croppedImages[i].width,
+              height: croppedImages[i].height,
+            }),
+          );
+          results.push(croppedImages[i]);
+          continue;
+        }
+
+        // Otherwise, crop image with current/default settings
+        const savedCropData = updatedCropDataMap[i] || cropDataRef.current;
+        const presetKey = savedCropData.presetKey || currentPresetKey;
+        const currentPreset = getPreset(presetKey);
 
         // If no crop data, just resize the image
         if (!savedCropData.imageWidth || !savedCropData.imageHeight) {

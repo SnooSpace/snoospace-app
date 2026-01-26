@@ -172,19 +172,6 @@ const CropScreen = ({ route, navigation }) => {
       const initialScale = cropData.displayWidth / cropData.imageWidth || 1;
       const effectiveScale = initialScale * cropData.scale;
 
-      // Calculate crop region in original image coordinates
-      const cropRegion = calculateCropRegion({
-        imageWidth: cropData.imageWidth,
-        imageHeight: cropData.imageHeight,
-        frameWidth: cropData.frameWidth,
-        frameHeight: cropData.frameHeight,
-        scale: effectiveScale,
-        translateX: cropData.translateX,
-        translateY: cropData.translateY,
-        displayWidth: cropData.displayWidth,
-        displayHeight: cropData.displayHeight,
-      });
-
       if (isVideo) {
         // For videos, skip ImageManipulator and return metadata
         const cropMetadata = {
@@ -193,6 +180,8 @@ const CropScreen = ({ route, navigation }) => {
           scale: cropData.scale,
           translateX: cropData.translateX,
           translateY: cropData.translateY,
+          displayWidth: cropData.displayWidth,
+          displayHeight: cropData.displayHeight,
           originalWidth: cropData.imageWidth,
           originalHeight: cropData.imageHeight,
           originalUri: imageUri,
@@ -212,6 +201,19 @@ const CropScreen = ({ route, navigation }) => {
         if (navigation.canGoBack()) navigation.goBack();
         return;
       }
+
+      // Calculate crop region in original image coordinates
+      const cropRegion = calculateCropRegion({
+        imageWidth: cropData.imageWidth,
+        imageHeight: cropData.imageHeight,
+        frameWidth: cropData.frameWidth,
+        frameHeight: cropData.frameHeight,
+        scale: effectiveScale,
+        translateX: cropData.translateX,
+        translateY: cropData.translateY,
+        displayWidth: cropData.displayWidth,
+        displayHeight: cropData.displayHeight,
+      });
 
       // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
       // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)

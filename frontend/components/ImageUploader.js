@@ -961,47 +961,72 @@ const ImageUploader = forwardRef(
                 >
                   {mediaTypes[index] === "video" && cropMetadata[index] ? (
                     // Video Thumbnail with Crop Transform
-                    <View
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        overflow: "hidden",
-                        backgroundColor: "#000",
-                      }}
-                      pointerEvents="none"
-                    >
-                      <View
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          transform: [
-                            { scale: cropMetadata[index].scale || 1 },
-                            {
-                              translateX:
-                                (cropMetadata[index].translateX || 0) *
-                                (cropMetadata[index].displayWidth
-                                  ? thumbWidth /
-                                    cropMetadata[index].displayWidth
-                                  : 1),
-                            },
-                            {
-                              translateY:
-                                (cropMetadata[index].translateY || 0) *
-                                (cropMetadata[index].displayHeight
-                                  ? thumbHeight /
-                                    cropMetadata[index].displayHeight
-                                  : 1),
-                            },
-                          ],
-                        }}
-                      >
-                        <Image
-                          source={{ uri: imageUri }}
-                          style={{ width: "100%", height: "100%" }}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    </View>
+                    // Only apply transforms if the video is actually zoomed/panned
+                    // Otherwise just use cover mode to fill the frame
+                    (() => {
+                      const metadata = cropMetadata[index];
+                      const hasTransform =
+                        (metadata.scale &&
+                          Math.abs(metadata.scale - 1) > 0.01) ||
+                        (metadata.translateX &&
+                          Math.abs(metadata.translateX) > 0.5) ||
+                        (metadata.translateY &&
+                          Math.abs(metadata.translateY) > 0.5);
+
+                      if (!hasTransform) {
+                        // No meaningful transform - just show video filling frame
+                        return (
+                          <Image
+                            source={{ uri: imageUri }}
+                            style={{ width: "100%", height: "100%" }}
+                            resizeMode="cover"
+                          />
+                        );
+                      }
+
+                      // Has transform - apply it
+                      return (
+                        <View
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            overflow: "hidden",
+                            backgroundColor: "#000",
+                          }}
+                          pointerEvents="none"
+                        >
+                          <View
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              transform: [
+                                { scale: metadata.scale || 1 },
+                                {
+                                  translateX:
+                                    (metadata.translateX || 0) *
+                                    (metadata.displayWidth
+                                      ? thumbWidth / metadata.displayWidth
+                                      : 1),
+                                },
+                                {
+                                  translateY:
+                                    (metadata.translateY || 0) *
+                                    (metadata.displayHeight
+                                      ? thumbHeight / metadata.displayHeight
+                                      : 1),
+                                },
+                              ],
+                            }}
+                          >
+                            <Image
+                              source={{ uri: imageUri }}
+                              style={{ width: "100%", height: "100%" }}
+                              resizeMode="cover"
+                            />
+                          </View>
+                        </View>
+                      );
+                    })()
                   ) : (
                     // Standard Image/Video Thumbnail (fallback)
                     <Image
@@ -1105,13 +1130,21 @@ const ImageUploader = forwardRef(
       });
 
       // Transform style for the video content
-      const transformStyle = {
-        transform: [
-          { scale: scale },
-          { translateX: translateX },
-          { translateY: translateY },
-        ],
-      };
+      // Only apply transforms if the video is actually zoomed/panned
+      const hasTransform =
+        (scale && Math.abs(scale - 1) > 0.01) ||
+        (translateX && Math.abs(translateX) > 0.5) ||
+        (translateY && Math.abs(translateY) > 0.5);
+
+      const transformStyle = hasTransform
+        ? {
+            transform: [
+              { scale: scale },
+              { translateX: translateX },
+              { translateY: translateY },
+            ],
+          }
+        : {};
 
       return (
         <Modal

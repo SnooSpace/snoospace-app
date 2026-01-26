@@ -267,7 +267,7 @@ export const validateImageSize = (
   imageWidth,
   imageHeight,
   minWidth,
-  minHeight
+  minHeight,
 ) => {
   if (imageWidth < minWidth || imageHeight < minHeight) {
     return {
