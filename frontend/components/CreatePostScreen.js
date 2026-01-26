@@ -24,7 +24,7 @@ import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
 import { getAuthToken } from "../api/auth";
-import { uploadMultipleImages } from "../api/cloudinary";
+import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
 import HapticsService from "../services/HapticsService";
 import GradientButton from "./GradientButton";
@@ -139,8 +139,17 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
     setIsSubmitting(true);
     try {
-      // 1. Upload images to Cloudinary
-      const imageUrls = await uploadMultipleImages(images);
+      // 1. Upload media (images and videos) to Cloudinary
+      // Construct media items with type information
+      const mediaItems = images.map((uri, index) => ({
+        uri,
+        type: mediaTypes[index] || "image",
+      }));
+
+      const uploadedResults = await uploadMultipleMedia(mediaItems);
+
+      // Extract URLs from results
+      const imageUrls = uploadedResults.map((result) => result.url);
 
       // 2. Prepare tagged entities data
       const taggedEntitiesData = taggedEntities.map((entity) => ({

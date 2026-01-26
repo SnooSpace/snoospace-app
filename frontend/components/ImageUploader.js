@@ -38,7 +38,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useNavigation } from "@react-navigation/native";
-import { uploadMultipleImages } from "../api/cloudinary";
+import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 
 import { useCrop } from "./MediaCrop";
 import VideoPlayer from "./VideoPlayer";
@@ -701,24 +701,48 @@ const ImageUploader = forwardRef(
         setUploading(true);
         setProgressByIndex({});
 
-        const uploadedUrls = await uploadMultipleImages(
-          images,
+        // Identify valid indices (non-null) to preserve sparse array structure if needed
+        const validIndices = images
+          .map((uri, index) => (uri ? index : -1))
+          .filter((index) => index !== -1);
+
+        if (validIndices.length === 0) return;
+
+        // Construct media items only for valid images/videos
+        const mediaItems = validIndices.map((index) => ({
+          uri: images[index],
+          type: mediaTypes[index] || "image",
+        }));
+
+        const uploadedResults = await uploadMultipleMedia(
+          mediaItems,
           (index, progress) => {
-            setProgressByIndex((prev) => ({ ...prev, [index]: progress }));
+            // Map the dense index back to original sparse index for progress tracking
+            const originalIndex = validIndices[index];
+            setProgressByIndex((prev) => ({
+              ...prev,
+              [originalIndex]: progress,
+            }));
           },
         );
 
-        setImages(uploadedUrls);
-        if (onImagesChange) onImagesChange(uploadedUrls);
-        Alert.alert("Uploaded", "All images uploaded successfully.");
+        // Update images state with uploaded URLs, maintaining original positions
+        const newImages = [...images];
+        uploadedResults.forEach((result, i) => {
+          const originalIndex = validIndices[i];
+          newImages[originalIndex] = result.url;
+        });
+
+        setImages(newImages);
+        if (onImagesChange) onImagesChange(newImages);
+        Alert.alert("Uploaded", "All media uploaded successfully.");
       } catch (e) {
         console.error("Upload error:", e);
-        Alert.alert("Upload Failed", e?.message || "Could not upload images");
+        Alert.alert("Upload Failed", e?.message || "Could not upload media");
       } finally {
         setUploading(false);
       }
     };
-
     // Render Hinge-style 2x3 grid
     const renderHingeGrid = () => {
       // 3 columns
