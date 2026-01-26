@@ -41,8 +41,14 @@ const createPost = async (req, res) => {
     }
 
     // Media post logic (existing behavior)
-    const { caption, imageUrls, taggedEntities, aspectRatios, mediaTypes } =
-      req.body;
+    const {
+      caption,
+      imageUrls,
+      taggedEntities,
+      aspectRatios,
+      mediaTypes,
+      cropMetadata,
+    } = req.body;
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
       return res.status(400).json({ error: "At least one image is required" });
@@ -105,9 +111,20 @@ const createPost = async (req, res) => {
       }
     }
 
+    // Validate crop metadata if provided
+    let validatedCropMetadata = null;
+    if (cropMetadata && Array.isArray(cropMetadata)) {
+      if (cropMetadata.length !== imageUrls.length) {
+        console.warn("[createPost] cropMetadata length mismatch, ignoring");
+        validatedCropMetadata = null;
+      } else {
+        validatedCropMetadata = cropMetadata;
+      }
+    }
+
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, created_at
     `;
 
@@ -119,6 +136,7 @@ const createPost = async (req, res) => {
       taggedEntities ? JSON.stringify(taggedEntities) : null,
       validatedAspectRatios ? JSON.stringify(validatedAspectRatios) : null,
       validatedMediaTypes ? JSON.stringify(validatedMediaTypes) : null,
+      validatedCropMetadata ? JSON.stringify(validatedCropMetadata) : null,
     ];
 
     const result = await pool.query(query, values);
@@ -229,6 +247,7 @@ const createPost = async (req, res) => {
         image_urls: imageUrls,
         aspect_ratios: validatedAspectRatios || imageUrls.map(() => 0.8), // Default 4:5
         media_types: validatedMediaTypes || imageUrls.map(() => "image"), // Default to image
+        crop_metadata: validatedCropMetadata || null,
         tagged_entities: taggedEntities,
         like_count: 0,
         comment_count: 0,
@@ -370,6 +389,16 @@ const getFeed = async (req, res) => {
               if (!post.media_types) return null;
               if (Array.isArray(post.media_types)) return post.media_types;
               const parsed = JSON.parse(post.media_types);
+              return Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              return null;
+            }
+          })(),
+          crop_metadata: (() => {
+            try {
+              if (!post.crop_metadata) return null;
+              if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
+              const parsed = JSON.parse(post.crop_metadata);
               return Array.isArray(parsed) ? parsed : [parsed];
             } catch {
               return null;
@@ -725,6 +754,16 @@ const getExplore = async (req, res) => {
           return null;
         }
       })(),
+      crop_metadata: post.crop_metadata
+        ? (() => {
+            try {
+              const parsed = JSON.parse(post.crop_metadata);
+              return Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              return null;
+            }
+          })()
+        : null,
     }));
 
     res.json({ posts });

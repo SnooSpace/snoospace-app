@@ -365,6 +365,7 @@ const EditorialPostCard = ({
 
   // Get additional media info for rendering (firstMediaUrl already defined above)
   const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
+  const firstCropMetadata = post.crop_metadata?.[0] || null; // NEW: Get crop metadata for first media
 
   // Check if author is the current user (to hide follow button)
   // Convert both to strings since author_id from API is string but currentUserId might be number
@@ -468,6 +469,7 @@ const EditorialPostCard = ({
                 source={firstMediaUrl}
                 aspectRatio={firstAspectRatio}
                 containerWidth={CONTENT_WIDTH}
+                cropMetadata={firstCropMetadata}
                 autoplay={false} // Tap-to-play only per design spec
                 muted={true}
                 loop={false}
@@ -480,6 +482,7 @@ const EditorialPostCard = ({
                   setFullscreenVideo({
                     url: firstMediaUrl,
                     aspectRatio: firstAspectRatio,
+                    cropMetadata: firstCropMetadata,
                   })
                 }
               />
@@ -611,6 +614,7 @@ const EditorialPostCard = ({
         visible={!!fullscreenVideo}
         source={fullscreenVideo?.url}
         aspectRatio={fullscreenVideo?.aspectRatio || 16 / 9}
+        cropMetadata={fullscreenVideo?.cropMetadata}
         onClose={() => setFullscreenVideo(null)}
         initialMuted={false}
       />

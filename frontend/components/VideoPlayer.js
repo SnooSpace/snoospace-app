@@ -28,6 +28,7 @@ const VideoPlayer = ({
   onError,
   onPress, // NEW: Callback when video is tapped (for fullscreen)
   containerWidth = SCREEN_WIDTH,
+  cropMetadata, // NEW: Crop metadata for pan/zoom transformations
   // Qualified view tracking callbacks
   onUnmute,
   onPlaybackStart,
@@ -129,6 +130,15 @@ const VideoPlayer = ({
 
   const videoHeight = containerWidth / aspectRatio;
 
+  // Calculate video transform based on cropMetadata
+  const videoTransform = cropMetadata
+    ? [
+        { scale: cropMetadata.scale || 1 },
+        { translateX: cropMetadata.translateX || 0 },
+        { translateY: cropMetadata.translateY || 0 },
+      ]
+    : [];
+
   return (
     <View
       style={[
@@ -140,7 +150,7 @@ const VideoPlayer = ({
       <Video
         ref={videoRef}
         source={typeof source === "string" ? { uri: source } : source}
-        style={styles.video}
+        style={[styles.video, cropMetadata && { transform: videoTransform }]}
         resizeMode={ResizeMode.COVER}
         isLooping={loop}
         isMuted={isMuted}

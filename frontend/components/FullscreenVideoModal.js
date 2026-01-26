@@ -37,6 +37,7 @@ const FullscreenVideoModal = ({
   initialMuted = false,
   initialPosition = 0,
   aspectRatio = 16 / 9,
+  cropMetadata, // NEW: Crop metadata for pan/zoom transformations
 }) => {
   const insets = useSafeAreaInsets();
   const videoRef = useRef(null);
@@ -191,6 +192,15 @@ const FullscreenVideoModal = ({
   const videoWidth = SCREEN_WIDTH;
   const videoHeight = Math.min(SCREEN_WIDTH / aspectRatio, SCREEN_HEIGHT * 0.7);
 
+  // Calculate video transform based on cropMetadata
+  const videoTransform = cropMetadata
+    ? [
+        { scale: cropMetadata.scale || 1 },
+        { translateX: cropMetadata.translateX || 0 },
+        { translateY: cropMetadata.translateY || 0 },
+      ]
+    : [];
+
   return (
     <Modal
       visible={visible}
@@ -207,7 +217,11 @@ const FullscreenVideoModal = ({
             <Video
               ref={videoRef}
               source={typeof source === "string" ? { uri: source } : source}
-              style={[styles.video, { width: videoWidth, height: videoHeight }]}
+              style={[
+                styles.video,
+                { width: videoWidth, height: videoHeight },
+                cropMetadata && { transform: videoTransform },
+              ]}
               resizeMode={ResizeMode.CONTAIN}
               isLooping
               isMuted={isMuted}
