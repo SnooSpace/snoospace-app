@@ -203,6 +203,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
 
+  // Auto-play state
+  const [visiblePostId, setVisiblePostId] = useState(null);
+
   // Cursor-based pagination state
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -723,6 +726,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showFollowButton={true}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        isVideoPlaying={item.id === visiblePostId}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;
@@ -787,6 +791,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       />
     );
   };
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+    waitForInteraction: false,
+    minimumViewTime: 0,
+  }).current;
+
+  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    if (viewableItems && viewableItems.length > 0) {
+      const visibleItem = viewableItems[0];
+      if (visibleItem && visibleItem.item && visibleItem.item.id) {
+        setVisiblePostId(visibleItem.item.id);
+      }
+    }
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
@@ -865,6 +884,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
           !loading ? (

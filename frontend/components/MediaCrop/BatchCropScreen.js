@@ -466,14 +466,32 @@ const BatchCropScreen = ({ route, navigation }) => {
 
         // WORKAROUND: expo-image-manipulator ignores originY on direct ImagePicker URIs
         // Step 1: Resize to exact dimensions to force re-encoding (creates a new image buffer)
+        // OPTIMIZATION: Downsample very large images to avoid OOM
+        const MAX_DIMENSION = 2560; // 2K resolution is enough for intermediate step
+        let processWidth = savedCropData.imageWidth;
+        let resizeScale = 1;
+
+        if (processWidth > MAX_DIMENSION) {
+          resizeScale = MAX_DIMENSION / processWidth;
+          processWidth = MAX_DIMENSION;
+          console.log(
+            `[BatchCropScreen] Downsampling image from ${savedCropData.imageWidth} to ${processWidth} (scale: ${resizeScale}) to prevent OOM`,
+          );
+        }
+
         console.log(
           "[BatchCropScreen] Step 1: Re-encoding image to force proper pixel buffer",
         );
+
+        // Force GC before large allocation
+        if (global.gc) global.gc();
+
         const reEncodedImage = await ImageManipulator.manipulateAsync(
           imageUri,
-          [{ resize: { width: savedCropData.imageWidth } }], // Resize to same width (forces re-encode)
+          [{ resize: { width: Math.round(processWidth) } }],
           { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
         );
+
         console.log("[BatchCropScreen] Re-encoded image:", {
           uri: reEncodedImage.uri.substring(0, 50) + "...",
           width: reEncodedImage.width,
@@ -481,11 +499,19 @@ const BatchCropScreen = ({ route, navigation }) => {
         });
 
         // Step 2: Now crop the re-encoded image
+        // Scale the crop parameters to match the resized image
+        const scaledCropParams = {
+          originX: Math.round(cropParams.originX * resizeScale),
+          originY: Math.round(cropParams.originY * resizeScale),
+          width: Math.round(cropParams.width * resizeScale),
+          height: Math.round(cropParams.height * resizeScale),
+        };
+
         console.log(
           "[BatchCropScreen] Step 2: Cropping re-encoded image with params:",
-          cropParams,
+          scaledCropParams,
         );
-        const actions = [{ crop: cropParams }];
+        const actions = [{ crop: scaledCropParams }];
 
         // Add final resize if needed
         if (cropRegion.width > currentPreset.recommendedWidth) {
@@ -528,6 +554,9 @@ const BatchCropScreen = ({ route, navigation }) => {
             translateY: savedCropData.translateY,
           },
         });
+
+        // Add small delay to let managing thread and GC catch up between heavy operations
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
       if (onComplete) {

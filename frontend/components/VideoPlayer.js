@@ -165,7 +165,17 @@ const VideoPlayer = ({
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
-        onPress={onPress || togglePlayPause}
+        onPress={() => {
+          // If paused or play button shown, tap should just play
+          // If playing, we execute the custom onPress (e.g., fullscreen) or toggle pause
+          if (!isPlaying || showPlayButton) {
+            togglePlayPause();
+          } else if (onPress) {
+            onPress();
+          } else {
+            togglePlayPause();
+          }
+        }}
       >
         {/* Loading indicator */}
         {isLoading && (
@@ -187,16 +197,6 @@ const VideoPlayer = ({
       {/* Controls overlay */}
       {showControls && (
         <View style={styles.controlsContainer}>
-          {/* Expand button (for fullscreen, shown when onPress provided) */}
-          {onPress && (
-            <TouchableOpacity
-              style={[styles.muteButton, { marginRight: 8 }]}
-              onPress={handleFullscreen}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="expand" size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
           {/* Mute button */}
           <TouchableOpacity
             style={styles.muteButton}
