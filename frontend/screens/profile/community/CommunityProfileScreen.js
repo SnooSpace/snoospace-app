@@ -1423,15 +1423,39 @@ export default function CommunityProfileScreen({ navigation }) {
       />
 
       {selectedPost && (
-        <PostModal
+        <ProfilePostFeed
           visible={postModalVisible}
-          post={selectedPost}
+          posts={posts}
+          initialPostId={selectedPost?.id}
           onClose={closePostModal}
-          profile={profile}
-          onLikeUpdate={handlePostLike}
-          onOpenComments={openCommentsModal}
-          onCloseComments={closeCommentsModal}
-          navigation={navigation}
+          currentUserId={currentUserId}
+          currentUserType="community"
+          onLikeUpdate={(postId, isLiked, count) => {
+            // Optimistically update local state
+            setPosts((prevPosts) =>
+              prevPosts.map((p) =>
+                p.id === postId
+                  ? { ...p, is_liked: isLiked, like_count: count }
+                  : p,
+              ),
+            );
+            if (selectedPost && selectedPost.id === postId) {
+              setSelectedPost((prev) =>
+                prev ? { ...prev, is_liked: isLiked, like_count: count } : prev,
+              );
+            }
+          }}
+          onComment={(postId) => openCommentsModal(postId)}
+          onShare={(postId) => {
+            Alert.alert("Share", "Sharing not implemented yet");
+          }}
+          onSave={(postId, isSaved) => {
+            // Save logic
+          }}
+          onFollow={() => {}}
+          onUserPress={(userId, userType) => {
+            // Handle navigation
+          }}
         />
       )}
 

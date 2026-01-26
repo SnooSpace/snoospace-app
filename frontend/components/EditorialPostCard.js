@@ -310,7 +310,7 @@ const EditorialPostCard = ({
     // Optimistic update
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
-    if (onLike) onLike(post.id, nextLiked);
+    if (onLike) onLike(post.id, nextLiked, nextLikes);
 
     setIsLiking(true);
     try {
@@ -330,7 +330,7 @@ const EditorialPostCard = ({
       // Revert on error
       setIsLiked(prevLiked);
       setLikeCount(prevLikeCount);
-      if (onLike) onLike(post.id, prevLiked);
+      if (onLike) onLike(post.id, prevLiked, prevLikeCount);
     } finally {
       setIsLiking(false);
     }

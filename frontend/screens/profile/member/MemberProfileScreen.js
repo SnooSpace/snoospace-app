@@ -1059,7 +1059,18 @@ export default function MemberProfileScreen({ navigation }) {
         currentUserType="member"
         onLikeUpdate={(postId, isLiked, count) => {
           // Optimistically update local state
-          updatePostsGlobalState(postId, isLiked, count);
+          setPosts((prevPosts) =>
+            prevPosts.map((p) =>
+              p.id === postId
+                ? { ...p, is_liked: isLiked, like_count: count }
+                : p,
+            ),
+          );
+          if (selectedPost && selectedPost.id === postId) {
+            setSelectedPost((prev) =>
+              prev ? { ...prev, is_liked: isLiked, like_count: count } : prev,
+            );
+          }
         }}
         onComment={(postId) => openCommentsModal(postId)}
         onShare={(postId) => {
