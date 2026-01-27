@@ -108,6 +108,10 @@ const EditorialPostCard = ({
       <PollPostCard
         post={post}
         onUserPress={onUserPress}
+        onLike={onLike}
+        onComment={onComment}
+        onSave={onSave}
+        onShare={onShare}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -119,6 +123,10 @@ const EditorialPostCard = ({
       <PromptPostCard
         post={post}
         onUserPress={onUserPress}
+        onLike={onLike}
+        onComment={onComment}
+        onSave={onSave}
+        onShare={onShare}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -130,6 +138,10 @@ const EditorialPostCard = ({
       <QnAPostCard
         post={post}
         onUserPress={onUserPress}
+        onLike={onLike}
+        onComment={onComment}
+        onSave={onSave}
+        onShare={onShare}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -141,6 +153,10 @@ const EditorialPostCard = ({
       <ChallengePostCard
         post={post}
         onUserPress={onUserPress}
+        onLike={onLike}
+        onComment={onComment}
+        onSave={onSave}
+        onShare={onShare}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />

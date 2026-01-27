@@ -630,6 +630,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           : p,
       ),
     );
+    setOpportunities((prevOpps) =>
+      prevOpps.map((o) =>
+        o.id === postId
+          ? {
+              ...o,
+              is_liked: isLiked,
+              isLiked,
+              like_count: Math.max(0, (o.like_count || 0) + (isLiked ? 1 : -1)),
+            }
+          : o,
+      ),
+    );
   };
 
   const handleCommentPress = (postId) => {
@@ -638,7 +650,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const handleSharePress = (postId) => {
-    const post = posts.find((p) => p.id === postId);
+    const post =
+      posts.find((p) => p.id === postId) ||
+      opportunities.find((o) => o.id === postId);
     if (post) {
       setSelectedSharePost(post);
       setShareModalVisible(true);
@@ -650,6 +664,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setPosts((prevPosts) =>
         prevPosts.map((p) =>
           p.id === postId ? { ...p, comment_count: prevCount } : p,
+        ),
+      );
+      setOpportunities((prevOpps) =>
+        prevOpps.map((o) =>
+          o.id === postId ? { ...o, comment_count: prevCount } : o,
         ),
       );
     };
@@ -728,6 +747,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             navigation.navigate("OpportunityView", {
               opportunityId: opp.id,
             });
+          }}
+          onLike={handleLikeUpdate}
+          onComment={handleCommentPress}
+          onShare={handleSharePress}
+          // Opportunity might not support onSave/onFollow same way yet, or handled internally
+          onSave={(id, saved) => {
+            // Optional: update local state if needed
+            setOpportunities((prev) =>
+              prev.map((o) => (o.id === id ? { ...o, is_saved: saved } : o)),
+            );
           }}
         />
       );

@@ -14,14 +14,33 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { apiPost, apiDelete } from "../../api/client";
+import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  EDITORIAL_TYPOGRAPHY,
+  EDITORIAL_SPACING,
+} from "../../constants/theme";
 import AnimatedProgressBar from "./AnimatedProgressBar";
+import {
+  Heart,
+  MessageCircle,
+  ChartNoAxesCombined,
+  Send,
+  Bookmark,
+} from "lucide-react-native";
+import EventBus from "../../utils/EventBus";
 
 const PollPostCard = ({
   post,
   onUserPress,
+  onLike,
+  onComment,
+  onSave,
+  onShare,
   currentUserId,
   currentUserType,
 }) => {
@@ -46,6 +65,93 @@ const PollPostCard = ({
     typeData.options,
     typeData.total_votes,
   ]);
+
+  // Engagement State
+  const initialIsLiked = post.is_liked === true;
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
+  const [likeCount, setLikeCount] = useState(post.like_count || 0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isSaved, setIsSaved] = useState(post.is_saved || false);
+
+  useEffect(() => {
+    setIsLiked(post.is_liked === true);
+    setLikeCount(post.like_count || 0);
+    setIsSaved(post.is_saved || false);
+  }, [post.is_liked, post.like_count, post.is_saved]);
+
+  const handleLike = async () => {
+    if (isLiking) return;
+
+    const prevLiked = isLiked;
+    const prevLikeCount = likeCount;
+    const nextLiked = !prevLiked;
+    const delta = nextLiked ? 1 : -1;
+    const nextLikes = Math.max(0, prevLikeCount + delta);
+
+    // Optimistic update
+    setIsLiked(nextLiked);
+    setLikeCount(nextLikes);
+    if (onLike) onLike(post.id, nextLiked, nextLikes);
+
+    setIsLiking(true);
+    try {
+      const token = await getAuthToken();
+      if (nextLiked) {
+        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
+      } else {
+        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
+      }
+      EventBus.emit("post-like-updated", {
+        postId: post.id,
+        isLiked: nextLiked,
+        likeCount: nextLikes,
+      });
+    } catch (error) {
+      console.error("Error liking post:", error);
+      // Revert on error
+      setIsLiked(prevLiked);
+      setLikeCount(prevLikeCount);
+      if (onLike) onLike(post.id, prevLiked, prevLikeCount);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const newSaveState = !isSaved;
+    setIsSaved(newSaveState);
+
+    try {
+      const token = await getAuthToken();
+      if (newSaveState) {
+        await savePost(post.id, token);
+      } else {
+        await unsavePost(post.id, token);
+      }
+      if (onSave) onSave(post.id, newSaveState);
+    } catch (error) {
+      console.error("Failed to save/unsave post:", error);
+      // Revert on error
+      setIsSaved(!newSaveState);
+    }
+  };
+
+  const handleCommentPress = () => {
+    if (onComment) onComment(post.id);
+  };
+
+  const handleShare = () => {
+    if (onShare) onShare(post.id);
+  };
+
+  // Format count for display
+  const formatCount = (count) => {
+    if (!count || count === 0) return "0";
+    if (count < 1000) return count.toString();
+    if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+    if (count < 1000000) return `${Math.floor(count / 1000)}k`;
+    return `${(count / 1000000).toFixed(1)}m`;
+  };
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
 
@@ -254,6 +360,63 @@ const PollPostCard = ({
             • {formatExpiryTime(post.expires_at)}
           </Text>
         )}
+      </View>
+
+      {/* Engagement Row */}
+      <View style={styles.engagementRow}>
+        {/* Like */}
+        <TouchableOpacity
+          style={styles.engagementButton}
+          onPress={handleLike}
+          disabled={isLiking}
+        >
+          <Heart
+            size={22}
+            color={isLiked ? COLORS.error : "#5e8d9b"}
+            fill={isLiked ? COLORS.error : "transparent"}
+          />
+          <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
+            {formatCount(likeCount)}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Comment */}
+        <TouchableOpacity
+          style={styles.engagementButton}
+          onPress={handleCommentPress}
+        >
+          <MessageCircle size={22} color="#5e8d9b" />
+          <Text style={styles.engagementCount}>
+            {formatCount(post.comment_count || 0)}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Views */}
+        <View style={styles.engagementButton}>
+          <ChartNoAxesCombined size={22} color="#5e8d9b" />
+          <Text style={styles.engagementCount}>
+            {formatCount(post.public_view_count || post.view_count || 0)}
+          </Text>
+        </View>
+
+        {/* Share */}
+        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+          <Send size={22} color="#5e8d9b" />
+          {(post.share_count || 0) > 0 && (
+            <Text style={styles.engagementCount}>
+              {formatCount(post.share_count)}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Bookmark */}
+        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+          <Bookmark
+            size={22}
+            color="#5e8d9b"
+            fill={isSaved ? "#5e8d9b" : "transparent"}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Expired Overlay */}
@@ -467,6 +630,33 @@ const styles = StyleSheet.create({
     right: SPACING.m,
     top: "50%",
     marginTop: -10,
+  },
+
+  // Engagement Row
+  engagementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  engagementButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 40,
+    minWidth: 40,
+    justifyContent: "center",
+  },
+  engagementCount: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#5e8d9b",
+    marginLeft: 6,
+  },
+  likedCount: {
+    color: COLORS.error,
   },
 });
 
