@@ -1432,6 +1432,7 @@ export default function CommunityProfileScreen({ navigation }) {
           onClose={closePostModal}
           currentUserId={currentUserId}
           currentUserType="community"
+          navigation={navigation}
           onLikeUpdate={(postId, isLiked, count) => {
             // Optimistically update local state
             console.log(

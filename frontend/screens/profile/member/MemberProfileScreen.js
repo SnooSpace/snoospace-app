@@ -1068,6 +1068,7 @@ export default function MemberProfileScreen({ navigation }) {
         onClose={closePostModal}
         currentUserId={profile?.id}
         currentUserType="member"
+        navigation={navigation}
         onLikeUpdate={(postId, isLiked, count) => {
           // Optimistically update local state
           setPosts((prevPosts) =>

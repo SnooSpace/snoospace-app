@@ -1012,6 +1012,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           onClose={closePostModal}
           currentUserId={currentUserId}
           currentUserType="member"
+          navigation={navigation}
           onLikeUpdate={(postId, isLiked, count) => {
             // Update local state
             setPosts((prevPosts) =>

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "./EditorialPostCard";
+import CommentsModal from "./CommentsModal";
 import { VideoProvider } from "../context/VideoContext";
 import { COLORS, SPACING } from "../constants/theme";
 
@@ -29,8 +30,11 @@ const ProfilePostFeed = ({
   onSave,
   onFollow,
   onUserPress,
+  navigation, // Add navigation prop for CommentsModal
 }) => {
   const [visiblePostId, setVisiblePostId] = useState(null);
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState(null);
   const flatListRef = useRef(null);
 
   // Auto-play viewability configuration
@@ -65,6 +69,22 @@ const ProfilePostFeed = ({
     });
   };
 
+  // Handle comment press - open comments modal within ProfilePostFeed
+  const handleCommentPress = (postId) => {
+    setSelectedPostId(postId);
+    setCommentsModalVisible(true);
+  };
+
+  // Handle comment count change
+  const handleCommentCountChange = (postId) => {
+    return (newCount) => {
+      // Optionally update the parent if onComment exists and needs to update count
+      if (onComment) {
+        onComment(postId, newCount);
+      }
+    };
+  };
+
   const renderItem = ({ item }) => {
     return (
       <EditorialPostCard
@@ -73,7 +93,7 @@ const ProfilePostFeed = ({
         currentUserType={currentUserType}
         isVideoPlaying={item.id === visiblePostId}
         onLike={onLikeUpdate} // Adapting to the signature expected by EditorialPostCard
-        onComment={onComment}
+        onComment={handleCommentPress}
         onShare={onShare}
         onSave={onSave}
         onFollow={onFollow}
@@ -121,6 +141,20 @@ const ProfilePostFeed = ({
           contentContainerStyle={styles.listContent}
         />
       </SafeAreaView>
+
+      {/* Comments Modal */}
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={selectedPostId}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedPostId(null);
+        }}
+        onCommentCountChange={
+          selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
+        }
+        navigation={navigation}
+      />
     </Modal>
   );
 };
