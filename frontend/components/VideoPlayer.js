@@ -41,6 +41,16 @@ const VideoPlayer = ({
   const [showPlayButton, setShowPlayButton] = useState(!autoplay);
   const hasNotifiedPlaybackRef = useRef(false);
 
+  // CRITICAL: Cleanup on unmount to prevent memory leaks
+  // Videos must be explicitly unloaded or they remain in memory
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
   // Handle visibility changes (for feed scrolling)
   useEffect(() => {
     if (videoRef.current) {

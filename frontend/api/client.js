@@ -27,7 +27,7 @@ export function incrementAccountSwitchGeneration() {
     "[AccountGuard] ⚡ Generation incremented to:",
     accountSwitchGeneration,
     "at",
-    new Date().toISOString()
+    new Date().toISOString(),
   );
   return accountSwitchGeneration;
 }
@@ -49,11 +49,49 @@ export function getAccountSwitchGeneration() {
  */
 const refreshingPromises = new Map();
 
+/**
+ * PER-ENDPOINT RETRY TRACKER
+ *
+ * Tracks consecutive failed refresh attempts per endpoint to prevent infinite loops.
+ * If an endpoint keeps failing even after successful token refresh, we stop retrying
+ * after MAX_REFRESH_RETRIES attempts.
+ *
+ * Key: endpoint path (e.g. "/members/location")
+ * Value: { count: number, lastAttempt: timestamp }
+ */
+const endpointRetryTracker = new Map();
+const MAX_REFRESH_RETRIES = 2;
+const RETRY_WINDOW_MS = 10000; // Reset counter after 10 seconds of no failures
+
+function getEndpointRetryCount(path) {
+  const entry = endpointRetryTracker.get(path);
+  if (!entry) return 0;
+  // Reset if last attempt was more than RETRY_WINDOW_MS ago
+  if (Date.now() - entry.lastAttempt > RETRY_WINDOW_MS) {
+    endpointRetryTracker.delete(path);
+    return 0;
+  }
+  return entry.count;
+}
+
+function incrementEndpointRetry(path) {
+  const current = getEndpointRetryCount(path);
+  endpointRetryTracker.set(path, {
+    count: current + 1,
+    lastAttempt: Date.now(),
+  });
+  return current + 1;
+}
+
+function resetEndpointRetry(path) {
+  endpointRetryTracker.delete(path);
+}
+
 function withTimeout(promise, ms = 15000) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Request timed out")), ms)
+      setTimeout(() => reject(new Error("Request timed out")), ms),
     ),
   ]);
 }
@@ -72,8 +110,18 @@ function buildError(res, data) {
 async function tryRefreshAndRetry(
   doRequest,
   requestGeneration = null,
-  failedToken = null
+  failedToken = null,
+  retryCount = 0,
 ) {
+  // CRITICAL: Prevent infinite refresh loops
+  const MAX_RETRIES = 2;
+  if (retryCount >= MAX_RETRIES) {
+    console.error(
+      "[tryRefreshAndRetry] Max retries exceeded, aborting to prevent infinite loop",
+    );
+    throw new Error("Max retries exceeded");
+  }
+
   // Declare variables outside try block so they're accessible in finally block
   let accountId = null;
   let refreshPromiseResolve = null;
@@ -87,18 +135,19 @@ async function tryRefreshAndRetry(
     console.log("[tryRefreshAndRetry] Attempting token refresh...", {
       startGeneration: refreshStartGeneration,
       currentGeneration: accountSwitchGeneration,
+      retryCount,
     });
 
     // EARLY ABORT: If generation already changed, don't even attempt refresh
     if (refreshStartGeneration !== accountSwitchGeneration) {
       console.warn(
-        "[tryRefreshAndRetry] 🚨 STALE REQUEST - Account switched before refresh started!"
+        "[tryRefreshAndRetry] 🚨 STALE REQUEST - Account switched before refresh started!",
       );
       console.warn(
         "[tryRefreshAndRetry] Request generation:",
         refreshStartGeneration,
         "Current:",
-        accountSwitchGeneration
+        accountSwitchGeneration,
       );
       throw new Error("Unauthorized"); // Abort - don't corrupt tokens
     }
@@ -121,7 +170,7 @@ async function tryRefreshAndRetry(
       activeAccount.authToken !== failedToken
     ) {
       console.log(
-        "[tryRefreshAndRetry] ✨ Token already updated by another request. Retrying immediately."
+        "[tryRefreshAndRetry] ✨ Token already updated by another request. Retrying immediately.",
       );
       return doRequest(activeAccount.authToken);
     }
@@ -130,7 +179,7 @@ async function tryRefreshAndRetry(
     // If a refresh is already in progress for this account, wait for it.
     if (accountId && refreshingPromises.has(accountId)) {
       console.log(
-        `[tryRefreshAndRetry] ⏳ Waiting for parallel refresh for account: ${accountId}`
+        `[tryRefreshAndRetry] ⏳ Waiting for parallel refresh for account: ${accountId}`,
       );
       await refreshingPromises.get(accountId);
 
@@ -138,7 +187,7 @@ async function tryRefreshAndRetry(
       const updatedAccount = await authModule.getActiveAccount();
       if (updatedAccount?.authToken) {
         console.log(
-          "[tryRefreshAndRetry] ✨ Parallel refresh finished. Retrying with new token."
+          "[tryRefreshAndRetry] ✨ Parallel refresh finished. Retrying with new token.",
         );
         return doRequest(updatedAccount.authToken);
       }
@@ -171,15 +220,15 @@ async function tryRefreshAndRetry(
 
     console.log(
       "[tryRefreshAndRetry] Refresh token length:",
-      refreshToken?.length
+      refreshToken?.length,
     );
     console.log(
       "[tryRefreshAndRetry] Refresh token preview:",
-      refreshToken ? `${refreshToken.substring(0, 16)}...` : "null"
+      refreshToken ? `${refreshToken.substring(0, 16)}...` : "null",
     );
     console.log(
       "[tryRefreshAndRetry] Refresh token source:",
-      activeAccount?.refreshToken ? "accountManager" : "getRefreshToken legacy"
+      activeAccount?.refreshToken ? "accountManager" : "getRefreshToken legacy",
     );
 
     // VALIDATION: Refresh tokens should be at least 20 characters
@@ -187,7 +236,7 @@ async function tryRefreshAndRetry(
     if (refreshToken.length < 20) {
       console.error(
         "[tryRefreshAndRetry] Refresh token is too short - likely corrupted:",
-        refreshToken.length
+        refreshToken.length,
       );
       console.error("[tryRefreshAndRetry] Account needs re-authentication");
 
@@ -197,7 +246,7 @@ async function tryRefreshAndRetry(
         await accountManager.markAccountLoggedOut(
           accountId,
           `Refresh token too short (${refreshToken.length} chars) - likely corrupted`,
-          "client.js:tryRefreshAndRetry"
+          "client.js:tryRefreshAndRetry",
         );
       }
 
@@ -222,7 +271,7 @@ async function tryRefreshAndRetry(
     if (isV2Token) {
       try {
         console.log(
-          "[tryRefreshAndRetry] Trying V2 refresh endpoint (V2 token detected)..."
+          "[tryRefreshAndRetry] Trying V2 refresh endpoint (V2 token detected)...",
         );
         const v2Result = await sessionManager.refreshTokens(refreshToken);
         newAccess = v2Result.accessToken;
@@ -235,14 +284,14 @@ async function tryRefreshAndRetry(
         // V1 fallback would return a 32-char token that corrupts the V2 session
         // Instead, mark account as logged out and throw
         console.error(
-          "[tryRefreshAndRetry] V2 token refresh failed - marking account for re-auth"
+          "[tryRefreshAndRetry] V2 token refresh failed - marking account for re-auth",
         );
         if (accountId) {
           const accountManager = await import("../utils/accountManager");
           await accountManager.markAccountLoggedOut(
             accountId,
             `V2 refresh failed: ${v2Error.message}`,
-            "client.js:tryRefreshAndRetry:V2Failed"
+            "client.js:tryRefreshAndRetry:V2Failed",
           );
         }
         throw new Error("Unauthorized");
@@ -258,14 +307,14 @@ async function tryRefreshAndRetry(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
         }),
-        15000
+        15000,
       );
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         console.error(
           "[tryRefreshAndRetry] V1 Refresh failed:",
-          data?.error || res.statusText
+          data?.error || res.statusText,
         );
 
         // If refresh token was already used or is invalid, mark account as logged out
@@ -275,14 +324,14 @@ async function tryRefreshAndRetry(
           res.status === 401
         ) {
           console.error(
-            "[tryRefreshAndRetry] Refresh token invalid or already used - marking account for re-auth"
+            "[tryRefreshAndRetry] Refresh token invalid or already used - marking account for re-auth",
           );
           if (accountId) {
             const accountManager = await import("../utils/accountManager");
             await accountManager.markAccountLoggedOut(
               accountId,
               `V1 refresh failed: ${data?.error || "Invalid/expired token"}`,
-              "client.js:tryRefreshAndRetry:V1Fallback"
+              "client.js:tryRefreshAndRetry:V1Fallback",
             );
           }
         }
@@ -297,30 +346,30 @@ async function tryRefreshAndRetry(
     if (newAccess) {
       console.log(
         "[tryRefreshAndRetry] Got new access token, length:",
-        newAccess?.length
+        newAccess?.length,
       );
 
       // CRITICAL CHECK: Verify generation BEFORE saving tokens
       // If user switched accounts during refresh, DO NOT save tokens - they would corrupt the new account
       if (refreshStartGeneration !== accountSwitchGeneration) {
         console.error(
-          "🚨 [tryRefreshAndRetry] ACCOUNT SWITCH DETECTED during token refresh!"
+          "🚨 [tryRefreshAndRetry] ACCOUNT SWITCH DETECTED during token refresh!",
         );
         console.error(
           "[tryRefreshAndRetry] Refresh started at generation:",
-          refreshStartGeneration
+          refreshStartGeneration,
         );
         console.error(
           "[tryRefreshAndRetry] Current generation:",
-          accountSwitchGeneration
+          accountSwitchGeneration,
         );
         console.error(
-          "[tryRefreshAndRetry] Aborting token save to prevent corruption!"
+          "[tryRefreshAndRetry] Aborting token save to prevent corruption!",
         );
         console.error(
           "[tryRefreshAndRetry] Account that would have been corrupted:",
           accountId,
-          activeAccount?.email
+          activeAccount?.email,
         );
         throw new Error("Unauthorized"); // Don't save tokens, request is stale
       }
@@ -342,18 +391,18 @@ async function tryRefreshAndRetry(
         await authModule.updateAccountTokens(
           compositeId,
           newAccess,
-          newRefresh
+          newRefresh,
         );
         console.log(
           "[tryRefreshAndRetry] Tokens updated for account:",
           compositeId,
           "generation:",
-          refreshStartGeneration
+          refreshStartGeneration,
         );
       } else {
         // Fallback to old behavior if no account context (legacy support)
         console.warn(
-          "[tryRefreshAndRetry] No account context, using legacy token update"
+          "[tryRefreshAndRetry] No account context, using legacy token update",
         );
         if (authModule.setAccessToken)
           await authModule.setAccessToken(newAccess);
@@ -370,7 +419,7 @@ async function tryRefreshAndRetry(
     if (__DEV__) {
       console.debug(
         "[tryRefreshAndRetry] Token refresh failed:",
-        error.message
+        error.message,
       );
     }
     throw new Error("Unauthorized");
@@ -406,7 +455,7 @@ export async function apiPost(path, body, timeoutMs, token) {
         headers,
         body: JSON.stringify(body ?? {}),
       }),
-      timeoutMs
+      timeoutMs,
     );
   } catch (e) {
     if (e && e.message === "Request timed out") throw e;
@@ -416,16 +465,26 @@ export async function apiPost(path, body, timeoutMs, token) {
     // Check if account switched before attempting refresh
     if (requestGeneration !== accountSwitchGeneration) {
       console.log(
-        `[apiPost] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+        `[apiPost] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`,
       );
       throw new Error("Request aborted - account switched");
+    }
+    // CRITICAL: Check if this endpoint has already failed too many times
+    const retryCount = incrementEndpointRetry(path);
+    if (retryCount > MAX_REFRESH_RETRIES) {
+      console.error(
+        `[apiPost] Max refresh retries (${MAX_REFRESH_RETRIES}) exceeded for ${path} - aborting to prevent infinite loop`,
+      );
+      throw new Error(`Max retries exceeded for ${path}`);
     }
     return tryRefreshAndRetry(
       (newToken) => apiPost(path, body, timeoutMs, newToken),
       requestGeneration,
-      token
+      token,
     );
   }
+  // Request succeeded, reset retry counter for this endpoint
+  resetEndpointRetry(path);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw buildError(res, data);
   return data;
@@ -441,7 +500,7 @@ export async function apiGet(path, timeoutMs, token) {
   try {
     res = await withTimeout(
       fetch(`${BACKEND_BASE_URL}${path}`, { headers }),
-      timeoutMs
+      timeoutMs,
     );
   } catch (e) {
     if (e && e.message === "Request timed out") throw e;
@@ -451,16 +510,26 @@ export async function apiGet(path, timeoutMs, token) {
     // Check if account switched before attempting refresh
     if (requestGeneration !== accountSwitchGeneration) {
       console.log(
-        `[apiGet] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+        `[apiGet] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`,
       );
       throw new Error("Request aborted - account switched");
+    }
+    // CRITICAL: Check if this endpoint has already failed too many times
+    const retryCount = incrementEndpointRetry(path);
+    if (retryCount > MAX_REFRESH_RETRIES) {
+      console.error(
+        `[apiGet] Max refresh retries (${MAX_REFRESH_RETRIES}) exceeded for ${path} - aborting to prevent infinite loop`,
+      );
+      throw new Error(`Max retries exceeded for ${path}`);
     }
     return tryRefreshAndRetry(
       (newToken) => apiGet(path, timeoutMs, newToken),
       requestGeneration,
-      token
+      token,
     );
   }
+  // Request succeeded, reset retry counter for this endpoint
+  resetEndpointRetry(path);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw buildError(res, data);
   return data;
@@ -480,7 +549,7 @@ export async function apiPatch(path, body, timeoutMs, token) {
         headers,
         body: JSON.stringify(body ?? {}),
       }),
-      timeoutMs
+      timeoutMs,
     );
   } catch (e) {
     if (e && e.message === "Request timed out") throw e;
@@ -490,14 +559,14 @@ export async function apiPatch(path, body, timeoutMs, token) {
     // Check if account switched before attempting refresh
     if (requestGeneration !== accountSwitchGeneration) {
       console.log(
-        `[apiPatch] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+        `[apiPatch] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`,
       );
       throw new Error("Request aborted - account switched");
     }
     return tryRefreshAndRetry(
       (newToken) => apiPatch(path, body, timeoutMs, newToken),
       requestGeneration,
-      token
+      token,
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -518,7 +587,7 @@ export async function apiDelete(path, body, timeoutMs, token) {
   try {
     res = await withTimeout(
       fetch(`${BACKEND_BASE_URL}${path}`, options),
-      timeoutMs || 15000
+      timeoutMs || 15000,
     );
   } catch (e) {
     if (e && e.message === "Request timed out") throw e;
@@ -528,14 +597,14 @@ export async function apiDelete(path, body, timeoutMs, token) {
     // Check if account switched before attempting refresh
     if (requestGeneration !== accountSwitchGeneration) {
       console.log(
-        `[apiDelete] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`
+        `[apiDelete] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`,
       );
       throw new Error("Request aborted - account switched");
     }
     return tryRefreshAndRetry(
       (newToken) => apiDelete(path, body, timeoutMs, newToken),
       requestGeneration,
-      token
+      token,
     );
   }
   const data = await res.json().catch(() => ({}));
@@ -551,7 +620,7 @@ export async function getSponsorTypes(timeoutMs = 10000) {
   try {
     const res = await withTimeout(
       fetch(`${BACKEND_BASE_URL}/catalog/sponsor-types`),
-      timeoutMs
+      timeoutMs,
     );
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw buildError(res, data);

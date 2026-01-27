@@ -63,7 +63,10 @@ async function submitViewsBatch(req, res) {
 
       if (type === "qualified") {
         // Try to insert unique view (will fail on duplicate due to UNIQUE constraint)
+        // Use SAVEPOINT to prevent one failure from aborting the entire transaction
+        const savepointName = `sp_view_${postId}`;
         try {
+          await client.query(`SAVEPOINT ${savepointName}`);
           await client.query(
             `INSERT INTO unique_view_events (post_id, user_id, user_type, dwell_time_ms, trigger_type, post_type)
              VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -83,8 +86,11 @@ async function submitViewsBatch(req, res) {
             [postId],
           );
 
+          await client.query(`RELEASE SAVEPOINT ${savepointName}`);
           accepted.push(postId);
         } catch (e) {
+          // Rollback to savepoint to allow transaction to continue
+          await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
           if (e.code === "23505") {
             // Unique constraint violation - already viewed
             duplicate.push(postId);

@@ -330,9 +330,11 @@ export default function CommunityProfileScreen({ navigation }) {
       }
       if (isRefresh) {
         setRefreshing(true);
+      } else {
+        setLoading(true);
+        setPosts([]); // clear posts to prevent stale data
       }
-
-      // CRITICAL: Try to capture email as early as possible
+      setAuthError(false); // Clear any previous errors as early as possible
       try {
         const email = await AsyncStorage.getItem("auth_email");
         if (email) setActiveEmail(email);
@@ -1432,6 +1434,14 @@ export default function CommunityProfileScreen({ navigation }) {
           currentUserType="community"
           onLikeUpdate={(postId, isLiked, count) => {
             // Optimistically update local state
+            console.log(
+              "[CommunityProfile] Post like update:",
+              postId,
+              "isLiked:",
+              isLiked,
+              "count:",
+              count,
+            );
             setPosts((prevPosts) =>
               prevPosts.map((p) =>
                 p.id === postId

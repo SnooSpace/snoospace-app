@@ -1,6 +1,7 @@
-import * as Location from 'expo-location';
-import { AppState } from 'react-native';
-import { updateLocation } from '../api/members';
+import * as Location from "expo-location";
+import { AppState } from "react-native";
+import { updateLocation } from "../api/members";
+import { getActiveAccount } from "../api/auth";
 
 let subscriber = null;
 let lastSyncedAt = 0;
@@ -12,7 +13,7 @@ let fallbackTimer = null;
 
 function distanceMeters(a, b) {
   if (!a || !b) return Infinity;
-  const toRad = d => (d * Math.PI) / 180;
+  const toRad = (d) => (d * Math.PI) / 180;
   const R = 6371000;
   const dLat = toRad(b.latitude - a.latitude);
   const dLon = toRad(b.longitude - a.longitude);
@@ -20,7 +21,8 @@ function distanceMeters(a, b) {
   const lat2 = toRad(b.latitude);
   const sinDLat = Math.sin(dLat / 2);
   const sinDLon = Math.sin(dLon / 2);
-  const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+  const h =
+    sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
@@ -28,7 +30,21 @@ async function maybeSync(coords) {
   const now = Date.now();
   if (now - lastSyncedAt < MIN_SYNC_MS) return;
   const moved = distanceMeters(lastSentCoords, coords);
-  if (moved < SIGNIFICANT_METERS && now - lastSyncedAt < FALLBACK_INTERVAL_MS) return;
+  if (moved < SIGNIFICANT_METERS && now - lastSyncedAt < FALLBACK_INTERVAL_MS)
+    return;
+
+  // CRITICAL: Skip location sync for community accounts
+  // The /members/location endpoint is member-only and will cause infinite 401 refresh loops
+  try {
+    const activeAccount = await getActiveAccount();
+    if (activeAccount?.type === "community") {
+      // Community accounts don't have member location endpoints - silently skip
+      return;
+    }
+  } catch (e) {
+    // If we can't determine account type, skip to be safe
+    return;
+  }
 
   lastSyncedAt = now;
   lastSentCoords = coords;
@@ -41,24 +57,28 @@ async function maybeSync(coords) {
 
 export async function startForegroundWatch() {
   try {
-    console.log('[LocationTracker] startForegroundWatch called');
-    
+    console.log("[LocationTracker] startForegroundWatch called");
+
     // Check if we already have permission before requesting
     let { status } = await Location.getForegroundPermissionsAsync();
-    console.log('[LocationTracker] Current permission status:', status);
-    
+    console.log("[LocationTracker] Current permission status:", status);
+
     // Only request if we don't have permission yet
-    if (status !== 'granted') {
-      console.log('[LocationTracker] Requesting location permission...');
+    if (status !== "granted") {
+      console.log("[LocationTracker] Requesting location permission...");
       const result = await Location.requestForegroundPermissionsAsync();
       status = result.status;
-      console.log('[LocationTracker] Permission request result:', status);
+      console.log("[LocationTracker] Permission request result:", status);
     } else {
-      console.log('[LocationTracker] Permission already granted, skipping request');
+      console.log(
+        "[LocationTracker] Permission already granted, skipping request",
+      );
     }
-    
-    if (status !== 'granted') {
-      console.log('[LocationTracker] Permission not granted, aborting tracking');
+
+    if (status !== "granted") {
+      console.log(
+        "[LocationTracker] Permission not granted, aborting tracking",
+      );
       return false;
     }
 
@@ -77,13 +97,15 @@ export async function startForegroundWatch() {
         if (coords?.latitude && coords?.longitude) {
           maybeSync(coords);
         }
-      }
+      },
     );
 
     // Fallback periodic sync
     fallbackTimer = setInterval(async () => {
       try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
         const coords = loc?.coords;
         if (coords?.latitude && coords?.longitude) {
           maybeSync(coords);
@@ -99,7 +121,9 @@ export async function startForegroundWatch() {
 
 export function stopForegroundWatch() {
   if (subscriber) {
-    try { subscriber.remove(); } catch {}
+    try {
+      subscriber.remove();
+    } catch {}
     subscriber = null;
   }
   if (fallbackTimer) {
@@ -110,14 +134,12 @@ export function stopForegroundWatch() {
 
 export function attachAppStateListener() {
   const handler = (state) => {
-    if (state === 'active') {
+    if (state === "active") {
       startForegroundWatch();
     } else {
       stopForegroundWatch();
     }
   };
-  const sub = AppState.addEventListener('change', handler);
+  const sub = AppState.addEventListener("change", handler);
   return () => sub.remove();
 }
-
-

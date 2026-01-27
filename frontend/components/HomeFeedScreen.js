@@ -460,6 +460,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const checkPendingAttendance = async () => {
     try {
+      // Skip for non-member accounts - this endpoint is member-only
+      if (role !== "member") {
+        return;
+      }
       const response = await getPendingAttendanceEvent();
       if (response?.event) {
         setPendingAttendanceEvent(response.event);

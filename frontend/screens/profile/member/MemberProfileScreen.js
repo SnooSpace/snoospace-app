@@ -151,6 +151,7 @@ export default function MemberProfileScreen({ navigation }) {
         setRefreshing(true);
       } else {
         setLoading(true);
+        setPosts([]); // clear posts to prevent stale data
       }
       setError(null);
 
@@ -235,6 +236,16 @@ export default function MemberProfileScreen({ navigation }) {
         following_count: followingCount,
       };
       setProfile(mappedProfile);
+
+      // DEBUG: Log first post's like status from API
+      if (userPosts.length > 0) {
+        console.log(
+          "[Profile] First post is_liked from API:",
+          userPosts[0].id,
+          userPosts[0].is_liked,
+        );
+      }
+
       setPosts(
         userPosts.map((post) => ({
           ...post,

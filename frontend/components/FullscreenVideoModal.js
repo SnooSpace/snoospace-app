@@ -108,10 +108,22 @@ const FullscreenVideoModal = ({
     }
   }, [showControls, isPlaying, isSeeking, startHideControlsTimer]);
 
-  // Set initial position when modal opens
+  // CRITICAL: Cleanup video on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Set initial position when modal opens, cleanup when it closes
   useEffect(() => {
     if (visible && videoRef.current && initialPosition > 0) {
       videoRef.current.setPositionAsync(initialPosition);
+    } else if (!visible && videoRef.current) {
+      // Cleanup when modal closes
+      videoRef.current.unloadAsync().catch(() => {});
     }
   }, [visible, initialPosition]);
 
