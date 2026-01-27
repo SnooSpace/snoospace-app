@@ -37,6 +37,7 @@ import EditorialPostCard from "./EditorialPostCard";
 import EventCard from "./EventCard";
 import OpportunityFeedCard from "./OpportunityFeedCard";
 import CommentsModal from "./CommentsModal";
+import ShareModal from "./ShareModal";
 import AttendanceConfirmationModal from "./AttendanceConfirmationModal";
 import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
@@ -198,6 +199,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedSharePost, setSelectedSharePost] = useState(null);
   const { unread } = useNotifications();
   const [greetingName, setGreetingName] = useState(null);
   const [messageUnread, setMessageUnread] = useState(0);
@@ -634,6 +637,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     setCommentsModalVisible(true);
   };
 
+  const handleSharePress = (postId) => {
+    const post = posts.find((p) => p.id === postId);
+    if (post) {
+      setSelectedSharePost(post);
+      setShareModalVisible(true);
+    }
+  };
+
   const handleCommentCountChange = (postId) => {
     return (prevCount) => {
       setPosts((prevPosts) =>
@@ -727,6 +738,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         post={item}
         onLike={handleLikeUpdate}
         onComment={handleCommentPress}
+        onShare={handleSharePress}
         onFollow={handleFollow}
         showFollowButton={true}
         currentUserId={currentUserId}
@@ -943,6 +955,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
         }
         navigation={navigation}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        visible={shareModalVisible}
+        post={selectedSharePost}
+        onClose={() => {
+          setShareModalVisible(false);
+          setSelectedSharePost(null);
+        }}
       />
 
       {/* Attendance Confirmation Modal */}

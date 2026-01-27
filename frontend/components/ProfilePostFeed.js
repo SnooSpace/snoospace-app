@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "./EditorialPostCard";
 import CommentsModal from "./CommentsModal";
+import ShareModal from "./ShareModal";
 import { VideoProvider } from "../context/VideoContext";
 import { COLORS, SPACING } from "../constants/theme";
 
@@ -35,6 +36,8 @@ const ProfilePostFeed = ({
   const [visiblePostId, setVisiblePostId] = useState(null);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedSharePost, setSelectedSharePost] = useState(null);
   const flatListRef = useRef(null);
 
   // Auto-play viewability configuration
@@ -85,6 +88,14 @@ const ProfilePostFeed = ({
     };
   };
 
+  const handleSharePress = (postId) => {
+    const post = posts.find((p) => p.id === postId);
+    if (post) {
+      setSelectedSharePost(post);
+      setShareModalVisible(true);
+    }
+  };
+
   const renderItem = ({ item }) => {
     return (
       <EditorialPostCard
@@ -94,7 +105,7 @@ const ProfilePostFeed = ({
         isVideoPlaying={item.id === visiblePostId}
         onLike={onLikeUpdate} // Adapting to the signature expected by EditorialPostCard
         onComment={handleCommentPress}
-        onShare={onShare}
+        onShare={handleSharePress}
         onSave={onSave}
         onFollow={onFollow}
         onUserPress={onUserPress}
@@ -154,6 +165,16 @@ const ProfilePostFeed = ({
           selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
         }
         navigation={navigation}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        visible={shareModalVisible}
+        post={selectedSharePost}
+        onClose={() => {
+          setShareModalVisible(false);
+          setSelectedSharePost(null);
+        }}
       />
     </Modal>
   );

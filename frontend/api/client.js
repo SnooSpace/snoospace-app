@@ -638,3 +638,57 @@ export async function getSponsorTypes(timeoutMs = 10000) {
     ];
   }
 }
+
+/**
+ * Share a post to user(s) or copy link
+ * @param {string} postId - Post ID to share
+ * @param {Array} recipients - Array of {id, type} objects
+ * @param {string} shareType - 'internal' or 'copy_link'
+ * @param {string} message - Optional message
+ */
+export async function sharePost(postId, recipients, shareType, message, token) {
+  return apiPost(
+    `/posts/${postId}/share`,
+    { recipients, shareType, message },
+    15000,
+    token,
+  );
+}
+
+/**
+ * Get recent chat users for share modal
+ */
+export async function getRecentChatUsers(token) {
+  return apiGet("/chat/recent-users", 10000, token);
+}
+
+/**
+ * Save a post
+ */
+export async function savePost(postId, token) {
+  return apiPost(`/posts/${postId}/save`, {}, 15000, token);
+}
+
+/**
+ * Unsave a post
+ */
+export async function unsavePost(postId, token) {
+  return apiDelete(`/posts/${postId}/save`, null, 15000, token);
+}
+
+/**
+ * Get saved posts
+ * @param {number} offset - Pagination offset
+ * @param {number} limit - Number of posts to fetch
+ */
+export async function getSavedPosts(offset = 0, limit = 20, token) {
+  return apiGet(`/saved-posts?offset=${offset}&limit=${limit}`, 15000, token);
+}
+
+/**
+ * Check save status for multiple posts
+ * @param {Array} postIds - Array of post IDs
+ */
+export async function checkSaveStatus(postIds, token) {
+  return apiPost("/posts/save-status/batch", { postIds }, 15000, token);
+}

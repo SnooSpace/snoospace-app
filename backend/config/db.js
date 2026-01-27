@@ -195,6 +195,42 @@ async function ensureTables(pool) {
         ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS tagged_entities JSONB;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
+      -- Add share_count and save_count to posts table
+      DO $$ BEGIN
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS share_count INTEGER DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS save_count INTEGER DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      
+      -- Post shares table
+      CREATE TABLE IF NOT EXISTS post_shares (
+        id BIGSERIAL PRIMARY KEY,
+        post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        sharer_id BIGINT NOT NULL,
+        sharer_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        share_type TEXT NOT NULL, -- 'internal' (to user), 'copy_link', 'external'
+        recipient_id BIGINT, -- NULL for copy_link/external shares
+        recipient_type TEXT, -- NULL for copy_link/external shares
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_shares_post ON post_shares(post_id);
+      CREATE INDEX IF NOT EXISTS idx_post_shares_sharer ON post_shares(sharer_id, sharer_type);
+      CREATE INDEX IF NOT EXISTS idx_post_shares_recipient ON post_shares(recipient_id, recipient_type);
+      
+      -- Post saves table
+      CREATE TABLE IF NOT EXISTS post_saves (
+        id BIGSERIAL PRIMARY KEY,
+        post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        saver_id BIGINT NOT NULL,
+        saver_type TEXT NOT NULL, -- 'member', 'community', 'sponsor', 'venue'
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(post_id, saver_id, saver_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_saves_post ON post_saves(post_id);
+      CREATE INDEX IF NOT EXISTS idx_post_saves_saver ON post_saves(saver_id, saver_type);
+      CREATE INDEX IF NOT EXISTS idx_post_saves_created_at ON post_saves(created_at DESC);
+      
       -- Follows table
       CREATE TABLE IF NOT EXISTS follows (
         id BIGSERIAL PRIMARY KEY,

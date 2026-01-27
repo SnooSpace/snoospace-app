@@ -30,6 +30,8 @@ const ModerationController = require("../controllers/moderationController");
 const CollegeController = require("../controllers/collegeController");
 const OpportunityController = require("../controllers/opportunityController");
 const ViewsController = require("../controllers/viewsController");
+const ShareController = require("../controllers/shareController");
+const SaveController = require("../controllers/saveController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -857,6 +859,29 @@ router.get(
   "/posts/:postId/analytics",
   authMiddleware,
   ViewsController.getPostViewAnalytics,
+);
+
+// Share routes
+router.post("/posts/:postId/share", authMiddleware, ShareController.sharePost);
+router.get(
+  "/posts/:postId/shares",
+  authMiddleware,
+  ShareController.getPostShares,
+);
+router.get(
+  "/chat/recent-users",
+  authMiddleware,
+  ShareController.getRecentChatUsers,
+);
+
+// Save routes
+router.post("/posts/:postId/save", authMiddleware, SaveController.savePost);
+router.delete("/posts/:postId/save", authMiddleware, SaveController.unsavePost);
+router.get("/saved-posts", authMiddleware, SaveController.getSavedPosts);
+router.post(
+  "/posts/save-status/batch",
+  authMiddleware,
+  SaveController.checkSaveStatus,
 );
 
 // Poll routes

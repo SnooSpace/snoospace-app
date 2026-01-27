@@ -34,7 +34,7 @@ import {
   Send,
   Bookmark,
 } from "lucide-react-native";
-import { apiPost, apiDelete } from "../api/client";
+import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
@@ -348,9 +348,23 @@ const EditorialPostCard = ({
     }
   };
 
-  const handleSave = () => {
-    setIsSaved(!isSaved);
-    if (onSave) onSave(post.id, !isSaved);
+  const handleSave = async () => {
+    const newSaveState = !isSaved;
+    setIsSaved(newSaveState);
+
+    try {
+      const token = await getAuthToken();
+      if (newSaveState) {
+        await savePost(post.id, token);
+      } else {
+        await unsavePost(post.id, token);
+      }
+      if (onSave) onSave(post.id, newSaveState);
+    } catch (error) {
+      console.error("Failed to save/unsave post:", error);
+      // Revert on error
+      setIsSaved(!newSaveState);
+    }
   };
 
   const handleShare = () => {
@@ -599,6 +613,11 @@ const EditorialPostCard = ({
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
           />
+          {(post.share_count || 0) > 0 && (
+            <Text style={styles.engagementCount}>
+              {formatCount(post.share_count)}
+            </Text>
+          )}
         </Pressable>
 
         {/* Bookmark */}

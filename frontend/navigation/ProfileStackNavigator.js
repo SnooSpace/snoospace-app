@@ -9,6 +9,7 @@ import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+import SavedPostsScreen from "../screens/SavedPostsScreen";
 
 const Stack = createStackNavigator();
 
@@ -39,6 +40,7 @@ export default function ProfileStackNavigator() {
       />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+      <Stack.Screen name="SavedPostsScreen" component={SavedPostsScreen} />
     </Stack.Navigator>
   );
 }

@@ -901,6 +901,19 @@ export default function CommunityProfileScreen({ navigation }) {
           <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
 
+        {/* Bookmark Icon */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate("SavedPostsScreen")}
+          style={[
+            styles.settingsIconAbsolute,
+            !profile.banner_url && { top: insets.top + 16 },
+            { right: 60 }, // Position to the left of settings
+          ]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="bookmark-outline" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
+
         <View
           style={[
             styles.summarySection,

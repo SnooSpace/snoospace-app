@@ -870,6 +870,12 @@ export default function MemberProfileScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settingsButton}
+          onPress={() => navigation.navigate("SavedPostsScreen")}
+        >
+          <Ionicons name="bookmark-outline" size={24} color={TEXT_COLOR} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settingsButton}
           onPress={() => setShowSettingsModal(true)}
         >
           <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
