@@ -21,6 +21,7 @@ import NotificationBanner from "./components/NotificationBanner";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
+import { VideoProvider } from "./context/VideoContext";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -84,7 +85,9 @@ export default function App() {
         <StatusBarManagerProvider>
           <AuthStateProvider>
             <NotificationsProvider>
-              <AppContent />
+              <VideoProvider>
+                <AppContent />
+              </VideoProvider>
             </NotificationsProvider>
           </AuthStateProvider>
         </StatusBarManagerProvider>

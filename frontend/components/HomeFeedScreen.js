@@ -23,6 +23,7 @@ import {
 } from "react-native-safe-area-context";
 import { MessageSquare, Bell } from "lucide-react-native";
 import { useNotifications } from "../context/NotificationsContext";
+import { useVideoContext, VideoProvider } from "../context/VideoContext";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { getUnreadCount as getMessageUnreadCount } from "../api/messages";
@@ -804,10 +805,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
     if (viewableItems && viewableItems.length > 0) {
-      const visibleItem = viewableItems[0];
+      // Find the first video post that's visible
+      const visibleVideoItem = viewableItems.find(
+        (item) =>
+          item.item?.itemType === "post" &&
+          item.item?.media_types?.[0] === "video",
+      );
+      const visibleItem = visibleVideoItem || viewableItems[0];
       if (visibleItem && visibleItem.item && visibleItem.item.id) {
         setVisiblePostId(visibleItem.item.id);
       }
+    } else {
+      // Nothing visible - pause all videos
+      setVisiblePostId(null);
     }
   }, []);
 

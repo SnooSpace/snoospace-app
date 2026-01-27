@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "./EditorialPostCard";
+import { VideoProvider } from "../context/VideoContext";
 import { COLORS, SPACING } from "../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
