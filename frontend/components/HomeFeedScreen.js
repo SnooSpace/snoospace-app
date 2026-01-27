@@ -246,9 +246,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const { isPolling: isFeedPolling, initializeTimestamp } = useFeedPolling({
     baseInterval: 30000,
     enabled: !loading,
-    onNewPostsLoaded: (newPosts) => {
+    onNewPostsLoaded: async (newPosts) => {
       console.log("[HomeFeed] Auto-loading new posts from polling");
-      const mergedPosts = LikeStateManager.mergeLikeStates(
+      const mergedPosts = await LikeStateManager.mergeLikeStates(
         newPosts.map((post) => ({
           ...post,
           tagged_entities: (() => {
@@ -382,9 +382,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   }, []);
 
   useEffect(() => {
-    const handlePostLikeUpdate = (payload) => {
+    const handlePostLikeUpdate = async (payload) => {
       if (!payload?.postId) return;
-      LikeStateManager.setLikeState(payload.postId, payload.isLiked);
+      await LikeStateManager.setLikeState(payload.postId, payload.isLiked);
 
       setPosts((prev) =>
         prev.map((post) =>
@@ -543,7 +543,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         return mappedPost;
       });
 
-      const mergedPosts = LikeStateManager.mergeLikeStates(newPosts);
+      const mergedPosts = await LikeStateManager.mergeLikeStates(newPosts);
 
       // Append or replace based on reset flag
       setPosts((prevPosts) => {

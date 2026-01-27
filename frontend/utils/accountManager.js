@@ -23,7 +23,7 @@ export async function getAllAccounts() {
         ? `${accountsJson.length} chars, ${
             JSON.parse(accountsJson).length
           } accounts`
-        : "EMPTY"
+        : "EMPTY",
     );
 
     if (!accountsJson) return [];
@@ -53,12 +53,12 @@ export async function getAllAccounts() {
           "refreshLength:",
           decryptedAccount.refreshToken?.length || "null",
           "isLoggedIn:",
-          decryptedAccount.isLoggedIn
+          decryptedAccount.isLoggedIn,
         );
       } catch (error) {
         console.error(
           `[getAllAccounts] Skipping corrupted account ${account.id}:`,
-          error.message
+          error.message,
         );
         // Skip this account - it's corrupted
       }
@@ -67,7 +67,7 @@ export async function getAllAccounts() {
     console.log(
       "[getAllAccounts] Returning",
       decryptedAccounts.length,
-      "accounts"
+      "accounts",
     );
     return decryptedAccounts;
   } catch (error) {
@@ -108,27 +108,27 @@ export async function addAccount(accountData) {
     if (!accountData.refreshToken) {
       console.warn(
         "[addAccount] ⚠️ NO REFRESH TOKEN provided for:",
-        accountData.email
+        accountData.email,
       );
       console.warn(
-        "[addAccount] Account will not persist across token expiration!"
+        "[addAccount] Account will not persist across token expiration!",
       );
     } else if (accountData.refreshToken.length < 20) {
       console.warn(
         "[addAccount] ⚠️ REFRESH TOKEN TOO SHORT for:",
         accountData.email,
         "length:",
-        accountData.refreshToken.length
+        accountData.refreshToken.length,
       );
       console.warn(
-        "[addAccount] Expected 40+ chars for Supabase refresh token"
+        "[addAccount] Expected 40+ chars for Supabase refresh token",
       );
     } else {
       console.log(
         "[addAccount] ✓ Valid refresh token for:",
         accountData.email,
         "length:",
-        accountData.refreshToken.length
+        accountData.refreshToken.length,
       );
     }
 
@@ -204,12 +204,12 @@ export async function addAccount(accountData) {
         "[addAccount] ⚠️ ACTIVE ACCOUNT MISMATCH! Expected:",
         compositeActiveId,
         "Got:",
-        verifyActiveId
+        verifyActiveId,
       );
     } else {
       console.log(
         "[addAccount] ✓ Active account successfully set to:",
-        compositeActiveId
+        compositeActiveId,
       );
     }
 
@@ -226,6 +226,21 @@ export async function addAccount(accountData) {
  */
 export async function switchAccount(accountId) {
   try {
+    // CRITICAL: Clear like cache for previous account BEFORE switch
+    const previousAccount = await getActiveAccount();
+    if (previousAccount) {
+      const LikeStateManager = (await import("./LikeStateManager")).default;
+      LikeStateManager.clearAccountCache(
+        previousAccount.type,
+        previousAccount.id,
+      );
+      console.log(
+        "[switchAccount] Cleared like cache for:",
+        previousAccount.type,
+        previousAccount.id,
+      );
+    }
+
     // CRITICAL: Increment generation FIRST to invalidate all in-flight requests
     // from the previous account session. This prevents token corruption.
     const { incrementAccountSwitchGeneration } = await import("../api/client");
@@ -235,7 +250,7 @@ export async function switchAccount(accountId) {
       "[switchAccount] Starting switch to account:",
       accountId,
       "generation:",
-      newGeneration
+      newGeneration,
     );
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
@@ -276,7 +291,7 @@ export async function switchAccount(accountId) {
       console.warn(
         "[switchAccount] ⚠️ Token seems unusually short:",
         account.authToken.length,
-        "chars - may be corrupted"
+        "chars - may be corrupted",
       );
     }
 
@@ -314,6 +329,15 @@ export async function logoutCurrentAccount() {
       return { switchToAccount: null, navigateToLanding: true };
     }
 
+    // Clear like cache for this account
+    const LikeStateManager = (await import("./LikeStateManager")).default;
+    LikeStateManager.clearAccountCache(activeAccount.type, activeAccount.id);
+    console.log(
+      "[logoutCurrentAccount] Cleared like cache for:",
+      activeAccount.type,
+      activeAccount.id,
+    );
+
     const accounts = await getAllAccounts();
 
     // CRITICAL: Use composite key to prevent ID collisions (e.g., member_28 vs community_28)
@@ -326,7 +350,7 @@ export async function logoutCurrentAccount() {
     const nextAccount = accounts.find(
       (acc) =>
         `${acc.type}_${acc.id}` !== accountCompositeId &&
-        acc.isLoggedIn !== false
+        acc.isLoggedIn !== false,
     );
 
     if (nextAccount) {
@@ -372,7 +396,7 @@ export async function removeAccount(accountId) {
       activeAccount.isLoggedIn !== false
     ) {
       throw new Error(
-        "Cannot remove currently logged-in account. Please logout first."
+        "Cannot remove currently logged-in account. Please logout first.",
       );
     }
 
@@ -391,7 +415,7 @@ export async function removeAccount(accountId) {
     const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
     if (activeId === accountIdStr || String(activeId) === accountIdStr) {
       const nextLoggedIn = updatedAccounts.find(
-        (acc) => acc.isLoggedIn !== false
+        (acc) => acc.isLoggedIn !== false,
       );
       if (nextLoggedIn) {
         // Use composite key for new active account
@@ -437,10 +461,10 @@ export async function updateAccount(accountId, updates) {
     if (accountIndex === -1 && !accountIdStr.includes("_")) {
       console.warn(
         `[updateAccount] ⚠️ Using legacy plain ID match for: ${accountIdStr}. ` +
-          `This may cause issues if multiple account types share this ID.`
+          `This may cause issues if multiple account types share this ID.`,
       );
       accountIndex = accounts.findIndex(
-        (acc) => String(acc.id) === accountIdStr
+        (acc) => String(acc.id) === accountIdStr,
       );
     }
 
@@ -512,10 +536,10 @@ export async function markAccountLoggedOut(accountId, reason, source) {
     if (accountIndex === -1 && !accountIdStr.includes("_")) {
       console.warn(
         `[markAccountLoggedOut] ⚠️ Using legacy plain ID match for: ${accountIdStr}. ` +
-          `This may cause issues if multiple account types share this ID.`
+          `This may cause issues if multiple account types share this ID.`,
       );
       accountIndex = accounts.findIndex(
-        (acc) => String(acc.id) === accountIdStr
+        (acc) => String(acc.id) === accountIdStr,
       );
     }
 
@@ -542,13 +566,13 @@ export async function markAccountLoggedOut(accountId, reason, source) {
     const stack = new Error().stack;
     console.error("[markAccountLoggedOut] Call stack:", stack);
     console.error(
-      "🔴 ===================================================== 🔴"
+      "🔴 ===================================================== 🔴",
     );
 
     // Only update if not already logged out
     if (account.isLoggedIn === false) {
       console.log(
-        "[markAccountLoggedOut] Account was already logged out, skipping"
+        "[markAccountLoggedOut] Account was already logged out, skipping",
       );
       return false;
     }
@@ -667,12 +691,12 @@ export async function removeAccountAndAutoSwitch(accountId) {
 
     // Find the account to remove
     const accountToRemove = accounts.find(
-      (acc) => String(acc.id) === accountIdStr
+      (acc) => String(acc.id) === accountIdStr,
     );
     if (!accountToRemove) {
       console.log(
         "[removeAccountAndAutoSwitch] Account not found:",
-        accountIdStr
+        accountIdStr,
       );
       return {
         removedAccount: null,
@@ -683,12 +707,12 @@ export async function removeAccountAndAutoSwitch(accountId) {
 
     console.log(
       "[removeAccountAndAutoSwitch] Removing account:",
-      accountToRemove.email
+      accountToRemove.email,
     );
 
     // Filter out the account (keep encrypted in storage)
     const remainingAccounts = accounts.filter(
-      (acc) => String(acc.id) !== accountIdStr
+      (acc) => String(acc.id) !== accountIdStr,
     );
 
     // Find next logged-in account with valid tokens
@@ -709,14 +733,14 @@ export async function removeAccountAndAutoSwitch(accountId) {
     }
 
     const nextLoggedIn = decryptedRemaining.find(
-      (acc) => acc.isLoggedIn !== false && acc.authToken
+      (acc) => acc.isLoggedIn !== false && acc.authToken,
     );
 
     // Update storage with remaining accounts (encrypted)
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(remainingAccounts));
     console.log(
       "[removeAccountAndAutoSwitch] Remaining accounts:",
-      remainingAccounts.length
+      remainingAccounts.length,
     );
 
     // Handle active account switch
@@ -731,7 +755,7 @@ export async function removeAccountAndAutoSwitch(accountId) {
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
         console.log(
           "[removeAccountAndAutoSwitch] Switched to:",
-          nextLoggedIn.email
+          nextLoggedIn.email,
         );
         return {
           removedAccount: accountToRemove,
@@ -741,7 +765,7 @@ export async function removeAccountAndAutoSwitch(accountId) {
       } else {
         await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
         console.log(
-          "[removeAccountAndAutoSwitch] No other logged-in accounts, navigate to landing"
+          "[removeAccountAndAutoSwitch] No other logged-in accounts, navigate to landing",
         );
         return {
           removedAccount: accountToRemove,
