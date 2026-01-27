@@ -35,7 +35,7 @@ const ProfilePostFeed = ({
 
   // Auto-play viewability configuration
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60, // Slightly higher for focus
+    itemVisiblePercentThreshold: 25, // Lower threshold for faster autoplay on tall videos
     waitForInteraction: false,
     minimumViewTime: 100,
   }).current;

@@ -57,6 +57,7 @@ const VideoPlayer = ({
   const [isMuted, setIsMuted] = useState(muted);
   const [isLoading, setIsLoading] = useState(true);
   const [shouldLoad, setShouldLoad] = useState(true); // Controls if video is loaded
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false); // Track if video has ever played
 
   // "Watch Again" state - only for feed view (non-fullscreen)
   const [videoFinished, setVideoFinished] = useState(false);
@@ -68,7 +69,7 @@ const VideoPlayer = ({
   // Tracking refs
   const hasNotifiedPlaybackRef = useRef(false);
   const unloadTimeoutRef = useRef(null);
-  const isUnmountingRef = useRef(false);
+  const isUnmountingRef = useRef(null);
 
   // Register with VideoContext for cleanup tracking
   useEffect(() => {
@@ -142,6 +143,11 @@ const VideoPlayer = ({
       setIsLoading(false);
       setIsPlaying(status.isPlaying);
 
+      // Mark that video has started playing at least once
+      if (status.isPlaying && !hasStartedPlaying) {
+        setHasStartedPlaying(true);
+      }
+
       // Notify parent of playback state for qualified view tracking
       if (status.isPlaying && !hasNotifiedPlaybackRef.current) {
         hasNotifiedPlaybackRef.current = true;
@@ -169,7 +175,7 @@ const VideoPlayer = ({
         }
       }
     },
-    [onPlaybackStart, onVideoEnd, isFullscreen],
+    [onPlaybackStart, onVideoEnd, isFullscreen, hasStartedPlaying],
   );
 
   const handleLoad = useCallback(
@@ -336,8 +342,8 @@ const VideoPlayer = ({
         activeOpacity={1}
         onPress={handleOverlayPress}
       >
-        {/* Loading indicator */}
-        {isLoading && (
+        {/* Loading indicator - show when loading OR waiting to start playing */}
+        {(isLoading || (!hasStartedPlaying && !showWatchAgainOverlay)) && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#fff" />
           </View>

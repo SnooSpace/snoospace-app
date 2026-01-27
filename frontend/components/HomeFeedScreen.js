@@ -798,7 +798,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
+    itemVisiblePercentThreshold: 25, // Lower threshold for faster autoplay on tall videos (9:16, 4:5, 1:1)
     waitForInteraction: false,
     minimumViewTime: 0,
   }).current;
