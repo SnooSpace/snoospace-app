@@ -16,6 +16,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Text,
+  Image,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
@@ -288,6 +289,29 @@ const VideoPlayer = ({
   const videoHeight = containerWidth / aspectRatio;
 
   // Calculate video transform based on cropMetadata
+  // Helper function to generate thumbnail URL from video URL
+  const getThumbnailUrl = (videoSource) => {
+    if (typeof videoSource !== "string") return null;
+
+    // For Cloudinary videos, we can generate thumbnail by appending transformation
+    if (videoSource.includes("cloudinary.com")) {
+      // Extract the video URL and insert transformation to get first frame
+      // Format: /upload/so_0/ gets the frame at 0 seconds
+      const transformedUrl = videoSource.replace(
+        "/upload",
+        "/upload/so_0,f_jpg",
+      );
+      return transformedUrl;
+    }
+
+    // For other sources, we'll use a generic approach - return the video URL
+    // The poster frame will be extracted by the native video player
+    return videoSource;
+  };
+
+  const thumbnailUrl = getThumbnailUrl(source);
+
+  // Calculate video transform based on cropMetadata
   const videoTransform = cropMetadata
     ? [
         { scale: cropMetadata.scale || 1 },
@@ -296,7 +320,7 @@ const VideoPlayer = ({
       ]
     : [];
 
-  // Don't render Video if unloaded
+  // Show thumbnail when video is unloaded (Instagram-style)
   if (!shouldLoad) {
     return (
       <View
@@ -306,9 +330,33 @@ const VideoPlayer = ({
           style,
         ]}
       >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
+        {/* Show thumbnail image instead of loading the full video */}
+        {thumbnailUrl ? (
+          <>
+            <Image
+              source={{ uri: thumbnailUrl }}
+              style={[
+                styles.video,
+                cropMetadata && { transform: videoTransform },
+              ]}
+              resizeMode="cover"
+            />
+            {/* Subtle overlay to indicate it's not playing */}
+            <View style={styles.thumbnailOverlay}>
+              {/* Optional: Add a play icon to indicate it's a video */}
+              <View style={styles.thumbnailPlayIcon}>
+                <Ionicons
+                  name="play"
+                  size={48}
+                  color="rgba(255, 255, 255, 0.9)"
+                />
+              </View>
+            </View>
+          </>
+        ) : (
+          // Fallback: show black background
+          <View style={styles.thumbnailFallback} />
+        )}
       </View>
     );
   }
@@ -342,8 +390,8 @@ const VideoPlayer = ({
         activeOpacity={1}
         onPress={handleOverlayPress}
       >
-        {/* Loading indicator - show when loading OR waiting to start playing */}
-        {(isLoading || (!hasStartedPlaying && !showWatchAgainOverlay)) && (
+        {/* Loading indicator - only show when actively loading (not just waiting) */}
+        {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#fff" />
           </View>
@@ -460,6 +508,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: 0.3,
+  },
+  // Thumbnail overlay - subtle darkening to differentiate from active video
+  thumbnailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  thumbnailPlayIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingLeft: 6,
+  },
+  thumbnailFallback: {
+    flex: 1,
+    backgroundColor: "#000",
   },
 });
 
