@@ -93,7 +93,7 @@ export const useCrop = () => {
         throw error;
       }
     },
-    [navigation]
+    [navigation],
   );
 
   /**
@@ -102,6 +102,7 @@ export const useCrop = () => {
    * @param {string} presetKey - Crop preset key
    * @param {Object} options - Additional options
    * @param {Object} options.initialCropData - Saved crop position data for re-edit
+   * @param {Object} options.customPreset - Custom preset object for natural aspect ratio (bypasses presetKey lookup)
    * @returns {Promise<Object|null>} Cropped image result or null if cancelled
    */
   const cropImage = useCallback(
@@ -115,6 +116,7 @@ export const useCrop = () => {
           navigation.navigate("CropScreen", {
             imageUri: imageUri,
             presetKey,
+            customPreset: options.customPreset || null, // NEW: Custom preset for natural aspect ratio
             allowPresetChange: options.allowPresetChange || false,
             initialCropData: options.initialCropData || null, // For position restoration
             onComplete: (result) => {
@@ -138,7 +140,7 @@ export const useCrop = () => {
         throw error;
       }
     },
-    [navigation]
+    [navigation],
   );
 
   return { pickAndCrop, cropImage };

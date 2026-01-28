@@ -44,6 +44,7 @@ const CropScreen = ({ route, navigation }) => {
   const {
     imageUri,
     presetKey = "avatar",
+    customPreset = null, // NEW: Custom preset object for natural video aspect ratio
     allowPresetChange = false,
     initialCropData = null, // For position restoration on re-edit
     onComplete,
@@ -56,8 +57,8 @@ const CropScreen = ({ route, navigation }) => {
   const [showGrid, setShowGrid] = useState(true);
   const [showSafeZone, setShowSafeZone] = useState(false);
 
-  // Current preset configuration
-  const preset = getPreset(currentPresetKey);
+  // Current preset configuration - use custom preset if provided, otherwise look up by key
+  const preset = customPreset || getPreset(currentPresetKey);
 
   // Check if this is a video
   const isVideo =
@@ -66,13 +67,16 @@ const CropScreen = ({ route, navigation }) => {
     imageUri?.toLowerCase().includes(".webm");
 
   // Check if this is a feed post mode (allows toggling)
-  const isFeedMode = [
-    "feed_square",
-    "feed_portrait",
-    "feed_landscape",
-    "feed_landscape_photo",
-    "story", // Video support
-  ].includes(currentPresetKey);
+  // Disable toggling when using a custom preset (natural video aspect ratio)
+  const isFeedMode =
+    !customPreset &&
+    [
+      "feed_square",
+      "feed_portrait",
+      "feed_landscape",
+      "feed_landscape_photo",
+      "story", // Video support
+    ].includes(currentPresetKey);
 
   // Toggle between feed aspect ratios
   const handleAspectToggle = useCallback(() => {

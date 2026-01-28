@@ -1480,6 +1480,34 @@ export default function CommunityProfileScreen({ navigation }) {
           onUserPress={(userId, userType) => {
             // Handle navigation
           }}
+          onDelete={async (postId) => {
+            try {
+              const token = await getAuthToken();
+              if (!token) {
+                Alert.alert("Error", "Not authenticated");
+                return;
+              }
+
+              // Delete post via API
+              await apiDelete(`/posts/${postId}`, null, 15000, token);
+
+              // Remove post from local state
+              setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
+
+              // Emit event for other screens listening
+              EventBus.emit("post-deleted", { postId });
+
+              // Close modal if the deleted post was being viewed
+              if (selectedPost?.id === postId) {
+                closePostModal();
+              }
+
+              Alert.alert("Success", "Post deleted successfully");
+            } catch (error) {
+              console.error("Error deleting post:", error);
+              Alert.alert("Error", "Failed to delete post");
+            }
+          }}
         />
       )}
 

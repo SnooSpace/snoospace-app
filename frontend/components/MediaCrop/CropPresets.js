@@ -198,6 +198,32 @@ export const getPreset = (key) => {
 };
 
 /**
+ * Create a custom preset for a video's natural aspect ratio.
+ * This allows editing videos without forcing them into predefined aspect ratios.
+ * @param {number} width - Video's natural width
+ * @param {number} height - Video's natural height
+ * @returns {Object} Custom preset configuration
+ */
+export const createNaturalVideoPreset = (width, height) => {
+  const aspectRatio =
+    width && height ? Math.round((width / height) * 1000) / 1000 : 16 / 9;
+
+  return {
+    key: "natural_video",
+    label: "Original",
+    aspectRatio: [width || 1920, height || 1080],
+    minWidth: 320,
+    minHeight: 320,
+    recommendedWidth: width || 1920,
+    recommendedHeight: height || 1080,
+    maxZoom: 5,
+    showGrid: true,
+    isCircular: false,
+    safeZone: null,
+  };
+};
+
+/**
  * Get aspect ratio as decimal
  * @param {Array} aspectRatio - [width, height] ratio
  * @returns {number} Decimal ratio (width/height)
@@ -236,6 +262,47 @@ export const calculateFrameDimensions = (preset, screenWidth, maxHeight) => {
  */
 export const getVideoPresets = () => {
   return ["story", "feed_portrait", "feed_square", "feed_landscape"];
+};
+
+/**
+ * Find the closest video preset based on a video's natural aspect ratio.
+ * This ensures videos are displayed at their natural size without forced cropping.
+ * @param {number} naturalWidth - Video's natural width
+ * @param {number} naturalHeight - Video's natural height
+ * @returns {string} Best matching preset key
+ */
+export const findClosestVideoPreset = (naturalWidth, naturalHeight) => {
+  if (!naturalWidth || !naturalHeight) return "story"; // Default fallback
+
+  const naturalRatio = naturalWidth / naturalHeight;
+
+  // Define preset ratios
+  const presetRatios = {
+    story: 9 / 16, // 0.5625 (portrait 9:16)
+    feed_portrait: 4 / 5, // 0.8 (portrait 4:5)
+    feed_square: 1 / 1, // 1.0 (square)
+    feed_landscape: 16 / 9, // 1.778 (landscape 16:9)
+  };
+
+  let closestPreset = "feed_square";
+  let smallestDiff = Infinity;
+
+  for (const [presetKey, ratio] of Object.entries(presetRatios)) {
+    const diff = Math.abs(naturalRatio - ratio);
+    if (diff < smallestDiff) {
+      smallestDiff = diff;
+      closestPreset = presetKey;
+    }
+  }
+
+  console.log("[CropPresets] findClosestVideoPreset:", {
+    naturalWidth,
+    naturalHeight,
+    naturalRatio: naturalRatio.toFixed(3),
+    closestPreset,
+  });
+
+  return closestPreset;
 };
 
 export default CROP_PRESETS;

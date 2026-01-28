@@ -26,6 +26,8 @@ import {
   Dimensions,
   Pressable,
   ScrollView,
+  Alert,
+  Modal,
 } from "react-native";
 import {
   Heart,
@@ -33,13 +35,14 @@ import {
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  Ellipsis,
+  Trash2,
 } from "lucide-react-native";
 import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
 import VideoPlayer from "./VideoPlayer";
-import FullscreenVideoModal from "./FullscreenVideoModal";
 import FollowButton from "./FollowButton";
 import { viewQueueService } from "../services/ViewQueueService";
 
@@ -95,6 +98,7 @@ const EditorialPostCard = ({
   onFollow,
   onSave,
   onShare,
+  onDelete,
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
@@ -169,7 +173,6 @@ const EditorialPostCard = ({
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [fullscreenVideo, setFullscreenVideo] = useState(null);
   const [videoViewCounted, setVideoViewCounted] = useState(false);
   const [imageViewCounted, setImageViewCounted] = useState(false);
 
@@ -393,6 +396,23 @@ const EditorialPostCard = ({
     }
   };
 
+  const handleDeletePress = () => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (onDelete) onDelete(post.id);
+          },
+        },
+      ],
+    );
+  };
+
   // Get additional media info for rendering (firstMediaUrl already defined above)
   const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
   const firstCropMetadata = post.crop_metadata?.[0] || null; // NEW: Get crop metadata for first media
@@ -470,6 +490,17 @@ const EditorialPostCard = ({
             textStyle={styles.followButtonText}
           />
         )}
+
+        {/* Ellipsis Menu for Own Posts */}
+        {isOwnPost && onDelete && (
+          <TouchableOpacity
+            style={styles.ellipsisButton}
+            onPress={handleDeletePress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ellipsis size={20} color={COLORS.editorial.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Post Text */}
@@ -493,7 +524,13 @@ const EditorialPostCard = ({
         <View style={styles.mediaContainer}>
           {isVideo ? (
             <View
-              style={[styles.mediaWrapper, { aspectRatio: firstAspectRatio }]}
+              style={[
+                styles.mediaWrapper,
+                {
+                  width: CONTENT_WIDTH,
+                  height: CONTENT_WIDTH / firstAspectRatio,
+                },
+              ]}
             >
               <VideoPlayer
                 source={firstMediaUrl}
@@ -510,13 +547,6 @@ const EditorialPostCard = ({
                 onUnmute={handleVideoUnmute}
                 onFullscreen={handleVideoFullscreen}
                 onPlaybackStart={handleVideoPlaybackChange}
-                onPress={() =>
-                  setFullscreenVideo({
-                    url: firstMediaUrl,
-                    aspectRatio: firstAspectRatio,
-                    cropMetadata: firstCropMetadata,
-                  })
-                }
               />
             </View>
           ) : hasMultipleMedia ? (
@@ -571,7 +601,13 @@ const EditorialPostCard = ({
           ) : (
             // Single image
             <View
-              style={[styles.mediaWrapper, { aspectRatio: firstAspectRatio }]}
+              style={[
+                styles.mediaWrapper,
+                {
+                  width: CONTENT_WIDTH,
+                  height: CONTENT_WIDTH / firstAspectRatio,
+                },
+              ]}
             >
               <Image
                 source={{ uri: firstMediaUrl }}
@@ -645,16 +681,6 @@ const EditorialPostCard = ({
           />
         </Pressable>
       </View>
-
-      {/* Fullscreen Video Modal */}
-      <FullscreenVideoModal
-        visible={!!fullscreenVideo}
-        source={fullscreenVideo?.url}
-        aspectRatio={fullscreenVideo?.aspectRatio || 16 / 9}
-        cropMetadata={fullscreenVideo?.cropMetadata}
-        onClose={() => setFullscreenVideo(null)}
-        initialMuted={false}
-      />
     </View>
   );
 };
@@ -734,6 +760,10 @@ const styles = StyleSheet.create({
   },
   followButtonText: {
     ...EDITORIAL_TYPOGRAPHY.followButton,
+  },
+  ellipsisButton: {
+    padding: 8,
+    marginLeft: 4,
   },
 
   // Post Text

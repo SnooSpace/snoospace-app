@@ -31,6 +31,7 @@ const ProfilePostFeed = ({
   onSave,
   onFollow,
   onUserPress,
+  onDelete,
   navigation, // Add navigation prop for CommentsModal
 }) => {
   const [visiblePostId, setVisiblePostId] = useState(null);
@@ -109,6 +110,7 @@ const ProfilePostFeed = ({
         onSave={onSave}
         onFollow={onFollow}
         onUserPress={onUserPress}
+        onDelete={onDelete}
         showFollowButton={true} // Allow following if not same user
       />
     );

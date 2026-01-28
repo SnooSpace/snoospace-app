@@ -39,6 +39,8 @@ export {
   getPreset,
   getAspectRatioDecimal,
   calculateFrameDimensions,
+  findClosestVideoPreset,
+  createNaturalVideoPreset,
 } from "./CropPresets";
 
 export {

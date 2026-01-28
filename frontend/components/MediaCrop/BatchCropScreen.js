@@ -345,16 +345,37 @@ const BatchCropScreen = ({ route, navigation }) => {
           const presetKey = finalCropData.presetKey || currentPresetKey;
           const currentPreset = getPreset(presetKey);
 
+          // CRITICAL FIX: Use NATURAL video dimensions for aspect ratio, not preset
+          // This ensures the feed container matches the actual video, preventing zoom artifacts
+          const videoWidth = finalCropData.imageWidth || 1080;
+          const videoHeight = finalCropData.imageHeight || 1920;
+          const naturalAspectRatio = videoWidth / videoHeight;
+
+          // Detect if user actually panned/zoomed (not default values)
+          const hasUserCrop =
+            finalCropData.scale !== 1 ||
+            Math.abs(finalCropData.translateX || 0) > 0.5 ||
+            Math.abs(finalCropData.translateY || 0) > 0.5;
+
+          console.log("[BatchCropScreen] Video metadata:", {
+            naturalAspectRatio,
+            hasUserCrop,
+            scale: finalCropData.scale,
+          });
+
           results.push({
             uri: imageUri, // Keep original video URI
-            width: finalCropData.imageWidth || 1080,
-            height: finalCropData.imageHeight || 1920,
+            width: videoWidth,
+            height: videoHeight,
             metadata: {
               preset: presetKey,
-              aspectRatio: currentPreset.aspectRatio,
+              // Use natural video aspect ratio (as float), not preset array
+              aspectRatio: naturalAspectRatio,
               originalUri: imageUri,
               mediaType: "video", // Mark as video
-              // Save crop position and display dimensions
+              // Flag to indicate if user actually modified crop
+              hasUserCrop,
+              // Save crop position and display dimensions (only relevant if hasUserCrop)
               scale: finalCropData.scale,
               translateX: finalCropData.translateX,
               translateY: finalCropData.translateY,

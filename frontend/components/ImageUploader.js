@@ -40,7 +40,11 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useNavigation } from "@react-navigation/native";
 import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 
-import { useCrop } from "./MediaCrop";
+import {
+  useCrop,
+  findClosestVideoPreset,
+  createNaturalVideoPreset,
+} from "./MediaCrop";
 import VideoPlayer from "./VideoPlayer";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -344,34 +348,69 @@ const ImageUploader = forwardRef(
       }
     };
 
-    // Process media WITH crop (images and videos both go through crop)
+    // Process media WITH crop (images go through crop, videos skip it)
     const processWithCrop = async (assets, targetIndex) => {
-      // Route ALL assets to BatchCropScreen - updated BatchCropScreen handles videos now
-      const urisToProcess = assets.map((asset) => asset.uri);
+      // Separate videos and images
+      const videoAssets = assets.filter((a) => a.type?.startsWith("video"));
+      const imageAssets = assets.filter((a) => !a.type?.startsWith("video"));
 
-      // Determine if we are starting with a video
-      const isVideo = assets[0]?.type?.startsWith("video") || false;
+      // CRITICAL FIX: Skip crop screen entirely for videos
+      // Process videos directly with their natural aspect ratio
+      // User can optionally edit from preview modal later
+      if (videoAssets.length > 0) {
+        console.log(
+          "[ImageUploader] Processing videos directly (skipping crop screen)",
+        );
+        const videoResults = videoAssets.map((asset) => {
+          // Calculate natural aspect ratio
+          const naturalAspectRatio =
+            asset.width && asset.height ? asset.width / asset.height : 16 / 9;
 
-      // If we have mixed types or just videos, we treat everything as crop-able now
-      // Logic inside BatchCropScreen handles skipping ImageManipulator for videos
+          console.log("[ImageUploader] Video natural dimensions:", {
+            width: asset.width,
+            height: asset.height,
+            aspectRatio: naturalAspectRatio.toFixed(3),
+          });
+
+          return {
+            uri: asset.uri,
+            width: asset.width || 1920,
+            height: asset.height || 1080,
+            metadata: {
+              originalUri: asset.uri,
+              aspectRatio: naturalAspectRatio,
+              mediaType: "video",
+              // No crop applied - natural video
+              hasUserCrop: false,
+              scale: 1,
+              translateX: 0,
+              translateY: 0,
+            },
+          };
+        });
+
+        updateStateWithResults(videoResults, targetIndex);
+        return;
+      }
+
+      // For images only - go through crop screen
+      const urisToProcess = imageAssets.map((asset) => asset.uri);
+
+      if (urisToProcess.length === 0) return;
 
       let croppedResults = [];
 
-      // Navigate to BatchCropScreen
-      // If there are already images, lock the preset to the first image's preset
+      // Navigate to BatchCropScreen for images only
       const existingPreset = presetKeys.find((p) => p != null);
       const shouldLock = images.filter(Boolean).length > 0 && existingPreset;
-
-      // Default to 'story' (9:16) for videos if no preset is locked
-      const targetDefaultPreset =
-        existingPreset || (isVideo ? "story" : cropPreset);
+      const targetDefaultPreset = existingPreset || cropPreset;
 
       croppedResults = await new Promise((resolve) => {
         resolveRef.current = resolve;
         navigation.navigate("BatchCropScreen", {
           imageUris: urisToProcess,
           defaultPreset: targetDefaultPreset,
-          lockedPreset: shouldLock ? existingPreset : null, // Lock if images exist
+          lockedPreset: shouldLock ? existingPreset : null,
           onComplete: (results) => {
             if (resolveRef.current) {
               resolveRef.current(results);
@@ -540,15 +579,30 @@ const ImageUploader = forwardRef(
           hasSavedCropData: !!savedCropData,
         });
 
-        // For videos, the preset is locked (can't change aspect ratio)
-        // For images, preset can be changed unless locked by existing media
         const isVideo = thisMediaType === "video";
-        const lockedPreset = isVideo ? savedPreset : null;
+
+        // For videos: Create a custom preset using natural dimensions
+        // This allows pan/zoom within the natural aspect ratio (no forced presets)
+        let customPreset = null;
+        if (isVideo) {
+          // Get natural dimensions from saved crop data or use defaults
+          const videoWidth =
+            savedCropData?.originalWidth || savedCropData?.imageWidth || 1920;
+          const videoHeight =
+            savedCropData?.originalHeight || savedCropData?.imageHeight || 1080;
+
+          customPreset = createNaturalVideoPreset(videoWidth, videoHeight);
+          console.log("[ImageUploader] Created natural video preset:", {
+            width: videoWidth,
+            height: videoHeight,
+            aspectRatio: videoWidth / videoHeight,
+          });
+        }
 
         // Pass saved crop data for position restoration
         const result = await cropImage(originalUri, savedPreset, {
           initialCropData: savedCropData,
-          lockedPreset: lockedPreset, // Lock preset for videos
+          customPreset: customPreset, // Use natural aspect ratio for videos
         });
 
         if (result) {
@@ -556,18 +610,34 @@ const ImageUploader = forwardRef(
           const updatedImages = [...images];
           updatedImages[index] = result.uri;
 
-          // Update aspect ratio and preset if changed
+          // Update aspect ratio - for videos, use the natural aspect ratio
           const updatedAspectRatios = [...aspectRatios];
-          updatedAspectRatios[index] =
-            result.metadata?.aspectRatio || aspectRatios[index];
+          if (isVideo && customPreset) {
+            // Keep natural aspect ratio
+            updatedAspectRatios[index] = aspectRatios[index];
+          } else {
+            updatedAspectRatios[index] =
+              result.metadata?.aspectRatio || aspectRatios[index];
+          }
 
           const updatedPresetKeys = [...presetKeys];
           updatedPresetKeys[index] =
             result.metadata?.preset || presetKeys[index];
 
-          // Update crop metadata with new position
+          // Update crop metadata with new position and hasUserCrop flag
           const updatedCropMetadata = [...cropMetadata];
-          updatedCropMetadata[index] = result.metadata || cropMetadata[index];
+          const newMetadata = result.metadata || cropMetadata[index];
+
+          // Mark as user-cropped if transforms were applied
+          if (newMetadata) {
+            const hasUserCrop =
+              (newMetadata.scale && Math.abs(newMetadata.scale - 1) > 0.01) ||
+              Math.abs(newMetadata.translateX || 0) > 0.5 ||
+              Math.abs(newMetadata.translateY || 0) > 0.5;
+            newMetadata.hasUserCrop = hasUserCrop;
+          }
+
+          updatedCropMetadata[index] = newMetadata;
 
           setImages(updatedImages);
           setAspectRatios(updatedAspectRatios);

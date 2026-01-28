@@ -839,7 +839,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 25, // Lower threshold for faster autoplay on tall videos (9:16, 4:5, 1:1)
+    itemVisiblePercentThreshold: 10, // Reduced from 25% to start loading videos earlier
     waitForInteraction: false,
     minimumViewTime: 0,
   }).current;
@@ -939,6 +939,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        // Video optimization: prevent aggressive unmounting of video components
+        removeClippedSubviews={false}
+        // Increase window for better video caching while scrolling
+        windowSize={5}
+        maxToRenderPerBatch={3}
+        initialNumToRender={3}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}

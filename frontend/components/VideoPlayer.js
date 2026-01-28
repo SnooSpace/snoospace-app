@@ -26,7 +26,9 @@ import { useVideoContext } from "../context/VideoContext";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // How long to wait before unloading off-screen video (ms)
-const UNLOAD_DELAY_MS = 3000;
+// Increased to 10s to allow quick revisits without re-downloading (improved UX)
+// Memory impact: ~2-3 videos max in memory at once
+const UNLOAD_DELAY_MS = 10000;
 
 const VideoPlayer = ({
   source,
@@ -204,7 +206,8 @@ const VideoPlayer = ({
       console.log("[VideoPlayer] Watch Again triggered");
       setShowWatchAgainOverlay(false);
       setVideoFinished(false);
-      setIsLoading(true);
+      // NOTE: Don't set loading state - video is already loaded, just seeking to beginning
+      // Setting isLoading here caused unnecessary UI flash and perceived delay
 
       // Replay from beginning
       await videoRef.current.setPositionAsync(0);
@@ -311,14 +314,27 @@ const VideoPlayer = ({
 
   const thumbnailUrl = getThumbnailUrl(source);
 
-  // Calculate video transform based on cropMetadata
-  const videoTransform = cropMetadata
+  // CRITICAL FIX: Only apply transforms when user actually panned/zoomed
+  // Check for hasUserCrop flag OR detect non-default values
+  const hasUserCrop =
+    cropMetadata?.hasUserCrop ||
+    (cropMetadata &&
+      (cropMetadata.scale !== 1 ||
+        Math.abs(cropMetadata.translateX || 0) > 0.5 ||
+        Math.abs(cropMetadata.translateY || 0) > 0.5));
+
+  // Only apply transforms if user actually modified the crop
+  const videoTransform = hasUserCrop
     ? [
         { scale: cropMetadata.scale || 1 },
         { translateX: cropMetadata.translateX || 0 },
         { translateY: cropMetadata.translateY || 0 },
       ]
     : [];
+
+  // Use CONTAIN for user-cropped videos (to show the cropped view properly)
+  // Use COVER for natural videos (fills container without transforms)
+  const videoResizeMode = hasUserCrop ? ResizeMode.CONTAIN : ResizeMode.COVER;
 
   // Show thumbnail when video is unloaded (Instagram-style)
   if (!shouldLoad) {
@@ -337,9 +353,9 @@ const VideoPlayer = ({
               source={{ uri: thumbnailUrl }}
               style={[
                 styles.video,
-                cropMetadata && { transform: videoTransform },
+                hasUserCrop && { transform: videoTransform },
               ]}
-              resizeMode="cover"
+              resizeMode={hasUserCrop ? "contain" : "cover"}
             />
             {/* Subtle overlay to indicate it's not playing */}
             <View style={styles.thumbnailOverlay}>
@@ -372,8 +388,8 @@ const VideoPlayer = ({
       <Video
         ref={videoRef}
         source={typeof source === "string" ? { uri: source } : source}
-        style={[styles.video, cropMetadata && { transform: videoTransform }]}
-        resizeMode={ResizeMode.COVER}
+        style={[styles.video, hasUserCrop && { transform: videoTransform }]}
+        resizeMode={videoResizeMode}
         isLooping={false} // MANUAL LOOP - handled in handlePlaybackStatusUpdate
         isMuted={isMuted}
         shouldPlay={autoplay && isVisible && !videoFinished}
@@ -381,7 +397,13 @@ const VideoPlayer = ({
         onLoad={handleLoad}
         onError={handleError}
         useNativeControls={false}
-        progressUpdateIntervalMillis={500}
+        // Progressive loading settings for faster initial playback
+        progressUpdateIntervalMillis={250} // More frequent updates (from 500ms)
+        usePoster={false} // Don't wait for poster to load
+        onReadyForDisplay={() => {
+          // Video is ready to display - helps with faster perceived loading
+          console.log("[VideoPlayer] Ready for display:", postId);
+        }}
       />
 
       {/* Tap overlay */}
