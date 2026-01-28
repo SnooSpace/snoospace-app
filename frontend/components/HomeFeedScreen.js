@@ -839,22 +839,43 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 10, // Reduced from 25% to start loading videos earlier
+    // Using viewAreaCoveragePercentThreshold ensures the video must cover
+    // 60% of the viewport area before being considered viewable
+    // This prevents tall videos from playing when mostly off-screen
+    viewAreaCoveragePercentThreshold: 60,
     waitForInteraction: false,
-    minimumViewTime: 0,
+    minimumViewTime: 100, // Small delay to prevent flickering during fast scrolls
   }).current;
 
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
     if (viewableItems && viewableItems.length > 0) {
-      // Find the first video post that's visible
-      const visibleVideoItem = viewableItems.find(
+      // Find all video posts that are viewable (passing the 60% coverage threshold)
+      const videoItems = viewableItems.filter(
         (item) =>
           item.item?.itemType === "post" &&
-          item.item?.media_types?.[0] === "video",
+          item.item?.media_types?.[0] === "video" &&
+          item.isViewable, // This now means 60% of viewport is covered
       );
-      const visibleItem = visibleVideoItem || viewableItems[0];
-      if (visibleItem && visibleItem.item && visibleItem.item.id) {
-        setVisiblePostId(visibleItem.item.id);
+
+      if (videoItems.length > 0) {
+        // If multiple videos pass threshold, pick the first one
+        // (In practice, only one should pass the 60% threshold at a time)
+        const targetVideo = videoItems[0];
+
+        console.log("[HomeFeed] Video viewable (60% coverage):", {
+          postId: targetVideo.item.id,
+          totalViewableVideos: videoItems.length,
+        });
+
+        setVisiblePostId(targetVideo.item.id);
+      } else {
+        // No videos meet the 60% threshold
+        const firstViewable = viewableItems.find((item) => item.isViewable);
+        if (firstViewable && firstViewable.item && firstViewable.item.id) {
+          setVisiblePostId(firstViewable.item.id);
+        } else {
+          setVisiblePostId(null);
+        }
       }
     } else {
       // Nothing visible - pause all videos

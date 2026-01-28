@@ -26,9 +26,9 @@ import { useVideoContext } from "../context/VideoContext";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // How long to wait before unloading off-screen video (ms)
-// Increased to 10s to allow quick revisits without re-downloading (improved UX)
-// Memory impact: ~2-3 videos max in memory at once
-const UNLOAD_DELAY_MS = 10000;
+// Reduced to 5s for better memory management while allowing quick scroll-backs
+// Memory impact: ~1-2 videos max in memory at once
+const UNLOAD_DELAY_MS = 5000;
 
 const VideoPlayer = ({
   source,
