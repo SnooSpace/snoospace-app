@@ -152,6 +152,16 @@ const ProfilePostFeed = ({
           viewabilityConfig={viewabilityConfig}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          // Video optimization: prevent aggressive unmounting of video components
+          removeClippedSubviews={false}
+          // Increase window for better video preloading
+          // windowSize=8 means 4 screens above and 4 below are kept mounted
+          windowSize={8}
+          // Controlled render batching for smooth scrolling
+          maxToRenderPerBatch={3}
+          initialNumToRender={3}
+          // Memory efficiency: update items less frequently during fast scroll
+          updateCellsBatchingPeriod={50}
         />
       </SafeAreaView>
 

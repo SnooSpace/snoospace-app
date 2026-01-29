@@ -962,12 +962,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         scrollEventThrottle={16}
         // Video optimization: prevent aggressive unmounting of video components
         removeClippedSubviews={false}
-        // Increase window for better video caching while scrolling
-        windowSize={5}
+        // Increase window for better video preloading - especially for tall videos
+        // windowSize=8 means 4 screens above and 4 below are kept mounted
+        windowSize={8}
         maxToRenderPerBatch={3}
         initialNumToRender={3}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        // Memory efficiency: update items less frequently during fast scroll
+        updateCellsBatchingPeriod={50}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
           !loading ? (

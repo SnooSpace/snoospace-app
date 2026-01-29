@@ -57,7 +57,7 @@ export const uploadMultipleImages = async (imageUris, onProgress) => {
  * Upload a video to Cloudinary
  * @param {string} videoUri - Local video URI
  * @param {function} onProgress - Optional progress callback
- * @returns {Promise<{url: string, thumbnail: string}>} - Video URL and thumbnail URL
+ * @returns {Promise<{url: string, hls_url: string, thumbnail: string, aspect_ratio: number}>} - Video metadata
  */
 export const uploadVideo = async (videoUri, onProgress) => {
   try {
@@ -91,16 +91,29 @@ export const uploadVideo = async (videoUri, onProgress) => {
 
     const result = await response.json();
 
-    // Generate thumbnail URL from video URL
-    // Cloudinary auto-generates thumbnails: replace file extension with .jpg
-    const thumbnailUrl = result.secure_url.replace(/\.[^.]+$/, ".jpg");
+    // Generate HLS streaming URL with Cloudinary streaming profile
+    // sp_auto: Auto-generates adaptive bitrate ladder (240p → 1080p)
+    const hlsUrl = result.secure_url
+      .replace("/upload/", "/upload/sp_auto/")
+      .replace(/\.[^.]+$/, ".m3u8");
+
+    // Generate optimized thumbnail URL (first frame)
+    const thumbnailUrl = result.secure_url
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_400/")
+      .replace(/\.[^.]+$/, ".jpg");
+
+    // Calculate aspect ratio
+    const aspectRatio =
+      result.width && result.height ? result.width / result.height : 1;
 
     return {
-      url: result.secure_url,
-      thumbnail: thumbnailUrl,
+      url: result.secure_url, // Original MP4 (fallback)
+      hls_url: hlsUrl, // HLS streaming URL (preferred)
+      thumbnail: thumbnailUrl, // Optimized first-frame thumbnail
       duration: result.duration,
       width: result.width,
       height: result.height,
+      aspect_ratio: aspectRatio, // Pre-calculated for container sizing
     };
   } catch (error) {
     console.error("Cloudinary video upload error:", error);

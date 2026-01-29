@@ -533,17 +533,18 @@ const EditorialPostCard = ({
               ]}
             >
               <VideoPlayer
-                source={firstMediaUrl}
-                aspectRatio={firstAspectRatio}
+                source={post.video_hls_url || post.video_url || firstMediaUrl}
+                thumbnailUrl={post.video_thumbnail}
+                aspectRatio={post.video_aspect_ratio || firstAspectRatio}
                 containerWidth={CONTENT_WIDTH}
                 cropMetadata={firstCropMetadata}
-                postId={post.id} // NEW: For VideoContext registration
+                postId={post.id} // For VideoContext registration
                 autoplay={true}
                 muted={true}
                 loop={true}
                 showControls={true}
                 isVisible={isVideoPlaying}
-                isFullscreen={false} // NEW: Feed view - show Watch Again overlay
+                isFullscreen={false} // Feed view - show Watch Again overlay
                 onUnmute={handleVideoUnmute}
                 onFullscreen={handleVideoFullscreen}
                 onPlaybackStart={handleVideoPlaybackChange}

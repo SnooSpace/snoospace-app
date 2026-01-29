@@ -1,5 +1,9 @@
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const {
+  generateVideoMetadata,
+  findVideoIndex,
+} = require("../utils/cloudinaryVideo");
 
 const pool = createPool();
 
@@ -415,22 +419,18 @@ const getFeed = async (req, res) => {
           })(),
         };
 
-        // Extract video data if present
-        if (parsedPost.media_types && Array.isArray(parsedPost.media_types)) {
-          const videoIndex = parsedPost.media_types.findIndex(
-            (type) => type === "video",
-          );
-          if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
-            parsedPost.video_url = parsedPost.image_urls[videoIndex];
+        // Extract video data with HLS streaming support
+        const videoIndex = findVideoIndex(parsedPost.media_types);
+        if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+          const rawVideoUrl = parsedPost.image_urls[videoIndex];
+          const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
+          const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
 
-            // Generate thumbnail from Cloudinary URL by changing extension to .jpg
-            if (parsedPost.video_url.includes("cloudinary.com")) {
-              parsedPost.video_thumbnail = parsedPost.video_url.replace(
-                /\.[^/.]+$/,
-                ".jpg",
-              );
-            }
-          }
+          // Merge video metadata into post
+          parsedPost.video_url = videoMeta.video_url;
+          parsedPost.video_hls_url = videoMeta.video_hls_url;
+          parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+          parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
         }
 
         // For poll posts, check if user has voted
@@ -1217,23 +1217,18 @@ const getUserPosts = async (req, res) => {
         })(),
       };
 
-      // Extract video data if present
-      if (parsedPost.media_types && Array.isArray(parsedPost.media_types)) {
-        const videoIndex = parsedPost.media_types.findIndex(
-          (type) => type === "video",
-        );
-        if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
-          parsedPost.video_url = parsedPost.image_urls[videoIndex];
+      // Extract video data with HLS streaming support
+      const videoIndex = findVideoIndex(parsedPost.media_types);
+      if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+        const rawVideoUrl = parsedPost.image_urls[videoIndex];
+        const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
+        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
 
-          // Generate thumbnail from Cloudinary URL by changing extension to .jpg
-          // Handles .mp4, .mov, etc.
-          if (parsedPost.video_url.includes("cloudinary.com")) {
-            parsedPost.video_thumbnail = parsedPost.video_url.replace(
-              /\.[^/.]+$/,
-              ".jpg",
-            );
-          }
-        }
+        // Merge video metadata into post
+        parsedPost.video_url = videoMeta.video_url;
+        parsedPost.video_hls_url = videoMeta.video_hls_url;
+        parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+        parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
       }
 
       return parsedPost;

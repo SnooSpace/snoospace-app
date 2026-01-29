@@ -51,6 +51,8 @@ const VideoPlayer = ({
   onPlaybackStart,
   onFullscreen,
   postId, // For VideoContext registration
+  // HLS streaming support (new)
+  thumbnailUrl: propThumbnailUrl, // Pre-generated thumbnail from API
 }) => {
   const videoRef = useRef(null);
   const { isVideoActive, registerVideo } = useVideoContext();
@@ -61,6 +63,7 @@ const VideoPlayer = ({
   const [isLoading, setIsLoading] = useState(true);
   const [shouldLoad, setShouldLoad] = useState(true); // Controls if video is loaded
   const [hasStartedPlaying, setHasStartedPlaying] = useState(false); // Track if video has ever played
+  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false); // Track if first video frame is visible
 
   // "Watch Again" state - only for feed view (non-fullscreen)
   const [videoFinished, setVideoFinished] = useState(false);
@@ -72,7 +75,22 @@ const VideoPlayer = ({
   // Tracking refs
   const hasNotifiedPlaybackRef = useRef(false);
   const unloadTimeoutRef = useRef(null);
-  const isUnmountingRef = useRef(null);
+  const isUnmountingRef = useRef(false);
+  const hasScrolledAwayWhileFinishedRef = useRef(false); // Tracks if user left while video was finished
+
+  // CRITICAL: Refs for values that need to be checked inside setTimeout
+  // This prevents stale closure bugs where setTimeout sees old values
+  const isVisibleRef = useRef(isVisible);
+  const videoFinishedRef = useRef(videoFinished);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
+
+  useEffect(() => {
+    videoFinishedRef.current = videoFinished;
+  }, [videoFinished]);
 
   // Register with VideoContext for cleanup tracking
   useEffect(() => {
@@ -98,9 +116,48 @@ const VideoPlayer = ({
     clearTimeout(unloadTimeoutRef.current);
 
     if (isVisible && shouldLoad) {
-      // Visible - play if autoplay enabled and not finished
-      if (autoplay && !videoFinished && videoRef.current) {
-        videoRef.current.playAsync().catch(() => {});
+      // Visible - check if we need to auto-restart (Instagram Reels behavior)
+      if (autoplay && videoRef.current) {
+        if (videoFinished && hasScrolledAwayWhileFinishedRef.current) {
+          // INSTAGRAM REELS BEHAVIOR: Auto-restart completed videos ONLY on return
+          // This only triggers when user scrolled away and came back
+          // Uses cached media (HLS segments already loaded) - no re-fetch
+          console.log(
+            "[VideoPlayer] Auto-restarting completed video on return:",
+            postId,
+          );
+
+          // Reset tracking ref
+          hasScrolledAwayWhileFinishedRef.current = false;
+
+          // Reset state - but DON'T reset hasFirstFrameRendered!
+          // Video is already loaded and ready, we just need to seek back.
+          // Resetting hasFirstFrameRendered would show thumbnail that never goes away
+          // because onReadyForDisplay won't fire again for cached content.
+          setVideoFinished(false);
+          setShowWatchAgainOverlay(false);
+
+          // Seek to beginning first, then explicitly play
+          // We separate seek and play to avoid race with declarative shouldPlay prop
+          videoRef.current
+            .setStatusAsync({ positionMillis: 0 })
+            .then(() => {
+              // Now that seek is complete and state is updated, explicitly play
+              if (videoRef.current) {
+                return videoRef.current.playAsync();
+              }
+            })
+            .then(() => {
+              console.log("[VideoPlayer] Auto-restart complete:", postId);
+            })
+            .catch((err) => {
+              console.log("[VideoPlayer] Auto-restart error:", err);
+            });
+        } else if (!videoFinished) {
+          // Normal case: just play (video not finished or no scroll-away happened)
+          videoRef.current.playAsync().catch(() => {});
+        }
+        // If videoFinished && !hasScrolledAwayWhileFinished: do nothing, keep showing overlay
       }
     } else if (!isVisible) {
       // Off-screen - pause immediately
@@ -108,13 +165,36 @@ const VideoPlayer = ({
         videoRef.current.pauseAsync().catch(() => {});
       }
 
+      // Track if we're leaving while video is finished (for auto-restart on return)
+      if (videoFinished) {
+        hasScrolledAwayWhileFinishedRef.current = true;
+        console.log(
+          "[VideoPlayer] Scrolled away while finished, will auto-restart on return:",
+          postId,
+        );
+      }
+
       // Schedule unload after delay (only for feed, not fullscreen)
       if (!isFullscreen) {
         unloadTimeoutRef.current = setTimeout(() => {
-          if (!isUnmountingRef.current && videoRef.current && !isVisible) {
+          // CRITICAL FIX: Use refs to get CURRENT values, not stale closure values
+          // This prevents unloading videos that became visible again during the delay
+          // Also prevents unloading videos showing "Watch Again" overlay
+          if (
+            !isUnmountingRef.current &&
+            videoRef.current &&
+            !isVisibleRef.current && // Check CURRENT visibility via ref
+            !videoFinishedRef.current // Don't unload if showing Watch Again
+          ) {
             console.log("[VideoPlayer] Unloading off-screen video:", postId);
             videoRef.current.unloadAsync().catch(() => {});
             setShouldLoad(false);
+            setHasFirstFrameRendered(false); // Reset so thumbnail shows on re-entry
+          } else {
+            console.log(
+              "[VideoPlayer] Skipping unload - video is visible or showing Watch Again:",
+              postId,
+            );
           }
         }, UNLOAD_DELAY_MS);
       }
@@ -132,6 +212,7 @@ const VideoPlayer = ({
       );
       setShouldLoad(true);
       setIsLoading(true);
+      setHasFirstFrameRendered(false); // Reset so thumbnail shows until first frame
       // Reset finished state so video can play again
       setVideoFinished(false);
       setShowWatchAgainOverlay(false);
@@ -292,6 +373,7 @@ const VideoPlayer = ({
   const videoHeight = containerWidth / aspectRatio;
 
   // Calculate video transform based on cropMetadata
+
   // Helper function to generate thumbnail URL from video URL
   const getThumbnailUrl = (videoSource) => {
     if (typeof videoSource !== "string") return null;
@@ -302,7 +384,7 @@ const VideoPlayer = ({
       // Format: /upload/so_0/ gets the frame at 0 seconds
       const transformedUrl = videoSource.replace(
         "/upload",
-        "/upload/so_0,f_jpg",
+        "/upload/so_0,f_jpg,q_auto",
       );
       return transformedUrl;
     }
@@ -312,7 +394,13 @@ const VideoPlayer = ({
     return videoSource;
   };
 
-  const thumbnailUrl = getThumbnailUrl(source);
+  // Apply optimizations to the video source
+  // Source may be HLS URL (.m3u8) or fallback MP4
+  const optimizedSource = source;
+
+  // Use prop thumbnail if provided, otherwise generate from source
+  // Prop thumbnail is preferred (optimized by backend)
+  const thumbnailUrl = propThumbnailUrl || getThumbnailUrl(source);
 
   // CRITICAL FIX: Only apply transforms when user actually panned/zoomed
   // Check for hasUserCrop flag OR detect non-default values
@@ -357,17 +445,7 @@ const VideoPlayer = ({
               ]}
               resizeMode={hasUserCrop ? "contain" : "cover"}
             />
-            {/* Subtle overlay to indicate it's not playing */}
-            <View style={styles.thumbnailOverlay}>
-              {/* Optional: Add a play icon to indicate it's a video */}
-              <View style={styles.thumbnailPlayIcon}>
-                <Ionicons
-                  name="play"
-                  size={48}
-                  color="rgba(255, 255, 255, 0.9)"
-                />
-              </View>
-            </View>
+            {/* Clean thumbnail without play icon - Instagram style */}
           </>
         ) : (
           // Fallback: show black background
@@ -397,14 +475,38 @@ const VideoPlayer = ({
         onLoad={handleLoad}
         onError={handleError}
         useNativeControls={false}
-        // Progressive loading settings for faster initial playback
-        progressUpdateIntervalMillis={250} // More frequent updates (from 500ms)
-        usePoster={false} // Don't wait for poster to load
+        // CRITICAL OPTIMIZATIONS for faster loading
+        progressUpdateIntervalMillis={250} // More frequent updates
+        usePoster={false} // Don't wait for poster
+        posterSource={thumbnailUrl ? { uri: thumbnailUrl } : undefined} // Show thumbnail immediately
+        posterStyle={{ resizeMode: hasUserCrop ? "contain" : "cover" }}
+        // Preload video content aggressively for smoother playback
+        // This is especially important for tall videos which have more data
+        preferredForwardBufferDuration={5} // Buffer 5 seconds ahead (default is 0)
         onReadyForDisplay={() => {
-          // Video is ready to display - helps with faster perceived loading
-          console.log("[VideoPlayer] Ready for display:", postId);
+          // CRITICAL: Video's first frame is now rendered and visible
+          // Only NOW should we hide the thumbnail overlay
+          console.log(
+            "[VideoPlayer] Ready for display (first frame rendered):",
+            postId,
+          );
+          setHasFirstFrameRendered(true);
+          setIsLoading(false); // Hide spinner as soon as first frame is ready
         }}
       />
+
+      {/* Thumbnail Overlay - remains visible until first video frame renders */}
+      {/* This prevents black frame flash during decoder warmup */}
+      {shouldLoad && thumbnailUrl && !hasFirstFrameRendered && (
+        <Image
+          source={{ uri: thumbnailUrl }}
+          style={[
+            styles.thumbnailOverlay,
+            hasUserCrop && { transform: videoTransform },
+          ]}
+          resizeMode={hasUserCrop ? "contain" : "cover"}
+        />
+      )}
 
       {/* Tap overlay */}
       <TouchableOpacity
@@ -531,12 +633,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.3,
   },
-  // Thumbnail overlay - subtle darkening to differentiate from active video
+  // Thumbnail overlay - covers video surface until first frame renders
   thumbnailOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.15)",
-    justifyContent: "center",
-    alignItems: "center",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1, // Above video, below controls
   },
   thumbnailPlayIcon: {
     width: 80,
