@@ -183,14 +183,10 @@ const VideoPlayer = ({
         videoRef.current.playAsync().catch(() => {});
       }
     } else if (!isVisible) {
-      // Off-screen - pause immediately AND reset visual state
+      // Off-screen - pause immediately (keep video loaded for quick resume)
       if (videoRef.current) {
         videoRef.current.pauseAsync().catch(() => {});
       }
-
-      // Show thumbnail immediately when going off-screen (not after delay)
-      // This prevents the "frozen frame" issue
-      setHasFirstFrameRendered(false);
 
       // Track if we're leaving while video is finished (for auto-restart on return)
       if (videoFinished) {
@@ -216,6 +212,7 @@ const VideoPlayer = ({
             console.log("[VideoPlayer] Unloading off-screen video:", postId);
             videoRef.current.unloadAsync().catch(() => {});
             setShouldLoad(false);
+            setHasFirstFrameRendered(false); // Reset thumbnail only when actually unloading
           } else {
             console.log(
               "[VideoPlayer] Skipping unload - video is visible or showing Watch Again:",
