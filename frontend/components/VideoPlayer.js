@@ -39,6 +39,7 @@ const VideoPlayer = ({
   loop = true, // For feed: controlled manually. For fullscreen: native loop
   showControls = true,
   isVisible = true, // Parent manages via viewability
+  isScreenFocused = true, // Parent manages via screen focus (navigation)
   isFullscreen = false, // True when playing in fullscreen modal
   onLoad,
   onError,
@@ -110,60 +111,86 @@ const VideoPlayer = ({
     };
   }, []);
 
+  // SCREEN FOCUS HANDLING: Full reset when navigating away from screen
+  // This ensures clean, fresh playback when the user returns
+  useEffect(() => {
+    if (!isScreenFocused && !isFullscreen) {
+      // Screen lost focus - IMMEDIATELY unload and reset everything
+      console.log("[VideoPlayer] Screen lost focus, fully resetting:", postId);
+
+      // Stop any pending unload
+      clearTimeout(unloadTimeoutRef.current);
+
+      // Unload the video immediately
+      if (videoRef.current) {
+        videoRef.current.unloadAsync().catch(() => {});
+      }
+
+      // Reset ALL state for fresh playback on return
+      setShouldLoad(false);
+      setHasFirstFrameRendered(false);
+      setVideoFinished(false);
+      setShowWatchAgainOverlay(false);
+      setHasStartedPlaying(false);
+      setIsPlaying(false);
+      setIsLoading(true);
+      hasNotifiedPlaybackRef.current = false;
+      hasScrolledAwayWhileFinishedRef.current = false;
+    } else if (isScreenFocused && !shouldLoad && !isUnmountingRef.current) {
+      // Screen regained focus - reload the video fresh
+      console.log(
+        "[VideoPlayer] Screen regained focus, reloading fresh:",
+        postId,
+      );
+      setShouldLoad(true);
+      setIsLoading(true);
+    }
+  }, [isScreenFocused, isFullscreen, postId, shouldLoad]);
+
   // Handle visibility changes with aggressive off-screen unloading
   useEffect(() => {
     // Clear any pending unload when visibility changes
     clearTimeout(unloadTimeoutRef.current);
 
     if (isVisible && shouldLoad) {
-      // Visible - check if we need to auto-restart (Instagram Reels behavior)
-      if (autoplay && videoRef.current) {
-        if (videoFinished && hasScrolledAwayWhileFinishedRef.current) {
-          // INSTAGRAM REELS BEHAVIOR: Auto-restart completed videos ONLY on return
-          // This only triggers when user scrolled away and came back
-          // Uses cached media (HLS segments already loaded) - no re-fetch
-          console.log(
-            "[VideoPlayer] Auto-restarting completed video on return:",
-            postId,
-          );
+      // Visible - always restart from beginning (Instagram behavior)
+      // This handles both: returning from scroll AND returning from different screen
+      if (autoplay && videoRef.current && hasStartedPlaying) {
+        // Video was previously playing - restart from beginning
+        console.log("[VideoPlayer] Restarting video from beginning:", postId);
 
-          // Reset tracking ref
-          hasScrolledAwayWhileFinishedRef.current = false;
+        // Reset all playback state
+        setVideoFinished(false);
+        setShowWatchAgainOverlay(false);
+        hasScrolledAwayWhileFinishedRef.current = false;
 
-          // Reset state - but DON'T reset hasFirstFrameRendered!
-          // Video is already loaded and ready, we just need to seek back.
-          // Resetting hasFirstFrameRendered would show thumbnail that never goes away
-          // because onReadyForDisplay won't fire again for cached content.
-          setVideoFinished(false);
-          setShowWatchAgainOverlay(false);
-
-          // Seek to beginning first, then explicitly play
-          // We separate seek and play to avoid race with declarative shouldPlay prop
-          videoRef.current
-            .setStatusAsync({ positionMillis: 0 })
-            .then(() => {
-              // Now that seek is complete and state is updated, explicitly play
-              if (videoRef.current) {
-                return videoRef.current.playAsync();
-              }
-            })
-            .then(() => {
-              console.log("[VideoPlayer] Auto-restart complete:", postId);
-            })
-            .catch((err) => {
-              console.log("[VideoPlayer] Auto-restart error:", err);
-            });
-        } else if (!videoFinished) {
-          // Normal case: just play (video not finished or no scroll-away happened)
-          videoRef.current.playAsync().catch(() => {});
-        }
-        // If videoFinished && !hasScrolledAwayWhileFinished: do nothing, keep showing overlay
+        // Seek to beginning and play
+        videoRef.current
+          .setStatusAsync({ positionMillis: 0 })
+          .then(() => {
+            if (videoRef.current) {
+              return videoRef.current.playAsync();
+            }
+          })
+          .then(() => {
+            console.log("[VideoPlayer] Restart complete:", postId);
+          })
+          .catch((err) => {
+            console.log("[VideoPlayer] Restart error:", err);
+          });
+      } else if (autoplay && videoRef.current && !hasStartedPlaying) {
+        // First time playing - just start
+        videoRef.current.playAsync().catch(() => {});
       }
     } else if (!isVisible) {
-      // Off-screen - pause immediately
+      // Off-screen - pause immediately AND reset visual state
       if (videoRef.current) {
         videoRef.current.pauseAsync().catch(() => {});
       }
+
+      // Show thumbnail immediately when going off-screen (not after delay)
+      // This prevents the "frozen frame" issue
+      setHasFirstFrameRendered(false);
 
       // Track if we're leaving while video is finished (for auto-restart on return)
       if (videoFinished) {
@@ -189,7 +216,6 @@ const VideoPlayer = ({
             console.log("[VideoPlayer] Unloading off-screen video:", postId);
             videoRef.current.unloadAsync().catch(() => {});
             setShouldLoad(false);
-            setHasFirstFrameRendered(false); // Reset so thumbnail shows on re-entry
           } else {
             console.log(
               "[VideoPlayer] Skipping unload - video is visible or showing Watch Again:",
@@ -201,7 +227,15 @@ const VideoPlayer = ({
     }
 
     return () => clearTimeout(unloadTimeoutRef.current);
-  }, [isVisible, autoplay, videoFinished, isFullscreen, shouldLoad, postId]);
+  }, [
+    isVisible,
+    autoplay,
+    videoFinished,
+    isFullscreen,
+    shouldLoad,
+    postId,
+    hasStartedPlaying,
+  ]);
 
   // Re-load video when becoming visible again after unload
   useEffect(() => {
@@ -213,9 +247,11 @@ const VideoPlayer = ({
       setShouldLoad(true);
       setIsLoading(true);
       setHasFirstFrameRendered(false); // Reset so thumbnail shows until first frame
-      // Reset finished state so video can play again
+      // Reset all playback state for fresh start
       setVideoFinished(false);
       setShowWatchAgainOverlay(false);
+      setHasStartedPlaying(false); // Reset so didJustFinish check works correctly
+      hasNotifiedPlaybackRef.current = false; // Reset playback notification
     }
   }, [isVisible, shouldLoad, postId]);
 
@@ -241,7 +277,11 @@ const VideoPlayer = ({
       }
 
       // CRITICAL: Handle video completion - MANUAL LOOP
-      if (status.didJustFinish) {
+      // SAFEGUARD: Only process didJustFinish if this VideoPlayer instance
+      // actually played the video (hasStartedPlaying). This prevents stale
+      // "finished" events from expo-av's cached position when a different
+      // instance (e.g., Profile screen) finished the same video.
+      if (status.didJustFinish && hasStartedPlaying) {
         console.log(
           "[VideoPlayer] Video finished, isFullscreen:",
           isFullscreen,

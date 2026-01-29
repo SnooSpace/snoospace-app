@@ -34,18 +34,21 @@ const ProfilePostFeed = ({
   onDelete,
   navigation, // Add navigation prop for CommentsModal
 }) => {
-  const [visiblePostId, setVisiblePostId] = useState(null);
+  // Initialize with the initial post ID so video starts playing immediately
+  const [visiblePostId, setVisiblePostId] = useState(initialPostId);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedSharePost, setSelectedSharePost] = useState(null);
   const flatListRef = useRef(null);
 
-  // Auto-play viewability configuration
+  // Auto-play viewability configuration - matching HomeFeedScreen for consistency
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 25, // Lower threshold for faster autoplay on tall videos
+    // Using viewAreaCoveragePercentThreshold ensures the video must cover
+    // 60% of the viewport area before being considered viewable
+    viewAreaCoveragePercentThreshold: 60,
     waitForInteraction: false,
-    minimumViewTime: 100,
+    minimumViewTime: 100, // Small delay to prevent flickering during fast scrolls
   }).current;
 
   // Track visible items for auto-play
@@ -125,69 +128,77 @@ const ProfilePostFeed = ({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Posts</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <VideoProvider>
+        <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={COLORS.textPrimary}
+              />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Posts</Text>
+            <View style={{ width: 40 }} />
+          </View>
 
-        {/* Feed */}
-        <FlatList
-          ref={flatListRef}
-          data={posts}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          initialScrollIndex={initialIndex !== -1 ? initialIndex : 0}
-          onScrollToIndexFailed={onScrollToIndexFailed}
-          getItemLayout={(data, index) => ({
-            length: 600, // Estimated height, helps with initial scroll
-            offset: 600 * index,
-            index,
-          })}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          // Video optimization: prevent aggressive unmounting of video components
-          removeClippedSubviews={false}
-          // Increase window for better video preloading
-          // windowSize=8 means 4 screens above and 4 below are kept mounted
-          windowSize={8}
-          // Controlled render batching for smooth scrolling
-          maxToRenderPerBatch={3}
-          initialNumToRender={3}
-          // Memory efficiency: update items less frequently during fast scroll
-          updateCellsBatchingPeriod={50}
-        />
-      </SafeAreaView>
+          {/* Feed */}
+          <FlatList
+            ref={flatListRef}
+            data={posts}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            initialScrollIndex={initialIndex !== -1 ? initialIndex : 0}
+            onScrollToIndexFailed={onScrollToIndexFailed}
+            getItemLayout={(data, index) => ({
+              length: 600, // Estimated height, helps with initial scroll
+              offset: 600 * index,
+              index,
+            })}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            // Video optimization: prevent aggressive unmounting of video components
+            removeClippedSubviews={false}
+            // Increase window for better video preloading
+            // windowSize=8 means 4 screens above and 4 below are kept mounted
+            windowSize={8}
+            // Controlled render batching for smooth scrolling
+            maxToRenderPerBatch={3}
+            initialNumToRender={3}
+            // Memory efficiency: update items less frequently during fast scroll
+            updateCellsBatchingPeriod={50}
+          />
 
-      {/* Comments Modal */}
-      <CommentsModal
-        visible={commentsModalVisible}
-        postId={selectedPostId}
-        onClose={() => {
-          setCommentsModalVisible(false);
-          setSelectedPostId(null);
-        }}
-        onCommentCountChange={
-          selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
-        }
-        navigation={navigation}
-      />
+          {/* Comments Modal */}
+          <CommentsModal
+            visible={commentsModalVisible}
+            postId={selectedPostId}
+            onClose={() => {
+              setCommentsModalVisible(false);
+              setSelectedPostId(null);
+            }}
+            onCommentCountChange={
+              selectedPostId
+                ? handleCommentCountChange(selectedPostId)
+                : undefined
+            }
+            navigation={navigation}
+          />
 
-      {/* Share Modal */}
-      <ShareModal
-        visible={shareModalVisible}
-        post={selectedSharePost}
-        onClose={() => {
-          setShareModalVisible(false);
-          setSelectedSharePost(null);
-        }}
-      />
+          {/* Share Modal */}
+          <ShareModal
+            visible={shareModalVisible}
+            post={selectedSharePost}
+            onClose={() => {
+              setShareModalVisible(false);
+              setSelectedSharePost(null);
+            }}
+          />
+        </SafeAreaView>
+      </VideoProvider>
     </Modal>
   );
 };

@@ -102,6 +102,7 @@ const EditorialPostCard = ({
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
+  isScreenFocused = true,
   showFollowButton = true,
 }) => {
   // Route to type-specific card components for special post types
@@ -544,6 +545,7 @@ const EditorialPostCard = ({
                 loop={true}
                 showControls={true}
                 isVisible={isVideoPlaying}
+                isScreenFocused={isScreenFocused}
                 isFullscreen={false} // Feed view - show Watch Again overlay
                 onUnmute={handleVideoUnmute}
                 onFullscreen={handleVideoFullscreen}

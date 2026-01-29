@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   StyleSheet,
   View,
@@ -209,6 +209,33 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   // Auto-play state
   const [visiblePostId, setVisiblePostId] = useState(null);
+  const lastVisiblePostIdRef = useRef(null); // Track last visible post to restore on focus
+
+  // Screen focus detection for pausing videos on navigation
+  const isFocused = useIsFocused();
+
+  // Pause videos when screen loses focus, restore when it regains focus
+  useEffect(() => {
+    if (!isFocused) {
+      // Screen lost focus - save current visible post and pause all videos
+      if (visiblePostId) {
+        console.log(
+          "[HomeFeed] Screen lost focus, pausing video:",
+          visiblePostId,
+        );
+        lastVisiblePostIdRef.current = visiblePostId;
+        setVisiblePostId(null);
+      }
+    } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostId) {
+      // Screen regained focus - restore the last visible post to trigger playback
+      console.log(
+        "[HomeFeed] Screen regained focus, restoring video:",
+        lastVisiblePostIdRef.current,
+      );
+      setVisiblePostId(lastVisiblePostIdRef.current);
+      lastVisiblePostIdRef.current = null; // Clear the ref
+    }
+  }, [isFocused, visiblePostId]);
 
   // Cursor-based pagination state
   const [cursor, setCursor] = useState(null);
@@ -773,6 +800,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         currentUserId={currentUserId}
         currentUserType={currentUserType}
         isVideoPlaying={item.id === visiblePostId}
+        isScreenFocused={isFocused}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;

@@ -732,39 +732,66 @@ const getExplore = async (req, res) => {
     const result = await pool.query(query, [userId, userType, limit, offset]);
 
     // Parse JSON fields
-    const posts = result.rows.map((post) => ({
-      ...post,
-      image_urls: (() => {
-        try {
-          const parsed = JSON.parse(post.image_urls);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return post.image_urls ? [post.image_urls] : [];
-        }
-      })(),
-      tagged_entities: post.tagged_entities
-        ? JSON.parse(post.tagged_entities)
-        : null,
-      aspect_ratios: (() => {
-        try {
-          if (!post.aspect_ratios) return null;
-          const parsed = JSON.parse(post.aspect_ratios);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return null;
-        }
-      })(),
-      crop_metadata: post.crop_metadata
-        ? (() => {
-            try {
-              const parsed = JSON.parse(post.crop_metadata);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return null;
-            }
-          })()
-        : null,
-    }));
+    const posts = result.rows.map((post) => {
+      const parsedPost = {
+        ...post,
+        image_urls: (() => {
+          try {
+            const parsed = JSON.parse(post.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return post.image_urls ? [post.image_urls] : [];
+          }
+        })(),
+        media_types: (() => {
+          try {
+            if (!post.media_types) return null;
+            const parsed = JSON.parse(post.media_types);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+        tagged_entities: post.tagged_entities
+          ? JSON.parse(post.tagged_entities)
+          : null,
+        aspect_ratios: (() => {
+          try {
+            if (!post.aspect_ratios) return null;
+            const parsed = JSON.parse(post.aspect_ratios);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+        crop_metadata: post.crop_metadata
+          ? (() => {
+              try {
+                const parsed = JSON.parse(post.crop_metadata);
+                return Array.isArray(parsed) ? parsed : [parsed];
+              } catch {
+                return null;
+              }
+            })()
+          : null,
+      };
+
+      // Extract video data with HLS streaming support
+      const videoIndex = findVideoIndex(parsedPost.media_types);
+      if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+        const rawVideoUrl = parsedPost.image_urls[videoIndex];
+        const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
+        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+
+        // Merge video metadata into post
+        parsedPost.video_url = videoMeta.video_url;
+        parsedPost.video_hls_url = videoMeta.video_hls_url;
+        parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+        parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
+      }
+
+      return parsedPost;
+    });
 
     res.json({ posts });
   } catch (error) {
@@ -1056,6 +1083,30 @@ const getPost = async (req, res) => {
         : null;
     } catch {
       post.aspect_ratios = null;
+    }
+
+    // Parse media_types
+    try {
+      post.media_types = post.media_types ? JSON.parse(post.media_types) : null;
+      if (post.media_types && !Array.isArray(post.media_types)) {
+        post.media_types = [post.media_types];
+      }
+    } catch {
+      post.media_types = null;
+    }
+
+    // Extract video data with HLS streaming support
+    const videoIndex = findVideoIndex(post.media_types);
+    if (videoIndex !== -1 && post.image_urls[videoIndex]) {
+      const rawVideoUrl = post.image_urls[videoIndex];
+      const aspectRatio = post.aspect_ratios?.[videoIndex] || null;
+      const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+
+      // Merge video metadata into post
+      post.video_url = videoMeta.video_url;
+      post.video_hls_url = videoMeta.video_hls_url;
+      post.video_thumbnail = videoMeta.video_thumbnail;
+      post.video_aspect_ratio = videoMeta.video_aspect_ratio;
     }
 
     // Get type-specific user interaction status
