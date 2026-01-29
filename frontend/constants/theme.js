@@ -57,6 +57,9 @@ export const COLORS = {
 export const FONTS = {
   primary: "BasicCommercial-Bold",
   black: "BasicCommercial-Black",
+  regular: "Manrope-Regular",
+  medium: "Manrope-Medium",
+  semiBold: "Manrope-SemiBold",
 };
 
 export const SPACING = {

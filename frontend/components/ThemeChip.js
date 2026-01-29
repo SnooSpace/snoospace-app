@@ -1,18 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { COLORS, BORDER_RADIUS, SPACING, FONTS } from "../constants/theme";
 
 const ThemeChip = ({ label, style, index = 0 }) => {
   // Cycle through semantic colors based on index or simple hash
   const colorSet = COLORS.semantic[index % COLORS.semantic.length];
 
   return (
-    <View style={[
-      styles.chip, 
-      { backgroundColor: colorSet.bg },
-      style
-    ]}>
-      <Text style={[styles.text, { color: colorSet.text }]}>
+    <View style={[styles.chip, { backgroundColor: colorSet.bg }, style]}>
+      <Text style={[styles.text, { color: colorSet.text }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -28,9 +24,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   text: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: '600',
-  }
+  },
 });
 
 export default ThemeChip;

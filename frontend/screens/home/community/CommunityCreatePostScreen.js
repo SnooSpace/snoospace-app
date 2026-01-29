@@ -516,6 +516,13 @@ export default function CommunityCreatePostScreen({ navigation }) {
                   placeholderTextColor="#A0A0A0"
                   maxLength={2000}
                   style={styles.mainInput}
+                  inputContainerStyle={{
+                    borderWidth: 1,
+                    borderColor: "#E5E5EA",
+                    borderRadius: 10,
+                    backgroundColor: "#FFFFFF",
+                    paddingHorizontal: 12,
+                  }}
                   autoFocus={true}
                 />
 
@@ -598,7 +605,11 @@ export default function CommunityCreatePostScreen({ navigation }) {
                 setShowGuidelines(true);
               }}
             >
-              <Info size={28} color="#8E8E93" strokeWidth={2} />
+              <Info
+                size={32}
+                color={COLORS.editorial.textSecondary}
+                strokeWidth={2}
+              />
             </TouchableOpacity>
           </View>
         </KeyboardAwareToolbar>
@@ -620,13 +631,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
     zIndex: 100,
   },
   closeButton: {
     padding: 8,
-    marginLeft: -8,
   },
   headerTitle: {
     fontSize: 17,
@@ -693,9 +703,9 @@ const styles = StyleSheet.create({
   toolbarContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 28,
     paddingVertical: 12,
-    gap: 24,
+    gap: 32,
   },
   errorBanner: {
     backgroundColor: "#FFE5E5",

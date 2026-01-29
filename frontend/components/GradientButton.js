@@ -15,6 +15,7 @@ const GradientButton = ({
   disabled = false,
   style,
   textStyle,
+  gradientStyle,
   icon,
   colors,
 }) => {
@@ -30,12 +31,12 @@ const GradientButton = ({
           disabled
             ? ["#E5E5EA", "#E5E5EA"]
             : colors && colors.length > 1
-            ? colors
-            : COLORS.primaryGradient
+              ? colors
+              : COLORS.primaryGradient
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+        style={[styles.gradient, gradientStyle]}
       >
         {loading ? (
           <ActivityIndicator color={COLORS.textInverted} size="small" />

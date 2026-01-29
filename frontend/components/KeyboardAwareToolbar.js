@@ -19,14 +19,13 @@ const KeyboardAwareToolbar = ({ children, style }) => {
   return (
     <KeyboardStickyView
       offset={{
-        // When keyboard is closed: negative offset to push UP above home indicator
-        closed: -insets.bottom,
-        // When keyboard is open: no extra offset (sit right on keyboard)
+        // Set to 0 so the container overlaps the safe area/bottom gap
+        closed: 0,
         opened: 0,
       }}
       style={[styles.container, style]}
     >
-      {children}
+      <View style={{ paddingBottom: insets.bottom }}>{children}</View>
     </KeyboardStickyView>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,33 +8,35 @@ import {
   ActivityIndicator,
   Image,
   ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { apiGet } from '../api/client';
-import { getAuthToken } from '../api/auth';
-import { globalSearch } from '../api/search';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { apiGet } from "../api/client";
+import { getAuthToken } from "../api/auth";
+import { globalSearch } from "../api/search";
 
 const COLORS = {
-  primary: '#5f27cd',
-  textDark: '#1e1e1e',
-  textLight: '#6c757d',
-  background: '#FFFFFF',
-  border: '#E5E5EA',
+  primary: "#5f27cd",
+  textDark: "#1e1e1e",
+  textLight: "#6c757d",
+  background: "#FFFFFF",
+  border: "#E5E5EA",
 };
 
 const MentionInput = ({
-  value = '',
+  value = "",
   onChangeText,
-  placeholder = 'Write a caption...',
+  placeholder = "Write a caption...",
   placeholderTextColor = COLORS.textLight,
   style,
+  inputStyle,
+  inputContainerStyle,
   maxLength = 2000,
   onTaggedEntitiesChange,
 }) => {
   const [text, setText] = useState(value);
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -70,21 +72,21 @@ const MentionInput = ({
       const res = await globalSearch(trimmed, { limit: 20, offset: 0 });
       const allResults = res?.results || [];
       // Filter to only members for mentions
-      const memberResults = allResults.filter(r => r.type === 'member');
+      const memberResults = allResults.filter((r) => r.type === "member");
       // Filter out null/undefined and ensure each item has required properties
       const validResults = memberResults
-        .filter(m => m != null && typeof m === 'object' && m.id)
-        .map(m => ({ 
-          ...m, 
-          type: 'member',
+        .filter((m) => m != null && typeof m === "object" && m.id)
+        .map((m) => ({
+          ...m,
+          type: "member",
           profile_photo_url: m.profile_photo_url || null,
-          full_name: m.full_name || m.name || '',
-          name: m.name || m.full_name || '',
-          username: m.username || ''
+          full_name: m.full_name || m.name || "",
+          name: m.name || m.full_name || "",
+          username: m.username || "",
         }));
       setSearchResults(validResults);
     } catch (error) {
-      console.error('Error searching members:', error);
+      console.error("Error searching members:", error);
       // Don't show error to user, just silently fail
       setSearchResults([]);
     } finally {
@@ -98,7 +100,7 @@ const MentionInput = ({
     const currentCursorPosition = cursorPositionRef.current ?? 0;
     if (currentCursorPosition <= 0) {
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
       return;
     }
 
@@ -108,36 +110,37 @@ const MentionInput = ({
     // If cursor sits on whitespace or we don't have a valid char, mention is done
     if (!charBeforeCursor || /\s/.test(charBeforeCursor)) {
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
       return;
     }
 
     // Find @ mentions in the text up to the cursor
-    const atIndex = newText.lastIndexOf('@', boundedCursorPos - 1);
+    const atIndex = newText.lastIndexOf("@", boundedCursorPos - 1);
     if (atIndex === -1 || atIndex >= boundedCursorPos) {
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
       return;
     }
 
     const mentionSlice = newText.substring(atIndex + 1, boundedCursorPos);
     if (/\s/.test(mentionSlice)) {
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
       return;
     }
 
     const afterAt = newText.substring(atIndex + 1);
-    const spaceIndex = afterAt.indexOf(' ');
-    const newlineIndex = afterAt.indexOf('\n');
-    const endIndex = spaceIndex !== -1 && newlineIndex !== -1
-      ? Math.min(spaceIndex, newlineIndex)
-      : spaceIndex !== -1
-      ? spaceIndex
-      : newlineIndex !== -1
-      ? newlineIndex
-      : afterAt.length;
-    
+    const spaceIndex = afterAt.indexOf(" ");
+    const newlineIndex = afterAt.indexOf("\n");
+    const endIndex =
+      spaceIndex !== -1 && newlineIndex !== -1
+        ? Math.min(spaceIndex, newlineIndex)
+        : spaceIndex !== -1
+          ? spaceIndex
+          : newlineIndex !== -1
+            ? newlineIndex
+            : afterAt.length;
+
     const mentionQuery = afterAt.substring(0, endIndex);
     if (mentionQuery.length >= 1) {
       setSearchQuery(mentionQuery);
@@ -149,7 +152,7 @@ const MentionInput = ({
       }
     } else {
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
     }
   };
 
@@ -160,25 +163,26 @@ const MentionInput = ({
   };
 
   const selectEntity = (entity) => {
-    const atIndex = text.lastIndexOf('@', cursorPosition);
+    const atIndex = text.lastIndexOf("@", cursorPosition);
     if (atIndex !== -1) {
       const beforeAt = text.substring(0, atIndex);
       const afterAt = text.substring(atIndex + 1);
-      const spaceIndex = afterAt.indexOf(' ');
-      const newlineIndex = afterAt.indexOf('\n');
-      const endIndex = spaceIndex !== -1 && newlineIndex !== -1
-        ? Math.min(spaceIndex, newlineIndex)
-        : spaceIndex !== -1
-        ? spaceIndex
-        : newlineIndex !== -1
-        ? newlineIndex
-        : afterAt.length;
-      
+      const spaceIndex = afterAt.indexOf(" ");
+      const newlineIndex = afterAt.indexOf("\n");
+      const endIndex =
+        spaceIndex !== -1 && newlineIndex !== -1
+          ? Math.min(spaceIndex, newlineIndex)
+          : spaceIndex !== -1
+            ? spaceIndex
+            : newlineIndex !== -1
+              ? newlineIndex
+              : afterAt.length;
+
       const mentionText = `@${entity.username || entity.full_name || entity.name} `;
       const newText = beforeAt + mentionText + afterAt.substring(endIndex);
       setText(newText);
       setShowSearch(false);
-      setSearchQuery('');
+      setSearchQuery("");
       const newCursorPos = beforeAt.length + mentionText.length;
       cursorPositionRef.current = newCursorPos;
       setCursorPosition(newCursorPos);
@@ -189,20 +193,23 @@ const MentionInput = ({
           });
         }
       });
-      
+
       // Add to tagged entities if not already present
       const isAlreadyTagged = taggedEntities.some(
-        e => e.id === entity.id && e.type === entity.type
+        (e) => e.id === entity.id && e.type === entity.type,
       );
       if (!isAlreadyTagged) {
-        setTaggedEntities([...taggedEntities, {
-          id: entity.id,
-          type: entity.type || 'member',
-          username: entity.username,
-          name: entity.full_name || entity.name,
-        }]);
+        setTaggedEntities([
+          ...taggedEntities,
+          {
+            id: entity.id,
+            type: entity.type || "member",
+            username: entity.username,
+            name: entity.full_name || entity.name,
+          },
+        ]);
       }
-      
+
       // Focus back on input
       setTimeout(() => {
         if (inputRef.current) {
@@ -213,34 +220,49 @@ const MentionInput = ({
   };
 
   const removeTag = (entityId, entityType) => {
-    setTaggedEntities(taggedEntities.filter(
-      e => !(e.id === entityId && e.type === entityType)
-    ));
+    setTaggedEntities(
+      taggedEntities.filter(
+        (e) => !(e.id === entityId && e.type === entityType),
+      ),
+    );
     // Remove @mention from text
-    const username = taggedEntities.find(e => e.id === entityId && e.type === entityType)?.username;
+    const username = taggedEntities.find(
+      (e) => e.id === entityId && e.type === entityType,
+    )?.username;
     if (username) {
       const mention = `@${username}`;
-      const newText = text.replace(new RegExp(mention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+      const newText = text.replace(
+        new RegExp(mention.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+        "",
+      );
       setText(newText);
     }
   };
 
   const renderSearchResult = ({ item }) => {
     if (!item || !item.id) return null;
-    
+
     const profilePhotoUrl = item?.profile_photo_url;
-    const fullName = item?.full_name || item?.name || 'Member';
-    const username = item?.username || 'user';
-    
+    const fullName = item?.full_name || item?.name || "Member";
+    const username = item?.username || "user";
+
     return (
       <TouchableOpacity
         style={styles.searchResultItem}
         onPress={() => selectEntity(item)}
       >
         {profilePhotoUrl ? (
-          <Image source={{ uri: profilePhotoUrl }} style={styles.searchResultAvatar} />
+          <Image
+            source={{ uri: profilePhotoUrl }}
+            style={styles.searchResultAvatar}
+          />
         ) : (
-          <View style={[styles.searchResultAvatar, styles.searchResultAvatarPlaceholder]}>
+          <View
+            style={[
+              styles.searchResultAvatar,
+              styles.searchResultAvatarPlaceholder,
+            ]}
+          >
             <Ionicons name="person" size={18} color={COLORS.textLight} />
           </View>
         )}
@@ -273,10 +295,10 @@ const MentionInput = ({
 
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, inputContainerStyle]}>
         <TextInput
           ref={inputRef}
-          style={styles.input}
+          style={[styles.input, inputStyle]}
           value={text}
           onChangeText={handleTextChange}
           onSelectionChange={handleSelectionChange}
@@ -306,9 +328,15 @@ const MentionInput = ({
               nestedScrollEnabled
             >
               {searchResults
-                .filter(item => item != null && item.id)
+                .filter((item) => item != null && item.id)
                 .map((item, index) => (
-                  <View key={item?.id ? `${item.id}-${item.type || 'member'}` : `search-result-${index}`}>
+                  <View
+                    key={
+                      item?.id
+                        ? `${item.id}-${item.type || "member"}`
+                        : `search-result-${index}`
+                    }
+                  >
                     {renderSearchResult({ item })}
                   </View>
                 ))}
@@ -326,32 +354,29 @@ const MentionInput = ({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    position: "relative",
   },
   inputContainer: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
+    // Removed default border and background to allow for "borderless" look
   },
   input: {
     minHeight: 100,
-    paddingHorizontal: 12,
+    paddingHorizontal: 0, // Let parent handle padding
     paddingVertical: 10,
     fontSize: 16,
     color: COLORS.textDark,
   },
   tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: 12,
     paddingBottom: 8,
     gap: 8,
   },
   tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -360,14 +385,14 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 13,
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   tagRemove: {
     padding: 2,
   },
   searchContainer: {
-    position: 'absolute',
-    top: '100%',
+    position: "absolute",
+    top: "100%",
     left: 0,
     right: 0,
     backgroundColor: COLORS.background,
@@ -377,7 +402,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     maxHeight: 200,
     zIndex: 1000,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -387,8 +412,8 @@ const styles = StyleSheet.create({
     maxHeight: 200,
   },
   searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -401,16 +426,16 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   searchResultAvatarPlaceholder: {
-    backgroundColor: '#F2F2F7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchResultInfo: {
     flex: 1,
   },
   searchResultName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.textDark,
   },
   searchResultUsername: {
@@ -420,11 +445,11 @@ const styles = StyleSheet.create({
   },
   searchLoading: {
     paddingVertical: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   searchEmpty: {
     paddingVertical: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   searchEmptyText: {
     fontSize: 14,
@@ -433,4 +458,3 @@ const styles = StyleSheet.create({
 });
 
 export default MentionInput;
-

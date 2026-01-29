@@ -18,9 +18,11 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import MaskedView from "@react-native-masked-view/masked-view";
 import {
   X,
   Plus,
+  Camera,
   Heart,
   MessageCircle,
   ChartNoAxesCombined,
@@ -124,7 +126,9 @@ const ImageUploader = forwardRef(
     ref,
   ) => {
     useImperativeHandle(ref, () => ({
-      pick: handleAddImages,
+      pick: (targetIndex) => handleAddImages(targetIndex),
+      pickVideo: () =>
+        handleAddImages(null, ImagePicker.MediaTypeOptions.Videos),
       openCamera: async () => {
         // Direct camera logic can be added here if needed
         handleAddImages(); // Fallback to library for now or implement camera specifically
@@ -284,7 +288,10 @@ const ImageUploader = forwardRef(
 
     // Unified Add Function
     // Can be called with specific targetIndex (for Hinge mode) or auto-find (default)
-    const handleAddImages = async (targetIndex = null) => {
+    const handleAddImages = async (
+      targetIndex = null,
+      specificMediaType = null,
+    ) => {
       // In Hinge mode, we count non-null images
       const currentCount = hingeStyle
         ? images.filter(Boolean).length
@@ -302,10 +309,20 @@ const ImageUploader = forwardRef(
       const isCropEnabled = enableCrop;
 
       // ... logic continues in helper functions, but we refactor here to support targetIndex
-      await launchPicker(targetIndex, remainingSlots, isCropEnabled);
+      await launchPicker(
+        targetIndex,
+        remainingSlots,
+        isCropEnabled,
+        specificMediaType,
+      );
     };
 
-    const launchPicker = async (targetIndex, remainingSlots, isCropEnabled) => {
+    const launchPicker = async (
+      targetIndex,
+      remainingSlots,
+      isCropEnabled,
+      specificMediaType,
+    ) => {
       try {
         const { status } =
           await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -326,9 +343,11 @@ const ImageUploader = forwardRef(
           : Math.min(remainingSlots, 10);
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: allowVideos
-            ? ImagePicker.MediaTypeOptions.All
-            : ImagePicker.MediaTypeOptions.Images,
+          mediaTypes:
+            specificMediaType ||
+            (allowVideos
+              ? ImagePicker.MediaTypeOptions.All
+              : ImagePicker.MediaTypeOptions.Images),
           allowsMultipleSelection: !isSingleReplace,
           quality: 1,
           selectionLimit: selectionLimit,
@@ -874,7 +893,7 @@ const ImageUploader = forwardRef(
                           isRequiredSlot && styles.hingeSlotPlusRequired,
                         ]}
                       >
-                        <Ionicons name="add" size={12} color="#FFFFFF" />
+                        <Plus size={10} color="#FFFFFF" strokeWidth={3} />
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -938,7 +957,7 @@ const ImageUploader = forwardRef(
                       removeImage(index);
                     }}
                   >
-                    <Ionicons name="close" size={14} color="#333" />
+                    <X size={14} color="#333" strokeWidth={2.5} />
                   </TouchableOpacity>
                 </View>
               );
@@ -978,10 +997,10 @@ const ImageUploader = forwardRef(
         if (horizontal) return null;
         return (
           <TouchableOpacity style={styles.addButton} onPress={handleAddImages}>
-            <Ionicons
-              name="camera-outline"
+            <Camera
               size={40}
-              color={LEGACY_COLORS.primary}
+              color={COLORS.editorial.textSecondary}
+              strokeWidth={2}
             />
             <Text style={styles.addButtonText}>Add Photos</Text>
             <Text style={styles.addButtonSubtext}>
@@ -1150,11 +1169,7 @@ const ImageUploader = forwardRef(
                   style={styles.removeButton}
                   onPress={() => removeImage(index)}
                 >
-                  <Ionicons
-                    name="close"
-                    size={16}
-                    color={LEGACY_COLORS.white}
-                  />
+                  <X size={16} color={LEGACY_COLORS.white} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
             );
@@ -1168,8 +1183,24 @@ const ImageUploader = forwardRef(
               ]}
               onPress={handleAddImages}
             >
-              <Ionicons name="add" size={32} color={LEGACY_COLORS.primary} />
-              {horizontal && <Text style={styles.addMoreText}>Add more</Text>}
+              <MaskedView
+                maskElement={
+                  <View
+                    style={{
+                      backgroundColor: "transparent",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Plus size={32} color="black" strokeWidth={2.5} />
+                  </View>
+                }
+              >
+                <LinearGradient
+                  colors={["#448AFF", "#2962FF"]}
+                  style={{ width: 32, height: 32 }}
+                />
+              </MaskedView>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -1480,18 +1511,15 @@ const styles = StyleSheet.create({
   addMoreButton: {
     width: (width - 60) / 2,
     height: 120, // Match default thumb height concept
-    borderWidth: 1.5,
-    borderColor: LEGACY_COLORS.border,
-    borderStyle: "dashed",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#F1F5F9",
   },
   addMoreText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: LEGACY_COLORS.primary,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#64748B",
     marginTop: 8,
   },
   uploadButton: {

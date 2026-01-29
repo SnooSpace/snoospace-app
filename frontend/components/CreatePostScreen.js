@@ -19,7 +19,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X } from "lucide-react-native";
+import { Camera, Info, X, Video } from "lucide-react-native";
 import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
@@ -28,7 +28,7 @@ import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
 import HapticsService from "../services/HapticsService";
 import GradientButton from "./GradientButton";
-import { COLORS, SHADOWS } from "../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../constants/theme";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 
 // Use theme COLORS imported from constants
@@ -379,11 +379,27 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         tint="light"
         style={[styles.header, { paddingTop: insets.top + 10 }]}
       >
-        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-          <X size={24} color={COLORS.textDark} strokeWidth={2.5} />
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={styles.closeButton}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        >
+          <X
+            size={26}
+            color={COLORS.editorial.textSecondary}
+            strokeWidth={2.5}
+          />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>New Post</Text>
+        <View
+          style={[
+            styles.headerTitleContainer,
+            { top: insets.top + 10, bottom: 12, justifyContent: "center" },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.headerTitle}>New Post</Text>
+        </View>
 
         <GradientButton
           title="Post"
@@ -394,13 +410,49 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           disabled={!canSubmit || isSubmitting}
           loading={isSubmitting}
           style={[
-            { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
+            {
+              minWidth: 80,
+              paddingHorizontal: 0,
+              paddingVertical: 0,
+              borderRadius: 20,
+              height: 36,
+              justifyContent: "center",
+            },
             (!canSubmit || isSubmitting) && {
               shadowOpacity: 0,
               elevation: 0,
               shadowColor: "transparent",
+              backgroundColor: "#D1D5DB", // Note: This might need handling in GradientButton props if it overrides colors
             },
           ]}
+          gradientStyle={{
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+          }}
+          colors={
+            !canSubmit || isSubmitting
+              ? ["#D1D5DB", "#D1D5DB"]
+              : ["#448AFF", "#2962FF"]
+          }
+          textStyle={{
+            fontFamily: FONTS.semiBold,
+            color: "#FFFFFF",
+            fontSize: 14,
+          }}
+          // Shadow for active state
+          {...(canSubmit && !isSubmitting
+            ? {
+                shadowColor: "rgba(41, 98, 255, 0.18)",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 1,
+                shadowRadius: 8,
+                elevation: 4,
+              }
+            : {})}
         />
       </BlurView>
 
@@ -415,15 +467,44 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Identity Row */}
+          {currentUser && (
+            <View style={styles.identityRow}>
+              <View style={styles.avatarContainer}>
+                {currentUser.profile_photo_url ? (
+                  <Animated.Image
+                    source={{ uri: currentUser.profile_photo_url }}
+                    style={styles.identityAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.identityAvatar,
+                      { backgroundColor: "#E5E7EB" },
+                    ]}
+                  />
+                )}
+              </View>
+              <View style={styles.identityTextContainer}>
+                <Text style={styles.identityName}>{currentUser.name}</Text>
+                <Text style={styles.identityUsername}>
+                  @{currentUser.username}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.composerSection}>
             <MentionInput
               value={caption}
               onChangeText={setCaption}
               onTaggedEntitiesChange={setTaggedEntities}
-              placeholder="What's on your mind? Use @ to mention..."
-              placeholderTextColor="#A0A0A0"
+              placeholder={
+                "Share something with your network...\nUse @ to mention"
+              }
+              placeholderTextColor="#9CA3AF"
               maxLength={2000}
-              style={styles.mainInput}
+              inputStyle={styles.mainInput}
               currentUser={currentUser}
               autoFocus={true}
               multiline={true}
@@ -470,8 +551,27 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               HapticsService.triggerImpactLight();
               imageUploaderRef.current?.openCamera();
             }}
+            style={styles.toolbarButton}
           >
-            <Camera size={28} color="#8E8E93" strokeWidth={2} />
+            <Camera
+              size={32}
+              color={COLORS.editorial.textSecondary}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              imageUploaderRef.current?.pickVideo();
+            }}
+            style={styles.toolbarButton}
+          >
+            <Video
+              size={32}
+              color={COLORS.editorial.textSecondary}
+              strokeWidth={2}
+            />
           </TouchableOpacity>
 
           <View style={{ flex: 1 }} />
@@ -482,7 +582,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               setShowGuidelines(true);
             }}
           >
-            <Info size={28} color="#8E8E93" strokeWidth={2} />
+            <Info
+              size={32}
+              color={COLORS.editorial.textSecondary}
+              strokeWidth={2}
+            />
           </TouchableOpacity>
         </View>
       </KeyboardAwareToolbar>
@@ -500,13 +604,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
     zIndex: 100,
   },
   closeButton: {
     padding: 8,
-    marginLeft: -8,
+  },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: -1, // Behind buttons
   },
   headerTitle: {
     fontSize: 17,
@@ -520,19 +630,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 10,
+    paddingTop: 0,
     paddingBottom: 100,
   },
-  composerSection: {
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingVertical: 16,
+  },
+  avatarContainer: {
+    marginRight: 12,
+  },
+  identityAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  identityTextContainer: {
+    justifyContent: "center",
+  },
+  identityName: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "#111827",
+  },
+  identityUsername: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  composerSection: {
+    paddingHorizontal: 24, // Breathing room
+    paddingTop: 8,
   },
   mainInput: {
+    fontFamily: FONTS.regular,
     fontSize: 18,
     lineHeight: 26,
     color: COLORS.textDark,
-    minHeight: 120,
+    minHeight: 150, // Slightly taller
     textAlignVertical: "top",
+    paddingTop: 0,
+    backgroundColor: "transparent",
   },
   counterText: {
     fontSize: 11,
@@ -548,9 +688,9 @@ const styles = StyleSheet.create({
   toolbarContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 28,
     paddingVertical: 12,
-    gap: 24,
+    gap: 32,
   },
   // Bottom Sheet Styles
   modalOverlay: {

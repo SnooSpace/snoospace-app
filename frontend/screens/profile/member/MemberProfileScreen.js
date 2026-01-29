@@ -25,6 +25,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
+import { Settings, Bookmark, ChevronDown } from "lucide-react-native";
 import {
   clearAuthSession,
   getAuthToken,
@@ -57,6 +58,8 @@ import {
   SPACING,
   BORDER_RADIUS,
   SHADOWS,
+  EDITORIAL_SPACING,
+  FONTS,
 } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
@@ -859,27 +862,27 @@ export default function MemberProfileScreen({ navigation }) {
         <TouchableOpacity
           style={styles.usernameContainer}
           onPress={() => setShowAccountSwitcher(true)}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         >
           <Text style={styles.username}>@{profile.username}</Text>
-          <Ionicons
-            name="chevron-down"
-            size={16}
-            color={TEXT_COLOR}
-            style={{ marginLeft: 4 }}
-          />
+          <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate("SavedPostsScreen")}
-        >
-          <Ionicons name="bookmark-outline" size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => setShowSettingsModal(true)}
-        >
-          <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate("SavedPostsScreen")}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <Bookmark size={26} color={COLORS.editorial.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => setShowSettingsModal(true)}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <Settings size={26} color={COLORS.editorial.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -1003,7 +1006,7 @@ export default function MemberProfileScreen({ navigation }) {
                 {profile.interests.length > 6 && !showAllInterests ? (
                   <TouchableOpacity
                     onPress={() => setShowAllInterests(true)}
-                    style={[styles.chip, styles.chipBlue, styles.chipGridItem]}
+                    style={[styles.chip, styles.chipBlue]}
                   >
                     <Text style={[styles.chipText, styles.chipTextBlue]}>
                       See all
@@ -1015,7 +1018,6 @@ export default function MemberProfileScreen({ navigation }) {
                     onPress={() => setShowAllInterests(false)}
                     style={[
                       styles.chip,
-                      styles.chipGridItem,
                       { backgroundColor: "#FF3B30", borderColor: "#FF3B30" },
                     ]}
                   >
@@ -1041,7 +1043,24 @@ export default function MemberProfileScreen({ navigation }) {
               <GradientButton
                 title="Edit Profile"
                 onPress={handleEditProfile}
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{
+                  borderRadius: 0, // Let container handle rounding
+                  paddingHorizontal: 20,
+                }}
+                colors={["transparent", "transparent"]}
+                textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
               />
               <GradientButton
                 title="Create Post"
@@ -1049,14 +1068,23 @@ export default function MemberProfileScreen({ navigation }) {
                   HapticsService.triggerImpactLight();
                   navigation.navigate("CreatePost");
                 }}
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+                colors={["#448AFF", "#2962FF"]}
+                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
               />
             </View>
           ) : (
             <GradientButton
               title="Follow"
               onPress={handleFollow}
-              style={{ marginTop: 10, width: "100%" }}
+              style={{ marginTop: 10, width: "100%", borderRadius: 16 }}
+              gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+              textStyle={{ fontFamily: FONTS.semiBold }}
             />
           )}
         </View>
@@ -1433,14 +1461,21 @@ const styles = StyleSheet.create({
   usernameContainer: {
     flexDirection: "row",
     alignItems: "center",
+    padding: 12,
+    marginLeft: -12,
   },
   username: {
+    fontFamily: FONTS.primary,
     fontSize: 18,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: "#3B82F6",
   },
   settingsButton: {
-    padding: 5,
+    padding: 12, // Increased physical clickable area
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: -10, // Offset some of the new padding to keep icons aligned with header edge
   },
   content: {
     flex: 1,
@@ -1451,17 +1486,19 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   profileImageContainer: {
-    marginBottom: 20,
+    marginBottom: 15,
   },
   profileImage: {
-    width: 120,
-    height: 120,
+    width: 125,
+    height: 125,
     borderRadius: 60,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   profileName: {
+    fontFamily: FONTS.primary,
     fontSize: 24,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: "#0F172A",
     textAlign: "center",
   },
   nameAndPronounsContainer: {
@@ -1495,14 +1532,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   profileTagline: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: PRIMARY_COLOR,
     marginBottom: 20,
     lineHeight: 22,
   },
   bioLeft: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
-    color: PRIMARY_COLOR,
+    color: "#1f2937",
     marginBottom: 20,
     textAlign: "left",
     alignSelf: "flex-start",
@@ -1535,17 +1574,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7", // Default gray for non-theme chips (like See All)
   },
   chipGridItem: {
-    width: (screenWidth - 40 - 8 * 3) / 4,
-    alignItems: "center",
+    marginRight: 8,
+    marginBottom: 8,
   },
   chipFilled: {
     backgroundColor: PRIMARY_COLOR,
     borderColor: PRIMARY_COLOR,
   },
   chipText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.primary, // or generic text
+    color: "#374151",
   },
   chipBlue: {
     borderColor: "#007AFF",
@@ -1572,21 +1611,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statNumber: {
+    fontFamily: FONTS.primary,
     fontSize: 20,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: "#0F172A",
     marginBottom: 5,
   },
   statLabel: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
+    color: "#6B7280",
   },
   bioContainer: {
     width: "100%",
     marginBottom: 20,
   },
   bioText: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: TEXT_COLOR,
     textAlign: "center",

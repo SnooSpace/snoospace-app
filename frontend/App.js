@@ -5,6 +5,11 @@ import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useFonts } from "expo-font";
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+} from "@expo-google-fonts/manrope";
 import AppNavigator from "./navigation/AppNavigator";
 import {
   getAuthToken,
@@ -65,6 +70,9 @@ export default function App() {
   const [fontsLoaded] = useFonts({
     "BasicCommercial-Bold": require("./assets/fonts/BasicCommercialLT-Bold.ttf"),
     "BasicCommercial-Black": require("./assets/fonts/BasicCommercialLT-Black.ttf"),
+    "Manrope-Regular": Manrope_400Regular,
+    "Manrope-Medium": Manrope_500Medium,
+    "Manrope-SemiBold": Manrope_600SemiBold,
   });
 
   // Auto-refresh tokens when app comes to foreground
