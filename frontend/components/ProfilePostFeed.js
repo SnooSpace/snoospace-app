@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "./EditorialPostCard";
 import CommentsModal from "./CommentsModal";
 import ShareModal from "./ShareModal";
+import DeletePostModal from "./DeletePostModal";
 import { VideoProvider } from "../context/VideoContext";
 import { COLORS, SPACING } from "../constants/theme";
 
@@ -40,6 +41,8 @@ const ProfilePostFeed = ({
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedSharePost, setSelectedSharePost] = useState(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
   const flatListRef = useRef(null);
 
   // Auto-play viewability configuration - matching HomeFeedScreen for consistency
@@ -100,6 +103,19 @@ const ProfilePostFeed = ({
     }
   };
 
+  const handleRequestDelete = (postId) => {
+    setPostToDelete(postId);
+    setDeleteModalVisible(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (postToDelete && onDelete) {
+      onDelete(postToDelete);
+    }
+    setDeleteModalVisible(false);
+    setPostToDelete(null);
+  };
+
   const renderItem = ({ item }) => {
     return (
       <EditorialPostCard
@@ -114,6 +130,7 @@ const ProfilePostFeed = ({
         onFollow={onFollow}
         onUserPress={onUserPress}
         onDelete={onDelete}
+        onRequestDelete={handleRequestDelete}
         showFollowButton={true} // Allow following if not same user
       />
     );
@@ -196,6 +213,16 @@ const ProfilePostFeed = ({
               setShareModalVisible(false);
               setSelectedSharePost(null);
             }}
+          />
+
+          {/* Delete Confirmation Modal */}
+          <DeletePostModal
+            visible={deleteModalVisible}
+            onCancel={() => {
+              setDeleteModalVisible(false);
+              setPostToDelete(null);
+            }}
+            onDelete={handleConfirmDelete}
           />
         </SafeAreaView>
       </VideoProvider>

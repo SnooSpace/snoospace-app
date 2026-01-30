@@ -9,8 +9,19 @@ import {
   Switch,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  X,
+  Bell,
+  ChevronRight,
+  Shield,
+  HelpCircle,
+  Smartphone,
+  UserPlus,
+  LogOut,
+  Trash2,
+} from "lucide-react-native";
 import PropTypes from "prop-types";
+import { FONTS } from "../../constants/theme";
 
 /**
  * Reusable settings modal that mirrors the layout/behavior originally
@@ -56,7 +67,7 @@ export default function SettingsModal({
                   Settings
                 </Text>
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <Ionicons name="close" size={24} color={textColor} />
+                  <X size={24} color={textColor} />
                 </TouchableOpacity>
               </View>
               <View style={styles.modalBody}>
@@ -64,68 +75,44 @@ export default function SettingsModal({
                   style={styles.settingsOption}
                   onPress={() => handleAction(onNotificationsPress)}
                 >
-                  <Ionicons
-                    name="notifications-outline"
-                    size={24}
-                    color={textColor}
-                  />
+                  <Bell size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >
                     Notifications
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={lightTextColor}
-                  />
+                  <ChevronRight size={20} color={lightTextColor} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.settingsOption}
                   onPress={() => handleAction(onPrivacyPress)}
                 >
-                  <Ionicons name="shield-outline" size={24} color={textColor} />
+                  <Shield size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >
                     Privacy
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={lightTextColor}
-                  />
+                  <ChevronRight size={20} color={lightTextColor} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.settingsOption}
                   onPress={() => handleAction(onHelpPress)}
                 >
-                  <Ionicons
-                    name="help-circle-outline"
-                    size={24}
-                    color={textColor}
-                  />
+                  <HelpCircle size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >
                     Help & Support
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={lightTextColor}
-                  />
+                  <ChevronRight size={20} color={lightTextColor} />
                 </TouchableOpacity>
 
                 {/* Haptics Toggle */}
                 <View style={styles.settingsOption}>
-                  <Ionicons
-                    name="phone-portrait-outline"
-                    size={24}
-                    color={textColor}
-                  />
+                  <Smartphone size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >
@@ -146,28 +133,20 @@ export default function SettingsModal({
                   style={styles.settingsOption}
                   onPress={() => handleAction(onAddAccountPress)}
                 >
-                  <Ionicons
-                    name="person-add-outline"
-                    size={24}
-                    color={textColor}
-                  />
+                  <UserPlus size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >
                     Add account
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={lightTextColor}
-                  />
+                  <ChevronRight size={20} color={lightTextColor} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.settingsOption, styles.logoutOption]}
                   onPress={() => handleAction(onLogoutPress)}
                 >
-                  <Ionicons name="log-out-outline" size={24} color="#007AFF" />
+                  <LogOut size={24} color="#007AFF" />
                   <Text style={[styles.settingsOptionText, styles.logoutText]}>
                     Logout
                   </Text>
@@ -179,15 +158,11 @@ export default function SettingsModal({
                   style={styles.settingsOption}
                   onPress={() => handleAction(onDeleteAccountPress)}
                 >
-                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                  <Trash2 size={24} color="#FF3B30" />
                   <Text style={[styles.settingsOptionText, styles.deleteText]}>
                     Delete Account
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={lightTextColor}
-                  />
+                  <ChevronRight size={20} color={lightTextColor} />
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
@@ -223,7 +198,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontFamily: FONTS.primary, // Changed to BasicCommercial-Bold
   },
   closeButton: {
     padding: 5,
@@ -241,15 +216,18 @@ const styles = StyleSheet.create({
   settingsOptionText: {
     flex: 1,
     fontSize: 16,
+    fontFamily: FONTS.medium, // Changed to Manrope-Medium
   },
   logoutOption: {
     marginTop: 10,
   },
   logoutText: {
     color: "#007AFF",
+    fontFamily: FONTS.medium, // Changed to Manrope-Medium
   },
   deleteText: {
     color: "#FF3B30",
+    fontFamily: FONTS.medium, // Changed to Manrope-Medium
   },
   divider: {
     height: 1,

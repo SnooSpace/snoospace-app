@@ -100,6 +100,7 @@ const EditorialPostCard = ({
   onSave,
   onShare,
   onDelete,
+  onRequestDelete, // Optional: function(postId) -> void. If provided, overrides internal Alert.
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
@@ -399,6 +400,13 @@ const EditorialPostCard = ({
   };
 
   const handleDeletePress = () => {
+    if (onRequestDelete) {
+      // Use custom handler (e.g. for custom modal)
+      onRequestDelete(post.id);
+      return;
+    }
+
+    // Default legacy behavior
     Alert.alert(
       "Delete Post",
       "Are you sure you want to delete this post? This action cannot be undone.",
