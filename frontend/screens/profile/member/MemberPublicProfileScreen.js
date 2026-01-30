@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 999, // Pill shape
     backgroundColor: "#F2F2F7",
   },
   chipGridItem: {

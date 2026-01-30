@@ -1,9 +1,42 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { COLORS, BORDER_RADIUS, SPACING, FONTS } from "../constants/theme";
+import { getInterestStyle } from "../screens/profile/member/EditProfileConstants";
 
-const ThemeChip = ({ label, style, index = 0 }) => {
-  // Cycle through semantic colors based on index or simple hash
+const ThemeChip = ({ label, style, index = 0, useCategorizedStyle = true }) => {
+  if (useCategorizedStyle) {
+    const interestStyle = getInterestStyle(label);
+    const Icon = interestStyle.icon;
+
+    return (
+      <View
+        style={[
+          styles.chip,
+          { backgroundColor: interestStyle.bg, borderRadius: 999 },
+          style,
+        ]}
+      >
+        <View style={styles.content}>
+          {Icon && (
+            <Icon
+              size={12}
+              color={interestStyle.text}
+              style={styles.icon}
+              strokeWidth={2.5}
+            />
+          )}
+          <Text
+            style={[styles.text, { color: interestStyle.text }]}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Fallback to legacy behavior
   const colorSet = COLORS.semantic[index % COLORS.semantic.length];
 
   return (
@@ -22,6 +55,14 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.m,
     marginRight: 8,
     marginBottom: 8,
+    alignSelf: "flex-start",
+  },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  icon: {
+    marginRight: 4,
   },
   text: {
     fontFamily: FONTS.medium,

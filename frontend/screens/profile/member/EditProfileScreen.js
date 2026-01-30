@@ -27,8 +27,6 @@ import {
   ArrowLeft,
   X,
   Plus,
-  Palette,
-  Music,
   TreeDeciduous,
   Laptop,
   Coffee,
@@ -38,7 +36,6 @@ import {
   Heart,
   Dumbbell,
   Plane,
-  BookOpen,
   Film,
   Search,
   Gamepad2,
@@ -48,6 +45,8 @@ import {
   Clapperboard,
   Mountain,
   MoreHorizontal,
+  RollerCoaster,
+  NotebookText,
   ChevronDown,
   ChevronRight,
   Search as SearchIcon,
@@ -99,173 +98,7 @@ if (
 }
 
 // Interest Categories Configuration
-const INTEREST_CATEGORIES = {
-  LIFESTYLE: {
-    label: "Lifestyle",
-    bg: "#FFF3E0", // Warm beige
-    text: "#E65100",
-    icon: User,
-    keywords: [
-      "lifestyle",
-      "dating",
-      "fashion",
-      "volunteer",
-      "cars",
-      "bikes",
-      "driving",
-      "meditation",
-    ],
-  },
-  SPORTS: {
-    label: "Sports & Fitness",
-    bg: "#E3F2FD", // Soft Blue
-    text: "#1565C0",
-    icon: Dumbbell,
-    keywords: [
-      "sport",
-      "gym",
-      "run",
-      "fitness",
-      "yoga",
-      "football",
-      "basketball",
-      "cricket",
-      "badminton",
-      "cycling",
-    ],
-  },
-  ARTS: {
-    label: "Arts & Culture",
-    bg: "#FCE4EC", // Soft Pink
-    text: "#C2185B",
-    icon: Art,
-    keywords: [
-      "art",
-      "design",
-      "creative",
-      "draw",
-      "paint",
-      "write",
-      "photo",
-      "culture",
-      "history",
-    ],
-  },
-  ENTERTAINMENT: {
-    label: "Entertainment",
-    bg: "#F3E5F5", // Lavender
-    text: "#7B1FA2",
-    icon: Clapperboard,
-    keywords: [
-      "movie",
-      "film",
-      "music",
-      "concert",
-      "book",
-      "read",
-      "netflix",
-      "cinema",
-      "show",
-      "anime",
-      "manga",
-    ],
-  },
-  FOOD: {
-    label: "Food & Drink",
-    bg: "#FFF8E1", // Amber
-    text: "#F57F17",
-    icon: Utensils,
-    keywords: [
-      "food",
-      "cook",
-      "bake",
-      "drink",
-      "coffee",
-      "cafe",
-      "bar",
-      "wine",
-      "beer",
-      "dining",
-    ],
-  },
-  OUTDOORS: {
-    label: "Outdoors & Adventure",
-    bg: "#E8F5E9", // Mint
-    text: "#2E7D32",
-    icon: Mountain,
-    keywords: [
-      "nature",
-      "hike",
-      "camp",
-      "travel",
-      "adventure",
-      "explore",
-      "mountain",
-      "beach",
-    ],
-  },
-  TECH: {
-    label: "Tech & Gaming",
-    bg: "#E0F7FA", // Cyan
-    text: "#006064",
-    icon: Gamepad2,
-    keywords: [
-      "tech",
-      "game",
-      "gaming",
-      "code",
-      "ai",
-      "pc",
-      "console",
-      "science",
-      "data",
-    ],
-  },
-  SOCIAL: {
-    label: "Social",
-    bg: "#EDE7F6", // Deep Purple Light
-    text: "#4527A0",
-    icon: PartyPopper,
-    keywords: [
-      "social",
-      "party",
-      "club",
-      "event",
-      "meetup",
-      "chat",
-      "friends",
-      "networking",
-    ],
-  },
-  DEFAULT: {
-    label: "Other",
-    bg: "#F5F5F5",
-    text: "#424242",
-    icon: Zap,
-    keywords: [],
-  },
-};
-
-const getInterestStyle = (interest) => {
-  if (!interest) return INTEREST_CATEGORIES.DEFAULT;
-  const lower = interest.toLowerCase();
-
-  // Special overrides
-  if (lower.includes("bar hopping") || lower.includes("cafe"))
-    return INTEREST_CATEGORIES.FOOD;
-  if (lower.includes("run")) return INTEREST_CATEGORIES.SPORTS;
-
-  for (const key in INTEREST_CATEGORIES) {
-    const category = INTEREST_CATEGORIES[key];
-    if (
-      category.keywords.some((k) => lower.includes(k)) ||
-      key === interest.toUpperCase()
-    ) {
-      return category;
-    }
-  }
-  return INTEREST_CATEGORIES.DEFAULT;
-};
+import { INTEREST_CATEGORIES, getInterestStyle } from "./EditProfileConstants";
 
 export default function EditProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
@@ -521,9 +354,18 @@ export default function EditProfileScreen({ route, navigation }) {
     setEmailChangeModalVisible(false);
   };
 
-  const renderSectionHeader = (title, icon) => (
+  const renderSectionHeader = (title, IconComponent) => (
     <View style={styles.cardHeader}>
-      {icon && <View style={styles.cardIcon}>{icon}</View>}
+      {IconComponent && (
+        <View style={styles.cardIcon}>
+          <IconComponent
+            size={18}
+            color={TEXT_PRIMARY}
+            strokeWidth={1.5}
+            style={{ opacity: 0.7 }}
+          />
+        </View>
+      )}
       <Text style={styles.cardTitle}>{title}</Text>
     </View>
   );
@@ -588,10 +430,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
           {/* Card 1: The Basics */}
           <View style={styles.card}>
-            {renderSectionHeader(
-              "THE BASICS",
-              <User size={16} color={ACCENT_COLOR} fill={ACCENT_COLOR} />,
-            )}
+            {renderSectionHeader("THE BASICS", User)}
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>DISPLAY NAME</Text>
@@ -672,7 +511,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
           {/* Card 2: About Me */}
           <View style={styles.card}>
-            {renderSectionHeader("ABOUT ME")}
+            {renderSectionHeader("ABOUT ME", NotebookText)}
             <View style={styles.inputGroupLast}>
               <TextInput
                 style={styles.bioInput}
@@ -689,10 +528,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
           {/* Card 3: Education */}
           <View style={styles.card}>
-            {renderSectionHeader(
-              "EDUCATION",
-              <GraduationCap size={16} color={ACCENT_COLOR} />,
-            )}
+            {renderSectionHeader("EDUCATION", GraduationCap)}
             <View style={styles.inputGroupLast}>
               <Text style={styles.inputLabel}>COLLEGE / UNIVERSITY</Text>
               <TextInput
@@ -710,11 +546,9 @@ export default function EditProfileScreen({ route, navigation }) {
 
           {/* Card 4: My Vibes (Scalable Redesign) */}
           <View style={styles.card}>
-            <View style={[styles.cardHeader, { marginBottom: 12 }]}>
-              <Text style={styles.cardTitle}>MY VIBES</Text>
-            </View>
+            {renderSectionHeader("MY VIBES", RollerCoaster)}
 
-            <View style={styles.inputGroupLast}>
+            <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
               {/* 1. Selected Vibes (Pinned Top) */}
               {interests.length > 0 && (
                 <View style={styles.selectedVibesSection}>
@@ -962,10 +796,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
           {/* Card 5: Private Details */}
           <View style={styles.card}>
-            {renderSectionHeader(
-              "PRIVATE DETAILS",
-              <Lock size={14} color={TEXT_SECONDARY} />,
-            )}
+            {renderSectionHeader("PRIVATE DETAILS", Lock)}
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>EMAIL</Text>
@@ -1020,7 +851,7 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 20 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1097,7 +928,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 20,
     gap: 24,
   },
 
@@ -1157,16 +988,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
-    gap: 8,
   },
   cardIcon: {
-    // Optional additional styling for icon container
+    marginRight: 10,
+    backgroundColor: "rgba(0,0,0,0.03)", // Subtle circular container (3%)
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardTitle: {
     fontSize: 13,
     fontFamily: FONT_CARD_TITLE,
-    color: TEXT_PRIMARY, // Neutral color as requested
-    letterSpacing: 0.5,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.6,
     textTransform: "uppercase",
   },
   addNewText: {

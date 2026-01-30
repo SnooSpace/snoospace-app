@@ -1568,7 +1568,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.m,
+    borderRadius: 999, // Pill shape
     marginRight: 8,
     marginBottom: 8,
     backgroundColor: "#F2F2F7", // Default gray for non-theme chips (like See All)
