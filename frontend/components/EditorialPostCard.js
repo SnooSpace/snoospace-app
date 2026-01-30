@@ -58,6 +58,7 @@ import {
   EDITORIAL_SPACING,
   BORDER_RADIUS,
   SPACING,
+  FONTS,
 } from "../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -779,7 +780,7 @@ const styles = StyleSheet.create({
   },
   mentionText: {
     color: COLORS.editorial.accent,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
 
   // Media Container

@@ -4,6 +4,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   Switch,
   Platform,
@@ -46,137 +47,155 @@ export default function SettingsModal({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: textColor }]}>
-              Settings
-            </Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={textColor} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalBody}>
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(onNotificationsPress)}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color={textColor}
-              />
-              <Text style={[styles.settingsOptionText, { color: textColor }]}>
-                Notifications
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: textColor }]}>
+                  Settings
+                </Text>
+                <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                  <Ionicons name="close" size={24} color={textColor} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.modalBody}>
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={() => handleAction(onNotificationsPress)}
+                >
+                  <Ionicons
+                    name="notifications-outline"
+                    size={24}
+                    color={textColor}
+                  />
+                  <Text
+                    style={[styles.settingsOptionText, { color: textColor }]}
+                  >
+                    Notifications
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={lightTextColor}
+                  />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(onPrivacyPress)}
-            >
-              <Ionicons name="shield-outline" size={24} color={textColor} />
-              <Text style={[styles.settingsOptionText, { color: textColor }]}>
-                Privacy
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={() => handleAction(onPrivacyPress)}
+                >
+                  <Ionicons name="shield-outline" size={24} color={textColor} />
+                  <Text
+                    style={[styles.settingsOptionText, { color: textColor }]}
+                  >
+                    Privacy
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={lightTextColor}
+                  />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(onHelpPress)}
-            >
-              <Ionicons
-                name="help-circle-outline"
-                size={24}
-                color={textColor}
-              />
-              <Text style={[styles.settingsOptionText, { color: textColor }]}>
-                Help & Support
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={() => handleAction(onHelpPress)}
+                >
+                  <Ionicons
+                    name="help-circle-outline"
+                    size={24}
+                    color={textColor}
+                  />
+                  <Text
+                    style={[styles.settingsOptionText, { color: textColor }]}
+                  >
+                    Help & Support
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={lightTextColor}
+                  />
+                </TouchableOpacity>
 
-            {/* Haptics Toggle */}
-            <View style={styles.settingsOption}>
-              <Ionicons
-                name="phone-portrait-outline"
-                size={24}
-                color={textColor}
-              />
-              <Text style={[styles.settingsOptionText, { color: textColor }]}>
-                Enable App Haptics
-              </Text>
-              <Switch
-                trackColor={{ false: "#767577", true: "#34C759" }} // Use IOS green for true
-                thumbColor={Platform.OS === "android" ? "#f4f3f4" : ""}
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={onToggleHaptics}
-                value={hapticsEnabled}
-              />
+                {/* Haptics Toggle */}
+                <View style={styles.settingsOption}>
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={24}
+                    color={textColor}
+                  />
+                  <Text
+                    style={[styles.settingsOptionText, { color: textColor }]}
+                  >
+                    Enable App Haptics
+                  </Text>
+                  <Switch
+                    trackColor={{ false: "#767577", true: "#34C759" }} // Use IOS green for true
+                    thumbColor={Platform.OS === "android" ? "#f4f3f4" : ""}
+                    ios_backgroundColor="#3e3e3e"
+                    onValueChange={onToggleHaptics}
+                    value={hapticsEnabled}
+                  />
+                </View>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={() => handleAction(onAddAccountPress)}
+                >
+                  <Ionicons
+                    name="person-add-outline"
+                    size={24}
+                    color={textColor}
+                  />
+                  <Text
+                    style={[styles.settingsOptionText, { color: textColor }]}
+                  >
+                    Add account
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={lightTextColor}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.settingsOption, styles.logoutOption]}
+                  onPress={() => handleAction(onLogoutPress)}
+                >
+                  <Ionicons name="log-out-outline" size={24} color="#007AFF" />
+                  <Text style={[styles.settingsOptionText, styles.logoutText]}>
+                    Logout
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={() => handleAction(onDeleteAccountPress)}
+                >
+                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                  <Text style={[styles.settingsOptionText, styles.deleteText]}>
+                    Delete Account
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={lightTextColor}
+                  />
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+              </View>
             </View>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(onAddAccountPress)}
-            >
-              <Ionicons name="person-add-outline" size={24} color={textColor} />
-              <Text style={[styles.settingsOptionText, { color: textColor }]}>
-                Add account
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingsOption, styles.logoutOption]}
-              onPress={() => handleAction(onLogoutPress)}
-            >
-              <Ionicons name="log-out-outline" size={24} color="#007AFF" />
-              <Text style={[styles.settingsOptionText, styles.logoutText]}>
-                Logout
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.settingsOption}
-              onPress={() => handleAction(onDeleteAccountPress)}
-            >
-              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-              <Text style={[styles.settingsOptionText, styles.deleteText]}>
-                Delete Account
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={lightTextColor}
-              />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-          </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

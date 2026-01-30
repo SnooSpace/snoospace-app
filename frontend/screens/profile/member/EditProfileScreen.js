@@ -13,6 +13,8 @@ import {
   UIManager,
   Platform,
   Image,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -64,6 +66,7 @@ import { useCrop } from "../../../components/MediaCrop";
 import { uploadImage } from "../../../api/cloudinary";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
+import UnsavedChangesModal from "../../../components/UnsavedChangesModal";
 
 import {
   COLORS,
@@ -97,8 +100,47 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Interest Categories Configuration
 import { INTEREST_CATEGORIES, getInterestStyle } from "./EditProfileConstants";
+
+// Pronoun Category Tints
+const PRONOUN_STYLE_CONFIG = {
+  masculine: {
+    bg: "#E2E8F1", // Deepened Cool slate
+    text: "#2F3A55",
+    keywords: ["he", "him", "his"],
+  },
+  feminine: {
+    bg: "#F2E2E6", // Deepened Muted rose
+    text: "#5A2F3C",
+    keywords: ["she", "her", "hers"],
+  },
+  neutral: {
+    bg: "#E2EFED", // Deepened Soft teal-sage
+    text: "#1F4E4A",
+    keywords: ["they", "them", "theirs"],
+  },
+  unselected: {
+    bg: "#F3F4F6",
+    text: "#8A8A8A",
+  },
+};
+
+const getPronounStyles = (pronoun, isSelected) => {
+  if (!isSelected) return PRONOUN_STYLE_CONFIG.unselected;
+
+  const lower = pronoun.toLowerCase();
+  // Use word-based matching to avoid "she" matching "he"
+  const words = lower.split(/[\/\s,.]+/);
+
+  if (words.some((w) => PRONOUN_STYLE_CONFIG.feminine.keywords.includes(w)))
+    return PRONOUN_STYLE_CONFIG.feminine;
+  if (words.some((w) => PRONOUN_STYLE_CONFIG.masculine.keywords.includes(w)))
+    return PRONOUN_STYLE_CONFIG.masculine;
+  if (words.some((w) => PRONOUN_STYLE_CONFIG.neutral.keywords.includes(w)))
+    return PRONOUN_STYLE_CONFIG.neutral;
+
+  return PRONOUN_STYLE_CONFIG.neutral; // Default to neutral tinted if selected but unknown
+};
 
 export default function EditProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
@@ -128,6 +170,7 @@ export default function EditProfileScreen({ route, navigation }) {
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [interestsCatalog, setInterestsCatalog] = useState([]);
   const [pronounPresets, setPronounPresets] = useState([
@@ -150,6 +193,7 @@ export default function EditProfileScreen({ route, navigation }) {
   const [showAllSelected, setShowAllSelected] = useState(false);
 
   const allowLeaveRef = useRef(false);
+  const pendingActionRef = useRef(null);
 
   useEffect(() => {
     loadInterestsCatalog();
@@ -166,24 +210,25 @@ export default function EditProfileScreen({ route, navigation }) {
         return;
       }
       e.preventDefault();
-      Alert.alert(
-        "Unsaved changes",
-        "You have unsaved changes. Are you sure you want to cancel?",
-        [
-          { text: "No", style: "cancel" },
-          {
-            text: "Yes",
-            style: "destructive",
-            onPress: () => {
-              allowLeaveRef.current = true;
-              navigation.dispatch(e.data.action);
-            },
-          },
-        ],
-      );
+      pendingActionRef.current = e.data.action;
+      setShowUnsavedModal(true);
     });
     return unsubscribe;
   }, [navigation, hasChanges, saving]);
+
+  const handleDiscardChanges = () => {
+    setShowUnsavedModal(false);
+    allowLeaveRef.current = true;
+    if (pendingActionRef.current) {
+      navigation.dispatch(pendingActionRef.current);
+      pendingActionRef.current = null;
+    }
+  };
+
+  const handleKeepEditing = () => {
+    setShowUnsavedModal(false);
+    pendingActionRef.current = null;
+  };
 
   const loadPronounsCatalog = async () => {
     try {
@@ -374,6 +419,7 @@ export default function EditProfileScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
         style={styles.keyboardView}
       >
         {/* Header */}
@@ -408,6 +454,8 @@ export default function EditProfileScreen({ route, navigation }) {
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {/* Profile Photo - Global Section 2 */}
           <View style={styles.photoSection}>
@@ -476,13 +524,12 @@ export default function EditProfileScreen({ route, navigation }) {
               <View style={styles.pillRow}>
                 {pronounPresets.map((p) => {
                   const isSelected = pronouns.includes(p);
+                  const pStyle = getPronounStyles(p, isSelected);
                   return (
                     <TouchableOpacity
                       key={p}
+                      activeOpacity={0.8}
                       onPress={() => {
-                        // Toggle single select style per specs or multi?
-                        // Spec says "Selected state clearly visible". Usually pronouns can be multi, but segmented pill implies single.
-                        // I'll keep multi supported logic but style implies choice.
                         const newPronouns = isSelected
                           ? pronouns.filter((pr) => pr !== p)
                           : [...pronouns, p];
@@ -491,14 +538,12 @@ export default function EditProfileScreen({ route, navigation }) {
                       }}
                       style={[
                         styles.pronounPill,
+                        { backgroundColor: pStyle.bg },
                         isSelected && styles.pronounPillSelected,
                       ]}
                     >
                       <Text
-                        style={[
-                          styles.pronounText,
-                          isSelected && styles.pronounTextSelected,
-                        ]}
+                        style={[styles.pronounText, { color: pStyle.text }]}
                       >
                         {p}
                       </Text>
@@ -800,33 +845,23 @@ export default function EditProfileScreen({ route, navigation }) {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>EMAIL</Text>
-              <View
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setEmailChangeModalVisible(true)}
                 style={[
                   styles.input,
                   styles.rowInput,
                   { backgroundColor: "#F8F8F8" },
                 ]}
               >
-                <Mail
-                  size={16}
-                  color={TEXT_SECONDARY}
-                  style={{ marginRight: 10 }}
-                />
+                <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
                 <TextInput
                   style={[styles.flexInput, { color: TEXT_SECONDARY }]}
                   value={email}
                   editable={false}
+                  pointerEvents="none"
                 />
-                <TouchableOpacity
-                  onPress={() => setEmailChangeModalVisible(true)}
-                >
-                  <Ionicons
-                    name="create-outline"
-                    size={20}
-                    color={ACCENT_COLOR}
-                  />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
               <Text style={styles.helperText}>Only visible to you</Text>
             </View>
 
@@ -835,7 +870,7 @@ export default function EditProfileScreen({ route, navigation }) {
               <View style={[styles.input, styles.rowInput]}>
                 <Phone
                   size={16}
-                  color={TEXT_SECONDARY}
+                  color={"#8B95A5"}
                   style={{ marginRight: 10 }}
                 />
                 <TextInput
@@ -860,6 +895,12 @@ export default function EditProfileScreen({ route, navigation }) {
         currentEmail={email}
         onClose={() => setEmailChangeModalVisible(false)}
         onComplete={handleEmailChangeComplete}
+      />
+
+      <UnsavedChangesModal
+        visible={showUnsavedModal}
+        onKeepEditing={handleKeepEditing}
+        onDiscard={handleDiscardChanges}
       />
     </SafeAreaView>
   );
@@ -928,7 +969,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 20,
+    paddingBottom: 5, // ample space for keyboard
     gap: 24,
   },
 
@@ -1068,26 +1109,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pronounPill: {
-    backgroundColor: INPUT_BG,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: BORDER_RADIUS.pill,
+    borderWidth: 1,
+    borderColor: "transparent", // Prevent layout shift on select
   },
   pronounPillSelected: {
-    backgroundColor: "#E3F2FD", // Light blue bg
     borderWidth: 1,
-    borderColor: ACCENT_COLOR,
-    paddingVertical: 9, // Compensate border
-    paddingHorizontal: 15,
+    borderColor: "rgba(0,0,0,0.03)", // Subtle inset shadow simulation
   },
   pronounText: {
     fontSize: 14,
-    color: TEXT_SECONDARY,
     fontFamily: FONTS.medium,
-  },
-  pronounTextSelected: {
-    color: ACCENT_COLOR,
-    fontWeight: "600",
   },
 
   // Bio

@@ -105,34 +105,35 @@ export const SHADOWS = {
 // Editorial Feed Typography Tokens
 export const EDITORIAL_TYPOGRAPHY = {
   displayName: {
+    fontFamily: FONTS.primary,
     fontSize: 16,
-    fontWeight: "600",
     color: COLORS.editorial.textPrimary,
+    marginBottom: 2, // Slight adjustment for optical alignment
   },
   username: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    fontWeight: "400",
     color: COLORS.editorial.textSecondary,
   },
   timestamp: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    fontWeight: "400",
     color: COLORS.editorial.textSecondary,
   },
   postText: {
+    fontFamily: FONTS.regular,
     fontSize: 15,
-    fontWeight: "400",
-    lineHeight: 23, // 1.55 line-height
+    lineHeight: 22, // ~1.46 line-height
     color: COLORS.editorial.textPrimary,
   },
   engagementCount: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "500",
     color: COLORS.editorial.textMuted,
   },
   followButton: {
+    fontFamily: FONTS.semiBold,
     fontSize: 13,
-    fontWeight: "500",
   },
 };
 
