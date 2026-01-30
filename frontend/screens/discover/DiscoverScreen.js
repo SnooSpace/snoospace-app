@@ -7,88 +7,49 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  Alert,
+  Dimensions,
+  ImageBackground,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
-  Easing,
-} from "react-native-reanimated";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+} from "../../constants/theme";
 
-const TEXT_COLOR = COLORS.textPrimary;
-const LIGHT_TEXT_COLOR = COLORS.textSecondary;
-const PRIMARY_COLOR = COLORS.primary;
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = width * 0.75;
+const PEOPLE_CARD_WIDTH = width * 0.4;
+const COMMUNITY_CARD_WIDTH = width * 0.35;
 
 export default function DiscoverScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [exploreEvents, setExploreEvents] = useState([]);
   const [suggestedCommunities, setSuggestedCommunities] = useState([]);
+  const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [exploreTab, setExploreTab] = useState("nearby");
-  const [errorMsg, setErrorMsg] = useState("");
   const [profileComplete, setProfileComplete] = useState(true);
-
-  // Animation for incomplete profile button
-  const pulseScale = useSharedValue(1);
-  const pulseOpacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (!profileComplete) {
-      // Gentle pulse animation
-      pulseScale.value = withRepeat(
-        withSequence(
-          withTiming(1.05, {
-            duration: 800,
-            easing: Easing.inOut(Easing.ease),
-          }),
-          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        false
-      );
-      pulseOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.7, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        false
-      );
-    } else {
-      pulseScale.value = 1;
-      pulseOpacity.value = 1;
-    }
-  }, [profileComplete]);
-
-  const animatedButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
-  }));
 
   useFocusEffect(
     useCallback(() => {
       loadData();
       checkProfileCompletion();
-    }, [])
+    }, []),
   );
 
   const loadData = async () => {
     try {
       setLoading(true);
-      setErrorMsg("");
       const token = await getAuthToken();
 
       if (token) {
-        // Load all data in parallel
         const [eventsResponse, exploreResponse, suggestionsResponse] =
           await Promise.all([
             apiGet("/events/my-events", 15000, token).catch(() => ({
@@ -105,10 +66,33 @@ export default function DiscoverScreen({ navigation }) {
         setEvents(eventsResponse.events || []);
         setExploreEvents(exploreResponse.events || []);
         setSuggestedCommunities(suggestionsResponse.suggestions || []);
+
+        setPeople([
+          {
+            id: 1,
+            name: "Sarah Jenkins",
+            role: "Product Lead",
+            interests: ["SaaS", "Product"],
+            image: "https://i.pravatar.cc/150?u=sarah",
+          },
+          {
+            id: 2,
+            name: "David Chen",
+            role: "Investor",
+            interests: ["AI", "Tech"],
+            image: "https://i.pravatar.cc/150?u=david",
+          },
+          {
+            id: 3,
+            name: "Maya Ross",
+            role: "Marketing Head",
+            interests: ["Growth", "Brand"],
+            image: "https://i.pravatar.cc/150?u=maya",
+          },
+        ]);
       }
     } catch (error) {
       console.error("Error loading data:", error);
-      setErrorMsg(error?.message || "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -120,310 +104,308 @@ export default function DiscoverScreen({ navigation }) {
       if (token) {
         const response = await apiGet("/members/profile", 15000, token);
         const profile = response.profile || response;
-        // Profile is complete if they have at least 1 goal badge
-        const hasGoalBadges =
-          profile.intent_badges && profile.intent_badges.length > 0;
-        setProfileComplete(hasGoalBadges);
+        setProfileComplete(
+          profile.intent_badges && profile.intent_badges.length > 0,
+        );
       }
     } catch (error) {
       console.error("Error checking profile:", error);
     }
   };
 
-  const handleEventPress = (event) => {
+  const handleEventPress = (event) =>
     navigation.navigate("ProfileFeed", { event });
-  };
-
-  const handleMyProfilePress = () => {
-    navigation.navigate("EditDiscoverProfile");
-  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const renderEventCard = (event, isExplore = false) => (
-    <TouchableOpacity
-      key={event.id}
-      style={styles.eventCard}
-      onPress={() => handleEventPress(event)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.eventCardContent}>
-        <View style={styles.eventHeader}>
-          <Text style={styles.eventTitle} numberOfLines={1}>
-            {event.title}
-          </Text>
-          {!isExplore && (
-            <View
-              style={[
-                styles.statusBadge,
-                event.is_past ? styles.pastBadge : styles.upcomingBadge,
-              ]}
+  const renderReconnectSection = () => {
+    if (events.length === 0) return null;
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Reconnect with Peers</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Search")}>
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+        >
+          {events.slice(0, 5).map((event) => (
+            <TouchableOpacity
+              key={event.id}
+              style={styles.reconnectCard}
+              activeOpacity={0.9}
+              onPress={() => handleEventPress(event)}
             >
-              <Text
-                style={[
-                  styles.statusText,
-                  event.is_past ? styles.pastText : styles.upcomingText,
-                ]}
-              >
-                {event.is_past ? "Past" : "Upcoming"}
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.eventDetails}>
-          <Ionicons
-            name="calendar-outline"
-            size={14}
-            color={LIGHT_TEXT_COLOR}
-          />
-          <Text style={styles.eventDetailText}>
-            {formatDate(event.event_date)}
-          </Text>
-          {event.location && (
-            <>
-              <Text style={styles.eventDetailSeparator}>•</Text>
-              <Ionicons
-                name="location-outline"
-                size={14}
-                color={LIGHT_TEXT_COLOR}
-              />
-              <Text style={styles.eventDetailText} numberOfLines={1}>
-                {event.venue_name || event.location}
-              </Text>
-            </>
-          )}
-        </View>
-        <View style={styles.eventFooter}>
-          <View style={styles.attendeeInfo}>
-            <Ionicons name="people-outline" size={14} color={PRIMARY_COLOR} />
-            <Text style={styles.attendeeText}>
-              {event.attendee_count || 0} people
+              <View style={styles.reconnectImageContainer}>
+                <ImageBackground
+                  source={{
+                    uri:
+                      event.cover_image ||
+                      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  <LinearGradient
+                    colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)"]}
+                    start={{ x: 0.5, y: 0.0 }}
+                    end={{ x: 0.5, y: 1.0 }}
+                    style={styles.imageGradient}
+                  />
+                  <View style={styles.pastBadge}>
+                    <Text style={styles.pastBadgeText}>Past Event</Text>
+                  </View>
+                </ImageBackground>
+              </View>
+              <View style={styles.reconnectContent}>
+                <Text style={styles.reconnectTitle} numberOfLines={2}>
+                  {event.title}
+                </Text>
+
+                <View style={styles.reconnectMeta}>
+                  <Ionicons name="calendar-outline" size={14} color="#64748B" />
+                  <Text style={styles.metaText}>
+                    {formatDate(event.event_date)}
+                  </Text>
+
+                  <View style={styles.attendeeRow}>
+                    <Ionicons name="people-outline" size={14} color="#64748B" />
+                    <Text style={styles.metaText}>
+                      {event.attendee_count || 0} attended
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.revisitButton}>
+                  <Ionicons name="time-outline" size={16} color="#2962FF" />
+                  <Text style={styles.revisitButtonText}>Revisit</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderTribeSection = () => {
+    if (suggestedCommunities.length === 0) return null;
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Find Your Tribe</Text>
+            <Text style={styles.sectionSubtitle}>
+              Communities based on your profile
             </Text>
           </View>
-          <Text style={styles.discoverHint}>Tap to discover →</Text>
         </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+        >
+          {suggestedCommunities.map((community) => (
+            <TouchableOpacity
+              key={community.id}
+              style={styles.tribeCard}
+              onPress={() =>
+                navigation.navigate("CommunityPublicProfile", {
+                  communityId: community.id,
+                })
+              }
+              activeOpacity={0.97}
+            >
+              <View style={styles.tribeVisualContainer}>
+                <ImageBackground
+                  source={{
+                    uri:
+                      community.logo_url ||
+                      "https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+                  }}
+                  style={styles.tribeVisual}
+                >
+                  <LinearGradient
+                    colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)"]}
+                    start={{ x: 0.5, y: 0.0 }}
+                    end={{ x: 0.5, y: 1.0 }}
+                    style={styles.tribeVisualGradient}
+                  />
+                </ImageBackground>
+              </View>
+
+              <View style={styles.tribeContent}>
+                <Text style={styles.tribeName} numberOfLines={1}>
+                  {community.name}
+                </Text>
+                <Text style={styles.tribeMembers}>
+                  {community.follower_count || 0} members
+                </Text>
+                <TouchableOpacity style={styles.joinButton}>
+                  <Text style={styles.joinButtonText}>Join</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
-    </TouchableOpacity>
+    );
+  };
+
+  const renderPeopleSection = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitleContainer}>People You Should Meet</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+      >
+        {people.map((person) => (
+          <TouchableOpacity
+            key={person.id}
+            style={styles.personCard}
+            activeOpacity={0.9}
+          >
+            <Image source={{ uri: person.image }} style={styles.personImage} />
+            <Text style={styles.personName} numberOfLines={1}>
+              {person.name}
+            </Text>
+            <Text style={styles.personRole} numberOfLines={1}>
+              {person.role}
+            </Text>
+            <View style={styles.interestsContainer}>
+              {person.interests.map((interest, index) => (
+                <View key={index} style={styles.interestTag}>
+                  <Text style={styles.interestText}>#{interest}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 
-  const exploreTabs = [
-    { key: "nearby", label: "Nearby" },
-    { key: "upcoming", label: "Upcoming" },
-    { key: "popular", label: "Popular" },
-  ];
+  const renderEventsSection = () => {
+    if (exploreEvents.length === 0) return null;
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitleContainer}>Recommended Events</Text>
+        {exploreEvents.slice(0, 5).map((event) => (
+          <TouchableOpacity
+            key={event.id}
+            style={styles.recommendedCard}
+            onPress={() => handleEventPress(event)}
+            activeOpacity={0.9}
+          >
+            <ImageBackground
+              source={{
+                uri:
+                  event.cover_image ||
+                  "https://images.unsplash.com/photo-1551818255-e6e10975bc17?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+              }}
+              style={styles.recommendedImage}
+            >
+              <LinearGradient // added usage of Gradient on cards
+                colors={["transparent", "rgba(0,0,0,0.6)"]}
+                style={styles.imageGradient}
+              />
+              <View style={styles.priceBadge}>
+                <Text style={styles.priceText}>Free</Text>
+              </View>
+            </ImageBackground>
+
+            <View style={styles.recommendedContent}>
+              <Text style={styles.recommendedTitle}>{event.title}</Text>
+              <Text style={styles.recommendedHost}>
+                Hosted by {event.organizer || "Community"}
+              </Text>
+
+              <View style={styles.recommendedMetaRow}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={14}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.recommendedMetaText}>
+                  {formatDate(event.event_date)}
+                </Text>
+              </View>
+              <View style={styles.recommendedMetaRow}>
+                <Ionicons
+                  name="location-outline"
+                  size={14}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.recommendedMetaText} numberOfLines={1}>
+                  {event.venue_name || event.location}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.viewEventButton}
+                onPress={() => handleEventPress(event)}
+              >
+                <Text style={styles.viewEventText}>View Event</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Discover</Text>
-          <Text style={styles.headerSubtitle}>People at your events</Text>
-        </View>
-
-        {/* My Profile Button */}
-        <Animated.View style={[!profileComplete && animatedButtonStyle]}>
+        <Text style={styles.headerTitle}>Discover</Text>
+        <View style={styles.headerRight}>
           <TouchableOpacity
-            style={[
-              styles.myProfileButton,
-              !profileComplete && styles.myProfileButtonIncomplete,
-            ]}
-            onPress={handleMyProfilePress}
+            style={styles.iconButton}
+            onPress={() => navigation.navigate("ActivityInsights")}
           >
             <Ionicons
-              name="person-circle-outline"
-              size={20}
-              color={profileComplete ? TEXT_COLOR : PRIMARY_COLOR}
+              name="stats-chart-outline"
+              size={22}
+              color={COLORS.textPrimary}
             />
-            <Text
-              style={[
-                styles.myProfileText,
-                !profileComplete && styles.myProfileTextIncomplete,
-              ]}
-            >
-              My Profile
-            </Text>
-            {!profileComplete && <View style={styles.incompleteDot} />}
           </TouchableOpacity>
-        </Animated.View>
-
-        {/* Activity Button */}
-        <TouchableOpacity
-          style={styles.activityButton}
-          onPress={() => navigation.navigate("ActivityInsights")}
-        >
-          <Ionicons name="pulse-outline" size={22} color={TEXT_COLOR} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("EditDiscoverProfile")}
+          >
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person" size={20} color={COLORS.textSecondary} />
+              {!profileComplete && <View style={styles.profileBadge} />}
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Incomplete Profile Banner */}
-        {!profileComplete && (
-          <TouchableOpacity
-            style={styles.incompleteBanner}
-            onPress={handleMyProfilePress}
-          >
-            <Ionicons name="alert-circle" size={20} color="#E65100" />
-            <Text style={styles.incompleteBannerText}>
-              Complete your profile to appear in discovery
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#E65100" />
-          </TouchableOpacity>
-        )}
-
-        {errorMsg ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{errorMsg}</Text>
-            <TouchableOpacity onPress={loadEvents}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>YOUR EVENTS</Text>
-          {events.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons
-                name="calendar-outline"
-                size={40}
-                color={LIGHT_TEXT_COLOR}
-              />
-              <Text style={styles.emptyTitle}>No events yet</Text>
-              <Text style={styles.emptyText}>
-                Register for events to discover people
-              </Text>
-              <TouchableOpacity
-                style={styles.exploreCta}
-                onPress={() => navigation.navigate("Search")}
-              >
-                <Text style={styles.exploreCtaText}>Find events</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            events.slice(0, 5).map((event) => renderEventCard(event))
-          )}
-        </View>
-
-        {/* Based on your Interests - Community Recommendations */}
-        {suggestedCommunities.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>BASED ON YOUR INTERESTS</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.communitiesScrollContent}
-            >
-              {suggestedCommunities.map((community) => (
-                <TouchableOpacity
-                  key={community.id}
-                  style={styles.communityCard}
-                  onPress={() =>
-                    navigation.navigate("CommunityPublicProfile", {
-                      communityId: community.id,
-                    })
-                  }
-                  activeOpacity={0.7}
-                >
-                  {community.logo_url ? (
-                    <Image
-                      source={{ uri: community.logo_url }}
-                      style={styles.communityLogo}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.communityLogo,
-                        styles.communityLogoPlaceholder,
-                      ]}
-                    >
-                      <Ionicons name="people" size={24} color={PRIMARY_COLOR} />
-                    </View>
-                  )}
-                  <Text style={styles.communityName} numberOfLines={2}>
-                    {community.name}
-                  </Text>
-                  {community.category && (
-                    <Text style={styles.communityCategory} numberOfLines={1}>
-                      {community.category}
-                    </Text>
-                  )}
-                  <View style={styles.communityFollowers}>
-                    <Ionicons
-                      name="people-outline"
-                      size={12}
-                      color={LIGHT_TEXT_COLOR}
-                    />
-                    <Text style={styles.communityFollowerCount}>
-                      {community.follower_count || 0}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>EXPLORE MORE</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.tabContainer}
-            contentContainerStyle={styles.tabContent}
-          >
-            {exploreTabs.map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                style={[
-                  styles.tabChip,
-                  exploreTab === tab.key && styles.tabChipActive,
-                ]}
-                onPress={() => setExploreTab(tab.key)}
-              >
-                <Text
-                  style={[
-                    styles.tabChipText,
-                    exploreTab === tab.key && styles.tabChipTextActive,
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {exploreEvents.length === 0 ? (
-            <View style={styles.emptyExplore}>
-              <Text style={styles.emptyExploreText}>
-                More events coming soon
-              </Text>
-            </View>
-          ) : (
-            exploreEvents
-              .slice(0, 5)
-              .map((event) => renderEventCard(event, true))
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
+        {renderReconnectSection()}
+        {renderTribeSection()}
+        {renderPeopleSection()}
+        {renderEventsSection()}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -438,317 +420,357 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  loadingText: {
-    marginTop: SPACING.m,
-    fontSize: 16,
-    color: LIGHT_TEXT_COLOR,
+    backgroundColor: COLORS.screenBackground,
   },
   header: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     paddingHorizontal: SPACING.l,
     paddingVertical: SPACING.m,
-    backgroundColor: COLORS.surface,
-  },
-  headerLeft: {
-    flex: 1,
+    backgroundColor: COLORS.screenBackground,
   },
   headerTitle: {
+    fontFamily: FONTS.primary, // Strict BasicCommercialBold
     fontSize: 28,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: COLORS.textPrimary,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 4,
-  },
-  myProfileButton: {
+  headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: BORDER_RADIUS.m,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 6,
+    gap: SPACING.m, // 16px gap
   },
-  myProfileButtonIncomplete: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#F8F5FF",
+  iconButton: {
+    padding: 4,
   },
-  myProfileText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: TEXT_COLOR,
-  },
-  myProfileTextIncomplete: {
-    color: PRIMARY_COLOR,
-  },
-  incompleteDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#E65100",
-  },
-  activityButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  avatarContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F0F0F0",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  incompleteBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: SPACING.l,
-    marginBottom: SPACING.m,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.m,
-    backgroundColor: "#FFF3E0",
-    borderRadius: BORDER_RADIUS.m,
-    gap: 8,
-  },
-  incompleteBannerText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#E65100",
-    fontWeight: "500",
+  profileBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.error,
+    borderWidth: 1.5,
+    borderColor: COLORS.surface,
   },
   content: {
     flex: 1,
   },
-  contentContainer: {
-    paddingTop: SPACING.m,
+  scrollContent: {
+    paddingBottom: SPACING.xl,
   },
   section: {
-    marginBottom: SPACING.l,
+    marginBottom: 32, // Increased spacing for visual rhythm
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end", // Align baseline
+    paddingHorizontal: SPACING.l,
+    marginBottom: SPACING.m,
+  },
+  sectionTitleContainer: {
+    paddingHorizontal: SPACING.l,
+    marginBottom: SPACING.m,
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: LIGHT_TEXT_COLOR,
-    letterSpacing: 1,
-    paddingHorizontal: SPACING.l,
-    marginBottom: SPACING.m,
+    fontFamily: FONTS.primary, // Strict BasicCommercialBold
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    lineHeight: 24,
   },
-  eventCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.l,
-    marginBottom: SPACING.m,
-    borderRadius: BORDER_RADIUS.l,
-    ...SHADOWS.sm,
-  },
-  eventCardContent: {
-    padding: SPACING.m,
-  },
-  eventHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: SPACING.s,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    flex: 1,
-    marginRight: SPACING.s,
-  },
-  statusBadge: {
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.s,
-  },
-  upcomingBadge: {
-    backgroundColor: "#E8F5E9",
-  },
-  pastBadge: {
-    backgroundColor: "#F5F5F5",
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  upcomingText: {
-    color: "#2E7D32",
-  },
-  pastText: {
-    color: LIGHT_TEXT_COLOR,
-  },
-  eventDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.m,
-  },
-  eventDetailText: {
+  sectionSubtitle: {
+    fontFamily: FONTS.regular,
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
-    marginLeft: 4,
-    marginRight: SPACING.s,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
-  eventDetailSeparator: {
-    color: LIGHT_TEXT_COLOR,
-    marginHorizontal: 4,
-  },
-  eventFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  attendeeInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  attendeeText: {
-    fontSize: 13,
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
-    marginLeft: 4,
-  },
-  discoverHint: {
-    fontSize: 13,
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
-  },
-  emptyCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.l,
-    borderRadius: BORDER_RADIUS.l,
-    padding: SPACING.xl,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginTop: SPACING.m,
-  },
-  emptyText: {
+  seeAllText: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: SPACING.s,
-    textAlign: "center",
+    color: COLORS.primary,
   },
-  exploreCta: {
-    marginTop: SPACING.m,
-    paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.s,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: BORDER_RADIUS.m,
-  },
-  exploreCtaText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  tabContainer: {
-    marginBottom: SPACING.m,
-  },
-  tabContent: {
-    paddingHorizontal: SPACING.l,
-  },
-  tabChip: {
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: SPACING.s,
-  },
-  tabChipActive: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
-  },
-  tabChipText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: TEXT_COLOR,
-  },
-  tabChipTextActive: {
-    color: "#FFFFFF",
-  },
-  emptyExplore: {
-    paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.xl,
-    alignItems: "center",
-  },
-  emptyExploreText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-  },
-  errorBanner: {
-    marginHorizontal: SPACING.l,
-    marginBottom: SPACING.m,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    backgroundColor: "#FFF2F0",
-    borderRadius: BORDER_RADIUS.m,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  errorText: {
-    color: "#D93025",
-    flex: 1,
-    marginRight: SPACING.s,
-  },
-  retryText: {
-    color: PRIMARY_COLOR,
-    fontWeight: "600",
-  },
-  // Community suggestion styles
-  communitiesScrollContent: {
+  horizontalList: {
     paddingHorizontal: SPACING.l,
     gap: SPACING.m,
   },
-  communityCard: {
-    width: 120,
+
+  // Reconnect Section
+  reconnectCard: {
+    width: 312,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    ...SHADOWS.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    elevation: 3,
+    overflow: "hidden",
+    marginBottom: 4, // Space for shadow
+  },
+  reconnectImageContainer: {
+    height: 140,
+    backgroundColor: "#eee",
+  },
+  imageGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "100%",
+  },
+  pastBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    height: 24,
+    borderRadius: 999,
+    justifyContent: "center",
+  },
+  pastBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#FFFFFF",
+  },
+  reconnectContent: {
+    padding: 16,
+  },
+  reconnectTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#0F172A",
+    marginBottom: 8, // Spacing between title and meta
+  },
+  reconnectMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  metaText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#64748B",
+    marginLeft: 6,
+  },
+  attendeeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 12, // Space between date and attendees
+  },
+  revisitButton: {
+    width: "100%",
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 6,
+  },
+  revisitButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#2962FF",
+  },
+
+  // Tribe Section
+  tribeCard: {
+    width: 156,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    ...SHADOWS.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 2,
+    overflow: "hidden",
+    marginVertical: 4, // Space for shadow
+  },
+  tribeVisualContainer: {
+    height: 88,
+    margin: 12,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF", // Fallback color
+    overflow: "hidden",
+  },
+  tribeVisual: {
+    width: "100%",
+    height: "100%",
+  },
+  tribeVisualGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "100%",
+  },
+  tribeContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  tribeName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#0F172A",
+    marginBottom: 6,
+  },
+  tribeMembers: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 0,
+  },
+  joinButton: {
+    width: "100%",
+    height: 34,
+    backgroundColor: "#2962FF",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  joinButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+
+  // People Section
+  personCard: {
+    width: PEOPLE_CARD_WIDTH,
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.m,
     alignItems: "center",
     ...SHADOWS.sm,
+    marginVertical: 4, // Space for shadow
   },
-  communityLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  personImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     marginBottom: SPACING.s,
+    backgroundColor: COLORS.textMuted,
   },
-  communityLogoPlaceholder: {
-    backgroundColor: "#F0EAFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  communityName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+  personName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  communityCategory: {
+  personRole: {
+    fontFamily: FONTS.regular,
     fontSize: 11,
-    color: LIGHT_TEXT_COLOR,
+    color: COLORS.textSecondary,
     textAlign: "center",
+    marginBottom: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  interestsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  interestTag: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  interestText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: COLORS.textSecondary,
+  },
+
+  // Recommended Events Section
+  recommendedCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    marginHorizontal: SPACING.l,
+    marginBottom: SPACING.l,
+    ...SHADOWS.md,
+    overflow: "hidden",
+  },
+  recommendedImage: {
+    height: 180, // Taller image
+    width: "100%",
+    justifyContent: "space-between",
+    padding: SPACING.s,
+  },
+  priceBadge: {
+    alignSelf: "flex-end",
+    backgroundColor: "#FFF",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 100,
+  },
+  priceText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.textPrimary,
+  },
+  recommendedContent: {
+    padding: SPACING.m,
+  },
+  recommendedTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 18,
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
-  communityFollowers: {
+  recommendedHost: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.m,
+  },
+  recommendedMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    marginBottom: 8,
+    gap: 8,
   },
-  communityFollowerCount: {
-    fontSize: 11,
-    color: LIGHT_TEXT_COLOR,
+  recommendedMetaText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  viewEventButton: {
+    marginTop: SPACING.m,
+    backgroundColor: "#F5F7FA",
+    paddingVertical: 12,
+    borderRadius: BORDER_RADIUS.l,
+    alignItems: "center",
+  },
+  viewEventText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
 });
