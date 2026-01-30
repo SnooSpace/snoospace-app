@@ -42,6 +42,15 @@ import {
   Film,
   Search,
   Gamepad2,
+  Utensils,
+  PartyPopper,
+  Palette as Art,
+  Clapperboard,
+  Mountain,
+  MoreHorizontal,
+  ChevronDown,
+  ChevronRight,
+  Search as SearchIcon,
 } from "lucide-react-native";
 
 import { getAuthToken } from "../../../api/auth";
@@ -91,73 +100,150 @@ if (
 
 // Interest Categories Configuration
 const INTEREST_CATEGORIES = {
-  CREATIVE: {
-    bg: "#FFEBEE",
-    text: "#C62828",
-    icon: Palette,
-    keywords: ["art", "design", "photo", "fashion", "write", "draw", "dance"],
+  LIFESTYLE: {
+    label: "Lifestyle",
+    bg: "#FFF3E0", // Warm beige
+    text: "#E65100",
+    icon: User,
+    keywords: [
+      "lifestyle",
+      "dating",
+      "fashion",
+      "volunteer",
+      "cars",
+      "bikes",
+      "driving",
+      "meditation",
+    ],
   },
-  MUSIC: {
-    bg: "#F3E5F5",
-    text: "#7B1FA2",
-    icon: Music,
-    keywords: ["music", "concert", "fest", "guitar", "piano", "sing"],
-  },
-  NATURE: {
-    bg: "#E8F5E9",
-    text: "#2E7D32",
-    icon: TreeDeciduous,
-    keywords: ["nature", "hik", "camp", "outdoors", "garden", "flower"],
-  },
-  TECH: {
-    bg: "#E0F7FA",
-    text: "#00838F",
-    icon: Laptop,
-    keywords: ["tech", "code", "gam", "pc", "data", "scifi", "ai"],
-  },
-  FOOD: {
-    bg: "#FFF8E1",
-    text: "#F9A825",
-    icon: Coffee,
-    keywords: ["food", "cof", "cook", "bak", "drink", "bar", "cafe"],
-  },
-  FITNESS: {
-    bg: "#E3F2FD",
+  SPORTS: {
+    label: "Sports & Fitness",
+    bg: "#E3F2FD", // Soft Blue
     text: "#1565C0",
     icon: Dumbbell,
-    keywords: ["fit", "gym", "run", "sport", "yoga", "ball"],
+    keywords: [
+      "sport",
+      "gym",
+      "run",
+      "fitness",
+      "yoga",
+      "football",
+      "basketball",
+      "cricket",
+      "badminton",
+      "cycling",
+    ],
   },
-  TRAVEL: {
-    bg: "#E0F2F1",
-    text: "#00695C",
-    icon: Plane,
-    keywords: ["travel", "trip", "explor", "adv"],
-  },
-  MOVIES: {
-    bg: "#F3E5F5",
-    text: "#6A1B9A",
-    icon: Film,
-    keywords: ["movi", "film", "cinem", "show", "netflix"],
-  },
-  BOOKS: {
-    bg: "#FFF3E0",
-    text: "#EF6C00",
-    icon: BookOpen,
-    keywords: ["book", "read", "novel", "lit"],
-  },
-  MYSTERY: {
-    bg: "#ECEFF1",
-    text: "#37474F",
-    icon: Search,
-    keywords: ["crime", "myst", "thrill", "detect"],
-  },
-  ROMANCE: {
-    bg: "#FCE4EC",
+  ARTS: {
+    label: "Arts & Culture",
+    bg: "#FCE4EC", // Soft Pink
     text: "#C2185B",
-    icon: Heart,
-    keywords: ["roman", "love", "date"],
+    icon: Art,
+    keywords: [
+      "art",
+      "design",
+      "creative",
+      "draw",
+      "paint",
+      "write",
+      "photo",
+      "culture",
+      "history",
+    ],
   },
-  DEFAULT: { bg: "#F5F5F5", text: "#424242", icon: Zap, keywords: [] },
+  ENTERTAINMENT: {
+    label: "Entertainment",
+    bg: "#F3E5F5", // Lavender
+    text: "#7B1FA2",
+    icon: Clapperboard,
+    keywords: [
+      "movie",
+      "film",
+      "music",
+      "concert",
+      "book",
+      "read",
+      "netflix",
+      "cinema",
+      "show",
+      "anime",
+      "manga",
+    ],
+  },
+  FOOD: {
+    label: "Food & Drink",
+    bg: "#FFF8E1", // Amber
+    text: "#F57F17",
+    icon: Utensils,
+    keywords: [
+      "food",
+      "cook",
+      "bake",
+      "drink",
+      "coffee",
+      "cafe",
+      "bar",
+      "wine",
+      "beer",
+      "dining",
+    ],
+  },
+  OUTDOORS: {
+    label: "Outdoors & Adventure",
+    bg: "#E8F5E9", // Mint
+    text: "#2E7D32",
+    icon: Mountain,
+    keywords: [
+      "nature",
+      "hike",
+      "camp",
+      "travel",
+      "adventure",
+      "explore",
+      "mountain",
+      "beach",
+    ],
+  },
+  TECH: {
+    label: "Tech & Gaming",
+    bg: "#E0F7FA", // Cyan
+    text: "#006064",
+    icon: Gamepad2,
+    keywords: [
+      "tech",
+      "game",
+      "gaming",
+      "code",
+      "ai",
+      "pc",
+      "console",
+      "science",
+      "data",
+    ],
+  },
+  SOCIAL: {
+    label: "Social",
+    bg: "#EDE7F6", // Deep Purple Light
+    text: "#4527A0",
+    icon: PartyPopper,
+    keywords: [
+      "social",
+      "party",
+      "club",
+      "event",
+      "meetup",
+      "chat",
+      "friends",
+      "networking",
+    ],
+  },
+  DEFAULT: {
+    label: "Other",
+    bg: "#F5F5F5",
+    text: "#424242",
+    icon: Zap,
+    keywords: [],
+  },
 };
 
 const getInterestStyle = (interest) => {
@@ -167,7 +253,7 @@ const getInterestStyle = (interest) => {
   // Special overrides
   if (lower.includes("bar hopping") || lower.includes("cafe"))
     return INTEREST_CATEGORIES.FOOD;
-  if (lower.includes("run")) return INTEREST_CATEGORIES.FITNESS;
+  if (lower.includes("run")) return INTEREST_CATEGORIES.SPORTS;
 
   for (const key in INTEREST_CATEGORIES) {
     const category = INTEREST_CATEGORIES[key];
@@ -225,7 +311,10 @@ export default function EditProfileScreen({ route, navigation }) {
       )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
   );
 
-  const [showAllOptions, setShowAllOptions] = useState(false);
+  // My Vibes Redesign State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE"); // Default open
+  const [showAllSelected, setShowAllSelected] = useState(false);
 
   const allowLeaveRef = useRef(false);
 
@@ -619,112 +708,254 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Card 4: My Vibes */}
+          {/* Card 4: My Vibes (Scalable Redesign) */}
           <View style={styles.card}>
             <View style={[styles.cardHeader, { marginBottom: 12 }]}>
               <Text style={styles.cardTitle}>MY VIBES</Text>
             </View>
 
             <View style={styles.inputGroupLast}>
-              {/* Selected Vibes Section */}
-              <View style={styles.vibesContainer}>
-                {interests.map((interest) => {
-                  const style = getInterestStyle(interest);
-                  const Icon = style.icon;
-                  return (
-                    <TouchableOpacity
-                      key={interest}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        LayoutAnimation.configureNext(
-                          LayoutAnimation.Presets.easeInEaseOut,
+              {/* 1. Selected Vibes (Pinned Top) */}
+              {interests.length > 0 && (
+                <View style={styles.selectedVibesSection}>
+                  <View style={styles.vibesContainer}>
+                    {interests
+                      .slice(0, showAllSelected ? undefined : 8)
+                      .map((interest) => {
+                        const style = getInterestStyle(interest);
+                        const Icon = style.icon;
+                        return (
+                          <TouchableOpacity
+                            key={interest}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              setInterests(
+                                interests.filter((i) => i !== interest),
+                              );
+                              HapticsService.triggerSelection();
+                            }}
+                            style={[
+                              styles.vibeChip,
+                              { backgroundColor: style.bg, paddingRight: 8 },
+                            ]}
+                          >
+                            <View style={styles.vibeContent}>
+                              <Icon
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={[styles.vibeText, { color: style.text }]}
+                              >
+                                {interest}
+                              </Text>
+                            </View>
+                            <View style={styles.removeIconContainer}>
+                              <X size={12} color={style.text} strokeWidth={3} />
+                            </View>
+                          </TouchableOpacity>
                         );
-                        setInterests(interests.filter((i) => i !== interest));
-                        HapticsService.triggerSelection();
-                      }}
-                      style={[
-                        styles.vibeChip,
-                        { backgroundColor: style.bg, paddingRight: 8 },
-                      ]}
-                    >
-                      <View style={styles.vibeContent}>
-                        <Icon size={14} color={style.text} strokeWidth={2.5} />
-                        <Text style={[styles.vibeText, { color: style.text }]}>
-                          {interest}
+                      })}
+                    {interests.length > 8 && !showAllSelected && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setShowAllSelected(true);
+                        }}
+                        style={styles.moreCountChip}
+                      >
+                        <Text style={styles.moreCountText}>
+                          +{interests.length - 8} more
                         </Text>
-                      </View>
-                      <View style={styles.removeIconContainer}>
-                        <X size={12} color={style.text} strokeWidth={3} />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                      </TouchableOpacity>
+                    )}
+                    {showAllSelected && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setShowAllSelected(false);
+                        }}
+                        style={styles.moreCountChip}
+                      >
+                        <Text style={styles.moreCountText}>Show less</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <View style={styles.divider} />
+                </View>
+              )}
 
-              {/* Options Section */}
-              <View style={styles.optionsHeader}>
-                <Text style={styles.optionsLabel}>Options:</Text>
-              </View>
-
-              <View style={styles.vibesContainer}>
-                {interestsCatalog
-                  .filter((i) => !interests.includes(i))
-                  .slice(0, showAllOptions ? undefined : 15)
-                  .map((interest) => (
-                    <TouchableOpacity
-                      key={interest}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        LayoutAnimation.configureNext(
-                          LayoutAnimation.Presets.easeInEaseOut,
-                        );
-                        setInterests([...interests, interest]);
-                        HapticsService.triggerSelection();
-                      }}
-                      style={styles.optionChip}
-                    >
-                      <Text style={styles.optionText}>{interest}</Text>
-                      <Plus size={14} color={TEXT_SECONDARY} />
-                    </TouchableOpacity>
-                  ))}
-              </View>
-
-              {/* Show More / Add Custom Actions */}
-              <View style={styles.vibesActions}>
-                {interestsCatalog.filter((i) => !interests.includes(i)).length >
-                  15 && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      LayoutAnimation.configureNext(
-                        LayoutAnimation.Presets.easeInEaseOut,
-                      );
-                      setShowAllOptions(!showAllOptions);
-                    }}
-                    style={styles.showMoreButton}
-                  >
-                    <Text style={styles.showMoreText}>
-                      {showAllOptions ? "Show Less" : "Show More"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  onPress={() => {
-                    // Logic for custom interest addition if needed
-                    Alert.prompt("Add Custom Interest", null, (text) => {
-                      if (text && !interests.includes(text)) {
-                        LayoutAnimation.configureNext(
-                          LayoutAnimation.Presets.easeInEaseOut,
-                        );
-                        setInterests([...interests, text]);
-                      }
-                    });
+              {/* 2. Search & Add */}
+              <View style={styles.searchContainer}>
+                <SearchIcon
+                  size={16}
+                  color={TEXT_SECONDARY}
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search interests..."
+                  placeholderTextColor={TEXT_SECONDARY}
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setSearchQuery(text);
+                    if (text) setExpandedCategory(null); // Close categories when searching
                   }}
-                  style={styles.addCustomButton}
-                >
-                  <Plus size={16} color={ACCENT_COLOR} />
-                  <Text style={styles.addCustomText}>Add custom interest</Text>
-                </TouchableOpacity>
+                />
+              </View>
+
+              {/* 3. Categories or Search Results */}
+              <View style={styles.categoriesContainer}>
+                {searchQuery ? (
+                  // Search Results
+                  <View style={styles.vibesContainer}>
+                    {interestsCatalog
+                      .filter(
+                        (i) =>
+                          !interests.includes(i) &&
+                          i.toLowerCase().includes(searchQuery.toLowerCase()),
+                      )
+                      .map((interest) => (
+                        <TouchableOpacity
+                          key={interest}
+                          onPress={() => {
+                            setInterests([...interests, interest]);
+                            setSearchQuery(""); // Clear search after add
+                            HapticsService.triggerSelection();
+                          }}
+                          style={styles.optionChip}
+                        >
+                          <Text style={styles.optionText}>{interest}</Text>
+                          <Plus size={14} color={TEXT_SECONDARY} />
+                        </TouchableOpacity>
+                      ))}
+                    {/* Add Custom Interest in Search */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (!interests.includes(searchQuery)) {
+                          setInterests([...interests, searchQuery]);
+                          setSearchQuery("");
+                          HapticsService.triggerSelection();
+                        }
+                      }}
+                      style={styles.addCustomSearchResult}
+                    >
+                      <Plus size={14} color={ACCENT_COLOR} />
+                      <Text style={styles.addCustomText}>
+                        Add "{searchQuery}"
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  // Category List
+                  Object.keys(INTEREST_CATEGORIES)
+                    .filter((key) => key !== "DEFAULT")
+                    .map((key) => {
+                      const category = INTEREST_CATEGORIES[key];
+                      const isExpanded = expandedCategory === key;
+                      const Icon = category.icon;
+
+                      // Filter interests for this category
+                      const categoryInterests = interestsCatalog.filter(
+                        (i) =>
+                          !interests.includes(i) &&
+                          category.keywords.some((k) =>
+                            i.toLowerCase().includes(k),
+                          ),
+                      );
+
+                      // If no interests in this category available to add, maybe skip?
+                      // Spec says "Show all categories", so keeping it.
+
+                      return (
+                        <View key={key} style={styles.categoryRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              setExpandedCategory(isExpanded ? null : key);
+                            }}
+                            style={[
+                              styles.categoryHeader,
+                              isExpanded && styles.categoryHeaderExpanded,
+                              {
+                                backgroundColor: isExpanded
+                                  ? category.bg
+                                  : "transparent",
+                              }, // Tint on expand
+                            ]}
+                          >
+                            <View style={styles.categoryHeaderLeft}>
+                              <View
+                                style={[
+                                  styles.categoryIcon,
+                                  { backgroundColor: category.bg },
+                                ]}
+                              >
+                                <Icon size={14} color={category.text} />
+                              </View>
+                              <Text
+                                style={[
+                                  styles.categoryTitle,
+                                  isExpanded && {
+                                    color: category.text,
+                                    fontWeight: "600",
+                                  },
+                                ]}
+                              >
+                                {category.label}
+                              </Text>
+                            </View>
+                            {isExpanded ? (
+                              <ChevronDown size={16} color={TEXT_SECONDARY} />
+                            ) : (
+                              <ChevronRight size={16} color={TEXT_SECONDARY} />
+                            )}
+                          </TouchableOpacity>
+
+                          {isExpanded && (
+                            <View style={styles.categoryContent}>
+                              <View style={styles.vibesContainer}>
+                                {categoryInterests.map((interest) => (
+                                  <TouchableOpacity
+                                    key={interest}
+                                    onPress={() => {
+                                      setInterests([...interests, interest]);
+                                      HapticsService.triggerSelection();
+                                    }}
+                                    style={styles.optionChip}
+                                  >
+                                    <Text style={styles.optionText}>
+                                      {interest}
+                                    </Text>
+                                    <Plus size={14} color={TEXT_SECONDARY} />
+                                  </TouchableOpacity>
+                                ))}
+                                {categoryInterests.length === 0 && (
+                                  <Text style={styles.helperText}>
+                                    No more interests in this category.
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
+                )}
               </View>
             </View>
           </View>
@@ -1050,19 +1281,26 @@ const styles = StyleSheet.create({
   },
 
   // New Vibes Redesign Styles
+  selectedVibesSection: {
+    marginBottom: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 12,
+  },
   vibesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 16,
   },
   vibeChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingLeft: 12,
-    paddingRight: 12,
-    borderRadius: 20, // Full rounded pill
+    paddingRight: 10,
+    borderRadius: 999, // Full pill
     marginBottom: 4,
     // Soft shadow
     shadowColor: "#000",
@@ -1075,65 +1313,119 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginRight: 6,
   },
   vibeText: {
     fontSize: 14,
-    fontFamily: FONTS.medium,
-    fontWeight: "600",
+    fontFamily: FONTS.regular,
   },
   removeIconContainer: {
-    marginLeft: 6,
-    opacity: 0.6,
+    opacity: 0.5,
   },
-  optionsHeader: {
-    marginTop: 8,
-    marginBottom: 12,
+  moreCountChip: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  optionsLabel: {
+  moreCountText: {
     fontSize: 13,
     color: TEXT_SECONDARY,
     fontFamily: FONTS.medium,
   },
+
+  // Search
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: TEXT_PRIMARY,
+  },
+  addCustomSearchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 8,
+  },
+
+  // Categories
+  categoriesContainer: {
+    gap: 4,
+  },
+  categoryRow: {
+    overflow: "hidden", // For animation clipping
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  categoryHeaderExpanded: {
+    // backgroundColor handled inline for tint
+  },
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  categoryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: TEXT_PRIMARY,
+  },
+  categoryContent: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+
   optionChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3F4F6", // Neutral
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    backgroundColor: "#FFFFFF", // Neutral surface
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     marginBottom: 4,
     gap: 6,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.03)",
   },
   optionText: {
     fontSize: 14,
     fontFamily: FONTS.regular,
     color: TEXT_PRIMARY,
   },
-  vibesActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  helperText: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
     marginTop: 8,
-  },
-  showMoreButton: {
-    paddingVertical: 8,
-  },
-  showMoreText: {
-    fontSize: 13,
-    color: ACCENT_COLOR,
-    fontFamily: FONTS.medium,
-  },
-  addCustomButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-  },
-  addCustomText: {
-    fontSize: 13,
-    color: ACCENT_COLOR,
-    fontFamily: FONTS.bold,
   },
 });
