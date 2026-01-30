@@ -9,17 +9,45 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
+  LayoutAnimation,
+  UIManager,
   Platform,
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+// Use transparent Lucid icons if available or standard Ionicons
+import {
+  Camera,
+  Lock,
+  Mail,
+  Phone,
+  GraduationCap,
+  User,
+  ArrowLeft,
+  X,
+  Plus,
+  Palette,
+  Music,
+  TreeDeciduous,
+  Laptop,
+  Coffee,
+  Zap,
+  Tent,
+  Rocket,
+  Heart,
+  Dumbbell,
+  Plane,
+  BookOpen,
+  Film,
+  Search,
+  Gamepad2,
+} from "lucide-react-native";
+
 import { getAuthToken } from "../../../api/auth";
 import {
   updateMemberProfile,
   changeUsername,
-  startEmailChange,
-  verifyEmailChange,
   fetchInterests,
   fetchPronouns,
 } from "../../../api/members";
@@ -29,13 +57,129 @@ import { uploadImage } from "../../../api/cloudinary";
 import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 
-import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  FONTS,
+  SHADOWS,
+} from "../../../constants/theme";
 
-// Map to new theme
-const PRIMARY_COLOR = COLORS.primary;
-const TEXT_COLOR = COLORS.textPrimary;
-const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+// Typography constants based on user request
+const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold"; // Edit Profile
+const FONT_CARD_TITLE = FONTS.primary || "BasicCommercial-Bold"; // THE BASICS, etc.
+const FONT_LABEL = FONTS.medium; // Input Labels
+const FONT_INPUT = FONTS.regular; // Input Values
+const FONT_BUTTON = FONTS.medium; // Cancel / Save
+
+// Colors
+const ACCENT_COLOR = COLORS.primary;
+const BG_COLOR = COLORS.screenBackground || "#F9FAFB";
+const CARD_BG = "#FFFFFF";
+const TEXT_PRIMARY = COLORS.textPrimary;
+const TEXT_SECONDARY = COLORS.textSecondary;
+const INPUT_BG = "#F3F4F6"; // Soft filled input
+const BORDER_COLOR = "#E5E7EB";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Interest Categories Configuration
+const INTEREST_CATEGORIES = {
+  CREATIVE: {
+    bg: "#FFEBEE",
+    text: "#C62828",
+    icon: Palette,
+    keywords: ["art", "design", "photo", "fashion", "write", "draw", "dance"],
+  },
+  MUSIC: {
+    bg: "#F3E5F5",
+    text: "#7B1FA2",
+    icon: Music,
+    keywords: ["music", "concert", "fest", "guitar", "piano", "sing"],
+  },
+  NATURE: {
+    bg: "#E8F5E9",
+    text: "#2E7D32",
+    icon: TreeDeciduous,
+    keywords: ["nature", "hik", "camp", "outdoors", "garden", "flower"],
+  },
+  TECH: {
+    bg: "#E0F7FA",
+    text: "#00838F",
+    icon: Laptop,
+    keywords: ["tech", "code", "gam", "pc", "data", "scifi", "ai"],
+  },
+  FOOD: {
+    bg: "#FFF8E1",
+    text: "#F9A825",
+    icon: Coffee,
+    keywords: ["food", "cof", "cook", "bak", "drink", "bar", "cafe"],
+  },
+  FITNESS: {
+    bg: "#E3F2FD",
+    text: "#1565C0",
+    icon: Dumbbell,
+    keywords: ["fit", "gym", "run", "sport", "yoga", "ball"],
+  },
+  TRAVEL: {
+    bg: "#E0F2F1",
+    text: "#00695C",
+    icon: Plane,
+    keywords: ["travel", "trip", "explor", "adv"],
+  },
+  MOVIES: {
+    bg: "#F3E5F5",
+    text: "#6A1B9A",
+    icon: Film,
+    keywords: ["movi", "film", "cinem", "show", "netflix"],
+  },
+  BOOKS: {
+    bg: "#FFF3E0",
+    text: "#EF6C00",
+    icon: BookOpen,
+    keywords: ["book", "read", "novel", "lit"],
+  },
+  MYSTERY: {
+    bg: "#ECEFF1",
+    text: "#37474F",
+    icon: Search,
+    keywords: ["crime", "myst", "thrill", "detect"],
+  },
+  ROMANCE: {
+    bg: "#FCE4EC",
+    text: "#C2185B",
+    icon: Heart,
+    keywords: ["roman", "love", "date"],
+  },
+  DEFAULT: { bg: "#F5F5F5", text: "#424242", icon: Zap, keywords: [] },
+};
+
+const getInterestStyle = (interest) => {
+  if (!interest) return INTEREST_CATEGORIES.DEFAULT;
+  const lower = interest.toLowerCase();
+
+  // Special overrides
+  if (lower.includes("bar hopping") || lower.includes("cafe"))
+    return INTEREST_CATEGORIES.FOOD;
+  if (lower.includes("run")) return INTEREST_CATEGORIES.FITNESS;
+
+  for (const key in INTEREST_CATEGORIES) {
+    const category = INTEREST_CATEGORIES[key];
+    if (
+      category.keywords.some((k) => lower.includes(k)) ||
+      key === interest.toUpperCase()
+    ) {
+      return category;
+    }
+  }
+  return INTEREST_CATEGORIES.DEFAULT;
+};
 
 export default function EditProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
@@ -45,21 +189,22 @@ export default function EditProfileScreen({ route, navigation }) {
     return val.replace(/^[{\"]+|[}\"]+$/g, "");
   };
 
+  // State
   const [name, setName] = useState(profile?.name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
   const [phone, setPhone] = useState(profile?.phone || "");
+  const [education, setEducation] = useState(profile?.education || ""); // New Field
   const [pronouns, setPronouns] = useState(
     profile?.pronouns
       ? (Array.isArray(profile.pronouns)
           ? profile.pronouns
           : [profile.pronouns]
         ).map(cleanLabel)
-      : []
+      : [],
   );
   const [interests, setInterests] = useState(profile?.interests || []);
-  const [location] = useState(profile?.location || null);
 
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
@@ -70,39 +215,17 @@ export default function EditProfileScreen({ route, navigation }) {
     "He/Him",
     "She/Her",
     "They/Them",
-  ]); // Fallback
-  const [loadingLocation, setLoadingLocation] = useState(false);
+  ]);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState(
     profile?.profile_photo_url ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        profile?.name || "Member"
-      )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`
+        profile?.name || "Member",
+      )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
   );
 
-  // Networking extension states
-  const [intentBadges, setIntentBadges] = useState(
-    profile?.intent_badges || []
-  );
-  const [availableToday, setAvailableToday] = useState(
-    profile?.available_today || false
-  );
-  const [availableThisWeek, setAvailableThisWeek] = useState(
-    profile?.available_this_week || false
-  );
-  const [promptQuestion, setPromptQuestion] = useState(
-    profile?.prompt_question || ""
-  );
-  const [promptAnswer, setPromptAnswer] = useState(
-    profile?.prompt_answer || ""
-  );
-  const [appearInDiscover, setAppearInDiscover] = useState(
-    profile?.appear_in_discover !== false
-  );
-  const [showAvailability, setShowAvailability] = useState(
-    profile?.show_availability !== false
-  );
+  const [showAllOptions, setShowAllOptions] = useState(false);
 
   const allowLeaveRef = useRef(false);
 
@@ -113,7 +236,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, bio, username, phone, pronouns, interests, email]);
+  }, [name, bio, username, phone, pronouns, interests, email, education]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -134,7 +257,7 @@ export default function EditProfileScreen({ route, navigation }) {
               navigation.dispatch(e.data.action);
             },
           },
-        ]
+        ],
       );
     });
     return unsubscribe;
@@ -144,7 +267,6 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const data = await fetchPronouns();
       if (data && data.length > 0) {
-        // Map objects to label strings
         setPronounPresets(data.map((p) => p.label));
       }
     } catch (error) {
@@ -156,17 +278,6 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const catalog = await fetchInterests();
       setInterestsCatalog(catalog || []);
-
-      // Filter out legacy interests that are no longer in the catalog
-      if (catalog && catalog.length > 0 && interests.length > 0) {
-        const catalogSet = new Set(catalog.map((i) => i.toLowerCase()));
-        const filteredInterests = interests.filter((interest) =>
-          catalogSet.has(interest.toLowerCase())
-        );
-        if (filteredInterests.length !== interests.length) {
-          setInterests(filteredInterests);
-        }
-      }
     } catch (error) {
       console.error("Error loading interests catalog:", error);
     }
@@ -178,6 +289,7 @@ export default function EditProfileScreen({ route, navigation }) {
     const originalUsername = profile?.username || "";
     const originalPhone = profile?.phone || "";
     const originalEmail = profile?.email || "";
+    const originalEducation = profile?.education || "";
 
     const normalizePronouns = (arr) =>
       (arr ? (Array.isArray(arr) ? arr : [arr]) : [])
@@ -198,6 +310,7 @@ export default function EditProfileScreen({ route, navigation }) {
       username !== originalUsername ||
       phone !== originalPhone ||
       email !== originalEmail ||
+      education !== originalEducation ||
       JSON.stringify(currentPronouns) !== JSON.stringify(originalPronouns) ||
       JSON.stringify(currentInterests) !== JSON.stringify(originalInterests);
 
@@ -224,7 +337,7 @@ export default function EditProfileScreen({ route, navigation }) {
           "/username/check",
           { username: value },
           10000,
-          token
+          token,
         );
         setUsernameAvailable(result?.available === true);
       } catch (error) {
@@ -233,7 +346,7 @@ export default function EditProfileScreen({ route, navigation }) {
         setUsernameChecking(false);
       }
     },
-    [profile?.username]
+    [profile?.username],
   );
 
   const handleUsernameChange = (value) => {
@@ -242,7 +355,7 @@ export default function EditProfileScreen({ route, navigation }) {
     if (sanitized.length >= 3) {
       const timeoutId = setTimeout(
         () => checkUsernameAvailability(sanitized),
-        500
+        500,
       );
       return () => clearTimeout(timeoutId);
     } else {
@@ -250,14 +363,12 @@ export default function EditProfileScreen({ route, navigation }) {
     }
   };
 
-  // Instagram-style crop hook for avatar
   const { pickAndCrop } = useCrop();
 
   const handleChangePhoto = async () => {
     try {
-      // Use Instagram-style crop for 1:1 avatar
       const result = await pickAndCrop("avatar");
-      if (!result) return; // User cancelled
+      if (!result) return;
 
       setUploadingPhoto(true);
       const secureUrl = await uploadImage(result.uri);
@@ -268,10 +379,10 @@ export default function EditProfileScreen({ route, navigation }) {
         "/members/profile/photo",
         { photo_url: secureUrl },
         15000,
-        token
+        token,
       );
       setPhotoUrl(secureUrl);
-      Alert.alert("Updated", "Profile photo updated");
+      HapticsService.triggerNotificationSuccess();
     } catch (e) {
       Alert.alert("Update failed", e?.message || "Could not update photo");
     } finally {
@@ -290,9 +401,9 @@ export default function EditProfileScreen({ route, navigation }) {
         name: name.trim(),
         bio: bio.trim(),
         phone: phone.trim(),
+        education: education.trim(),
         pronouns: pronouns.length > 0 ? pronouns.map(cleanLabel) : null,
         interests: interests.length > 0 ? interests : [],
-        // location is now handled automatically by the app while in use
       };
 
       await updateMemberProfile(updates, token);
@@ -301,24 +412,15 @@ export default function EditProfileScreen({ route, navigation }) {
         await changeUsername(username, token);
       }
 
-      // Prevent the unsaved guard and go back after user acknowledges
       HapticsService.triggerNotificationSuccess();
-      Alert.alert("Success", "Profile updated successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            allowLeaveRef.current = true;
-            setHasChanges(false);
-            // Navigate back to Profile with refresh flag to trigger reload
-            navigation.navigate("Profile", { refreshProfile: true });
-          },
-        },
-      ]);
+      allowLeaveRef.current = true;
+      setHasChanges(false);
+      navigation.navigate("Profile", { refreshProfile: true });
     } catch (error) {
       console.error("Error saving profile:", error);
       Alert.alert(
         "Error",
-        error?.message || "Failed to update profile. Please try again."
+        error?.message || "Failed to update profile. Please try again.",
       );
     } finally {
       setSaving(false);
@@ -330,197 +432,364 @@ export default function EditProfileScreen({ route, navigation }) {
     setEmailChangeModalVisible(false);
   };
 
+  const renderSectionHeader = (title, icon) => (
+    <View style={styles.cardHeader}>
+      {icon && <View style={styles.cardIcon}>{icon}</View>}
+      <Text style={styles.cardTitle}>{title}</Text>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={styles.headerButtonLeft}
+            hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={26} color={TEXT_SECONDARY} />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>Edit Profile</Text>
-          <GradientButton
-            title="Save"
+
+          <TouchableOpacity
             onPress={handleSave}
             disabled={!hasChanges || saving}
-            loading={saving}
             style={[
-              { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
-              (!hasChanges || saving) && {
-                shadowOpacity: 0,
-                elevation: 0,
-                shadowColor: "transparent",
-              },
+              styles.saveButton,
+              (!hasChanges || saving) && styles.saveButtonDisabled,
             ]}
-          />
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Photo Section */}
-          <View style={[styles.section, styles.photoSection]}>
-            <Image source={{ uri: photoUrl }} style={styles.profileImage} />
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Profile Photo - Global Section 2 */}
+          <View style={styles.photoSection}>
             <TouchableOpacity
+              activeOpacity={0.8}
               onPress={handleChangePhoto}
-              style={[styles.changeButton, styles.photoButton]}
               disabled={uploadingPhoto}
+              style={styles.photoWrapper}
             >
-              {uploadingPhoto ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-              ) : (
-                <Text style={styles.changeButtonText}>
-                  Change Profile Photo
-                </Text>
-              )}
+              <Image source={{ uri: photoUrl }} style={styles.profileImage} />
+              <View style={styles.cameraButton}>
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
+                )}
+              </View>
             </TouchableOpacity>
           </View>
 
-          {/* Name Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Name</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Your full name"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={name}
-              onChangeText={setName}
-              maxLength={100}
-            />
-          </View>
-
-          {/* Bio Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bio</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Tell us about yourself"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={bio}
-              onChangeText={setBio}
-              multiline
-              maxLength={150}
-            />
-            <Text style={styles.charCount}>{bio.length}/150</Text>
-          </View>
-
-          {/* Username Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Username</Text>
-            <View style={styles.usernameContainer}>
-              <TextInput
-                style={[styles.textInput, styles.usernameInput]}
-                placeholder="username"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={username}
-                onChangeText={handleUsernameChange}
-                autoCapitalize="none"
-                maxLength={30}
-              />
-              {usernameChecking && (
-                <ActivityIndicator
-                  size="small"
-                  color={PRIMARY_COLOR}
-                  style={styles.checkIndicator}
-                />
-              )}
-              {usernameAvailable === true && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color="#00C851"
-                  style={styles.checkIndicator}
-                />
-              )}
-              {usernameAvailable === false &&
-                username !== profile?.username && (
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color="#FF4444"
-                    style={styles.checkIndicator}
-                  />
-                )}
-            </View>
-            {usernameAvailable === false && username !== profile?.username && (
-              <Text style={styles.errorText}>
-                Username is already taken or invalid
-              </Text>
+          {/* Card 1: The Basics */}
+          <View style={styles.card}>
+            {renderSectionHeader(
+              "THE BASICS",
+              <User size={16} color={ACCENT_COLOR} fill={ACCENT_COLOR} />,
             )}
-          </View>
 
-          {/* Email Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Email</Text>
-            <View style={styles.emailContainer}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>DISPLAY NAME</Text>
               <TextInput
-                style={[styles.textInput, styles.emailInput]}
-                placeholder="email@example.com"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={email}
-                editable={false}
-                autoCapitalize="none"
-                keyboardType="email-address"
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Your Name"
+                placeholderTextColor={TEXT_SECONDARY}
               />
-              <TouchableOpacity
-                style={styles.changeButton}
-                onPress={() => setEmailChangeModalVisible(true)}
-              >
-                <Text style={styles.changeButtonText}>Change</Text>
-              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>USERNAME</Text>
+              <View style={[styles.input, styles.rowInput]}>
+                <Text style={styles.prefix}>@</Text>
+                <TextInput
+                  style={styles.flexInput}
+                  value={username}
+                  onChangeText={handleUsernameChange}
+                  autoCapitalize="none"
+                  placeholder="username"
+                  placeholderTextColor={TEXT_SECONDARY}
+                />
+                {usernameChecking && (
+                  <ActivityIndicator size="small" color={ACCENT_COLOR} />
+                )}
+                {!usernameChecking && usernameAvailable === true && (
+                  <Ionicons name="checkmark-circle" size={18} color="green" />
+                )}
+                {!usernameChecking &&
+                  usernameAvailable === false &&
+                  username !== profile?.username && (
+                    <Ionicons name="close-circle" size={18} color="red" />
+                  )}
+              </View>
+              <Text style={styles.helperText}>Your public handle</Text>
+            </View>
+
+            <View style={styles.inputGroupLast}>
+              <Text style={styles.inputLabel}>PRONOUNS</Text>
+              {/* Custom "Pill" selector for pronouns */}
+              <View style={styles.pillRow}>
+                {pronounPresets.map((p) => {
+                  const isSelected = pronouns.includes(p);
+                  return (
+                    <TouchableOpacity
+                      key={p}
+                      onPress={() => {
+                        // Toggle single select style per specs or multi?
+                        // Spec says "Selected state clearly visible". Usually pronouns can be multi, but segmented pill implies single.
+                        // I'll keep multi supported logic but style implies choice.
+                        const newPronouns = isSelected
+                          ? pronouns.filter((pr) => pr !== p)
+                          : [...pronouns, p];
+                        setPronouns(newPronouns);
+                        HapticsService.triggerSelection();
+                      }}
+                      style={[
+                        styles.pronounPill,
+                        isSelected && styles.pronounPillSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.pronounText,
+                          isSelected && styles.pronounTextSelected,
+                        ]}
+                      >
+                        {p}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           </View>
 
-          {/* Phone Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Phone</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Phone number"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
+          {/* Card 2: About Me */}
+          <View style={styles.card}>
+            {renderSectionHeader("ABOUT ME")}
+            <View style={styles.inputGroupLast}>
+              <TextInput
+                style={styles.bioInput}
+                value={bio}
+                onChangeText={setBio}
+                multiline
+                placeholder="Tell us about yourself..."
+                placeholderTextColor={TEXT_SECONDARY}
+                maxLength={150}
+              />
+              <Text style={styles.charCount}>{bio.length} / 150</Text>
+            </View>
           </View>
 
-          {/* Pronouns Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Pronouns</Text>
-            <ChipSelector
-              selected={pronouns}
-              onSelectionChange={setPronouns}
-              presets={pronounPresets}
-              allowCustom={true}
-              maxSelections={10}
-              placeholder="Select pronouns or add custom"
-              variant="glass"
-            />
+          {/* Card 3: Education */}
+          <View style={styles.card}>
+            {renderSectionHeader(
+              "EDUCATION",
+              <GraduationCap size={16} color={ACCENT_COLOR} />,
+            )}
+            <View style={styles.inputGroupLast}>
+              <Text style={styles.inputLabel}>COLLEGE / UNIVERSITY</Text>
+              <TextInput
+                style={styles.input}
+                value={education}
+                onChangeText={setEducation}
+                placeholder="Where did you study?"
+                placeholderTextColor={TEXT_SECONDARY}
+              />
+              <Text style={styles.helperText}>
+                Optional • Shown on your profile
+              </Text>
+            </View>
           </View>
 
-          {/* Interests Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Interests</Text>
-            <ChipSelector
-              selected={interests}
-              onSelectionChange={(newVal) => {
-                HapticsService.triggerSelection();
-                setInterests(newVal);
-              }}
-              presets={interestsCatalog}
-              allowCustom={true}
-              maxSelections={Math.min(10, interestsCatalog.length) || 10}
-              placeholder="Select interests or add custom"
-              searchable={true}
-              variant="gradient-pastel"
-            />
+          {/* Card 4: My Vibes */}
+          <View style={styles.card}>
+            <View style={[styles.cardHeader, { marginBottom: 12 }]}>
+              <Text style={styles.cardTitle}>MY VIBES</Text>
+            </View>
+
+            <View style={styles.inputGroupLast}>
+              {/* Selected Vibes Section */}
+              <View style={styles.vibesContainer}>
+                {interests.map((interest) => {
+                  const style = getInterestStyle(interest);
+                  const Icon = style.icon;
+                  return (
+                    <TouchableOpacity
+                      key={interest}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setInterests(interests.filter((i) => i !== interest));
+                        HapticsService.triggerSelection();
+                      }}
+                      style={[
+                        styles.vibeChip,
+                        { backgroundColor: style.bg, paddingRight: 8 },
+                      ]}
+                    >
+                      <View style={styles.vibeContent}>
+                        <Icon size={14} color={style.text} strokeWidth={2.5} />
+                        <Text style={[styles.vibeText, { color: style.text }]}>
+                          {interest}
+                        </Text>
+                      </View>
+                      <View style={styles.removeIconContainer}>
+                        <X size={12} color={style.text} strokeWidth={3} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Options Section */}
+              <View style={styles.optionsHeader}>
+                <Text style={styles.optionsLabel}>Options:</Text>
+              </View>
+
+              <View style={styles.vibesContainer}>
+                {interestsCatalog
+                  .filter((i) => !interests.includes(i))
+                  .slice(0, showAllOptions ? undefined : 15)
+                  .map((interest) => (
+                    <TouchableOpacity
+                      key={interest}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setInterests([...interests, interest]);
+                        HapticsService.triggerSelection();
+                      }}
+                      style={styles.optionChip}
+                    >
+                      <Text style={styles.optionText}>{interest}</Text>
+                      <Plus size={14} color={TEXT_SECONDARY} />
+                    </TouchableOpacity>
+                  ))}
+              </View>
+
+              {/* Show More / Add Custom Actions */}
+              <View style={styles.vibesActions}>
+                {interestsCatalog.filter((i) => !interests.includes(i)).length >
+                  15 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setShowAllOptions(!showAllOptions);
+                    }}
+                    style={styles.showMoreButton}
+                  >
+                    <Text style={styles.showMoreText}>
+                      {showAllOptions ? "Show Less" : "Show More"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => {
+                    // Logic for custom interest addition if needed
+                    Alert.prompt("Add Custom Interest", null, (text) => {
+                      if (text && !interests.includes(text)) {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setInterests([...interests, text]);
+                      }
+                    });
+                  }}
+                  style={styles.addCustomButton}
+                >
+                  <Plus size={16} color={ACCENT_COLOR} />
+                  <Text style={styles.addCustomText}>Add custom interest</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-          
-          
+
+          {/* Card 5: Private Details */}
+          <View style={styles.card}>
+            {renderSectionHeader(
+              "PRIVATE DETAILS",
+              <Lock size={14} color={TEXT_SECONDARY} />,
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>EMAIL</Text>
+              <View
+                style={[
+                  styles.input,
+                  styles.rowInput,
+                  { backgroundColor: "#F8F8F8" },
+                ]}
+              >
+                <Mail
+                  size={16}
+                  color={TEXT_SECONDARY}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  style={[styles.flexInput, { color: TEXT_SECONDARY }]}
+                  value={email}
+                  editable={false}
+                />
+                <TouchableOpacity
+                  onPress={() => setEmailChangeModalVisible(true)}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={ACCENT_COLOR}
+                  />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helperText}>Only visible to you</Text>
+            </View>
+
+            <View style={styles.inputGroupLast}>
+              <Text style={styles.inputLabel}>PHONE</Text>
+              <View style={[styles.input, styles.rowInput]}>
+                <Phone
+                  size={16}
+                  color={TEXT_SECONDARY}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  style={styles.flexInput}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  placeholder="Add phone number"
+                  placeholderTextColor={TEXT_SECONDARY}
+                />
+              </View>
+              <Text style={styles.helperText}>Only visible to you</Text>
+            </View>
+          </View>
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -537,7 +806,7 @@ export default function EditProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: BG_COLOR,
   },
   keyboardView: {
     flex: 1,
@@ -545,229 +814,326 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    justifyContent: "center",
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    backgroundColor: BG_COLOR,
+    position: "relative",
+    minHeight: 60,
   },
-  backButton: {
-    padding: 5,
+  headerButtonLeft: {
+    position: "absolute",
+    left: 8,
+    padding: 12,
+    zIndex: 1,
+  },
+  cancelText: {
+    fontSize: 16,
+    fontFamily: FONT_BUTTON,
+    color: TEXT_PRIMARY,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    zIndex: -1,
+    fontSize: 17,
+    fontFamily: FONT_HEADER,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.3,
   },
-  // saveButton styles removed as GradientButton handles them
+  saveButton: {
+    position: "absolute",
+    right: 20,
+    backgroundColor: ACCENT_COLOR,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    minWidth: 70,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#E5E7EB",
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: FONT_BUTTON,
+  },
+
   content: {
     flex: 1,
   },
-  section: {
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
+    paddingTop: 24,
+    paddingBottom: 40,
+    gap: 24,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 12,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: "#FFFFFF",
-  },
-  charCount: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  usernameContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  usernameInput: {
-    flex: 1,
-    marginRight: 8,
-  },
-  checkIndicator: {
-    marginLeft: 8,
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#FF4444",
-    marginTop: 4,
-  },
-  emailContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  emailInput: {
-    flex: 1,
-    marginRight: 8,
-    backgroundColor: "#F2F2F7",
-  },
-  changeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-  },
-  changeButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  photoButton: {
-    alignSelf: "center",
-  },
-  profileImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    marginBottom: 12,
-    backgroundColor: "#E5E5EA",
-  },
+
+  // Photo Section
   photoSection: {
     alignItems: "center",
+    marginBottom: 8,
   },
-  locationButton: {
+  photoWrapper: {
+    position: "relative",
+    marginBottom: 12,
+    // Add subtle shadow/halo
+    shadowColor: ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  profileImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    backgroundColor: ACCENT_COLOR,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  changePhotoText: {
+    color: ACCENT_COLOR,
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: FONTS.medium,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: CARD_BG,
+    borderRadius: 20,
+    padding: 20,
+    ...SHADOWS.sm, // Soft elevation
+    shadowOpacity: 0.05,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
+  },
+  cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 8,
   },
-  locationButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
+  cardIcon: {
+    // Optional additional styling for icon container
   },
-  locationFields: {
-    gap: 12,
+  cardTitle: {
+    fontSize: 13,
+    fontFamily: FONT_CARD_TITLE,
+    color: TEXT_PRIMARY, // Neutral color as requested
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  locationInput: {
+  addNewText: {
+    fontSize: 12,
+    fontFamily: FONTS.bold,
+    color: ACCENT_COLOR,
+    textTransform: "uppercase",
+  },
+
+  // Inputs
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputGroupLast: {
     marginBottom: 0,
   },
-  // Networking extension styles
-  sectionHint: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 12,
+  inputLabel: {
+    fontSize: 11,
+    fontFamily: FONT_LABEL,
+    color: TEXT_SECONDARY,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  toggleRow: {
+  input: {
+    backgroundColor: INPUT_BG,
+    borderRadius: 12, // Soft rounded
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    fontFamily: FONT_INPUT,
+    color: TEXT_PRIMARY,
+  },
+  rowInput: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
   },
-  toggleLabelContainer: {
+  flexInput: {
     flex: 1,
-    marginRight: 12,
-  },
-  toggleLabel: {
     fontSize: 15,
-    color: TEXT_COLOR,
+    fontFamily: FONT_INPUT,
+    color: TEXT_PRIMARY,
+    padding: 0, // Reset default padding in row
   },
-  toggleHint: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 2,
-  },
-  toggle: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#E5E5EA",
-    padding: 2,
-    justifyContent: "center",
-  },
-  toggleActive: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  toggleKnob: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#FFFFFF",
-  },
-  toggleKnobActive: {
-    alignSelf: "flex-end",
-  },
-  promptSelector: {
-    flexDirection: "column",
-    gap: 8,
-    marginBottom: 12,
-  },
-  promptOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    backgroundColor: "#FAFAFA",
-  },
-  promptOptionActive: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#F8F5FF",
-  },
-  promptOptionText: {
-    fontSize: 14,
-    color: TEXT_COLOR,
-  },
-  promptOptionTextActive: {
-    color: PRIMARY_COLOR,
+  prefix: {
+    fontSize: 15,
+    color: TEXT_SECONDARY,
+    marginRight: 2,
     fontWeight: "500",
   },
-  promptAnswerInput: {
-    minHeight: 80,
+  helperText: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+
+  // Pronouns
+  pillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  pronounPill: {
+    backgroundColor: INPUT_BG,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: BORDER_RADIUS.pill,
+  },
+  pronounPillSelected: {
+    backgroundColor: "#E3F2FD", // Light blue bg
+    borderWidth: 1,
+    borderColor: ACCENT_COLOR,
+    paddingVertical: 9, // Compensate border
+    paddingHorizontal: 15,
+  },
+  pronounText: {
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    fontFamily: FONTS.medium,
+  },
+  pronounTextSelected: {
+    color: ACCENT_COLOR,
+    fontWeight: "600",
+  },
+
+  // Bio
+  bioInput: {
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 15,
+    fontFamily: FONT_INPUT,
+    color: TEXT_PRIMARY,
+    minHeight: 100,
     textAlignVertical: "top",
   },
-  // New styles for Goal Badges section
-  highlightedSection: {
-    backgroundColor: "#F8FFF8",
-    borderLeftWidth: 3,
-    borderLeftColor: "#2E7D32",
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  requiredBadge: {
+  charCount: {
+    textAlign: "right",
     fontSize: 11,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    backgroundColor: "#2E7D32",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    color: TEXT_SECONDARY,
+    marginTop: 6,
+    marginRight: 4,
   },
-  warningText: {
+
+  // Vibes
+  staticChipText: {
     fontSize: 13,
-    color: "#E65100",
+    color: "#0369A1",
+    fontWeight: "500",
+  },
+
+  // New Vibes Redesign Styles
+  vibesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  vibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingLeft: 12,
+    paddingRight: 12,
+    borderRadius: 20, // Full rounded pill
+    marginBottom: 4,
+    // Soft shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  vibeText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    fontWeight: "600",
+  },
+  removeIconContainer: {
+    marginLeft: 6,
+    opacity: 0.6,
+  },
+  optionsHeader: {
     marginTop: 8,
+    marginBottom: 12,
+  },
+  optionsLabel: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    fontFamily: FONTS.medium,
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6", // Neutral
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 4,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.03)",
+  },
+  optionText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: TEXT_PRIMARY,
+  },
+  vibesActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  showMoreButton: {
+    paddingVertical: 8,
+  },
+  showMoreText: {
+    fontSize: 13,
+    color: ACCENT_COLOR,
+    fontFamily: FONTS.medium,
+  },
+  addCustomButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+  },
+  addCustomText: {
+    fontSize: 13,
+    color: ACCENT_COLOR,
+    fontFamily: FONTS.bold,
   },
 });

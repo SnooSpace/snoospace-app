@@ -1,29 +1,29 @@
 export const COLORS = {
   // Brand
-  primaryGradient: ["#90CAF9", "#1976D2"], // Sky Blue -> Darker Blue (Requested)
-  primary: "#1976D2", // Blue fallback
+  primaryGradient: ["#448AFF", "#2962FF"], // Updated Brand Gradient
+  primary: "#2962FF", // Brand Blue
   secondary: "#00BFA5", // Teal (Accent/CTA)
 
   // Backgrounds
-  background: "#FAF9F7", // Clean Off-White
+  background: "#FFFFFF", // Clean White
   surface: "#FFFFFF", // Card background
-  screenBackground: "#FAF9F7", // Align with standard background
+  screenBackground: "#F9FAFB", // Light Gray for screen backgrounds
 
   // Typography
-  textPrimary: "#1A1A1A", // Nearly black (editorial)
-  textSecondary: "#6B7280", // Gray (usernames, timestamps)
-  textMuted: "#9CA3AF", // Even lighter gray (engagement counts)
+  textPrimary: "#111827", // Almost Black
+  textSecondary: "#6B7280", // Cool Gray
+  textMuted: "#9CA3AF", // Lighter Gray
   textInverted: "#FFFFFF", // White text on dark/gradient
 
   // Editorial Feed Colors
   editorial: {
-    textPrimary: "#1A1A1A",
+    textPrimary: "#111827",
     textSecondary: "#6B7280",
     textMuted: "#9CA3AF",
     background: "#FFFFFF",
     feedBackground: "#FAFAFA",
     border: "#E5E7EB",
-    accent: "#3B82F6", // Follow button blue
+    accent: "#2962FF", // Match Primary
     mediaPlaceholder: "#E5E7EB",
   },
 

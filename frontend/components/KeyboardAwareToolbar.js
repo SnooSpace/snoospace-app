@@ -1,7 +1,16 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  KeyboardStickyView,
+  useKeyboardHandler,
+} from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  interpolate,
+  Extrapolate,
+} from "react-native-reanimated";
 
 /**
  * KeyboardAwareToolbar
@@ -15,6 +24,37 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const KeyboardAwareToolbar = ({ children, style }) => {
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useSharedValue(0);
+
+  useKeyboardHandler({
+    onStart: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+    onMove: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+    onEnd: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+  });
+
+  const animatedWrapperStyle = useAnimatedStyle(() => {
+    // As the keyboard opens (height goes from 0 to Positive),
+    // we want to reduce the paddingBottom from insets.bottom to 0.
+    const padding = interpolate(
+      keyboardHeight.value,
+      [0, insets.bottom || 1], // Transition over the safe area distance
+      [insets.bottom, 0],
+      Extrapolate.CLAMP,
+    );
+
+    return {
+      paddingBottom: padding,
+    };
+  });
 
   return (
     <KeyboardStickyView
@@ -25,7 +65,7 @@ const KeyboardAwareToolbar = ({ children, style }) => {
       }}
       style={[styles.container, style]}
     >
-      <View style={{ paddingBottom: insets.bottom }}>{children}</View>
+      <Animated.View style={animatedWrapperStyle}>{children}</Animated.View>
     </KeyboardStickyView>
   );
 };
