@@ -1,115 +1,155 @@
 import React, { useCallback, useEffect } from "react";
-import { StyleSheet, View, TextInput } from "react-native";
+import { StyleSheet, View } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   runOnJS,
-  useDerivedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { COLORS } from "../constants/theme";
+import HapticsService from "../services/HapticsService";
 
 const THUMB_SIZE = 28;
+const HIT_SLOP = 44;
 const TRACK_HEIGHT = 4;
 
 const RangeSlider = ({
   min = 18,
   max = 99,
   initialMin = 18,
-  initialMax = 30, // Default max 30 as requested
+  initialMax = 30,
   onValueChange,
 }) => {
-  const [width, setWidth] = React.useState(0);
+  const containerWidth = useSharedValue(0);
+  const leftX = useSharedValue(0);
+  const rightX = useSharedValue(0);
+  const lastLeftVal = useSharedValue(initialMin);
+  const lastRightVal = useSharedValue(initialMax);
+  const leftScale = useSharedValue(1);
+  const rightScale = useSharedValue(1);
 
-  // Normalized values (0 to 1)
-  const leftHandlePos = useSharedValue(0);
-  const rightHandlePos = useSharedValue(1);
+  const range = max - min;
 
-  // Initialize values once we have width or just conceptually
-  useEffect(() => {
-    // Initial normalized positions
-    const range = max - min;
-    leftHandlePos.value = (initialMin - min) / range;
-    rightHandlePos.value = (initialMax - min) / range;
-  }, [min, max, initialMin, initialMax]);
-
-  const onLayout = (e) => {
-    setWidth(e.nativeEvent.layout.width);
-  };
-
-  const updateValues = useCallback(
-    (leftN, rightN) => {
-      const range = max - min;
-      const newMin = Math.round(min + leftN * range);
-      const newMax = Math.round(min + rightN * range);
-      if (onValueChange) {
-        onValueChange({ min: newMin, max: newMax });
-      }
+  const initializePositions = useCallback(
+    (width) => {
+      if (width <= 0) return;
+      leftX.value = ((initialMin - min) / range) * width;
+      rightX.value = ((initialMax - min) / range) * width;
+      lastLeftVal.value = initialMin;
+      lastRightVal.value = initialMax;
     },
-    [min, max, onValueChange],
+    [min, max, initialMin, initialMax, range],
   );
 
+  useEffect(() => {
+    if (containerWidth.value > 0) {
+      initializePositions(containerWidth.value);
+    }
+  }, [initialMin, initialMax, min, max, initializePositions]);
+
+  const onLayout = (e) => {
+    const w = e.nativeEvent.layout.width;
+    containerWidth.value = w;
+    initializePositions(w);
+  };
+
+  const notifyChange = (lX, rX, w) => {
+    if (w <= 0) return;
+    const lValue = Math.round(min + (lX / w) * range);
+    const rValue = Math.round(min + (rX / w) * range);
+    if (onValueChange) {
+      onValueChange({ min: lValue, max: rValue });
+    }
+  };
+
   const leftGesture = Gesture.Pan()
-    .onChange((e) => {
-      if (width === 0) return;
-      const change = e.changeX / width;
-      let newValue = leftHandlePos.value + change;
-      // Constrain: 0 <= newValue <= rightHandlePos - buffer
-      // Buffer of ~5% or just standard < right
-      newValue = Math.max(0, Math.min(newValue, rightHandlePos.value - 0.05));
-      leftHandlePos.value = newValue;
+    .activeOffsetX([-10, 10]) // Prioritize horizontal movement
+    .onStart(() => {
+      leftScale.value = withSpring(1.15);
+    })
+    .onUpdate((e) => {
+      const w = containerWidth.value;
+      if (w <= 0) return;
+
+      let nextX = leftX.value + e.changeX;
+      const minPointsGap = (2 / range) * w;
+      nextX = Math.max(0, Math.min(nextX, rightX.value - minPointsGap));
+      leftX.value = nextX;
+
+      const currentMin = Math.round(min + (nextX / w) * range);
+      if (currentMin !== lastLeftVal.value) {
+        lastLeftVal.value = currentMin;
+        runOnJS(notifyChange)(nextX, rightX.value, w);
+        runOnJS(HapticsService.triggerImpactLight)();
+      }
     })
     .onEnd(() => {
-      runOnJS(updateValues)(leftHandlePos.value, rightHandlePos.value);
+      leftScale.value = withSpring(1);
     });
 
   const rightGesture = Gesture.Pan()
-    .onChange((e) => {
-      if (width === 0) return;
-      const change = e.changeX / width;
-      let newValue = rightHandlePos.value + change;
-      // Constrain: leftHandlePos + buffer <= newValue <= 1
-      newValue = Math.max(leftHandlePos.value + 0.05, Math.min(newValue, 1));
-      rightHandlePos.value = newValue;
+    .activeOffsetX([-10, 10])
+    .onStart(() => {
+      rightScale.value = withSpring(1.15);
+    })
+    .onUpdate((e) => {
+      const w = containerWidth.value;
+      if (w <= 0) return;
+
+      let nextX = rightX.value + e.changeX;
+      const minPointsGap = (2 / range) * w;
+      nextX = Math.max(leftX.value + minPointsGap, Math.min(nextX, w));
+      rightX.value = nextX;
+
+      const currentMax = Math.round(min + (nextX / w) * range);
+      if (currentMax !== lastRightVal.value) {
+        lastRightVal.value = currentMax;
+        runOnJS(notifyChange)(leftX.value, nextX, w);
+        runOnJS(HapticsService.triggerImpactLight)();
+      }
     })
     .onEnd(() => {
-      runOnJS(updateValues)(leftHandlePos.value, rightHandlePos.value);
+      rightScale.value = withSpring(1);
     });
 
-  const leftAnimatedStyle = useAnimatedStyle(() => ({
-    left: `${leftHandlePos.value * 100}%`,
-    transform: [{ translateX: -THUMB_SIZE / 2 }],
+  const leftStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: leftX.value - HIT_SLOP / 2 },
+      { scale: leftScale.value },
+    ],
   }));
 
-  const rightAnimatedStyle = useAnimatedStyle(() => ({
-    left: `${rightHandlePos.value * 100}%`,
-    transform: [{ translateX: -THUMB_SIZE / 2 }],
+  const rightStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: rightX.value - HIT_SLOP / 2 },
+      { scale: rightScale.value },
+    ],
   }));
 
-  const trackAnimatedStyle = useAnimatedStyle(() => ({
-    left: `${leftHandlePos.value * 100}%`,
-    width: `${(rightHandlePos.value - leftHandlePos.value) * 100}%`,
+  const trackStyle = useAnimatedStyle(() => ({
+    left: leftX.value,
+    width: rightX.value - leftX.value,
   }));
 
   return (
     <View style={styles.container} onLayout={onLayout}>
-      {/* Background Track */}
       <View style={styles.trackBackground} />
+      <Animated.View style={[styles.trackActive, trackStyle]} />
 
-      {/* Active Track */}
-      <Animated.View style={[styles.trackActive, trackAnimatedStyle]} />
-
-      {/* Left Thumb */}
       <GestureDetector gesture={leftGesture}>
-        <Animated.View style={[styles.thumb, leftAnimatedStyle]}>
-          <View style={styles.thumbInner} />
+        <Animated.View style={[styles.hitArea, leftStyle]}>
+          <View style={styles.thumb}>
+            <View style={styles.thumbInner} />
+          </View>
         </Animated.View>
       </GestureDetector>
 
-      {/* Right Thumb */}
       <GestureDetector gesture={rightGesture}>
-        <Animated.View style={[styles.thumb, rightAnimatedStyle]}>
-          <View style={styles.thumbInner} />
+        <Animated.View style={[styles.hitArea, rightStyle]}>
+          <View style={styles.thumb}>
+            <View style={styles.thumbInner} />
+          </View>
         </Animated.View>
       </GestureDetector>
     </View>
@@ -118,13 +158,13 @@ const RangeSlider = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 40,
+    height: HIT_SLOP,
     justifyContent: "center",
     width: "100%",
   },
   trackBackground: {
     height: TRACK_HEIGHT,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
     borderRadius: TRACK_HEIGHT / 2,
     position: "absolute",
     width: "100%",
@@ -135,21 +175,25 @@ const styles = StyleSheet.create({
     borderRadius: TRACK_HEIGHT / 2,
     position: "absolute",
   },
+  hitArea: {
+    width: HIT_SLOP,
+    height: HIT_SLOP,
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   thumb: {
     height: THUMB_SIZE,
     width: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
     backgroundColor: "#FFFFFF",
-    position: "absolute",
     justifyContent: "center",
     alignItems: "center",
-    // Shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10,
+    elevation: 3,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },

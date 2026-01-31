@@ -1,9 +1,11 @@
+import "react-native-gesture-handler";
 import "react-native-get-random-values";
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import {
   Manrope_400Regular,
@@ -88,19 +90,21 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <KeyboardProvider>
-        <StatusBarManagerProvider>
-          <AuthStateProvider>
-            <NotificationsProvider>
-              <VideoProvider>
-                <AppContent />
-              </VideoProvider>
-            </NotificationsProvider>
-          </AuthStateProvider>
-        </StatusBarManagerProvider>
-      </KeyboardProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <KeyboardProvider>
+          <StatusBarManagerProvider>
+            <AuthStateProvider>
+              <NotificationsProvider>
+                <VideoProvider>
+                  <AppContent />
+                </VideoProvider>
+              </NotificationsProvider>
+            </AuthStateProvider>
+          </StatusBarManagerProvider>
+        </KeyboardProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

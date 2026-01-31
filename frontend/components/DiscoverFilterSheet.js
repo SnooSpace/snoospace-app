@@ -4,11 +4,16 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   Modal,
   TextInput,
+  Platform,
 } from "react-native";
 import { Search, ChevronDown, ChevronUp, X } from "lucide-react-native";
+import {
+  KeyboardAwareScrollView,
+  KeyboardAvoidingView,
+} from "react-native-keyboard-controller";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { COLORS, SPACING, BORDER_RADIUS, FONTS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
 import {
@@ -50,6 +55,32 @@ const GOAL_BADGE_PRESETS = [
   "Looking for teammates",
 ];
 
+const GENDER_OPTIONS = ["Men", "Women", "Non-binary"];
+
+// Gender Chip Styles (Matching Pronouns in EditProfile)
+const GENDER_STYLES = {
+  Men: {
+    bg: "#E2E8F1", // Deepened Cool slate
+    text: "#2F3A55",
+  },
+  Women: {
+    bg: "#F2E2E6", // Deepened Muted rose
+    text: "#5A2F3C",
+  },
+  "Non-binary": {
+    bg: "#E2EFED", // Deepened Soft teal-sage
+    text: "#1F4E4A",
+  },
+  default: {
+    bg: "#F3F4F6",
+    text: "#374151",
+  },
+};
+
+const getGenderStyle = (gender) => {
+  return GENDER_STYLES[gender] || GENDER_STYLES.default;
+};
+
 export default function DiscoverFilterSheet({
   visible,
   onClose,
@@ -65,6 +96,10 @@ export default function DiscoverFilterSheet({
     initialFilters.interests || [],
   );
 
+  const [selectedGenders, setSelectedGenders] = useState(
+    initialFilters.genders || [],
+  );
+
   const [interestSearch, setInterestSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState(null);
 
@@ -76,6 +111,7 @@ export default function DiscoverFilterSheet({
     if (visible) {
       setSelectedBadges(initialFilters.badges || []);
       setSelectedInterests(initialFilters.interests || []);
+      setSelectedGenders(initialFilters.genders || []);
       setAgeMin(initialFilters.ageMin || 18);
       setAgeMax(initialFilters.ageMax || 30);
       setExpandedCategory(null);
@@ -99,6 +135,15 @@ export default function DiscoverFilterSheet({
     );
   };
 
+  const toggleGender = (gender) => {
+    HapticsService.triggerSelection();
+    setSelectedGenders((prev) =>
+      prev.includes(gender)
+        ? prev.filter((g) => g !== gender)
+        : [...prev, gender],
+    );
+  };
+
   const removeInterest = (interest) => {
     HapticsService.triggerSelection();
     setSelectedInterests((prev) => prev.filter((i) => i !== interest));
@@ -108,6 +153,7 @@ export default function DiscoverFilterSheet({
     HapticsService.triggerImpactLight();
     setSelectedBadges([]);
     setSelectedInterests([]);
+    setSelectedGenders([]);
     setAgeMin(18);
     setAgeMax(30);
   };
@@ -117,6 +163,7 @@ export default function DiscoverFilterSheet({
     const filters = {
       badges: selectedBadges.length > 0 ? selectedBadges : null,
       interests: selectedInterests.length > 0 ? selectedInterests : null,
+      genders: selectedGenders.length > 0 ? selectedGenders : null,
       ageMin: ageMin,
       ageMax: ageMax,
     };
@@ -127,6 +174,7 @@ export default function DiscoverFilterSheet({
   const hasActiveFilters =
     selectedBadges.length > 0 ||
     selectedInterests.length > 0 ||
+    selectedGenders.length > 0 ||
     ageMin !== 18 ||
     ageMax !== 30;
 
@@ -263,175 +311,262 @@ export default function DiscoverFilterSheet({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.overlay}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={onClose}
+          />
 
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <View style={styles.handle} />
-            <View style={styles.headerRow}>
-              <Text style={styles.sheetTitle}>Filter Profiles</Text>
-              {hasActiveFilters && (
-                <TouchableOpacity onPress={handleReset}>
-                  <Text style={styles.resetText}>Reset</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 20 }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.sheet}
           >
-            {/* GOALS SECTION */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Goals</Text>
-              <Text style={styles.sectionSubtitle}>
-                Find people with specific intentions
-              </Text>
-              <View style={styles.chipGrid}>
-                {GOAL_BADGE_PRESETS.map((badge) => {
-                  const goalStyle = getGoalStyle(badge);
-                  const isSelected = selectedBadges.includes(badge);
-                  return (
-                    <TouchableOpacity
-                      key={badge}
-                      style={[
-                        styles.goalChip,
-                        {
-                          backgroundColor: isSelected
-                            ? goalStyle.bg
-                            : "#FFFFFF",
-                          borderColor: isSelected ? goalStyle.text : "#F3F4F6", // Constant border color visual or unselected
-                        },
-                      ]}
-                      onPress={() => toggleBadge(badge)}
-                    >
-                      <Text
-                        style={[
-                          styles.goalChipText,
-                          {
-                            color: isSelected
-                              ? goalStyle.text
-                              : COLORS.textPrimary,
-                            fontFamily: FONTS.semiBold, // Unified weight to prevent shift
-                          },
-                        ]}
-                      >
-                        {badge}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            <View style={styles.sheetHeader}>
+              <View style={styles.handle} />
+              <View style={styles.headerRow}>
+                <Text style={styles.sheetTitle}>Filter Profiles</Text>
+                {hasActiveFilters && (
+                  <TouchableOpacity onPress={handleReset}>
+                    <Text style={styles.resetText}>Reset</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
-            {/* INTERESTS SECTION */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Interests</Text>
-              <Text style={styles.sectionSubtitle}>
-                Find people with shared interests
-              </Text>
-
-              {/* Selected Interests Display */}
-              {selectedInterests.length > 0 && (
-                <View style={styles.selectedWrapper}>
-                  {selectedInterests.map((interest) => {
-                    const style = getInterestStyle(interest);
+            <KeyboardAwareScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 20 }}
+              bottomOffset={Platform.OS === "ios" ? 40 : 20}
+            >
+              {/* GOALS SECTION */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Goals</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Find people with specific intentions
+                </Text>
+                <View style={styles.chipGrid}>
+                  {GOAL_BADGE_PRESETS.map((badge) => {
+                    const goalStyle = getGoalStyle(badge);
+                    const isSelected = selectedBadges.includes(badge);
                     return (
                       <TouchableOpacity
-                        key={interest}
+                        key={badge}
                         style={[
-                          styles.selectedChip,
-                          { backgroundColor: style.bg },
+                          styles.goalChip,
+                          {
+                            backgroundColor: isSelected
+                              ? goalStyle.bg
+                              : "#FFFFFF",
+                            borderColor: isSelected
+                              ? goalStyle.text
+                              : "#F3F4F6", // Constant border color visual or unselected
+                          },
                         ]}
-                        onPress={() => removeInterest(interest)}
+                        onPress={() => toggleBadge(badge)}
                       >
                         <Text
                           style={[
-                            styles.selectedChipText,
-                            { color: style.text },
+                            styles.goalChipText,
+                            {
+                              color: isSelected
+                                ? goalStyle.text
+                                : COLORS.textPrimary,
+                              fontFamily: FONTS.semiBold, // Unified weight to prevent shift
+                            },
                           ]}
                         >
-                          {interest}
+                          {badge}
                         </Text>
-                        <X size={14} color={style.text} />
                       </TouchableOpacity>
                     );
                   })}
                 </View>
-              )}
-
-              {/* Search Bar */}
-              <View style={styles.searchContainer}>
-                <Search
-                  size={18}
-                  color={COLORS.textSecondary}
-                  style={{ marginRight: 8 }}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search interests..."
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={interestSearch}
-                  onChangeText={setInterestSearch}
-                />
               </View>
 
-              {/* Categorized List */}
-              <View style={styles.categoriesWrapper}>{renderInterests()}</View>
-            </View>
-
-            {/* AGE SECTION */}
-            <View style={styles.section}>
-              <View style={styles.ageHeaderRow}>
-                <Text style={styles.sectionTitle}>Age Range</Text>
-                <Text style={styles.ageValueText}>
-                  {ageMin} - {ageMax}
+              {/* INTERESTS SECTION */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Interests</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Find people with shared interests
                 </Text>
-              </View>
 
-              <View style={styles.sliderContainer}>
-                <RangeSlider
-                  min={18}
-                  max={99}
-                  initialMin={ageMin}
-                  initialMax={ageMax}
-                  onValueChange={({ min, max }) => {
-                    setAgeMin(min);
-                    setAgeMax(max);
-                  }}
-                />
-              </View>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
-              <Text style={styles.applyButtonText}>
-                Apply Filters
-                {hasActiveFilters && (
-                  <Text>
-                    {" "}
-                    (
-                    {selectedBadges.length +
-                      selectedInterests.length +
-                      (ageMin !== 18 || ageMax !== 30 ? 1 : 0)}
-                    )
-                  </Text>
+                {/* Selected Interests Display */}
+                {selectedInterests.length > 0 && (
+                  <View style={styles.selectedWrapper}>
+                    {selectedInterests.map((interest) => {
+                      const style = getInterestStyle(interest);
+                      return (
+                        <TouchableOpacity
+                          key={interest}
+                          style={[
+                            styles.selectedChip,
+                            { backgroundColor: style.bg },
+                          ]}
+                          onPress={() => removeInterest(interest)}
+                        >
+                          <Text
+                            style={[
+                              styles.selectedChipText,
+                              { color: style.text },
+                            ]}
+                          >
+                            {interest}
+                          </Text>
+                          <X size={14} color={style.text} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 )}
-              </Text>
-            </TouchableOpacity>
-          </View>
+
+                {/* Search Bar */}
+                <View style={styles.searchContainer}>
+                  <Search
+                    size={18}
+                    color={COLORS.textSecondary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search interests..."
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={interestSearch}
+                    onChangeText={setInterestSearch}
+                  />
+                  {interestSearch.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        HapticsService.triggerImpactLight();
+                        setInterestSearch("");
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={{ marginLeft: 8 }}
+                    >
+                      <X size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Categorized List */}
+                <View style={styles.categoriesWrapper}>
+                  {renderInterests()}
+                </View>
+              </View>
+
+              {/* GENDER SECTION */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Gender</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Filter by gender identity
+                </Text>
+                <View style={styles.chipGrid}>
+                  {GENDER_OPTIONS.map((gender) => {
+                    const isSelected = selectedGenders.includes(gender);
+                    const style = getGenderStyle(gender);
+
+                    return (
+                      <TouchableOpacity
+                        key={gender}
+                        style={[
+                          styles.goalChip,
+                          {
+                            backgroundColor: isSelected ? style.bg : "#FFFFFF",
+                            borderColor: isSelected
+                              ? style.bg // Match background for a clean "pill" look
+                              : "#F3F4F6",
+                          },
+                        ]}
+                        onPress={() => toggleGender(gender)}
+                      >
+                        <Text
+                          style={[
+                            styles.goalChipText,
+                            {
+                              color: isSelected
+                                ? style.text
+                                : COLORS.textPrimary,
+                              fontFamily: FONTS.semiBold,
+                            },
+                          ]}
+                        >
+                          {gender}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* AGE SECTION */}
+              <View style={styles.section}>
+                <View style={styles.ageHeaderRow}>
+                  <Text style={styles.sectionTitle}>Age Range</Text>
+                  <Text style={styles.ageValueText}>
+                    {ageMin} - {ageMax}
+                  </Text>
+                </View>
+
+                <View style={styles.sliderContainer}>
+                  <RangeSlider
+                    min={18}
+                    max={99}
+                    initialMin={ageMin}
+                    initialMax={ageMax}
+                    onValueChange={({ min, max }) => {
+                      setAgeMin(min);
+                      setAgeMax(max);
+                    }}
+                  />
+                </View>
+              </View>
+            </KeyboardAwareScrollView>
+
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[
+                  styles.applyButton,
+                  {
+                    backgroundColor: hasActiveFilters
+                      ? COLORS.primary
+                      : "#E5E7EB",
+                  },
+                ]}
+                onPress={handleApply}
+                disabled={!hasActiveFilters}
+              >
+                <Text
+                  style={[
+                    styles.applyButtonText,
+                    {
+                      color: hasActiveFilters
+                        ? "#FFFFFF"
+                        : COLORS.textSecondary,
+                    },
+                  ]}
+                >
+                  Apply Filters
+                  {hasActiveFilters && (
+                    <Text>
+                      {" "}
+                      (
+                      {selectedBadges.length +
+                        selectedInterests.length +
+                        selectedGenders.length +
+                        (ageMin !== 18 || ageMax !== 30 ? 1 : 0)}
+                      )
+                    </Text>
+                  )}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -633,14 +768,12 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     height: 52,
-    backgroundColor: COLORS.primary,
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },
   applyButtonText: {
     fontFamily: FONTS.semiBold,
-    color: "#FFFFFF",
     fontSize: 16,
   },
 });

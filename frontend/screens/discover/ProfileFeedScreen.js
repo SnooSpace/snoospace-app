@@ -17,7 +17,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { MessageCircle } from "lucide-react-native";
+import {
+  MessageCircle,
+  ArrowLeft,
+  SlidersHorizontal,
+} from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
@@ -203,7 +207,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{event?.title}</Text>
           <View style={{ width: 40 }} />
@@ -223,14 +227,14 @@ export default function ProfileFeedScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Discover</Text>
         <TouchableOpacity
           onPress={() => setFilterSheetVisible(true)}
           style={styles.filterBtn}
         >
-          <Ionicons name="options-outline" size={24} color="#0F172A" />
+          <SlidersHorizontal size={26} color={COLORS.editorial.textSecondary} />
         </TouchableOpacity>
       </View>
 

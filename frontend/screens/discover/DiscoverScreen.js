@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { BarChart3, User } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
@@ -378,18 +379,16 @@ export default function DiscoverScreen({ navigation }) {
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => navigation.navigate("ActivityInsights")}
+            hitSlop={{ top: 20, bottom: 20, left: 10, right: 10 }}
           >
-            <Ionicons
-              name="stats-chart-outline"
-              size={22}
-              color={COLORS.textPrimary}
-            />
+            <BarChart3 size={26} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => navigation.navigate("EditDiscoverProfile")}
+            hitSlop={{ top: 20, bottom: 20, left: 10, right: 20 }}
           >
             <View style={styles.avatarContainer}>
-              <Ionicons name="person" size={20} color={COLORS.textSecondary} />
+              <User size={22} color={COLORS.editorial.textSecondary} />
               {!profileComplete && <View style={styles.profileBadge} />}
             </View>
           </TouchableOpacity>
