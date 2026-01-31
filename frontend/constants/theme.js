@@ -5,7 +5,7 @@ export const COLORS = {
   secondary: "#00BFA5", // Teal (Accent/CTA)
 
   // Backgrounds
-  background: "#FFFFFF", // Clean White
+  background: "#faf9f7", // Soft Off-White
   surface: "#FFFFFF", // Card background
   screenBackground: "#F9FAFB", // Light Gray for screen backgrounds
 

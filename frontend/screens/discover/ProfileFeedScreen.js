@@ -23,6 +23,7 @@ import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
 import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
 import HapticsService from "../../services/HapticsService";
+import ThemeChip from "../../components/ThemeChip";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -36,12 +37,27 @@ const CARD_SHADOW = {
 
 // Strict Typography Mappings
 const TYPOGRAPHY = {
-  name: { fontFamily: FONTS.semiBold, fontSize: 20, color: "#1E293B" },
+  name: { fontFamily: "BasicCommercial-Bold", fontSize: 20, color: "#1E293B" },
   role: { fontFamily: FONTS.regular, fontSize: 14, color: "#64748B" },
   body: { fontFamily: FONTS.regular, fontSize: 16, color: "#334155" },
   chip: { fontFamily: FONTS.medium, fontSize: 12, color: "#475569" },
   button: { fontFamily: FONTS.medium, fontSize: 14, color: "#FFFFFF" },
   header: { fontFamily: FONTS.semiBold, fontSize: 18, color: "#0F172A" },
+};
+
+const GOAL_COLORS = {
+  "looking for study partners": { bg: "#E0F2FE", text: "#075985" },
+  "new to the city": { bg: "#ECFDF5", text: "#065F46" },
+  "exploring opportunities": { bg: "#FFF7ED", text: "#9A3412" },
+  default: { bg: "#F3F4F6", text: "#374151" },
+};
+
+const getGoalStyle = (goal) => {
+  const lower = goal?.toLowerCase() || "";
+  for (const key in GOAL_COLORS) {
+    if (lower.includes(key)) return GOAL_COLORS[key];
+  }
+  return GOAL_COLORS.default;
 };
 
 export default function ProfileFeedScreen({ route, navigation }) {
@@ -88,6 +104,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const role =
     (currentAttendee?.role || currentAttendee?.job_title || "Member").trim() ||
     "Member";
+  const age = currentAttendee?.age;
+  const gender = currentAttendee?.gender;
+  const pronouns = currentAttendee?.pronouns;
   const goalBadges = currentAttendee?.intent_badges || [];
   const interests = currentAttendee?.interests || [];
   const openers = currentAttendee?.openers || [];
@@ -219,25 +238,80 @@ export default function ProfileFeedScreen({ route, navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Profile Info */}
+        {/* Main Profile Header (Name) */}
         <View style={styles.profileHeader}>
           <Text style={styles.nameText}>{name}</Text>
-          <Text style={styles.roleText}>{role}</Text>
-
-          {/* Interest Chips */}
-          {interests.length > 0 && (
-            <View style={styles.chipContainer}>
-              {interests.slice(0, 3).map((interest, i) => (
-                <View key={i} style={styles.chip}>
-                  <Text style={styles.chipText}>{interest}</Text>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* Hero Photo */}
         {photos[0] && <PhotoCard url={photos[0].url} />}
+
+        {/* Vitals & Goals Group (Positioned after the first photo) */}
+        <View style={styles.vitalsSection}>
+          {/* Top Row: Demographics */}
+          <View style={styles.vitalsRow}>
+            {/* Age */}
+            {age && (
+              <View style={[styles.chip, styles.ageChip]}>
+                <Text style={styles.ageChipText}>
+                  <Text style={styles.cakeEmoji}>🎂 </Text>
+                  <Text style={styles.ageNumber}>{age}</Text>
+                </Text>
+              </View>
+            )}
+            {/* Gender */}
+            {gender && (
+              <View
+                style={[
+                  styles.chip,
+                  gender.toLowerCase() === "binary"
+                    ? { backgroundColor: "#E2E8F1" }
+                    : styles.genderChip,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    gender.toLowerCase() === "binary"
+                      ? { color: "#2F3A55" }
+                      : styles.genderChipText,
+                  ]}
+                >
+                  {gender}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Bottom Row: Goals */}
+          {goalBadges.length > 0 && (
+            <View style={[styles.vitalsRow, { marginTop: 20 }]}>
+              {goalBadges.map((badge, i) => {
+                const goalStyle = getGoalStyle(badge);
+                return (
+                  <View
+                    key={`goal-${i}`}
+                    style={[
+                      styles.chip,
+                      styles.goalChip,
+                      { backgroundColor: goalStyle.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        styles.goalChipText,
+                        { color: goalStyle.text },
+                      ]}
+                    >
+                      {badge}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         {/* Interleaved Prompts & Photos */}
         {interleavedContent.map((item, i) => (
@@ -250,7 +324,24 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </View>
         ))}
 
-        <View style={{ height: 100 }} />
+        {/* Interests Group (Bottom of Profile) */}
+        {interests.length > 0 && (
+          <View style={styles.interestsSection}>
+            <Text style={styles.sectionLabel}>Interests</Text>
+            <View style={styles.interestsContainer}>
+              {interests.map((interest, i) => (
+                <ThemeChip
+                  key={`int-${i}`}
+                  label={interest}
+                  index={i}
+                  style={styles.interestChipOverride}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Floating Action Bar */}
@@ -276,7 +367,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF", // Clean background
+    backgroundColor: "#faf9f7", // Soft Off-White
   },
   center: {
     flex: 1,
@@ -289,7 +380,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.l,
     paddingVertical: SPACING.m,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#faf9f7",
   },
   headerTitle: {
     ...TYPOGRAPHY.header,
@@ -313,13 +404,32 @@ const styles = StyleSheet.create({
 
   // Profile Info
   profileHeader: {
-    marginBottom: SPACING.l,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  vitalsSection: {
+    marginTop: 12,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  interestsSection: {
+    marginTop: 32,
+    marginBottom: 32,
+    paddingHorizontal: 4,
+  },
+  sectionLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: "#64748B",
+    marginBottom: 12,
+    marginLeft: 4,
   },
   nameText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 32, // More prominent
+    fontSize: 32,
     color: "#0F172A",
-    marginBottom: 4,
+    marginBottom: 8,
+    marginLeft: 4, // Align visually with chips
     letterSpacing: -0.5,
   },
   roleText: {
@@ -328,21 +438,69 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginBottom: 16,
   },
-  chipContainer: {
+  vitalsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+  interestsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   chip: {
-    backgroundColor: "#F1F5F9",
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: "#F3F4F6", // Soft neutral (Cool Gray 100)
+    height: 30, // Compact height for base chips
+    borderRadius: 999, // Pill shape
     paddingHorizontal: 12,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 0,
+  },
+  goalChip: {
+    height: 34, // Taller than Gender/Age as requested
+    paddingHorizontal: 16,
+  },
+  genderChip: {
+    backgroundColor: "#EEE9FF",
+  },
+  interestChipOverride: {
+    marginRight: 0,
+    marginBottom: 0, // Container handles gap
+  },
+  ageChip: {
+    backgroundColor: "transparent",
+    height: 30,
+    paddingHorizontal: 0,
+    marginRight: 4,
   },
   chipText: {
-    ...TYPOGRAPHY.chip,
+    fontFamily: FONTS.regular, // Strict Manrope Regular
+    fontSize: 14,
+    color: "#374151", // Gray 700
+  },
+  genderChipText: {
+    color: "#4C3B8F",
+  },
+  goalChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+  },
+  ageChipText: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cakeEmoji: {
+    fontSize: 20,
+    textShadowColor: "rgba(251, 191, 36, 0.9)", // Increased opacity for stronger glow
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 15, // Increased radius for more spread
+  },
+  ageNumber: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 19,
+    color: "#374151", // Slightly darker Neutral-800
   },
 
   // Cards
@@ -441,11 +599,9 @@ const styles = StyleSheet.create({
   },
   connectButton: {
     flex: 1,
-    height: 56, // Match skip button visual weight or use 44px as requested? Spec said "Height: 44px". Let's use 44px but maybe vertically centered with the 56px skip button? Or matching? Typically main action is prominent. 44px might essentially be for a pill button.
-    // Adjusting to spec: Height 44px.
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#2962FF", // Calm, confident blue
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "#4186ff", // Calm, confident blue
     justifyContent: "center",
     alignItems: "center",
     ...SHADOWS.sm,
