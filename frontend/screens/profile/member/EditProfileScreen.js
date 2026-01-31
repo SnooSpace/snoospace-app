@@ -8,7 +8,6 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   LayoutAnimation,
   UIManager,
   Platform,
@@ -16,6 +15,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 // Use transparent Lucid icons if available or standard Ionicons
@@ -144,6 +144,7 @@ const getPronounStyles = (pronoun, isSelected) => {
 
 export default function EditProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
+  const scrollViewRef = useRef(null);
 
   const cleanLabel = (val) => {
     if (typeof val !== "string") return val;
@@ -417,478 +418,470 @@ export default function EditProfileScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-        style={styles.keyboardView}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.headerButtonLeft}
+          hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
+        >
+          <ArrowLeft size={26} color={TEXT_SECONDARY} />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={!hasChanges || saving}
+          style={[
+            styles.saveButton,
+            (!hasChanges || saving) && styles.saveButtonDisabled,
+          ]}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>Save</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <KeyboardAwareScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={15}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Profile Photo - Global Section 2 */}
+        <View style={styles.photoSection}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.headerButtonLeft}
-            hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
+            activeOpacity={0.8}
+            onPress={handleChangePhoto}
+            disabled={uploadingPhoto}
+            style={styles.photoWrapper}
           >
-            <ArrowLeft size={26} color={TEXT_SECONDARY} />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Edit Profile</Text>
-
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={!hasChanges || saving}
-            style={[
-              styles.saveButton,
-              (!hasChanges || saving) && styles.saveButtonDisabled,
-            ]}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
-            )}
+            <Image source={{ uri: photoUrl }} style={styles.profileImage} />
+            <View style={styles.cameraButton}>
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
+              )}
+            </View>
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
-          {/* Profile Photo - Global Section 2 */}
-          <View style={styles.photoSection}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleChangePhoto}
-              disabled={uploadingPhoto}
-              style={styles.photoWrapper}
-            >
-              <Image source={{ uri: photoUrl }} style={styles.profileImage} />
-              <View style={styles.cameraButton}>
-                {uploadingPhoto ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
-                )}
-              </View>
-            </TouchableOpacity>
+        {/* Card 1: The Basics */}
+        <View style={styles.card}>
+          {renderSectionHeader("THE BASICS", User)}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>DISPLAY NAME</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your Name"
+              placeholderTextColor={TEXT_SECONDARY}
+            />
           </View>
 
-          {/* Card 1: The Basics */}
-          <View style={styles.card}>
-            {renderSectionHeader("THE BASICS", User)}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>DISPLAY NAME</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>USERNAME</Text>
+            <View style={[styles.input, styles.rowInput]}>
+              <Text style={styles.prefix}>@</Text>
               <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your Name"
+                style={styles.flexInput}
+                value={username}
+                onChangeText={handleUsernameChange}
+                autoCapitalize="none"
+                placeholder="username"
                 placeholderTextColor={TEXT_SECONDARY}
               />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>USERNAME</Text>
-              <View style={[styles.input, styles.rowInput]}>
-                <Text style={styles.prefix}>@</Text>
-                <TextInput
-                  style={styles.flexInput}
-                  value={username}
-                  onChangeText={handleUsernameChange}
-                  autoCapitalize="none"
-                  placeholder="username"
-                  placeholderTextColor={TEXT_SECONDARY}
-                />
-                {usernameChecking && (
-                  <ActivityIndicator size="small" color={ACCENT_COLOR} />
-                )}
-                {!usernameChecking && usernameAvailable === true && (
-                  <Ionicons name="checkmark-circle" size={18} color="green" />
-                )}
-                {!usernameChecking &&
-                  usernameAvailable === false &&
-                  username !== profile?.username && (
-                    <Ionicons name="close-circle" size={18} color="red" />
-                  )}
-              </View>
-              <Text style={styles.helperText}>Your public handle</Text>
-            </View>
-
-            <View style={styles.inputGroupLast}>
-              <Text style={styles.inputLabel}>PRONOUNS</Text>
-              {/* Custom "Pill" selector for pronouns */}
-              <View style={styles.pillRow}>
-                {pronounPresets.map((p) => {
-                  const isSelected = pronouns.includes(p);
-                  const pStyle = getPronounStyles(p, isSelected);
-                  return (
-                    <TouchableOpacity
-                      key={p}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        const newPronouns = isSelected
-                          ? pronouns.filter((pr) => pr !== p)
-                          : [...pronouns, p];
-                        setPronouns(newPronouns);
-                        HapticsService.triggerSelection();
-                      }}
-                      style={[
-                        styles.pronounPill,
-                        { backgroundColor: pStyle.bg },
-                        isSelected && styles.pronounPillSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[styles.pronounText, { color: pStyle.text }]}
-                      >
-                        {p}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {/* Card 2: About Me */}
-          <View style={styles.card}>
-            {renderSectionHeader("ABOUT ME", NotebookText)}
-            <View style={styles.inputGroupLast}>
-              <TextInput
-                style={styles.bioInput}
-                value={bio}
-                onChangeText={setBio}
-                multiline
-                placeholder="Tell us about yourself..."
-                placeholderTextColor={TEXT_SECONDARY}
-                maxLength={150}
-              />
-              <Text style={styles.charCount}>{bio.length} / 150</Text>
-            </View>
-          </View>
-
-          {/* Card 3: Education */}
-          <View style={styles.card}>
-            {renderSectionHeader("EDUCATION", GraduationCap)}
-            <View style={styles.inputGroupLast}>
-              <Text style={styles.inputLabel}>COLLEGE / UNIVERSITY</Text>
-              <TextInput
-                style={styles.input}
-                value={education}
-                onChangeText={setEducation}
-                placeholder="Where did you study?"
-                placeholderTextColor={TEXT_SECONDARY}
-              />
-              <Text style={styles.helperText}>
-                Optional • Shown on your profile
-              </Text>
-            </View>
-          </View>
-
-          {/* Card 4: My Vibes (Scalable Redesign) */}
-          <View style={styles.card}>
-            {renderSectionHeader("MY VIBES", RollerCoaster)}
-
-            <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
-              {/* 1. Selected Vibes (Pinned Top) */}
-              {interests.length > 0 && (
-                <View style={styles.selectedVibesSection}>
-                  <View style={styles.vibesContainer}>
-                    {interests
-                      .slice(0, showAllSelected ? undefined : 8)
-                      .map((interest) => {
-                        const style = getInterestStyle(interest);
-                        const Icon = style.icon;
-                        return (
-                          <TouchableOpacity
-                            key={interest}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              LayoutAnimation.configureNext(
-                                LayoutAnimation.Presets.easeInEaseOut,
-                              );
-                              setInterests(
-                                interests.filter((i) => i !== interest),
-                              );
-                              HapticsService.triggerSelection();
-                            }}
-                            style={[
-                              styles.vibeChip,
-                              { backgroundColor: style.bg, paddingRight: 8 },
-                            ]}
-                          >
-                            <View style={styles.vibeContent}>
-                              <Icon
-                                size={14}
-                                color={style.text}
-                                strokeWidth={2.5}
-                              />
-                              <Text
-                                style={[styles.vibeText, { color: style.text }]}
-                              >
-                                {interest}
-                              </Text>
-                            </View>
-                            <View style={styles.removeIconContainer}>
-                              <X size={12} color={style.text} strokeWidth={3} />
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    {interests.length > 8 && !showAllSelected && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          LayoutAnimation.configureNext(
-                            LayoutAnimation.Presets.easeInEaseOut,
-                          );
-                          setShowAllSelected(true);
-                        }}
-                        style={styles.moreCountChip}
-                      >
-                        <Text style={styles.moreCountText}>
-                          +{interests.length - 8} more
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    {showAllSelected && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          LayoutAnimation.configureNext(
-                            LayoutAnimation.Presets.easeInEaseOut,
-                          );
-                          setShowAllSelected(false);
-                        }}
-                        style={styles.moreCountChip}
-                      >
-                        <Text style={styles.moreCountText}>Show less</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={styles.divider} />
-                </View>
+              {usernameChecking && (
+                <ActivityIndicator size="small" color={ACCENT_COLOR} />
               )}
+              {!usernameChecking && usernameAvailable === true && (
+                <Ionicons name="checkmark-circle" size={18} color="green" />
+              )}
+              {!usernameChecking &&
+                usernameAvailable === false &&
+                username !== profile?.username && (
+                  <Ionicons name="close-circle" size={18} color="red" />
+                )}
+            </View>
+            <Text style={styles.helperText}>Your public handle</Text>
+          </View>
 
-              {/* 2. Search & Add */}
-              <View style={styles.searchContainer}>
-                <SearchIcon
-                  size={16}
-                  color={TEXT_SECONDARY}
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search interests..."
-                  placeholderTextColor={TEXT_SECONDARY}
-                  value={searchQuery}
-                  onChangeText={(text) => {
-                    LayoutAnimation.configureNext(
-                      LayoutAnimation.Presets.easeInEaseOut,
-                    );
-                    setSearchQuery(text);
-                    if (text) setExpandedCategory(null); // Close categories when searching
-                  }}
-                />
-              </View>
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>PRONOUNS</Text>
+            {/* Custom "Pill" selector for pronouns */}
+            <View style={styles.pillRow}>
+              {pronounPresets.map((p) => {
+                const isSelected = pronouns.includes(p);
+                const pStyle = getPronounStyles(p, isSelected);
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      const newPronouns = isSelected
+                        ? pronouns.filter((pr) => pr !== p)
+                        : [...pronouns, p];
+                      setPronouns(newPronouns);
+                      HapticsService.triggerSelection();
+                    }}
+                    style={[
+                      styles.pronounPill,
+                      { backgroundColor: pStyle.bg },
+                      isSelected && styles.pronounPillSelected,
+                    ]}
+                  >
+                    <Text style={[styles.pronounText, { color: pStyle.text }]}>
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
 
-              {/* 3. Categories or Search Results */}
-              <View style={styles.categoriesContainer}>
-                {searchQuery ? (
-                  // Search Results
-                  <View style={styles.vibesContainer}>
-                    {interestsCatalog
-                      .filter(
-                        (i) =>
-                          !interests.includes(i) &&
-                          i.toLowerCase().includes(searchQuery.toLowerCase()),
-                      )
-                      .map((interest) => (
+        {/* Card 2: About Me */}
+        <View style={styles.card}>
+          {renderSectionHeader("ABOUT ME", NotebookText)}
+          <View style={styles.inputGroupLast}>
+            <TextInput
+              style={styles.bioInput}
+              value={bio}
+              onChangeText={setBio}
+              multiline
+              placeholder="Tell us about yourself..."
+              placeholderTextColor={TEXT_SECONDARY}
+              maxLength={150}
+            />
+            <Text style={styles.charCount}>{bio.length} / 150</Text>
+          </View>
+        </View>
+
+        {/* Card 3: Education */}
+        <View style={styles.card}>
+          {renderSectionHeader("EDUCATION", GraduationCap)}
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>COLLEGE / UNIVERSITY</Text>
+            <TextInput
+              style={styles.input}
+              value={education}
+              onChangeText={setEducation}
+              placeholder="Where did you study?"
+              placeholderTextColor={TEXT_SECONDARY}
+            />
+            <Text style={styles.helperText}>
+              Optional • Shown on your profile
+            </Text>
+          </View>
+        </View>
+
+        {/* Card 4: My Vibes (Scalable Redesign) */}
+        <View style={styles.card}>
+          {renderSectionHeader("MY VIBES", RollerCoaster)}
+
+          <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
+            {/* 1. Selected Vibes (Pinned Top) */}
+            {interests.length > 0 && (
+              <View style={styles.selectedVibesSection}>
+                <View style={styles.vibesContainer}>
+                  {interests
+                    .slice(0, showAllSelected ? undefined : 8)
+                    .map((interest) => {
+                      const style = getInterestStyle(interest);
+                      const Icon = style.icon;
+                      return (
                         <TouchableOpacity
                           key={interest}
+                          activeOpacity={0.7}
                           onPress={() => {
-                            setInterests([...interests, interest]);
-                            setSearchQuery(""); // Clear search after add
+                            LayoutAnimation.configureNext(
+                              LayoutAnimation.Presets.easeInEaseOut,
+                            );
+                            setInterests(
+                              interests.filter((i) => i !== interest),
+                            );
                             HapticsService.triggerSelection();
                           }}
-                          style={styles.optionChip}
+                          style={[
+                            styles.vibeChip,
+                            { backgroundColor: style.bg, paddingRight: 8 },
+                          ]}
                         >
-                          <Text style={styles.optionText}>{interest}</Text>
-                          <Plus size={14} color={TEXT_SECONDARY} />
+                          <View style={styles.vibeContent}>
+                            <Icon
+                              size={14}
+                              color={style.text}
+                              strokeWidth={2.5}
+                            />
+                            <Text
+                              style={[styles.vibeText, { color: style.text }]}
+                            >
+                              {interest}
+                            </Text>
+                          </View>
+                          <View style={styles.removeIconContainer}>
+                            <X size={12} color={style.text} strokeWidth={3} />
+                          </View>
                         </TouchableOpacity>
-                      ))}
-                    {/* Add Custom Interest in Search */}
+                      );
+                    })}
+                  {interests.length > 8 && !showAllSelected && (
                     <TouchableOpacity
                       onPress={() => {
-                        if (!interests.includes(searchQuery)) {
-                          setInterests([...interests, searchQuery]);
-                          setSearchQuery("");
-                          HapticsService.triggerSelection();
-                        }
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setShowAllSelected(true);
                       }}
-                      style={styles.addCustomSearchResult}
+                      style={styles.moreCountChip}
                     >
-                      <Plus size={14} color={ACCENT_COLOR} />
-                      <Text style={styles.addCustomText}>
-                        Add "{searchQuery}"
+                      <Text style={styles.moreCountText}>
+                        +{interests.length - 8} more
                       </Text>
                     </TouchableOpacity>
-                  </View>
-                ) : (
-                  // Category List
-                  Object.keys(INTEREST_CATEGORIES)
-                    .filter((key) => key !== "DEFAULT")
-                    .map((key) => {
-                      const category = INTEREST_CATEGORIES[key];
-                      const isExpanded = expandedCategory === key;
-                      const Icon = category.icon;
+                  )}
+                  {showAllSelected && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setShowAllSelected(false);
+                      }}
+                      style={styles.moreCountChip}
+                    >
+                      <Text style={styles.moreCountText}>Show less</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.divider} />
+              </View>
+            )}
 
-                      // Filter interests for this category
-                      const categoryInterests = interestsCatalog.filter(
-                        (i) =>
-                          !interests.includes(i) &&
-                          category.keywords.some((k) =>
-                            i.toLowerCase().includes(k),
-                          ),
-                      );
+            {/* 2. Search & Add */}
+            <View style={styles.searchContainer}>
+              <SearchIcon
+                size={16}
+                color={TEXT_SECONDARY}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search interests..."
+                placeholderTextColor={TEXT_SECONDARY}
+                value={searchQuery}
+                onChangeText={(text) => {
+                  LayoutAnimation.configureNext(
+                    LayoutAnimation.Presets.easeInEaseOut,
+                  );
+                  setSearchQuery(text);
+                  if (text) setExpandedCategory(null); // Close categories when searching
+                }}
+              />
+            </View>
 
-                      // If no interests in this category available to add, maybe skip?
-                      // Spec says "Show all categories", so keeping it.
+            {/* 3. Categories or Search Results */}
+            <View style={styles.categoriesContainer}>
+              {searchQuery ? (
+                // Search Results
+                <View style={styles.vibesContainer}>
+                  {interestsCatalog
+                    .filter(
+                      (i) =>
+                        !interests.includes(i) &&
+                        i.toLowerCase().includes(searchQuery.toLowerCase()),
+                    )
+                    .map((interest) => (
+                      <TouchableOpacity
+                        key={interest}
+                        onPress={() => {
+                          setInterests([...interests, interest]);
+                          setSearchQuery(""); // Clear search after add
+                          HapticsService.triggerSelection();
+                        }}
+                        style={styles.optionChip}
+                      >
+                        <Text style={styles.optionText}>{interest}</Text>
+                        <Plus size={14} color={TEXT_SECONDARY} />
+                      </TouchableOpacity>
+                    ))}
+                  {/* Add Custom Interest in Search */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!interests.includes(searchQuery)) {
+                        setInterests([...interests, searchQuery]);
+                        setSearchQuery("");
+                        HapticsService.triggerSelection();
+                      }
+                    }}
+                    style={styles.addCustomSearchResult}
+                  >
+                    <Plus size={14} color={ACCENT_COLOR} />
+                    <Text style={styles.addCustomText}>
+                      Add "{searchQuery}"
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Category List
+                Object.keys(INTEREST_CATEGORIES)
+                  .filter((key) => key !== "DEFAULT")
+                  .map((key) => {
+                    const category = INTEREST_CATEGORIES[key];
+                    const isExpanded = expandedCategory === key;
+                    const Icon = category.icon;
 
-                      return (
-                        <View key={key} style={styles.categoryRow}>
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              LayoutAnimation.configureNext(
-                                LayoutAnimation.Presets.easeInEaseOut,
-                              );
-                              setExpandedCategory(isExpanded ? null : key);
-                            }}
-                            style={[
-                              styles.categoryHeader,
-                              isExpanded && styles.categoryHeaderExpanded,
-                              {
-                                backgroundColor: isExpanded
-                                  ? category.bg
-                                  : "transparent",
-                              }, // Tint on expand
-                            ]}
-                          >
-                            <View style={styles.categoryHeaderLeft}>
-                              <View
-                                style={[
-                                  styles.categoryIcon,
-                                  { backgroundColor: category.bg },
-                                ]}
-                              >
-                                <Icon size={14} color={category.text} />
-                              </View>
-                              <Text
-                                style={[
-                                  styles.categoryTitle,
-                                  isExpanded && {
-                                    color: category.text,
-                                    fontWeight: "600",
-                                  },
-                                ]}
-                              >
-                                {category.label}
-                              </Text>
+                    // Filter interests for this category
+                    const categoryInterests = interestsCatalog.filter(
+                      (i) =>
+                        !interests.includes(i) &&
+                        category.keywords.some((k) =>
+                          i.toLowerCase().includes(k),
+                        ),
+                    );
+
+                    // If no interests in this category available to add, maybe skip?
+                    // Spec says "Show all categories", so keeping it.
+
+                    return (
+                      <View key={key} style={styles.categoryRow}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(
+                              LayoutAnimation.Presets.easeInEaseOut,
+                            );
+                            setExpandedCategory(isExpanded ? null : key);
+                          }}
+                          style={[
+                            styles.categoryHeader,
+                            isExpanded && styles.categoryHeaderExpanded,
+                            {
+                              backgroundColor: isExpanded
+                                ? category.bg
+                                : "transparent",
+                            }, // Tint on expand
+                          ]}
+                        >
+                          <View style={styles.categoryHeaderLeft}>
+                            <View
+                              style={[
+                                styles.categoryIcon,
+                                { backgroundColor: category.bg },
+                              ]}
+                            >
+                              <Icon size={14} color={category.text} />
                             </View>
-                            {isExpanded ? (
-                              <ChevronDown size={16} color={TEXT_SECONDARY} />
-                            ) : (
-                              <ChevronRight size={16} color={TEXT_SECONDARY} />
-                            )}
-                          </TouchableOpacity>
-
-                          {isExpanded && (
-                            <View style={styles.categoryContent}>
-                              <View style={styles.vibesContainer}>
-                                {categoryInterests.map((interest) => (
-                                  <TouchableOpacity
-                                    key={interest}
-                                    onPress={() => {
-                                      setInterests([...interests, interest]);
-                                      HapticsService.triggerSelection();
-                                    }}
-                                    style={styles.optionChip}
-                                  >
-                                    <Text style={styles.optionText}>
-                                      {interest}
-                                    </Text>
-                                    <Plus size={14} color={TEXT_SECONDARY} />
-                                  </TouchableOpacity>
-                                ))}
-                                {categoryInterests.length === 0 && (
-                                  <Text style={styles.helperText}>
-                                    No more interests in this category.
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
+                            <Text
+                              style={[
+                                styles.categoryTitle,
+                                isExpanded && {
+                                  color: category.text,
+                                  fontWeight: "600",
+                                },
+                              ]}
+                            >
+                              {category.label}
+                            </Text>
+                          </View>
+                          {isExpanded ? (
+                            <ChevronDown size={16} color={TEXT_SECONDARY} />
+                          ) : (
+                            <ChevronRight size={16} color={TEXT_SECONDARY} />
                           )}
-                        </View>
-                      );
-                    })
-                )}
-              </View>
+                        </TouchableOpacity>
+
+                        {isExpanded && (
+                          <View style={styles.categoryContent}>
+                            <View style={styles.vibesContainer}>
+                              {categoryInterests.map((interest) => (
+                                <TouchableOpacity
+                                  key={interest}
+                                  onPress={() => {
+                                    setInterests([...interests, interest]);
+                                    HapticsService.triggerSelection();
+                                  }}
+                                  style={styles.optionChip}
+                                >
+                                  <Text style={styles.optionText}>
+                                    {interest}
+                                  </Text>
+                                  <Plus size={14} color={TEXT_SECONDARY} />
+                                </TouchableOpacity>
+                              ))}
+                              {categoryInterests.length === 0 && (
+                                <Text style={styles.helperText}>
+                                  No more interests in this category.
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })
+              )}
             </View>
           </View>
+        </View>
 
-          {/* Card 5: Private Details */}
-          <View style={styles.card}>
-            {renderSectionHeader("PRIVATE DETAILS", Lock)}
+        {/* Card 5: Private Details */}
+        <View style={styles.card}>
+          {renderSectionHeader("PRIVATE DETAILS", Lock)}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>EMAIL</Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setEmailChangeModalVisible(true)}
-                style={[
-                  styles.input,
-                  styles.rowInput,
-                  { backgroundColor: "#F8F8F8" },
-                ]}
-              >
-                <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
-                <TextInput
-                  style={[styles.flexInput, { color: TEXT_SECONDARY }]}
-                  value={email}
-                  editable={false}
-                  pointerEvents="none"
-                />
-              </TouchableOpacity>
-              <Text style={styles.helperText}>Only visible to you</Text>
-            </View>
-
-            <View style={styles.inputGroupLast}>
-              <Text style={styles.inputLabel}>PHONE</Text>
-              <View style={[styles.input, styles.rowInput]}>
-                <Phone
-                  size={16}
-                  color={"#8B95A5"}
-                  style={{ marginRight: 10 }}
-                />
-                <TextInput
-                  style={styles.flexInput}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  placeholder="Add phone number"
-                  placeholderTextColor={TEXT_SECONDARY}
-                />
-              </View>
-              <Text style={styles.helperText}>Only visible to you</Text>
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>EMAIL</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setEmailChangeModalVisible(true)}
+              style={[
+                styles.input,
+                styles.rowInput,
+                { backgroundColor: "#F8F8F8" },
+              ]}
+            >
+              <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+              <TextInput
+                style={[styles.flexInput, { color: TEXT_SECONDARY }]}
+                value={email}
+                editable={false}
+                pointerEvents="none"
+              />
+            </TouchableOpacity>
+            <Text style={styles.helperText}>Only visible to you</Text>
           </View>
 
-          <View style={{ height: 20 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>PHONE</Text>
+            <View style={[styles.input, styles.rowInput]}>
+              <Phone size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.flexInput}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                placeholder="Add phone number"
+                placeholderTextColor={TEXT_SECONDARY}
+                onFocus={() => {
+                  // Removed manual scrollToEnd to let KeyboardAwareScrollView handle it
+                }}
+              />
+            </View>
+            <Text style={styles.helperText}>Only visible to you</Text>
+          </View>
+        </View>
+
+        <View style={{ height: 0 }} />
+      </KeyboardAwareScrollView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}
@@ -969,7 +962,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 5, // ample space for keyboard
+    paddingBottom: 10,
     gap: 24,
   },
 
