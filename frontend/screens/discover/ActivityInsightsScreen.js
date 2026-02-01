@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -9,14 +9,52 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Animated,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { getAuthToken } from "../../api/auth";
 import { apiGet, apiPost } from "../../api/client";
-import { COLORS } from "../../constants/theme";
+import { COLORS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
+import {
+  ArrowLeft,
+  Eye,
+  UserPlus,
+  ChartNoAxesColumn,
+  Users,
+  ChevronRight,
+  User,
+  Coffee,
+  Rocket,
+} from "lucide-react-native";
+
+// Helper for counting numbers
+const CountingNumber = ({ value, duration = 300 }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const countRef = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    countRef.setValue(0);
+    const listener = countRef.addListener(({ value }) => {
+      setDisplayValue(Math.floor(value));
+    });
+
+    Animated.timing(countRef, {
+      toValue: value || 0,
+      duration: duration,
+      useNativeDriver: false, // Cannot use native driver for listeners that update state
+    }).start();
+
+    return () => {
+      countRef.removeListener(listener);
+    };
+  }, [value]);
+
+  return <Text style={styles.statNumber}>{displayValue}</Text>;
+};
 
 export default function ActivityInsightsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -25,11 +63,77 @@ export default function ActivityInsightsScreen({ navigation }) {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
 
+  // Animation values
+  const card1Opacity = useRef(new Animated.Value(0)).current;
+  const card1TranslateY = useRef(new Animated.Value(8)).current;
+  const card2Opacity = useRef(new Animated.Value(0)).current;
+  const card2TranslateY = useRef(new Animated.Value(8)).current;
+  const card1Scale = useRef(new Animated.Value(1)).current;
+  const card2Scale = useRef(new Animated.Value(1)).current;
+
+  const sectionOpacity = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, []),
   );
+
+  useEffect(() => {
+    if (!loading) {
+      // Trigger card load animations
+      Animated.stagger(80, [
+        Animated.parallel([
+          Animated.timing(card1Opacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(card1TranslateY, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(card2Opacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(card2TranslateY, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => {
+        // Section fade-in
+        Animated.timing(sectionOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      // Infinite pulse animation for empty state icon
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.96,
+            duration: 1250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1250,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    }
+  }, [loading]);
 
   const loadData = async () => {
     try {
@@ -37,10 +141,14 @@ export default function ActivityInsightsScreen({ navigation }) {
       const token = await getAuthToken();
       if (!token) return;
 
-      // Load insights and pending requests in parallel
       const [insightsRes, pendingRes] = await Promise.all([
-        apiGet("/activity/insights", 15000, token),
-        apiGet("/connections/pending", 15000, token),
+        apiGet("/activity/insights", 15000, token).catch(() => ({
+          insights: {},
+          recentActivity: [],
+        })),
+        apiGet("/connections/pending", 15000, token).catch(() => ({
+          requests: [],
+        })),
       ]);
 
       setInsights(insightsRes.insights || {});
@@ -59,30 +167,24 @@ export default function ActivityInsightsScreen({ navigation }) {
     loadData();
   };
 
-  const handleRespondToRequest = async (requestId, action) => {
-    try {
-      const token = await getAuthToken();
-      await apiPost(
-        `/connections/${requestId}/respond`,
-        { action },
-        15000,
-        token
-      );
-      HapticsService.triggerNotificationSuccess();
-
-      // Remove from list
-      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
-
-      if (action === "accept") {
-        Alert.alert("Connected!", "You're now connected.");
-      }
-    } catch (error) {
-      console.error("Error responding:", error);
-      Alert.alert("Error", "Failed to respond. Please try again.");
-    }
+  const handleCardPress = (scaleValue) => {
+    HapticsService.triggerImpactLight();
+    Animated.sequence([
+      Animated.timing(scaleValue, {
+        toValue: 0.97,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 4,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return "Recently";
     const now = new Date();
     const date = new Date(timestamp);
     const diff = Math.floor((now - date) / 1000);
@@ -90,7 +192,72 @@ export default function ActivityInsightsScreen({ navigation }) {
     if (diff < 60) return "just now";
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+    if (diff < 172800) return "Yesterday";
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return "This week";
+  };
+
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case "profile_view":
+        return <Eye size={18} color={COLORS.textSecondary} strokeWidth={1.5} />;
+      case "connection":
+        return (
+          <UserPlus size={18} color={COLORS.textSecondary} strokeWidth={1.5} />
+        );
+      case "group_join":
+        return (
+          <Users size={18} color={COLORS.textSecondary} strokeWidth={1.5} />
+        );
+      default:
+        return (
+          <Rocket size={18} color={COLORS.textSecondary} strokeWidth={1.5} />
+        );
+    }
+  };
+
+  // Staggered Row Component
+  const ActivityRow = ({ activity, index }) => {
+    const rowOpacity = useRef(new Animated.Value(0)).current;
+    const rowTranslateX = useRef(new Animated.Value(-6)).current;
+
+    useEffect(() => {
+      Animated.delay(index * 40).start(() => {
+        Animated.parallel([
+          Animated.timing(rowOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(rowTranslateX, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+    }, [index]);
+
+    return (
+      <Animated.View
+        style={[
+          styles.activityRow,
+          { opacity: rowOpacity, transform: [{ translateX: rowTranslateX }] },
+        ]}
+      >
+        <View style={styles.activityIconContainer}>
+          {getActivityIcon(activity.type)}
+        </View>
+        <View style={styles.activityTextContainer}>
+          <Text style={styles.activityPrimaryText}>
+            {activity.text || "Updated your profile"}
+          </Text>
+          <Text style={styles.activitySecondaryText}>
+            {formatTimeAgo(activity.timestamp)}
+          </Text>
+        </View>
+      </Animated.View>
+    );
   };
 
   if (loading) {
@@ -111,7 +278,7 @@ export default function ActivityInsightsScreen({ navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity & Insights</Text>
         <View style={{ width: 40 }} />
@@ -126,201 +293,102 @@ export default function ActivityInsightsScreen({ navigation }) {
       >
         {/* Stats Cards */}
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="eye-outline" size={24} color={COLORS.primary} />
-            </View>
-            <Text style={styles.statNumber}>
-              {insights?.viewsThisWeek || 0}
-            </Text>
-            <Text style={styles.statLabel}>Profile views</Text>
-            {insights?.viewsChange !== 0 && (
-              <View
-                style={[
-                  styles.changeBadge,
-                  insights?.viewsChange > 0
-                    ? styles.changeBadgePositive
-                    : styles.changeBadgeNegative,
-                ]}
-              >
-                <Ionicons
-                  name={insights?.viewsChange > 0 ? "arrow-up" : "arrow-down"}
-                  size={12}
-                  color={insights?.viewsChange > 0 ? "#10B981" : "#EF4444"}
-                />
-                <Text
-                  style={[
-                    styles.changeText,
-                    {
-                      color: insights?.viewsChange > 0 ? "#10B981" : "#EF4444",
-                    },
-                  ]}
-                >
-                  {Math.abs(insights?.viewsChange || 0)}%
-                </Text>
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                opacity: card1Opacity,
+                transform: [
+                  { translateY: card1TranslateY },
+                  { scale: card1Scale },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => handleCardPress(card1Scale)}
+              style={({ pressed }) => [
+                styles.statCard,
+                pressed && { opacity: 0.9 },
+              ]}
+            >
+              <View style={styles.statIconContainer}>
+                <Eye size={24} color={COLORS.primary} strokeWidth={2} />
               </View>
-            )}
-          </View>
+              <CountingNumber value={insights?.viewsThisWeek || 0} />
+              <Text style={styles.statLabel}>Profile views</Text>
+              <Text style={styles.statHelperText}>
+                Share posts to increase visibility
+              </Text>
+            </Pressable>
+          </Animated.View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons
-                name="people-outline"
-                size={24}
-                color={COLORS.primary}
-              />
-            </View>
-            <Text style={styles.statNumber}>
-              {insights?.connectionsThisWeek || 0}
-            </Text>
-            <Text style={styles.statLabel}>New connections</Text>
-            <Text style={styles.statSubtext}>this week</Text>
-          </View>
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                opacity: card2Opacity,
+                transform: [
+                  { translateY: card2TranslateY },
+                  { scale: card2Scale },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => handleCardPress(card2Scale)}
+              style={({ pressed }) => [
+                styles.statCard,
+                pressed && { opacity: 0.9 },
+              ]}
+            >
+              <View style={styles.statIconContainer}>
+                <UserPlus size={24} color={COLORS.primary} strokeWidth={2} />
+              </View>
+              <CountingNumber value={insights?.connectionsThisWeek || 0} />
+              <Text style={styles.statLabel}>New connections</Text>
+              <Text style={styles.statHelperText}>
+                Engage in groups to meet people
+              </Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
-        {/* Pending Requests */}
-        {pendingRequests.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Connection Requests</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingRequests.length}</Text>
-              </View>
-            </View>
-
-            {pendingRequests.map((request) => (
-              <View key={request.id} style={styles.requestCard}>
-                <View style={styles.requestAvatar}>
-                  {request.from_member_photo ? (
-                    <Image
-                      source={{ uri: request.from_member_photo }}
-                      style={styles.avatarImage}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="person"
-                      size={24}
-                      color={COLORS.textSecondary}
-                    />
-                  )}
-                </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.requestName}>
-                    {request.from_member_name}
-                  </Text>
-                  {request.message && (
-                    <Text style={styles.requestMessage} numberOfLines={1}>
-                      "{request.message}"
-                    </Text>
-                  )}
-                  {request.event_title && (
-                    <Text style={styles.requestEvent}>
-                      from {request.event_title}
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.requestActions}>
-                  <TouchableOpacity
-                    style={styles.acceptButton}
-                    onPress={() => handleRespondToRequest(request.id, "accept")}
-                  >
-                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.declineButton}
-                    onPress={() =>
-                      handleRespondToRequest(request.id, "decline")
-                    }
-                  >
-                    <Ionicons
-                      name="close"
-                      size={20}
-                      color={COLORS.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
         {/* Recent Activity */}
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionOpacity }]}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
 
           {recentActivity.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons
-                name="pulse-outline"
-                size={48}
-                color={COLORS.textSecondary}
-              />
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <ChartNoAxesColumn size={48} color={COLORS.textSecondary} />
+              </Animated.View>
               <Text style={styles.emptyText}>No recent activity</Text>
               <Text style={styles.emptySubtext}>
-                Attend events and connect with people to see activity here
+                Attend events and connect with people to see your activity
+                timeline here.
               </Text>
             </View>
           ) : (
-            recentActivity.map((activity, index) => (
-              <View key={index} style={styles.activityItem}>
-                <View
-                  style={[
-                    styles.activityIcon,
-                    activity.type === "connection"
-                      ? styles.activityIconConnection
-                      : styles.activityIconView,
-                  ]}
-                >
-                  <Ionicons
-                    name={activity.type === "connection" ? "people" : "eye"}
-                    size={16}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <View style={styles.activityContent}>
-                  {activity.type === "connection" ? (
-                    <Text style={styles.activityText}>
-                      Connected with{" "}
-                      <Text style={styles.activityHighlight}>
-                        {activity.member_name}
-                      </Text>
-                    </Text>
-                  ) : (
-                    <Text style={styles.activityText}>
-                      Viewed by {activity.count}{" "}
-                      {activity.count === 1 ? "person" : "people"}
-                      {activity.event_title && (
-                        <Text>
-                          {" "}
-                          at{" "}
-                          <Text style={styles.activityHighlight}>
-                            {activity.event_title}
-                          </Text>
-                        </Text>
-                      )}
-                    </Text>
-                  )}
-                  <Text style={styles.activityTime}>
-                    {formatTimeAgo(activity.timestamp)}
-                  </Text>
-                </View>
-              </View>
-            ))
+            <View style={styles.activityList}>
+              {recentActivity.map((activity, index) => (
+                <ActivityRow key={index} activity={activity} index={index} />
+              ))}
+            </View>
           )}
-        </View>
+        </Animated.View>
 
         {/* View Connections Button */}
         <TouchableOpacity
           style={styles.viewConnectionsButton}
+          activeOpacity={0.7}
           onPress={() => navigation.navigate("Connections")}
         >
-          <Ionicons name="people" size={20} color={COLORS.primary} />
+          <View style={styles.viewConnectionsIcon}>
+            <Users size={20} color={COLORS.primary} />
+          </View>
           <Text style={styles.viewConnectionsText}>View All Connections</Text>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={COLORS.textSecondary}
-          />
+          <ChevronRight size={20} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -353,8 +421,8 @@ const styles = StyleSheet.create({
     marginLeft: -8,
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   content: {
@@ -367,11 +435,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   statCard: {
-    flex: 1,
     backgroundColor: "#F8F9FA",
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
   },
   statIconContainer: {
     width: 48,
@@ -389,118 +458,26 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
+    fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
     marginTop: 4,
   },
-  statSubtext: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  changeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  statHelperText: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    color: "#9CA3AF",
     marginTop: 8,
-    gap: 2,
-  },
-  changeBadgePositive: {
-    backgroundColor: "#D1FAE5",
-  },
-  changeBadgeNegative: {
-    backgroundColor: "#FEE2E2",
-  },
-  changeText: {
-    fontSize: 12,
-    fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 8,
   },
   section: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    gap: 8,
+    marginTop: 32,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
-  },
-  badge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  requestCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  requestAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#E5E5E5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  requestInfo: {
-    flex: 1,
-  },
-  requestName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  requestMessage: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    fontStyle: "italic",
-    marginTop: 2,
-  },
-  requestEvent: {
-    fontSize: 12,
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  requestActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  acceptButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  declineButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E5E5E5",
-    justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 16,
   },
   emptyState: {
     alignItems: "center",
@@ -508,53 +485,51 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textSecondary,
-    marginTop: 12,
+    marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     textAlign: "center",
-    marginTop: 4,
-    paddingHorizontal: 20,
+    marginTop: 8,
+    paddingHorizontal: 32,
+    lineHeight: 20,
   },
-  activityItem: {
+  activityList: {
+    gap: 4,
+  },
+  activityRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 12,
+    alignItems: "center",
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#F9FAFB",
   },
-  activityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  activityIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FA",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  activityIconConnection: {
-    backgroundColor: "#10B981",
-  },
-  activityIconView: {
-    backgroundColor: "#6366F1",
-  },
-  activityContent: {
+  activityTextContainer: {
     flex: 1,
   },
-  activityText: {
-    fontSize: 14,
+  activityPrimaryText: {
+    fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
-    lineHeight: 20,
   },
-  activityHighlight: {
-    fontWeight: "600",
-  },
-  activityTime: {
+  activitySecondaryText: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    marginTop: 2,
   },
   viewConnectionsButton: {
     flexDirection: "row",
@@ -564,12 +539,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginTop: 24,
-    gap: 8,
+  },
+  viewConnectionsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#E8F4FD",
+    justifyContent: "center",
+    alignItems: "center",
   },
   viewConnectionsText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
     flex: 1,
+    marginLeft: 12,
   },
 });
