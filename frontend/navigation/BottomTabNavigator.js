@@ -208,6 +208,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
               "NetworkingProfile",
               "Chat",
               "EditDiscoverProfile",
+              "OpenerSelection",
             ];
             if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };

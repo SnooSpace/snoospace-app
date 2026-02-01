@@ -11,7 +11,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  FONTS,
+  SHADOWS,
+} from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 
 const TEXT_COLOR = COLORS.textPrimary;
@@ -121,17 +127,22 @@ export default function OpenerSelectionScreen({ navigation, route }) {
   // Step 1: Select a prompt
   if (step === "select") {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Choose a Prompt</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.container}>
+        <SafeAreaView
+          style={{ backgroundColor: COLORS.surface }}
+          edges={["top"]}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Choose a Prompt</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </SafeAreaView>
 
         <Text style={styles.subtitle}>
-          Pick a conversation starter that represents you
+          Select a spark to ignite your next conversation
         </Text>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -139,92 +150,104 @@ export default function OpenerSelectionScreen({ navigation, route }) {
             <View key={category.id} style={styles.categorySection}>
               <View style={styles.categoryHeader}>
                 <Ionicons
-                  name={category.icon}
-                  size={20}
+                  name={category.icon.replace("-outline", "")}
+                  size={16}
                   color={PRIMARY_COLOR}
                 />
                 <Text style={styles.categoryTitle}>{category.title}</Text>
               </View>
 
-              {category.presets.map((prompt, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.promptCard}
-                  onPress={() => handlePromptSelect(prompt)}
-                >
-                  <Text style={styles.promptText}>{prompt}</Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={LIGHT_TEXT_COLOR}
-                  />
-                </TouchableOpacity>
-              ))}
+              <View style={styles.cardContainer}>
+                {category.presets.map((prompt, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.promptRow,
+                      index < category.presets.length - 1 && styles.rowDivider,
+                    ]}
+                    onPress={() => handlePromptSelect(prompt)}
+                  >
+                    <Text style={styles.promptText}>{prompt}</Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={COLORS.border}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           ))}
 
           <View style={{ height: 40 }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // Step 2: Write your response
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+    <View style={styles.container}>
+      <SafeAreaView style={{ backgroundColor: COLORS.surface }} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your Answer</Text>
           <TouchableOpacity
-            style={[
-              styles.saveHeaderButton,
-              !canSave && styles.saveHeaderButtonDisabled,
-            ]}
+            style={[styles.doneButton, !canSave && styles.doneButtonDisabled]}
             onPress={handleSave}
             disabled={!canSave}
           >
             <Text
               style={[
-                styles.saveHeaderText,
-                !canSave && styles.saveHeaderTextDisabled,
+                styles.doneButtonText,
+                !canSave && styles.doneButtonTextDisabled,
               ]}
             >
               Done
             </Text>
           </TouchableOpacity>
         </View>
+      </SafeAreaView>
 
-        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.selectedPromptCard}>
-            <Text style={styles.selectedPromptLabel}>PROMPT</Text>
-            <Text style={styles.selectedPromptText}>{selectedPrompt}</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          style={styles.content}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <View style={styles.shadowWrapper}>
+            <View style={styles.selectedPromptCardNew}>
+              <Text style={styles.selectedPromptLabelNew}>PROMPT</Text>
+              <Text style={styles.selectedPromptTextNew}>{selectedPrompt}</Text>
+            </View>
           </View>
 
-          <View style={styles.responseSection}>
-            <Text style={styles.responseLabel}>YOUR ANSWER</Text>
-            <TextInput
-              style={styles.responseInput}
-              placeholder="Write something that helps others start a conversation with you..."
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={response}
-              onChangeText={setResponse}
-              multiline
-              maxLength={200}
-              autoFocus
-            />
-            <View style={styles.charCountRow}>
-              <Text
-                style={[
-                  styles.charCount,
-                  response.length < 10 && styles.charCountWarning,
-                ]}
-              >
+          <View style={styles.responseSectionNew}>
+            <View style={styles.responseInputContainer}>
+              <TextInput
+                style={styles.responseInputNew}
+                placeholder="Write something that helps others start a conversation with you..."
+                placeholderTextColor={LIGHT_TEXT_COLOR}
+                value={response}
+                onChangeText={setResponse}
+                multiline
+                maxLength={200}
+                autoFocus
+              />
+            </View>
+            <View style={styles.helperRow}>
+              <Ionicons
+                name="information-circle-outline"
+                size={14}
+                color={LIGHT_TEXT_COLOR}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.helperText}>
                 {response.length < 10
                   ? `${10 - response.length} more characters needed`
                   : `${response.length}/200`}
@@ -232,34 +255,51 @@ export default function OpenerSelectionScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Example Answers */}
-          <View style={styles.examplesSection}>
-            <Text style={styles.examplesTitle}>💡 Great answers are...</Text>
-            <View style={styles.examplesList}>
-              <View style={styles.exampleItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.exampleText}>Specific and personal</Text>
+          {/* Guidance Card */}
+          <View style={styles.guidanceCard}>
+            <View style={styles.guidanceHeader}>
+              <Text style={styles.guidanceTitle}>💡 GREAT ANSWERS ARE...</Text>
+            </View>
+            <View style={styles.guidanceList}>
+              <View style={styles.guidanceItem}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color="#D1D5DB"
+                  style={{ opacity: 0.8 }}
+                />
+                <Text style={styles.guidanceText}>Specific and personal</Text>
               </View>
-              <View style={styles.exampleItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.exampleText}>Easy to respond to</Text>
+              <View style={styles.guidanceItem}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color="#D1D5DB"
+                  style={{ opacity: 0.8 }}
+                />
+                <Text style={styles.guidanceText}>Easy to respond to</Text>
               </View>
-              <View style={styles.exampleItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.exampleText}>Show personality</Text>
+              <View style={styles.guidanceItem}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color="#D1D5DB"
+                  style={{ opacity: 0.8 }}
+                />
+                <Text style={styles.guidanceText}>Show personality</Text>
               </View>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.screenBackground,
   },
   flex: {
     flex: 1,
@@ -270,6 +310,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.m,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -278,27 +319,42 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
-  saveHeaderButton: {
+  headerMinimal: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.m,
+  },
+  doneButton: {
+    backgroundColor: PRIMARY_COLOR,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    height: 36,
+    borderRadius: 18, // Pill shape
+    justifyContent: "center",
+    alignItems: "center",
   },
-  saveHeaderButtonDisabled: {},
-  saveHeaderText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: PRIMARY_COLOR,
+  doneButtonDisabled: {
+    backgroundColor: "#E5E7EB", // Match border/muted color
   },
-  saveHeaderTextDisabled: {
+  doneButtonText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: "#FFFFFF",
+  },
+  doneButtonTextDisabled: {
     color: LIGHT_TEXT_COLOR,
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: LIGHT_TEXT_COLOR,
     paddingHorizontal: SPACING.l,
     paddingVertical: SPACING.m,
+    textAlign: "center", // Centered as per some modern styles, but keeping Image 2 in mind
   },
   content: {
     flex: 1,
@@ -311,109 +367,129 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.s,
-    backgroundColor: "#F8F8F8",
+    paddingVertical: SPACING.m,
+    marginTop: SPACING.s,
   },
   categoryTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: LIGHT_TEXT_COLOR,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-  promptCard: {
+  cardContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    marginHorizontal: SPACING.m,
+    ...SHADOWS.sm,
+    shadowOpacity: 0.05, // Extra subtle shadow
+    overflow: "hidden",
+  },
+  promptRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SPACING.l,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  rowDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: "#FFFFFF",
+    borderBottomColor: "#F1F5F9",
   },
   promptText: {
     flex: 1,
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: TEXT_COLOR,
     marginRight: 12,
   },
 
-  // Response Step
-  selectedPromptCard: {
-    margin: SPACING.l,
-    padding: SPACING.m,
-    backgroundColor: "#F0F8FF",
-    borderRadius: BORDER_RADIUS.m,
-    borderLeftWidth: 3,
-    borderLeftColor: PRIMARY_COLOR,
+  // New Response Styles
+  shadowWrapper: {
+    margin: SPACING.m,
+    // Shadow properties on the outer wrapper
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  selectedPromptLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: PRIMARY_COLOR,
-    letterSpacing: 1,
-    marginBottom: 6,
+  selectedPromptCardNew: {
+    padding: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    overflow: "hidden", // Clips the white corners perfectly
   },
-  selectedPromptText: {
-    fontSize: 15,
-    color: TEXT_COLOR,
-    fontWeight: "500",
-  },
-  responseSection: {
-    paddingHorizontal: SPACING.l,
-  },
-  responseLabel: {
-    fontSize: 10,
-    fontWeight: "600",
+  selectedPromptLabelNew: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
     color: LIGHT_TEXT_COLOR,
-    letterSpacing: 1,
+    opacity: 0.6,
+    letterSpacing: 1.2,
     marginBottom: 8,
   },
-  responseInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.m,
-    padding: 14,
+  selectedPromptTextNew: {
+    fontSize: 20,
+    fontFamily: FONTS.black,
+    color: TEXT_COLOR,
+    lineHeight: 26,
+  },
+  responseSectionNew: {
+    paddingHorizontal: SPACING.m,
+  },
+  responseInputContainer: {
+    backgroundColor: "#F4F7FA", // Very subtle background fill
+    borderRadius: 20,
+    padding: 20,
+    minHeight: 180,
+  },
+  responseInputNew: {
     fontSize: 16,
+    fontFamily: FONTS.regular,
     color: TEXT_COLOR,
-    minHeight: 120,
+    lineHeight: 24,
     textAlignVertical: "top",
-    backgroundColor: "#FFFFFF",
+    flex: 1,
   },
-  charCountRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 6,
-  },
-  charCount: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-  },
-  charCountWarning: {
-    color: "#E65100",
-  },
-  examplesSection: {
-    margin: SPACING.l,
-    padding: SPACING.m,
-    backgroundColor: "#FFFBF0",
-    borderRadius: BORDER_RADIUS.m,
-  },
-  examplesTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 10,
-  },
-  examplesList: {
-    gap: 8,
-  },
-  exampleItem: {
+  helperRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "flex-end",
+    marginTop: 12,
   },
-  exampleText: {
+  helperText: {
     fontSize: 13,
-    color: TEXT_COLOR,
+    fontFamily: FONTS.regular,
+    color: LIGHT_TEXT_COLOR,
+  },
+  guidanceCard: {
+    margin: SPACING.m,
+    marginTop: 32,
+    padding: 24,
+    backgroundColor: "#F3F7FF", // Soft subtle blue tint
+    borderRadius: 24,
+  },
+  guidanceHeader: {
+    marginBottom: 16,
+  },
+  guidanceTitle: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: PRIMARY_COLOR,
+    letterSpacing: 1,
+    opacity: 0.8,
+  },
+  guidanceList: {
+    gap: 12,
+  },
+  guidanceItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  guidanceText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: "#4B5563",
   },
 });
