@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -701,8 +702,9 @@ export default function YourEventsScreen({ navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.headerIcon}
+            hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
           >
-            <Ionicons name="chevron-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={26} color={LIGHT_TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your Events</Text>
           <View style={styles.headerIcon} />
@@ -844,8 +846,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   headerIcon: {
-    width: 40,
+    width: 48,
+    height: 48,
     alignItems: "flex-start",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
