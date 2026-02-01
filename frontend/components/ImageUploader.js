@@ -122,6 +122,7 @@ const ImageUploader = forwardRef(
       horizontal = false, // Support horizontal media tray
       hingeStyle = false, // Enable Hinge-style 2x3 grid
       allowVideos = false, // NEW: Enable video picking
+      containerPadding = 48, // Optional: Horizontal padding subtracted from width
     },
     ref,
   ) => {
@@ -837,10 +838,11 @@ const ImageUploader = forwardRef(
       // 3 columns
       const numColumns = 3;
       const gap = 12;
-      const containerPadding = 48; // Assumes SPACING.l is 24px (24*2=48)
+      // Use prop-based padding if available, fallback to 48 (legacy SPACING.l * 2)
+      const activePadding = containerPadding;
 
       // Calculate available width and subtract extra buffer for rounding errors/borders
-      const availableWidth = width - containerPadding - 2;
+      const availableWidth = width - activePadding - 2;
       const slotWidth = Math.floor(
         (availableWidth - gap * (numColumns - 1)) / numColumns,
       );
