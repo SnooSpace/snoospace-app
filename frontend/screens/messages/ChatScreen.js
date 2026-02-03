@@ -18,12 +18,14 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  Easing,
 } from "react-native-reanimated";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft, Send } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, getConversations } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
@@ -68,12 +70,21 @@ export default function ChatScreen({ route, navigation }) {
   const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost, setSelectedSharedPost] = useState(null);
   const [sharedPosts, setSharedPosts] = useState({}); // Track shared posts by ID for state updates
+  const insets = useSafeAreaInsets();
 
   // Reanimated keyboard tracking for manual Android handling
   const keyboardHeight = useSharedValue(0);
 
   useKeyboardHandler({
-    onMove: (e) => {
+    onStart: (e) => {
+      "worklet";
+      // Smooth timing animation for fluid movement
+      keyboardHeight.value = withTiming(e.height, {
+        duration: e.duration > 0 ? e.duration : 250,
+        easing: Easing.out(Easing.exp),
+      });
+    },
+    onInteractive: (e) => {
       "worklet";
       keyboardHeight.value = e.height;
     },
@@ -87,7 +98,8 @@ export default function ChatScreen({ route, navigation }) {
     // Only apply on Android where we disabled KeyboardAvoidingView
     if (Platform.OS !== "android") return {};
     return {
-      paddingBottom: keyboardHeight.value,
+      // Use transform for hardware-accelerated, lag-free movement
+      transform: [{ translateY: -keyboardHeight.value }],
     };
   });
 
@@ -616,7 +628,10 @@ export default function ChatScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <View
+          style={{ height: insets.top, backgroundColor: COLORS.background }}
+        />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -630,17 +645,15 @@ export default function ChatScreen({ route, navigation }) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={PRIMARY_COLOR} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} {...panResponder.panHandlers}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
+    <View style={styles.container} {...panResponder.panHandlers}>
+      {/* Solid Header Area (including Status Bar) */}
+      <View style={{ backgroundColor: COLORS.background, zIndex: 10 }}>
+        <View style={{ height: insets.top }} />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -670,7 +683,13 @@ export default function ChatScreen({ route, navigation }) {
           )}
           <View style={{ width: 40 }} />
         </View>
+      </View>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
         <Animated.View style={[{ flex: 1 }, androidContainerStyle]}>
           <FlatList
             ref={flatListRef}
@@ -700,15 +719,19 @@ export default function ChatScreen({ route, navigation }) {
 
       <KeyboardAwareToolbar>
         <View style={styles.inputContent}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor={LIGHT_TEXT_COLOR}
-            value={messageText}
-            onChangeText={setMessageText}
-            multiline
-            maxLength={1000}
-          />
+          <View style={styles.inputWrapper}>
+            <BlurView intensity={60} tint="light" style={styles.inputBlur}>
+              <TextInput
+                style={styles.input}
+                placeholder="Type a message..."
+                placeholderTextColor={LIGHT_TEXT_COLOR}
+                value={messageText}
+                onChangeText={setMessageText}
+                multiline
+                maxLength={1000}
+              />
+            </BlurView>
+          </View>
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -760,14 +783,14 @@ export default function ChatScreen({ route, navigation }) {
           navigation={navigation}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,
@@ -777,8 +800,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: COLORS.background,
+    zIndex: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: "rgba(0,0,0,0.05)", // Very subtle border
   },
   backButton: {
     width: 40,
@@ -892,27 +917,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  input: {
+  inputWrapper: {
     flex: 1,
+    marginRight: 8,
+    borderRadius: 22,
+    overflow: "hidden", // Clip the blur to the radius
+    // Subtle floating shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    backgroundColor: "transparent",
+  },
+  inputBlur: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderColor: "rgba(255,255,255,0.4)",
+  },
+  input: {
+    paddingHorizontal: 12,
     paddingVertical: 10,
     maxHeight: 100,
     fontSize: 15,
     color: TEXT_COLOR,
-    marginRight: 8,
+    backgroundColor: "transparent",
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: PRIMARY_COLOR,
     alignItems: "center",
     justifyContent: "center",
+    // Floating shadow for button
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 4,
   },
   sendButtonDisabled: {
     backgroundColor: LIGHT_TEXT_COLOR,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 });
