@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   PanResponder,
+  Pressable,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -24,8 +25,8 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft, Send } from "lucide-react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { getMessages, sendMessage, getConversations } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
@@ -37,14 +38,17 @@ import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 
-const PRIMARY_COLOR = COLORS.primary;
+const PRIMARY_COLOR = "#3565F2"; // Branded Blue
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+const SEND_BUTTON_PRESSED = "#2E56D6";
 
-// Message bubble colors - Instagram-style
-const OUTGOING_MESSAGE_BG = "rgba(107, 179, 242, 0.12)"; // #6BB3F2 at 12% opacity
+// Message bubble colors - Refined Palette
+const CHAT_CANVAS_BG = "#F7F9FC";
+const OUTGOING_MESSAGE_BG = "#E6F0FF";
 const INCOMING_MESSAGE_BG = "#FFFFFF";
-const INCOMING_MESSAGE_BORDER = "#E5E5EA";
+const INCOMING_MESSAGE_BORDER = "#E6ECF5";
+const MESSAGE_TEXT_COLOR = "#1F3A5F";
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -629,15 +633,13 @@ export default function ChatScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View
-          style={{ height: insets.top, backgroundColor: COLORS.background }}
-        />
+        <View style={{ height: insets.top, backgroundColor: "#FFFFFF" }} />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <ArrowLeft size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Loading...</Text>
           <View style={{ width: 40 }} />
@@ -652,14 +654,14 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       {/* Solid Header Area (including Status Bar) */}
-      <View style={{ backgroundColor: COLORS.background, zIndex: 10 }}>
+      <View style={{ backgroundColor: "#FFFFFF", zIndex: 10 }}>
         <View style={{ height: insets.top }} />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <ArrowLeft size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
           </TouchableOpacity>
           {recipient && (
             <>
@@ -719,23 +721,33 @@ export default function ChatScreen({ route, navigation }) {
 
       <KeyboardAwareToolbar>
         <View style={styles.inputContent}>
-          <View style={styles.inputWrapper}>
-            <BlurView intensity={60} tint="light" style={styles.inputBlur}>
-              <TextInput
-                style={styles.input}
-                placeholder="Type a message..."
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={messageText}
-                onChangeText={setMessageText}
-                multiline
-                maxLength={1000}
-              />
-            </BlurView>
+          <View style={[styles.inputWrapper, { overflow: "hidden" }]}>
+            <BlurView
+              intensity={20}
+              tint="light"
+              style={StyleSheet.absoluteFill}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Message..."
+              placeholderTextColor="#8FA1B8"
+              selectionColor="#8FA1B8"
+              cursorColor="#8FA1B8"
+              underlineColorAndroid="transparent"
+              value={messageText}
+              onChangeText={setMessageText}
+              multiline
+              maxLength={1000}
+            />
           </View>
-          <TouchableOpacity
-            style={[
+          <Pressable
+            style={({ pressed }) => [
               styles.sendButton,
               (!messageText.trim() || sending) && styles.sendButtonDisabled,
+              pressed &&
+                !(!messageText.trim() || sending) && {
+                  backgroundColor: SEND_BUTTON_PRESSED,
+                },
             ]}
             onPress={handleSend}
             disabled={!messageText.trim() || sending}
@@ -743,9 +755,9 @@ export default function ChatScreen({ route, navigation }) {
             {sending ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Send size={20} color="#FFFFFF" />
+              <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </KeyboardAwareToolbar>
 
@@ -790,7 +802,7 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: CHAT_CANVAS_BG,
   },
   keyboardView: {
     flex: 1,
@@ -800,17 +812,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#FFFFFF",
     zIndex: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.05)", // Very subtle border
   },
   backButton: {
-    width: 40,
-    height: 40,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
+    marginRight: 10,
   },
   headerAvatar: {
     width: 32,
@@ -822,11 +836,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerName: {
+    fontFamily: "BasicCommercial-Black",
     fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    color: "#1F3A5F",
   },
   headerUsername: {
+    fontFamily: "Manrope-Medium",
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
   },
@@ -867,9 +882,15 @@ const styles = StyleSheet.create({
     backgroundColor: OUTGOING_MESSAGE_BG, // Soft blue tint
   },
   otherMessageBubble: {
-    backgroundColor: INCOMING_MESSAGE_BG, // Pure white
+    backgroundColor: INCOMING_MESSAGE_BG,
     borderWidth: 1,
     borderColor: INCOMING_MESSAGE_BORDER,
+    // Very soft shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   messageText: {
     fontFamily: "Manrope-Regular",
@@ -878,10 +899,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   myMessageText: {
-    color: TEXT_COLOR, // Changed from inverted since bg is light now
+    color: MESSAGE_TEXT_COLOR,
   },
   otherMessageText: {
-    color: TEXT_COLOR,
+    color: MESSAGE_TEXT_COLOR,
   },
   messageTime: {
     fontFamily: "Manrope-Medium",
@@ -890,10 +911,10 @@ const styles = StyleSheet.create({
     opacity: 0.65, // 65% opacity for subtle timestamp
   },
   myMessageTime: {
-    color: TEXT_COLOR,
+    color: MESSAGE_TEXT_COLOR,
   },
   otherMessageTime: {
-    color: TEXT_COLOR,
+    color: MESSAGE_TEXT_COLOR,
   },
   emptyContainer: {
     flex: 1,
@@ -920,29 +941,35 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flex: 1,
     marginRight: 8,
-    borderRadius: 22,
-    overflow: "hidden", // Clip the blur to the radius
-    // Subtle floating shadow
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1,
+    borderColor: "#D9E2F2",
+    minHeight: 44,
+    paddingHorizontal: 12, // Move padding here to isolate the input
+    paddingVertical: 4,
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3,
-    backgroundColor: "transparent",
-  },
-  inputBlur: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    elevation: 4,
   },
   input: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     maxHeight: 100,
-    fontSize: 15,
-    color: TEXT_COLOR,
-    backgroundColor: "transparent",
+    minHeight: 44, // Ensure it fills the wrapper
+    fontFamily: "Manrope-Regular",
+    fontSize: 14.5,
+    color: "#1F3A5F",
+    backgroundColor: "#f9f9f5", // Temporary tint for debugging
+    textAlignVertical: "center",
+    borderWidth: 0,
+    borderBottomWidth: 0, // Extra protection for Android
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
   },
   sendButton: {
     width: 44,
@@ -956,7 +983,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 5,
-    elevation: 4,
+    elevation: 5,
   },
   sendButtonDisabled: {
     backgroundColor: LIGHT_TEXT_COLOR,
