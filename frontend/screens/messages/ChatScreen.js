@@ -455,31 +455,70 @@ export default function ChatScreen({ route, navigation }) {
       .padStart(2, "0")}`;
   };
 
+  /**
+   * Determines if an avatar should be shown for a message.
+   * Instagram-style behavior: avatars appear only on the LAST message of a group.
+   *
+   * @param {Object} message - Current message
+   * @param {Object} nextMessage - Next message (chronologically newer, visually above in inverted list)
+   * @returns {boolean} - True if avatar should be shown
+   */
+  const shouldShowAvatar = useCallback(
+    (message, nextMessage) => {
+      const recipientUserId = recipient?.id || recipientId;
+
+      // Only received messages (from the recipient) should show avatars
+      // Sent messages (not from recipient) never show avatar
+      if (message.senderId !== recipientUserId) {
+        return false;
+      }
+
+      // Received messages: check if this is the LAST message in a group
+
+      // Case 1: Last message overall (no next message)
+      if (!nextMessage) {
+        return true;
+      }
+
+      // Case 2: Next message is from different sender
+      if (nextMessage.senderId !== message.senderId) {
+        return true;
+      }
+
+      // Case 3: Content type changes (treat each content type as separate group)
+      const currentType = message.messageType || "text";
+      const nextType = nextMessage.messageType || "text";
+      if (currentType !== nextType) {
+        return true;
+      }
+
+      // Case 4: Time gap exceeds 1 minute (60 seconds)
+      const currentTime = new Date(message.createdAt);
+      const nextTime = new Date(nextMessage.createdAt);
+      const timeDiffMs = Math.abs(nextTime - currentTime);
+      const TIME_GAP_THRESHOLD = 1 * 60 * 1000; // 1 minute
+
+      if (timeDiffMs > TIME_GAP_THRESHOLD) {
+        return true;
+      }
+
+      // Otherwise, part of the same group — no avatar
+      return false;
+    },
+    [recipient, recipientId],
+  );
+
   const renderMessage = ({ item, index }) => {
     const isMyMessage = item.senderId !== (recipient?.id || recipientId);
 
-    // Instagram-style avatar logic: show only for incoming messages on last message of group
-    const reversedMessages = [...messages].reverse();
-    const reversedIndex = messages.length - 1 - index;
-    const nextMessage = reversedMessages[reversedIndex + 1];
+    // The FlatList data is already reversed (newest first) and inverted
+    // So index 0 = newest message (visually at bottom)
+    // We need the chronologically NEXT message (newer = lower index in this reversed array)
+    const reversedData = [...messages].reverse();
+    const nextMessage = reversedData[index - 1]; // -1 = newer message (next chronologically)
 
-    let showAvatar = false;
-    if (!isMyMessage) {
-      // Show avatar if:
-      // 1. This is the last message (visually first since inverted)
-      // 2. OR next message (visually above) is from different sender
-      // 3. OR time gap with next message is > 60 seconds
-      if (!nextMessage) {
-        showAvatar = true;
-      } else if (nextMessage.senderId !== item.senderId) {
-        showAvatar = true;
-      } else {
-        const currentTime = new Date(item.createdAt);
-        const nextTime = new Date(nextMessage.createdAt);
-        const timeDiff = Math.abs(currentTime - nextTime);
-        showAvatar = timeDiff > 60000; // 60 seconds
-      }
-    }
+    // Determine if avatar should be shown using helper
+    const showAvatar = shouldShowAvatar(item, nextMessage);
 
     // Handle ticket-type messages with special card
     if (item.messageType === "ticket" && item.metadata) {
@@ -523,7 +562,28 @@ export default function ChatScreen({ route, navigation }) {
       };
 
       return (
-        <View style={styles.messageContainer}>
+        <View
+          style={[
+            styles.messageContainer,
+            isMyMessage
+              ? styles.myMessageContainer
+              : styles.otherMessageContainer,
+          ]}
+        >
+          {/* Sender profile icon - show only if needed */}
+          {!isMyMessage &&
+            (showAvatar ? (
+              <Image
+                source={{
+                  uri:
+                    recipient?.profilePhotoUrl ||
+                    "https://via.placeholder.com/30",
+                }}
+                style={styles.messageAvatar}
+              />
+            ) : (
+              <View style={{ width: 30, marginRight: 8 }} />
+            ))}
           <TicketMessageCard
             metadata={item.metadata}
             isFromMe={isMyMessage}
@@ -539,17 +599,6 @@ export default function ChatScreen({ route, navigation }) {
             onConfirmGoing={() => handleRSVP("going")}
             onDecline={() => handleRSVP("not_going")}
           />
-          {/* Sender profile icon below ticket card */}
-          {!isMyMessage && (
-            <Image
-              source={{
-                uri:
-                  recipient?.profilePhotoUrl ||
-                  "https://via.placeholder.com/30",
-              }}
-              style={styles.messageAvatar}
-            />
-          )}
         </View>
       );
     }
@@ -557,7 +606,28 @@ export default function ChatScreen({ route, navigation }) {
     // Handle post-share messages with Instagram-style preview card
     if (item.messageType === "post_share" && item.metadata) {
       return (
-        <View style={styles.messageContainer}>
+        <View
+          style={[
+            styles.messageContainer,
+            isMyMessage
+              ? styles.myMessageContainer
+              : styles.otherMessageContainer,
+          ]}
+        >
+          {/* Sender profile icon - show only if needed */}
+          {!isMyMessage &&
+            (showAvatar ? (
+              <Image
+                source={{
+                  uri:
+                    recipient?.profilePhotoUrl ||
+                    "https://via.placeholder.com/30",
+                }}
+                style={styles.messageAvatar}
+              />
+            ) : (
+              <View style={{ width: 30, marginRight: 8 }} />
+            ))}
           <SharedPostCard
             metadata={item.metadata}
             onPress={(postId, postData) => {
@@ -568,17 +638,6 @@ export default function ChatScreen({ route, navigation }) {
               setSharedPostModalVisible(true);
             }}
           />
-          {/* Sender profile icon below shared post card */}
-          {!isMyMessage && (
-            <Image
-              source={{
-                uri:
-                  recipient?.profilePhotoUrl ||
-                  "https://via.placeholder.com/30",
-              }}
-              style={styles.messageAvatar}
-            />
-          )}
         </View>
       );
     }
