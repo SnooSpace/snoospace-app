@@ -608,7 +608,7 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container} {...panResponder.panHandlers}>
       <KeyboardAvoidingView
-        behavior="padding"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
@@ -781,8 +781,8 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     paddingHorizontal: 16,
-    paddingTop: 50, // Increased spacing to prevent last card from being cut off in inverted list
-    paddingBottom: 80, // Extra padding to clear the input box
+    paddingTop: 130, // Visual bottom - large padding to clear absolute Toolbar + gap
+    paddingBottom: 30, // Visual top - standard spacing from header
   },
   messageContainer: {
     flexDirection: "row",
