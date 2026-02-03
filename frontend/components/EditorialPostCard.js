@@ -301,9 +301,9 @@ const EditorialPostCard = ({
 
   // Sync state when post prop changes
   useEffect(() => {
-    setIsLiked(post.is_liked === true);
+    setIsLiked(post.is_liked === true || post.isLiked === true);
     setLikeCount(post.like_count || 0);
-  }, [post.is_liked, post.like_count]);
+  }, [post.is_liked, post.isLiked, post.like_count]);
 
   // Format timestamp to lowercase relative time
   const formatTimeAgo = (timestamp) => {

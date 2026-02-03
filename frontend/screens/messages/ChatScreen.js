@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, Send } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { getMessages, sendMessage, getConversations } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
@@ -24,10 +25,17 @@ import EventBus from "../../utils/EventBus";
 import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
+import SharedPostCard from "../../components/SharedPostCard";
+import ProfilePostFeed from "../../components/ProfilePostFeed";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+
+// Message bubble colors - Instagram-style
+const OUTGOING_MESSAGE_BG = "rgba(107, 179, 242, 0.12)"; // #6BB3F2 at 12% opacity
+const INCOMING_MESSAGE_BG = "#FFFFFF";
+const INCOMING_MESSAGE_BORDER = "#E5E5EA";
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -50,6 +58,9 @@ export default function ChatScreen({ route, navigation }) {
   const supabaseRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const [rsvpLoading, setRsvpLoading] = useState({});
+  const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
+  const [selectedSharedPost, setSelectedSharedPost] = useState(null);
+  const [sharedPosts, setSharedPosts] = useState({}); // Track shared posts by ID for state updates
 
   // Swipe gesture handler
   const panResponder = useRef(
@@ -70,7 +81,7 @@ export default function ChatScreen({ route, navigation }) {
           navigation.goBack();
         }
       },
-    })
+    }),
   ).current;
 
   // Get or create conversation
@@ -84,7 +95,7 @@ export default function ChatScreen({ route, navigation }) {
           // Need to find or create conversation
           const conversationsRes = await getConversations();
           const existingConv = conversationsRes.conversations?.find(
-            (conv) => conv.otherParticipant.id === recipientId
+            (conv) => conv.otherParticipant.id === recipientId,
           );
 
           if (existingConv) {
@@ -129,7 +140,7 @@ export default function ChatScreen({ route, navigation }) {
               text: "OK",
               onPress: () => navigation.goBack(),
             },
-          ]
+          ],
         );
       } finally {
         setLoading(false);
@@ -146,7 +157,7 @@ export default function ChatScreen({ route, navigation }) {
         try {
           const conversationsRes = await getConversations();
           const conv = conversationsRes.conversations?.find(
-            (c) => c.id === conversationId
+            (c) => c.id === conversationId,
           );
           if (conv && conv.otherParticipant) {
             setRecipient(conv.otherParticipant);
@@ -175,9 +186,9 @@ export default function ChatScreen({ route, navigation }) {
       // Emit event to refresh unread count (messages are marked as read in getMessages)
       EventBus.emit("messages-read");
 
-      // Scroll to bottom after loading
+      // Scroll to latest message (offset 0 for inverted list)
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: false });
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
       }, 100);
     } catch (error) {
       console.error("Error loading messages:", error);
@@ -244,11 +255,14 @@ export default function ChatScreen({ route, navigation }) {
               ];
             });
 
-            // Scroll to bottom
+            // Scroll to latest message
             setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true });
+              flatListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: true,
+              });
             }, 100);
-          }
+          },
         )
         .subscribe();
 
@@ -348,7 +362,7 @@ export default function ChatScreen({ route, navigation }) {
         const response = await sendMessage(
           finalRecipientId,
           text,
-          finalRecipientType
+          finalRecipientType,
         );
         convId = response.message.conversationId;
         setCurrentConversationId(convId);
@@ -361,7 +375,7 @@ export default function ChatScreen({ route, navigation }) {
         const response = await sendMessage(
           finalRecipientId,
           text,
-          finalRecipientType
+          finalRecipientType,
         );
 
         // Add message to state optimistically
@@ -369,9 +383,9 @@ export default function ChatScreen({ route, navigation }) {
         emitUpdate(response.message);
       }
 
-      // Scroll to bottom
+      // Scroll to latest message (offset 0 for inverted list)
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       }, 100);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -379,7 +393,7 @@ export default function ChatScreen({ route, navigation }) {
       Alert.alert(
         "Error",
         error?.message || "Failed to send message. Please try again.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
     } finally {
       setSending(false);
@@ -398,10 +412,29 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderMessage = ({ item, index }) => {
     const isMyMessage = item.senderId !== (recipient?.id || recipientId);
-    // Show avatar if it's the last message in the list OR the next message is from a different sender
-    const showAvatar =
-      index === messages.length - 1 ||
-      messages[index + 1]?.senderId !== item.senderId;
+
+    // Instagram-style avatar logic: show only for incoming messages on last message of group
+    const reversedMessages = [...messages].reverse();
+    const reversedIndex = messages.length - 1 - index;
+    const nextMessage = reversedMessages[reversedIndex + 1];
+
+    let showAvatar = false;
+    if (!isMyMessage) {
+      // Show avatar if:
+      // 1. This is the last message (visually first since inverted)
+      // 2. OR next message (visually above) is from different sender
+      // 3. OR time gap with next message is > 60 seconds
+      if (!nextMessage) {
+        showAvatar = true;
+      } else if (nextMessage.senderId !== item.senderId) {
+        showAvatar = true;
+      } else {
+        const currentTime = new Date(item.createdAt);
+        const nextTime = new Date(nextMessage.createdAt);
+        const timeDiff = Math.abs(currentTime - nextTime);
+        showAvatar = timeDiff > 60000; // 60 seconds
+      }
+    }
 
     // Handle ticket-type messages with special card
     if (item.messageType === "ticket" && item.metadata) {
@@ -429,11 +462,11 @@ export default function ChatScreen({ route, navigation }) {
                   };
                 }
                 return msg;
-              })
+              }),
             );
             Alert.alert(
               response === "going" ? "You're In! 🎉" : "Maybe Next Time",
-              result.message
+              result.message,
             );
           }
         } catch (error) {
@@ -461,6 +494,46 @@ export default function ChatScreen({ route, navigation }) {
             onConfirmGoing={() => handleRSVP("going")}
             onDecline={() => handleRSVP("not_going")}
           />
+          {/* Sender profile icon below ticket card */}
+          {!isMyMessage && (
+            <Image
+              source={{
+                uri:
+                  recipient?.profilePhotoUrl ||
+                  "https://via.placeholder.com/30",
+              }}
+              style={styles.messageAvatar}
+            />
+          )}
+        </View>
+      );
+    }
+
+    // Handle post-share messages with Instagram-style preview card
+    if (item.messageType === "post_share" && item.metadata) {
+      return (
+        <View style={styles.messageContainer}>
+          <SharedPostCard
+            metadata={item.metadata}
+            onPress={(postId, postData) => {
+              // Store post data for state updates
+              setSharedPosts((prev) => ({ ...prev, [postId]: postData }));
+              // Open fullscreen post view modal
+              setSelectedSharedPost(postData);
+              setSharedPostModalVisible(true);
+            }}
+          />
+          {/* Sender profile icon below shared post card */}
+          {!isMyMessage && (
+            <Image
+              source={{
+                uri:
+                  recipient?.profilePhotoUrl ||
+                  "https://via.placeholder.com/30",
+              }}
+              style={styles.messageAvatar}
+            />
+          )}
         </View>
       );
     }
@@ -490,19 +563,14 @@ export default function ChatScreen({ route, navigation }) {
           ))}
 
         {isMyMessage ? (
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.messageBubble, styles.myMessageBubble]}
-          >
+          <View style={[styles.messageBubble, styles.myMessageBubble]}>
             <Text style={[styles.messageText, styles.myMessageText]}>
               {item.messageText}
             </Text>
             <Text style={[styles.messageTime, styles.myMessageTime]}>
               {formatTime(item.createdAt)}
             </Text>
-          </LinearGradient>
+          </View>
         ) : (
           <View style={[styles.messageBubble, styles.otherMessageBubble]}>
             <Text style={[styles.messageText, styles.otherMessageText]}>
@@ -525,7 +593,7 @@ export default function ChatScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Loading...</Text>
           <View style={{ width: 40 }} />
@@ -549,7 +617,7 @@ export default function ChatScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           {recipient && (
             <>
@@ -621,11 +689,46 @@ export default function ChatScreen({ route, navigation }) {
             {sending ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Ionicons name="send" size={20} color="#FFFFFF" />
+              <Send size={20} color="#FFFFFF" />
             )}
           </TouchableOpacity>
         </View>
       </KeyboardAwareToolbar>
+
+      {/* Fullscreen Post Modal for Shared Posts */}
+      {sharedPostModalVisible && selectedSharedPost && (
+        <ProfilePostFeed
+          visible={sharedPostModalVisible}
+          posts={[selectedSharedPost]}
+          initialPostId={selectedSharedPost.id}
+          onClose={() => {
+            setSharedPostModalVisible(false);
+            setSelectedSharedPost(null);
+          }}
+          currentUserId={selectedSharedPost.author_id}
+          currentUserType={selectedSharedPost.author_type}
+          onLikeUpdate={(postId, isLiked) => {
+            // Update the selected post's like state
+            setSelectedSharedPost((prev) => ({
+              ...prev,
+              is_liked: isLiked,
+              isLiked: isLiked,
+              like_count: Math.max(
+                0,
+                (prev.like_count || 0) + (isLiked ? 1 : -1),
+              ),
+            }));
+          }}
+          onComment={(postId, newCount) => {
+            // Update the selected post's comment count
+            setSelectedSharedPost((prev) => ({
+              ...prev,
+              comment_count: newCount,
+            }));
+          }}
+          navigation={navigation}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -705,31 +808,36 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   myMessageBubble: {
-    // Background handled by LinearGradient
+    backgroundColor: OUTGOING_MESSAGE_BG, // Soft blue tint
   },
   otherMessageBubble: {
-    backgroundColor: "#F2F2F7",
+    backgroundColor: INCOMING_MESSAGE_BG, // Pure white
+    borderWidth: 1,
+    borderColor: INCOMING_MESSAGE_BORDER,
   },
   messageText: {
+    fontFamily: "Manrope-Regular",
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22.5, // 1.5x for readability
     marginBottom: 4,
   },
   myMessageText: {
-    color: COLORS.textInverted,
+    color: TEXT_COLOR, // Changed from inverted since bg is light now
   },
   otherMessageText: {
     color: TEXT_COLOR,
   },
   messageTime: {
+    fontFamily: "Manrope-Medium",
     fontSize: 11,
     alignSelf: "flex-end",
+    opacity: 0.65, // 65% opacity for subtle timestamp
   },
   myMessageTime: {
-    color: "rgba(255, 255, 255, 0.7)",
+    color: TEXT_COLOR,
   },
   otherMessageTime: {
-    color: LIGHT_TEXT_COLOR,
+    color: TEXT_COLOR,
   },
   emptyContainer: {
     flex: 1,
