@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
+  StyleSheet,
   View,
+  Platform,
+  Alert,
+  Animated as RNAnimated,
   Text,
   TextInput,
   TouchableOpacity,
   FlatList,
   Image,
-  StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   PanResponder,
-  Alert,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
+import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft, Send } from "lucide-react-native";
@@ -61,6 +68,28 @@ export default function ChatScreen({ route, navigation }) {
   const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost, setSelectedSharedPost] = useState(null);
   const [sharedPosts, setSharedPosts] = useState({}); // Track shared posts by ID for state updates
+
+  // Reanimated keyboard tracking for manual Android handling
+  const keyboardHeight = useSharedValue(0);
+
+  useKeyboardHandler({
+    onMove: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+    onEnd: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+  });
+
+  const androidContainerStyle = useAnimatedStyle(() => {
+    // Only apply on Android where we disabled KeyboardAvoidingView
+    if (Platform.OS !== "android") return {};
+    return {
+      paddingBottom: keyboardHeight.value,
+    };
+  });
 
   // Swipe gesture handler
   const panResponder = useRef(
@@ -608,7 +637,7 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container} {...panResponder.panHandlers}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboardView}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
@@ -642,29 +671,31 @@ export default function ChatScreen({ route, navigation }) {
           <View style={{ width: 40 }} />
         </View>
 
-        <FlatList
-          ref={flatListRef}
-          data={[...messages].reverse()}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messagesList}
-          inverted
-          onLayout={() => {
-            // Scroll to end after layout (for inverted list, end is visually at bottom)
-            setTimeout(() => {
-              flatListRef.current?.scrollToOffset({
-                offset: 0,
-                animated: false,
-              });
-            }, 100);
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No messages yet</Text>
-              <Text style={styles.emptySubtext}>Start the conversation!</Text>
-            </View>
-          }
-        />
+        <Animated.View style={[{ flex: 1 }, androidContainerStyle]}>
+          <FlatList
+            ref={flatListRef}
+            data={[...messages].reverse()}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.messagesList}
+            inverted
+            onLayout={() => {
+              // Scroll to end after layout (for inverted list, end is visually at bottom)
+              setTimeout(() => {
+                flatListRef.current?.scrollToOffset({
+                  offset: 0,
+                  animated: false,
+                });
+              }, 100);
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No messages yet</Text>
+                <Text style={styles.emptySubtext}>Start the conversation!</Text>
+              </View>
+            }
+          />
+        </Animated.View>
       </KeyboardAvoidingView>
 
       <KeyboardAwareToolbar>
