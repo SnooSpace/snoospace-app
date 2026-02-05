@@ -752,10 +752,19 @@ const ImageUploader = forwardRef(
       if (isVideo) {
         // Show Preview for Video
         const uri = images[index];
-        const metadata = cropMetadata[index] || {};
+        const metadata = { ...(cropMetadata[index] || {}) }; // Clone to avoid mutation
         // Override aspectRatio in metadata with current aspectRatios state if available
-        if (aspectRatios[index]) {
-          metadata.aspectRatio = aspectRatios[index];
+        const currentAspectRatio = aspectRatios[index];
+
+        console.log("[ImageUploader] handleThumbnailTap for video:", {
+          index,
+          currentAspectRatio,
+          cropMetadataAspectRatio: cropMetadata[index]?.aspectRatio,
+          aspectRatiosArray: aspectRatios,
+        });
+
+        if (currentAspectRatio) {
+          metadata.aspectRatio = currentAspectRatio;
         }
 
         setPreviewVideoUri(uri);
@@ -1351,30 +1360,17 @@ const ImageUploader = forwardRef(
 
                 {/* Media Container */}
                 <View style={styles.mediaContainer}>
-                  <View
-                    style={[
-                      styles.mediaWrapper,
-                      { aspectRatio: aspectRatio, overflow: "hidden" },
-                    ]}
-                  >
-                    {/* We apply the transform to a container inside the overflow hidden wrapper */}
-                    <View
-                      style={[
-                        { width: "100%", height: "100%" },
-                        transformStyle,
-                      ]}
-                    >
-                      <VideoPlayer
-                        source={previewVideoUri}
-                        aspectRatio={aspectRatio}
-                        autoplay={true}
-                        muted={false}
-                        loop={true}
-                        showControls={false}
-                        containerWidth={contentWidth} // Pass correct width
-                      />
-                    </View>
-                  </View>
+                  {/* Let VideoPlayer handle its own sizing based on aspect ratio */}
+                  {/* Don't apply transforms here - VideoPlayer uses CONTAIN mode */}
+                  <VideoPlayer
+                    source={previewVideoUri}
+                    aspectRatio={aspectRatio}
+                    autoplay={true}
+                    muted={false}
+                    loop={true}
+                    showControls={false}
+                    containerWidth={contentWidth}
+                  />
                 </View>
 
                 {/* Engagement Row */}
@@ -1780,6 +1776,7 @@ const styles = StyleSheet.create({
   mediaContainer: {
     paddingHorizontal: EDITORIAL_SPACING.cardPadding,
     marginBottom: 8,
+    alignItems: "center", // Center video horizontally
   },
   mediaWrapper: {
     width: "100%",
