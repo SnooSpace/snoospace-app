@@ -11,6 +11,10 @@ import {
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";
+import PollPostCard from "./posts/PollPostCard";
+import ChallengePostCard from "./posts/ChallengePostCard";
+import PromptPostCard from "./posts/PromptPostCard";
+import QnAPostCard from "./posts/QnAPostCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
@@ -83,6 +87,96 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
       </View>
     );
   }
+
+  // Detect post type and render appropriate card
+  const postType = postData.post_type || "media";
+
+  // For non-media post types, render the full card component in compact mode
+  if (postType === "poll") {
+    return (
+      <TouchableOpacity
+        style={[styles.container, style]}
+        onPress={() => onPress && onPress(postId, postData)}
+        activeOpacity={0.8}
+      >
+        <PollPostCard
+          post={postData}
+          onUserPress={() => {}} // Disable individual user press
+          onLike={() => {}}
+          onComment={() => {}}
+          onSave={() => {}}
+          onShare={() => {}}
+          currentUserId={null}
+          currentUserType={null}
+        />
+      </TouchableOpacity>
+    );
+  }
+
+  if (postType === "challenge") {
+    return (
+      <TouchableOpacity
+        style={[styles.container, style]}
+        onPress={() => onPress && onPress(postId, postData)}
+        activeOpacity={0.8}
+      >
+        <ChallengePostCard
+          post={postData}
+          onUserPress={() => {}} // Disable individual user press
+          onLike={() => {}}
+          onComment={() => {}}
+          onSave={() => {}}
+          onShare={() => {}}
+          currentUserId={null}
+          currentUserType={null}
+        />
+      </TouchableOpacity>
+    );
+  }
+
+  if (postType === "prompt") {
+    return (
+      <TouchableOpacity
+        style={[styles.container, style]}
+        onPress={() => onPress && onPress(postId, postData)}
+        activeOpacity={0.8}
+      >
+        <PromptPostCard
+          post={postData}
+          onUserPress={() => {}} // Disable individual user press
+          onLike={() => {}}
+          onComment={() => {}}
+          onSave={() => {}}
+          onShare={() => {}}
+          currentUserId={null}
+          currentUserType={null}
+        />
+      </TouchableOpacity>
+    );
+  }
+
+  if (postType === "qna") {
+    return (
+      <TouchableOpacity
+        style={[styles.container, style]}
+        onPress={() => onPress && onPress(postId, postData)}
+        activeOpacity={0.8}
+      >
+        <QnAPostCard
+          post={postData}
+          onUserPress={() => {}} // Disable individual user press
+          onLike={() => {}}
+          onComment={() => {}}
+          onSave={() => {}}
+          onShare={() => {}}
+          currentUserId={null}
+          currentUserType={null}
+        />
+      </TouchableOpacity>
+    );
+  }
+
+  // Default: render media post (existing logic)
 
   // Get post media
   const hasMedia = postData.image_urls && postData.image_urls.length > 0;
