@@ -36,6 +36,7 @@ const ProfilePostFeed = ({
   navigation, // Add navigation prop for CommentsModal
 }) => {
   // Initialize with the initial post ID so video starts playing immediately
+  // Convert to string to avoid type mismatches
   const [visiblePostId, setVisiblePostId] = useState(initialPostId);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
@@ -117,12 +118,16 @@ const ProfilePostFeed = ({
   };
 
   const renderItem = ({ item }) => {
+    // Use string comparison to avoid type mismatches
+    const shouldPlayVideo = String(item.id) === String(visiblePostId);
+
     return (
       <EditorialPostCard
         post={item}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
-        isVideoPlaying={item.id === visiblePostId}
+        isVideoPlaying={shouldPlayVideo}
+        isScreenFocused={true} // Modal is visible, so screen is focused
         onLike={onLikeUpdate} // Adapting to the signature expected by EditorialPostCard
         onComment={handleCommentPress}
         onShare={handleSharePress}

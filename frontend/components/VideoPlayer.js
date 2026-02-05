@@ -457,9 +457,10 @@ const VideoPlayer = ({
       ]
     : [];
 
-  // Use CONTAIN for user-cropped videos (to show the cropped view properly)
-  // Use COVER for natural videos (fills container without transforms)
-  const videoResizeMode = hasUserCrop ? ResizeMode.CONTAIN : ResizeMode.COVER;
+  // Use CONTAIN for all videos to prevent cropping (especially for tall 9:16 videos)
+  // COVER would crop tall videos to fill the container width, cutting off top/bottom
+  // CONTAIN shows the full video within the container bounds
+  const videoResizeMode = ResizeMode.CONTAIN;
 
   // Show thumbnail when video is unloaded (Instagram-style)
   if (!shouldLoad) {
@@ -480,7 +481,7 @@ const VideoPlayer = ({
                 styles.video,
                 hasUserCrop && { transform: videoTransform },
               ]}
-              resizeMode={hasUserCrop ? "contain" : "cover"}
+              resizeMode="contain"
             />
             {/* Clean thumbnail without play icon - Instagram style */}
           </>
@@ -516,7 +517,7 @@ const VideoPlayer = ({
         progressUpdateIntervalMillis={250} // More frequent updates
         usePoster={false} // Don't wait for poster
         posterSource={thumbnailUrl ? { uri: thumbnailUrl } : undefined} // Show thumbnail immediately
-        posterStyle={{ resizeMode: hasUserCrop ? "contain" : "cover" }}
+        posterStyle={{ resizeMode: "contain" }}
         // Preload video content aggressively for smoother playback
         // This is especially important for tall videos which have more data
         preferredForwardBufferDuration={5} // Buffer 5 seconds ahead (default is 0)
@@ -541,7 +542,7 @@ const VideoPlayer = ({
             styles.thumbnailOverlay,
             hasUserCrop && { transform: videoTransform },
           ]}
-          resizeMode={hasUserCrop ? "contain" : "cover"}
+          resizeMode="contain"
         />
       )}
 

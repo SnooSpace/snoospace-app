@@ -3,11 +3,12 @@ const { createPool } = require("../config/db");
 const pool = createPool();
 
 // Helper function to get or create conversation between two participants (member or community)
+// Uses INSERT ON CONFLICT for race-condition safety
 const getOrCreateConversation = async (
   participant1Id,
   participant1Type,
   participant2Id,
-  participant2Type
+  participant2Type,
 ) => {
   // Convert IDs to numbers for consistent comparison
   const id1 = Number(participant1Id);
@@ -27,24 +28,15 @@ const getOrCreateConversation = async (
     p2Type = participant1Type;
   }
 
-  // Check if conversation exists
-  const existing = await pool.query(
-    `SELECT id FROM conversations 
-     WHERE participant1_id = $1 AND participant1_type = $2 
-       AND participant2_id = $3 AND participant2_type = $4`,
-    [p1Id, p1Type, p2Id, p2Type]
-  );
-
-  if (existing.rows.length > 0) {
-    return existing.rows[0].id;
-  }
-
-  // Create new conversation
+  // Use INSERT ... ON CONFLICT to handle race conditions safely
+  // If a concurrent request creates the conversation first, we get the existing one
   const result = await pool.query(
     `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type) 
      VALUES ($1, $2, $3, $4) 
+     ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type) 
+     DO UPDATE SET updated_at = COALESCE(conversations.updated_at, NOW())
      RETURNING id`,
-    [p1Id, p1Type, p2Id, p2Type]
+    [p1Id, p1Type, p2Id, p2Type],
   );
 
   return result.rows[0].id;
@@ -143,7 +135,7 @@ const getMessages = async (req, res) => {
     const convCheck = await pool.query(
       `SELECT id FROM conversations 
        WHERE id = $1 AND ((participant1_id = $2 AND participant1_type = $3) OR (participant2_id = $2 AND participant2_type = $3))`,
-      [conversationId, userId, userType]
+      [conversationId, userId, userType],
     );
 
     if (convCheck.rows.length === 0) {
@@ -194,7 +186,7 @@ const getMessages = async (req, res) => {
        WHERE conversation_id = $1 
          AND (sender_id != $2 OR sender_type != $3)
          AND is_read = false`,
-      [conversationId, userId, userType]
+      [conversationId, userId, userType],
     );
 
     res.json({ messages });
@@ -230,12 +222,12 @@ const sendMessage = async (req, res) => {
     if (recipientType === "member") {
       recipientCheck = await pool.query(
         "SELECT id FROM members WHERE id = $1",
-        [recipientId]
+        [recipientId],
       );
     } else if (recipientType === "community") {
       recipientCheck = await pool.query(
         "SELECT id FROM communities WHERE id = $1",
-        [recipientId]
+        [recipientId],
       );
     } else {
       return res.status(400).json({ error: "Invalid recipient type" });
@@ -250,7 +242,7 @@ const sendMessage = async (req, res) => {
       userId,
       userType,
       recipientId,
-      recipientType
+      recipientType,
     );
 
     // Insert message
@@ -274,7 +266,7 @@ const sendMessage = async (req, res) => {
       `UPDATE conversations 
        SET last_message_at = $1 
        WHERE id = $2`,
-      [message.created_at, conversationId]
+      [message.created_at, conversationId],
     );
 
     // Get sender info
@@ -282,12 +274,12 @@ const sendMessage = async (req, res) => {
     if (userType === "member") {
       senderInfo = await pool.query(
         "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-        [userId]
+        [userId],
       );
     } else {
       senderInfo = await pool.query(
         "SELECT name, username, logo_url as profile_photo_url FROM communities WHERE id = $1",
-        [userId]
+        [userId],
       );
     }
 
@@ -331,7 +323,7 @@ const markMessageRead = async (req, res) => {
        WHERE m.id = $1 
          AND ((c.participant1_id = $2 AND c.participant1_type = $3) OR (c.participant2_id = $2 AND c.participant2_type = $3))
          AND (m.sender_id != $2 OR m.sender_type != $3)`,
-      [messageId, userId, userType]
+      [messageId, userId, userType],
     );
 
     if (messageCheck.rows.length === 0) {
@@ -401,7 +393,7 @@ const sendTicketMessage = async ({
     senderId,
     senderType,
     recipientId,
-    recipientType
+    recipientType,
   );
 
   // Create message text for display fallback
@@ -429,7 +421,7 @@ const sendTicketMessage = async ({
   // Update conversation's last_message_at
   await pool.query(
     `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
-    [message.created_at, conversationId]
+    [message.created_at, conversationId],
   );
 
   return {

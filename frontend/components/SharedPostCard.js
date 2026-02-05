@@ -96,8 +96,56 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
         mediaUrl.includes(".mov") ||
         mediaUrl.includes(".webm")));
 
-  // Get video thumbnail if available
-  const thumbnailUrl = isVideo ? postData.video_thumbnail : mediaUrl;
+  // Helper function to generate Cloudinary thumbnail from video URL
+  const generateCloudinaryThumbnail = (url) => {
+    if (!url || typeof url !== "string") return null;
+    if (!url.includes("cloudinary.com")) return null;
+    // so_0: Start offset 0 (first frame), f_jpg: JPEG format, q_auto: Auto quality, w_800: Width
+    return url
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+  };
+
+  // Parse video_thumbnail - might be stored as JSON array string '["url"]' in database
+  let parsedVideoThumbnail = null;
+  if (postData.video_thumbnail) {
+    try {
+      if (
+        typeof postData.video_thumbnail === "string" &&
+        postData.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(postData.video_thumbnail);
+        parsedVideoThumbnail = Array.isArray(parsed)
+          ? parsed[0]
+          : postData.video_thumbnail;
+      } else {
+        parsedVideoThumbnail = postData.video_thumbnail;
+      }
+    } catch (e) {
+      parsedVideoThumbnail = postData.video_thumbnail;
+    }
+  }
+
+  // Get video thumbnail - prefer stored thumbnail, fallback to generating from Cloudinary URL
+  const thumbnailUrl = isVideo
+    ? parsedVideoThumbnail || generateCloudinaryThumbnail(mediaUrl)
+    : mediaUrl;
+
+  // Get the actual aspect ratio from the post data (default to 4:5 if not available)
+  // Handle both array format ([1.91]) and single number format (1.91)
+  const rawAspectRatio = postData.aspect_ratios;
+  const actualAspectRatio = Array.isArray(rawAspectRatio)
+    ? rawAspectRatio[0] || 4 / 5
+    : typeof rawAspectRatio === "number"
+      ? rawAspectRatio
+      : 4 / 5;
+
+  // Calculate media height based on actual aspect ratio
+  // For wide images (1.91:1), this will be shorter; for tall images (4:5), this will be taller
+  const mediaHeight = CARD_WIDTH / actualAspectRatio;
+
+  // Use 'contain' for wide images to show full content, 'cover' for tall/square images
+  const isWideImage = actualAspectRatio > 1;
 
   // Truncate caption to 2 lines (approximately 80 characters)
   const displayCaption = postData.caption || caption || "";
@@ -120,21 +168,41 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
     >
       <View style={styles.card}>
         {/* Post Media */}
-        {(thumbnailUrl || mediaUrl) && (
-          <View style={styles.mediaContainer}>
-            <Image
-              source={{ uri: thumbnailUrl || mediaUrl }}
-              style={styles.mediaImage}
-              resizeMode="cover"
-            />
-            {/* Video indicator */}
-            {isVideo && (
-              <View style={styles.videoIndicator}>
+        {hasMedia && (
+          <View
+            style={[
+              styles.mediaContainer,
+              { height: mediaHeight },
+              isWideImage && styles.wideMediaContainer,
+            ]}
+          >
+            {/* For videos without thumbnail, show placeholder */}
+            {isVideo && !thumbnailUrl ? (
+              <View style={styles.videoPlaceholder}>
                 <View style={styles.playIcon}>
                   <Text style={styles.playIconText}>▶</Text>
                 </View>
               </View>
-            )}
+            ) : thumbnailUrl ? (
+              <>
+                <Image
+                  source={{ uri: thumbnailUrl }}
+                  style={[
+                    styles.mediaImage,
+                    isWideImage && { resizeMode: "contain" },
+                  ]}
+                  resizeMode={isWideImage ? "contain" : "cover"}
+                />
+                {/* Video indicator overlay for videos with thumbnails */}
+                {isVideo && (
+                  <View style={styles.videoIndicator}>
+                    <View style={styles.playIcon}>
+                      <Text style={styles.playIconText}>▶</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : null}
           </View>
         )}
 
@@ -196,13 +264,25 @@ const styles = StyleSheet.create({
   },
   mediaContainer: {
     width: "100%",
-    height: CARD_WIDTH * 0.75, // 4:3 aspect ratio
+    // Height is applied dynamically based on actual aspect ratio
     backgroundColor: "#F2F2F7",
     position: "relative",
+  },
+  wideMediaContainer: {
+    // For wide images using contain mode, center the image
+    justifyContent: "center",
+    alignItems: "center",
   },
   mediaImage: {
     width: "100%",
     height: "100%",
+  },
+  videoPlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#1a1a2e",
+    justifyContent: "center",
+    alignItems: "center",
   },
   videoIndicator: {
     position: "absolute",

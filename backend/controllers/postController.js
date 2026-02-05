@@ -126,9 +126,27 @@ const createPost = async (req, res) => {
       }
     }
 
+    // Generate video thumbnails for videos using Cloudinary transformation
+    let videoThumbnails = null;
+    if (validatedMediaTypes && validatedMediaTypes.includes("video")) {
+      const { toThumbnailUrl } = require("../utils/cloudinaryVideo");
+      videoThumbnails = imageUrls.map((url, index) => {
+        // Only generate thumbnail if this media is a video
+        if (validatedMediaTypes[index] === "video") {
+          const thumbnail = toThumbnailUrl(url, { width: 800 });
+          console.log(
+            `[createPost] Generated thumbnail for video ${index}:`,
+            thumbnail,
+          );
+          return thumbnail;
+        }
+        return null; // Not a video, no thumbnail
+      });
+    }
+
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, created_at
     `;
 
@@ -141,6 +159,7 @@ const createPost = async (req, res) => {
       validatedAspectRatios ? JSON.stringify(validatedAspectRatios) : null,
       validatedMediaTypes ? JSON.stringify(validatedMediaTypes) : null,
       validatedCropMetadata ? JSON.stringify(validatedCropMetadata) : null,
+      videoThumbnails ? JSON.stringify(videoThumbnails) : null,
     ];
 
     const result = await pool.query(query, values);
@@ -252,6 +271,7 @@ const createPost = async (req, res) => {
         aspect_ratios: validatedAspectRatios || imageUrls.map(() => 0.8), // Default 4:5
         media_types: validatedMediaTypes || imageUrls.map(() => "image"), // Default to image
         crop_metadata: validatedCropMetadata || null,
+        video_thumbnail: videoThumbnails ? videoThumbnails[0] : null, // First video's thumbnail
         tagged_entities: taggedEntities,
         like_count: 0,
         comment_count: 0,

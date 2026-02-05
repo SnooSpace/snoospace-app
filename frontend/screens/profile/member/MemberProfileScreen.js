@@ -693,18 +693,58 @@ export default function MemberProfileScreen({ navigation }) {
                         firstImageUrl.toLowerCase().includes(".webm")));
 
                   // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-                  let mediaUrl = item.video_thumbnail;
+                  // video_thumbnail might be stored as JSON array string '["url"]' in database
+                  let mediaUrl = null;
+                  if (item.video_thumbnail) {
+                    try {
+                      // Try to parse if it's a JSON string
+                      if (
+                        typeof item.video_thumbnail === "string" &&
+                        item.video_thumbnail.startsWith("[")
+                      ) {
+                        const parsed = JSON.parse(item.video_thumbnail);
+                        mediaUrl = Array.isArray(parsed)
+                          ? parsed[0]
+                          : item.video_thumbnail;
+                      } else {
+                        mediaUrl = item.video_thumbnail;
+                      }
+                    } catch (e) {
+                      // If parsing fails, use as-is (might be a direct URL)
+                      mediaUrl = item.video_thumbnail;
+                    }
+                  }
+                  // For videos, the URL might be in video_url instead of image_urls
+                  const videoSourceUrl = firstImageUrl || item.video_url;
+
+                  console.log("[ProfileGrid Debug]", {
+                    postId: item.id,
+                    isVideo,
+                    video_thumbnail_raw: item.video_thumbnail,
+                    video_thumbnail_parsed: mediaUrl,
+                    firstImageUrl,
+                    video_url: item.video_url,
+                    videoSourceUrl,
+                  });
+
                   if (
                     !mediaUrl &&
                     isVideo &&
-                    firstImageUrl &&
-                    firstImageUrl.includes("cloudinary.com")
+                    videoSourceUrl &&
+                    videoSourceUrl.includes("cloudinary.com")
                   ) {
-                    // Convert Cloudinary video URL to thumbnail by changing extension
-                    mediaUrl = firstImageUrl.replace(/\.[^/.]+$/, ".jpg");
+                    // Convert Cloudinary video URL to thumbnail with transformation params
+                    // so_0: first frame, f_jpg: JPEG format, q_auto: auto quality, w_800: width
+                    mediaUrl = videoSourceUrl
+                      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+                      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+                    console.log(
+                      "[ProfileGrid Debug] Generated thumbnail URL:",
+                      mediaUrl,
+                    );
                   }
                   if (!mediaUrl) {
-                    mediaUrl = firstImageUrl || item.video_url;
+                    mediaUrl = videoSourceUrl;
                   }
 
                   return (
@@ -714,6 +754,19 @@ export default function MemberProfileScreen({ navigation }) {
                           uri: mediaUrl || "https://via.placeholder.com/150",
                         }}
                         style={styles.postImage}
+                        onError={(e) => {
+                          console.log("[ProfileGrid] Image load error:", {
+                            postId: item.id,
+                            mediaUrl,
+                            error: e.nativeEvent?.error || "Unknown error",
+                          });
+                        }}
+                        onLoad={() => {
+                          console.log(
+                            "[ProfileGrid] Image loaded successfully:",
+                            item.id,
+                          );
+                        }}
                       />
                       {isVideo && (
                         <View

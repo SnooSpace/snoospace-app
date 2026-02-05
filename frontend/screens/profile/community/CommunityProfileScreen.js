@@ -1199,17 +1199,42 @@ export default function CommunityProfileScreen({ navigation }) {
                               firstImageUrl.toLowerCase().includes(".webm")));
 
                         // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-                        let mediaUrl = item.video_thumbnail;
+                        // video_thumbnail might be stored as JSON array string '["url"]' in database
+                        let mediaUrl = null;
+                        if (item.video_thumbnail) {
+                          try {
+                            if (
+                              typeof item.video_thumbnail === "string" &&
+                              item.video_thumbnail.startsWith("[")
+                            ) {
+                              const parsed = JSON.parse(item.video_thumbnail);
+                              mediaUrl = Array.isArray(parsed)
+                                ? parsed[0]
+                                : item.video_thumbnail;
+                            } else {
+                              mediaUrl = item.video_thumbnail;
+                            }
+                          } catch (e) {
+                            mediaUrl = item.video_thumbnail;
+                          }
+                        }
+                        const videoSourceUrl = firstImageUrl || item.video_url;
                         if (
                           !mediaUrl &&
                           isVideo &&
-                          firstImageUrl &&
-                          firstImageUrl.includes("cloudinary.com")
+                          videoSourceUrl &&
+                          videoSourceUrl.includes("cloudinary.com")
                         ) {
-                          mediaUrl = firstImageUrl.replace(/\.[^/.]+$/, ".jpg");
+                          // Convert Cloudinary video URL to thumbnail with transformation params
+                          mediaUrl = videoSourceUrl
+                            .replace(
+                              "/upload/",
+                              "/upload/so_0,f_jpg,q_auto,w_800/",
+                            )
+                            .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
                         }
                         if (!mediaUrl) {
-                          mediaUrl = firstImageUrl || item.video_url;
+                          mediaUrl = videoSourceUrl;
                         }
 
                         return mediaUrl ? (

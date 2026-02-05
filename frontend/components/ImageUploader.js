@@ -921,7 +921,7 @@ const ImageUploader = forwardRef(
                       key={`img-${index}-${imageUri}`}
                       source={{ uri: imageUri }}
                       style={styles.image}
-                      resizeMode="cover"
+                      resizeMode="contain"
                       onError={(e) =>
                         console.log(
                           "[ImageUploader] Image load error at index",
@@ -1094,7 +1094,7 @@ const ImageUploader = forwardRef(
                           <Image
                             source={{ uri: imageUri }}
                             style={{ width: "100%", height: "100%" }}
-                            resizeMode="cover"
+                            resizeMode="contain"
                           />
                         );
                       }
@@ -1136,7 +1136,7 @@ const ImageUploader = forwardRef(
                             <Image
                               source={{ uri: imageUri }}
                               style={{ width: "100%", height: "100%" }}
-                              resizeMode="cover"
+                              resizeMode="contain"
                             />
                           </View>
                         </View>
@@ -1147,7 +1147,7 @@ const ImageUploader = forwardRef(
                     <Image
                       source={{ uri: imageUri, cache: "reload" }}
                       style={styles.image}
-                      resizeMode="cover"
+                      resizeMode="contain"
                     />
                   )}
                   {enableCrop && (
@@ -1238,6 +1238,7 @@ const ImageUploader = forwardRef(
       const translateY = (metadata.translateY || 0) * scaleFactorY;
 
       console.log("[ImageUploader] Video Preview Transform:", {
+        aspectRatio,
         scale,
         translateX,
         translateY,
@@ -1247,6 +1248,7 @@ const ImageUploader = forwardRef(
           translateY: metadata.translateY,
           displayWidth: metadata.displayWidth,
           displayHeight: metadata.displayHeight,
+          aspectRatio: metadata.aspectRatio,
         },
         calculated: {
           contentWidth,

@@ -424,7 +424,13 @@ const EditorialPostCard = ({
   };
 
   // Get additional media info for rendering (firstMediaUrl already defined above)
-  const firstAspectRatio = post.aspect_ratios?.[0] || 4 / 5;
+  // Handle both array format ([1.91]) and single number format (1.91) for aspect_ratios
+  const rawAspectRatio = post.aspect_ratios;
+  const firstAspectRatio = Array.isArray(rawAspectRatio)
+    ? rawAspectRatio[0] || 4 / 5
+    : typeof rawAspectRatio === "number"
+      ? rawAspectRatio
+      : 4 / 5;
   const firstCropMetadata = post.crop_metadata?.[0] || null; // NEW: Get crop metadata for first media
 
   // Check if author is the current user (to hide follow button)
@@ -577,8 +583,10 @@ const EditorialPostCard = ({
                 scrollEventThrottle={16}
               >
                 {post.image_urls.map((url, index) => {
-                  const aspectRatio =
-                    post.aspect_ratios?.[index] || firstAspectRatio;
+                  // Handle both array and single number formats for aspect_ratios
+                  const aspectRatio = Array.isArray(post.aspect_ratios)
+                    ? post.aspect_ratios[index] || firstAspectRatio
+                    : firstAspectRatio;
                   return (
                     <View
                       key={index}
