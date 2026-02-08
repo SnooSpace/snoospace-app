@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
 const QnACreateForm = ({ onSubmit, isSubmitting }) => {
@@ -23,6 +24,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
   const [maxQuestionsPerUser, setMaxQuestionsPerUser] = useState(1);
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Sync data with parent on every change
   useEffect(() => {
@@ -199,10 +201,35 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
 
         {/* Date Picker (if expiry enabled) */}
         {hasExpiry && (
-          <View style={styles.datePickerButton}>
-            <Ionicons name="calendar-outline" size={18} color="#5856D6" />
-            <Text style={styles.datePickerText}>{formatExpiry(expiresAt)}</Text>
-          </View>
+          <>
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={18} color="#5856D6" />
+              <Text style={styles.datePickerText}>
+                {formatExpiry(expiresAt)}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={expiresAt || new Date()}
+                mode="date"
+                is24Hour={false}
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    const date = new Date(selectedDate);
+                    date.setHours(23, 59, 59, 999);
+                    setExpiresAt(date);
+                  }
+                }}
+                minimumDate={new Date()}
+              />
+            )}
+          </>
         )}
       </View>
 

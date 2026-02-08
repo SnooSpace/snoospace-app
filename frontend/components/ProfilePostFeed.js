@@ -33,6 +33,7 @@ const ProfilePostFeed = ({
   onFollow,
   onUserPress,
   onDelete,
+  onPostUpdate, // New prop
   navigation, // Add navigation prop for CommentsModal
 }) => {
   // Initialize with the initial post ID so video starts playing immediately
@@ -135,6 +136,7 @@ const ProfilePostFeed = ({
         onFollow={onFollow}
         onUserPress={onUserPress}
         onDelete={onDelete}
+        onPostUpdate={onPostUpdate}
         onRequestDelete={handleRequestDelete}
         showFollowButton={true} // Allow following if not same user
       />

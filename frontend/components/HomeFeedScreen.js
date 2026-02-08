@@ -671,6 +671,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     );
   };
 
+  const handlePostUpdate = (updatedPost) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
+        p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+      ),
+    );
+  };
+
   const handleCommentPress = (postId) => {
     setSelectedPostId(postId);
     setCommentsModalVisible(true);
@@ -745,6 +753,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
+  const handleDelete = (postId) => {
+    // Immediately remove from local state for instant UI update
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
+
+    // Notify other screens via EventBus
+    EventBus.emit("postDeleted", postId);
+  };
+
   // Note: handleScroll is now replaced by scrollHandler using Reanimated
 
   const handleLogoPress = useCallback(() => {
@@ -796,6 +812,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onComment={handleCommentPress}
         onShare={handleSharePress}
         onFollow={handleFollow}
+        onDelete={handleDelete}
+        onPostUpdate={handlePostUpdate}
         showFollowButton={true}
         currentUserId={currentUserId}
         currentUserType={currentUserType}

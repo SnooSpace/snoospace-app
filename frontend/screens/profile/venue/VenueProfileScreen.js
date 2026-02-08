@@ -62,7 +62,7 @@ export default function VenueProfileScreen({ navigation }) {
           "/auth/get-user-profile",
           email ? { email } : {},
           15000,
-          token
+          token,
         );
         role = profRes?.role || "venue";
         fullProfile = profRes?.profile || null;
@@ -84,7 +84,7 @@ export default function VenueProfileScreen({ navigation }) {
         const counts = await apiGet(
           `/follow/counts/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         followerCount = counts?.followers || 0;
         followingCount = counts?.following || 0;
@@ -95,7 +95,7 @@ export default function VenueProfileScreen({ navigation }) {
         const postsRes = await apiGet(
           `/posts/user/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch (_) {}
@@ -168,7 +168,7 @@ export default function VenueProfileScreen({ navigation }) {
               params: { email: emailToUse },
             },
           ],
-        })
+        }),
       );
     } catch (error) {
       console.error("Error during relogin:", error);
@@ -218,7 +218,7 @@ export default function VenueProfileScreen({ navigation }) {
               CommonActions.reset({
                 index: 0,
                 routes: [{ name: "Landing" }],
-              })
+              }),
             );
           } catch (error) {
             console.error("Error during logout:", error);
@@ -229,12 +229,21 @@ export default function VenueProfileScreen({ navigation }) {
     ]);
   };
 
+  const handlePostUpdate = (updatedPost) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
+        p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+      ),
+    );
+  };
+
   const renderPost = ({ item }) => (
     <PostCard
       post={item}
       onLike={() => {}}
       onComment={() => {}}
       onFollow={() => {}}
+      onPostUpdate={handlePostUpdate}
     />
   );
 
@@ -265,7 +274,7 @@ export default function VenueProfileScreen({ navigation }) {
                 if (!perm.granted) {
                   Alert.alert(
                     "Permission Required",
-                    "Allow photo access to change logo"
+                    "Allow photo access to change logo",
                   );
                   return;
                 }
@@ -284,14 +293,14 @@ export default function VenueProfileScreen({ navigation }) {
                   "/venues/profile/logo",
                   { logo_url: secureUrl },
                   15000,
-                  token
+                  token,
                 );
                 setProfile((prev) => ({ ...prev, logo_url: secureUrl }));
                 Alert.alert("Updated", "Logo updated");
               } catch (e) {
                 Alert.alert(
                   "Update failed",
-                  e?.message || "Could not update logo"
+                  e?.message || "Could not update logo",
                 );
               }
             }}
@@ -561,7 +570,7 @@ export default function VenueProfileScreen({ navigation }) {
                   } catch (e) {
                     Alert.alert(
                       "Delete failed",
-                      e?.message || "Could not delete account"
+                      e?.message || "Could not delete account",
                     );
                   } finally {
                     setDeleting(false);

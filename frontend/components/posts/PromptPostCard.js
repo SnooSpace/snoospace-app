@@ -16,6 +16,7 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -37,8 +38,11 @@ import {
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  Ellipsis,
 } from "lucide-react-native";
-import { apiDelete, savePost, unsavePost } from "../../api/client";
+import { savePost, unsavePost } from "../../api/client";
+import { postService } from "../../services/postService";
+import PromptEditModal from "./PromptEditModal";
 import EventBus from "../../utils/EventBus";
 
 const PromptPostCard = ({
@@ -48,6 +52,9 @@ const PromptPostCard = ({
   onComment,
   onSave,
   onShare,
+  onDelete, // Now optionally used for callback
+  onEdit, // Now optionally used for callback
+  onPostUpdate, // New prop
   currentUserId,
   currentUserType,
 }) => {
@@ -64,9 +71,17 @@ const PromptPostCard = ({
     typeData.submission_count || 0,
   );
   const totalReplyCount = typeData.total_reply_count || 0;
+  const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const maxLength = typeData.max_length || 500;
+
+  // Check if current user owns this post
+  const isOwnPost =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
 
   // Engagement State
   const initialIsLiked = post.is_liked === true;
@@ -144,6 +159,47 @@ const PromptPostCard = ({
 
   const handleShare = () => {
     if (onShare) onShare(post.id);
+  };
+
+  const handleSaveEdit = async (updates) => {
+    try {
+      setIsUpdating(true);
+      const response = await postService.updatePost(post.id, updates);
+
+      if (onPostUpdate) {
+        onPostUpdate(response.post);
+      }
+
+      setShowEditModal(false);
+      Alert.alert("Success", "Post updated successfully");
+    } catch (error) {
+      console.error("Failed to update post:", error);
+      Alert.alert("Error", error.message || "Failed to update post");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postService.deletePost(post.id);
+              if (onDelete) onDelete(post.id);
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ],
+    );
   };
 
   // Format count for display
@@ -263,10 +319,52 @@ const PromptPostCard = ({
             return null;
           })()}
         </View>
-        <View style={styles.starIconContainer}>
-          <Ionicons name="star" size={24} color="#FFB800" />
+        <View style={styles.rightHeaderContent}>
+          {isOwnPost && (onEdit || onDelete) && (
+            <TouchableOpacity
+              style={styles.ellipsisButton}
+              onPress={() => setShowMenu(!showMenu)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ellipsis size={20} color="#5B6B7C" />
+            </TouchableOpacity>
+          )}
+          <View style={styles.starIconContainer}>
+            <Ionicons name="star" size={24} color="#FFB800" />
+          </View>
         </View>
       </View>
+
+      {/* Edit/Delete Menu */}
+      {showMenu && isOwnPost && (
+        <View style={styles.menuContainer}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              setShowEditModal(true);
+            }}
+          >
+            <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+            <Text style={styles.menuItemText}>Edit Post</Text>
+          </TouchableOpacity>
+
+          {(onDelete || isOwnPost) && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                handleDelete();
+              }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#DC2626" />
+              <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                Delete Post
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Author Info */}
       <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
@@ -283,6 +381,12 @@ const PromptPostCard = ({
         </Text>
         <Text style={styles.separator}>•</Text>
         <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+        {post.edited_at && (
+          <>
+            <Text style={styles.separator}>•</Text>
+            <Text style={styles.editedLabel}>Edited</Text>
+          </>
+        )}
       </TouchableOpacity>
 
       {/* Prompt Text */}
@@ -460,6 +564,14 @@ const PromptPostCard = ({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <PromptEditModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        post={post}
+        onSave={handleSaveEdit}
+        isLoading={isUpdating}
+      />
     </View>
   );
 };
@@ -494,6 +606,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  rightHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ellipsisButton: {
+    padding: 8,
+  },
+  menuContainer: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    zIndex: 10,
+    minWidth: 150,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1D1D1F",
   },
   evergreenBadge: {
     flexDirection: "row",
@@ -530,15 +673,17 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
   },
   separator: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    marginHorizontal: 4,
+    color: COLORS.textTertiary,
+    marginHorizontal: 6,
+    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
   },
   timestamp: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+  },
+  editedLabel: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+    color: COLORS.textTertiary,
+    fontStyle: "italic",
   },
   promptText: {
     fontFamily: FONTS.black || "BasicCommercial-Black",

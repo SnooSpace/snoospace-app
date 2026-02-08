@@ -62,7 +62,7 @@ export default function SponsorProfileScreen({ navigation }) {
           "/auth/get-user-profile",
           email ? { email } : {},
           15000,
-          token
+          token,
         );
         role = profRes?.role || "sponsor";
         fullProfile = profRes?.profile || null;
@@ -84,7 +84,7 @@ export default function SponsorProfileScreen({ navigation }) {
         const counts = await apiGet(
           `/follow/counts/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         followerCount = counts?.followers || 0;
         followingCount = counts?.following || 0;
@@ -95,7 +95,7 @@ export default function SponsorProfileScreen({ navigation }) {
         const postsRes = await apiGet(
           `/posts/user/${userId}/${userType}`,
           15000,
-          token
+          token,
         );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
       } catch (_) {}
@@ -110,13 +110,13 @@ export default function SponsorProfileScreen({ navigation }) {
         interests: Array.isArray(fullProfile.interests)
           ? fullProfile.interests
           : fullProfile.interests
-          ? JSON.parse(fullProfile.interests)
-          : [],
+            ? JSON.parse(fullProfile.interests)
+            : [],
         cities: Array.isArray(fullProfile.cities)
           ? fullProfile.cities
           : fullProfile.cities
-          ? JSON.parse(fullProfile.cities)
-          : [],
+            ? JSON.parse(fullProfile.cities)
+            : [],
         requirements: fullProfile.requirements || "",
         follower_count: followerCount,
         following_count: followingCount,
@@ -156,7 +156,7 @@ export default function SponsorProfileScreen({ navigation }) {
 
       console.log(
         "[SponsorProfile] Navigating to login with email:",
-        emailToUse
+        emailToUse,
       );
 
       // Navigate to Login screen with email pre-filled
@@ -174,7 +174,7 @@ export default function SponsorProfileScreen({ navigation }) {
               params: { email: emailToUse },
             },
           ],
-        })
+        }),
       );
     } catch (error) {
       console.error("Error during relogin:", error);
@@ -224,7 +224,7 @@ export default function SponsorProfileScreen({ navigation }) {
               CommonActions.reset({
                 index: 0,
                 routes: [{ name: "Landing" }],
-              })
+              }),
             );
           } catch (error) {
             console.error("Error during logout:", error);
@@ -235,12 +235,21 @@ export default function SponsorProfileScreen({ navigation }) {
     ]);
   };
 
+  const handlePostUpdate = (updatedPost) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
+        p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+      ),
+    );
+  };
+
   const renderPost = ({ item }) => (
     <PostCard
       post={item}
       onLike={() => {}}
       onComment={() => {}}
       onFollow={() => {}}
+      onPostUpdate={handlePostUpdate}
     />
   );
 
@@ -271,7 +280,7 @@ export default function SponsorProfileScreen({ navigation }) {
                 if (!perm.granted) {
                   Alert.alert(
                     "Permission Required",
-                    "Allow photo access to change logo"
+                    "Allow photo access to change logo",
                   );
                   return;
                 }
@@ -290,14 +299,14 @@ export default function SponsorProfileScreen({ navigation }) {
                   "/sponsors/profile/logo",
                   { logo_url: secureUrl },
                   15000,
-                  token
+                  token,
                 );
                 setProfile((prev) => ({ ...prev, logo_url: secureUrl }));
                 Alert.alert("Updated", "Logo updated");
               } catch (e) {
                 Alert.alert(
                   "Update failed",
-                  e?.message || "Could not update logo"
+                  e?.message || "Could not update logo",
                 );
               }
             }}
@@ -382,7 +391,7 @@ export default function SponsorProfileScreen({ navigation }) {
                   profile.logo_url && /^https?:\/\//.test(profile.logo_url)
                     ? profile.logo_url
                     : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        profile.brand_name || "Sponsor"
+                        profile.brand_name || "Sponsor",
                       )}&background=6A0DAD&color=FFFFFF&size=80&bold=true`,
               }}
               style={styles.logo}
@@ -550,7 +559,7 @@ export default function SponsorProfileScreen({ navigation }) {
                   } catch (e) {
                     Alert.alert(
                       "Delete failed",
-                      e?.message || "Could not delete account"
+                      e?.message || "Could not delete account",
                     );
                   } finally {
                     setDeleting(false);

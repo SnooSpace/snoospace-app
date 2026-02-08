@@ -16,6 +16,7 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -37,8 +38,11 @@ import {
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  Ellipsis,
 } from "lucide-react-native";
-import { apiDelete, savePost, unsavePost } from "../../api/client";
+import { savePost, unsavePost } from "../../api/client";
+import { postService } from "../../services/postService";
+import QnAEditModal from "./QnAEditModal";
 import EventBus from "../../utils/EventBus";
 
 const QnAPostCard = ({
@@ -48,6 +52,9 @@ const QnAPostCard = ({
   onComment,
   onSave,
   onShare,
+  onDelete, // Now optionally used for callback
+  onEdit, // Now optionally used for callback
+  onPostUpdate, // New prop
   currentUserId,
   currentUserType,
 }) => {
@@ -69,8 +76,16 @@ const QnAPostCard = ({
   const [previewQuestion, setPreviewQuestion] = useState(
     post.preview_question || null,
   );
+  const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
+
+  // Check if current user owns this post
+  const isOwnPost =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
 
   // Format time ago utility
   const formatTimeAgo = (timestamp) => {
@@ -180,6 +195,47 @@ const QnAPostCard = ({
     if (onShare) onShare(post.id);
   };
 
+  const handleSaveEdit = async (updates) => {
+    try {
+      setIsUpdating(true);
+      const response = await postService.updatePost(post.id, updates);
+
+      if (onPostUpdate) {
+        onPostUpdate(response.post);
+      }
+
+      setShowEditModal(false);
+      Alert.alert("Success", "Post updated successfully");
+    } catch (error) {
+      console.error("Failed to update post:", error);
+      Alert.alert("Error", error.message || "Failed to update post");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postService.deletePost(post.id);
+              if (onDelete) onDelete(post.id);
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   // Format count for display
   const formatCount = (count) => {
     if (!count || count === 0) return "0";
@@ -248,177 +304,241 @@ const QnAPostCard = ({
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
-      <View style={styles.headerRow}>
-        <View style={styles.leftHeaderContent}>
-          <View style={styles.qnaBadge}>
-            <Text style={styles.qnaBadgeText}>Q&A</Text>
-          </View>
-          {/* Resolved Badge (if any question resolved) */}
-          {post.has_resolved_questions && (
-            <View style={styles.resolvedBadge}>
-              <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
+    <>
+      <View style={styles.container}>
+        {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
+        <View style={styles.headerRow}>
+          <View style={styles.leftHeaderContent}>
+            <View style={styles.qnaBadge}>
+              <Text style={styles.qnaBadgeText}>Q&A</Text>
             </View>
-          )}
-        </View>
-
-        <View style={styles.rightHeaderContent}>
-          <View style={styles.avatarStack}>
-            {participants.slice(0, 2).map((participant, index) => (
-              <Image
-                key={index}
-                source={{
-                  uri:
-                    participant.photo_url || "https://via.placeholder.com/24",
-                }}
-                style={[
-                  styles.stackAvatar,
-                  { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
-                ]}
-              />
-            ))}
-            {participantCount > 2 && (
-              <View style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}>
-                <Text style={styles.countText}>+{participantCount - 2}</Text>
+            {/* Resolved Badge (if any question resolved) */}
+            {post.has_resolved_questions && (
+              <View style={styles.resolvedBadge}>
+                <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
               </View>
             )}
           </View>
 
-          <View style={styles.questionIconContainer}>
-            <Ionicons name="help-circle" size={28} color="#334456" />
+          <View style={styles.rightHeaderContent}>
+            {isOwnPost && (onEdit || onDelete) && (
+              <TouchableOpacity
+                style={styles.ellipsisButton}
+                onPress={() => setShowMenu(!showMenu)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ellipsis size={20} color="#5B6B7C" />
+              </TouchableOpacity>
+            )}
+            <View style={styles.avatarStack}>
+              {participants.slice(0, 2).map((participant, index) => (
+                <Image
+                  key={index}
+                  source={{
+                    uri:
+                      participant.photo_url || "https://via.placeholder.com/24",
+                  }}
+                  style={[
+                    styles.stackAvatar,
+                    { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
+                  ]}
+                />
+              ))}
+              {participantCount > 2 && (
+                <View
+                  style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}
+                >
+                  <Text style={styles.countText}>+{participantCount - 2}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.questionIconContainer}>
+              <Ionicons name="help-circle" size={28} color="#334456" />
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Author Row */}
-      <TouchableOpacity
-        style={styles.authorRow}
-        onPress={handleUserPress}
-        activeOpacity={0.7}
-      >
-        <Image
-          source={{
-            uri: post.author_photo_url || "https://via.placeholder.com/24",
-          }}
-          style={styles.authorAvatar}
-        />
-        <Text style={styles.authorUsername}>
-          @
-          {post.author_username ||
-            post.author_name?.toLowerCase().replace(/\s+/g, "") ||
-            "user"}
-        </Text>
-        <Text style={styles.separator}>•</Text>
-        <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-      </TouchableOpacity>
+        {/* Edit/Delete Menu */}
+        {showMenu && isOwnPost && (
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                setShowEditModal(true);
+              }}
+            >
+              <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+              <Text style={styles.menuItemText}>Edit Post</Text>
+            </TouchableOpacity>
+            {(onDelete || isOwnPost) && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  handleDelete();
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                  Delete Post
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-      {/* Question Text */}
-      <Text style={styles.questionText} numberOfLines={4}>
-        {typeData.title}
-      </Text>
-
-      {/* Top Answer Preview Section */}
-      {renderTopAnswer()}
-
-      {/* View All CTA */}
-      <TouchableOpacity
-        style={styles.viewAllCTA}
-        onPress={() => navigation.navigate("QnAQuestions", { post })}
-      >
-        <LinearGradient
-          colors={["#448AFF", "#2962FF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.viewAllGradient}
-        >
-          <Text style={styles.viewAllText}>
-            {questionCount === 1
-              ? "View 1 answer"
-              : `View all ${questionCount} answers`}
-          </Text>
-          <Ionicons
-            name="arrow-forward"
-            size={18}
-            color="#FFFFFF"
-            style={{ marginLeft: 6 }}
-          />
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Footer Row */}
-      <View style={styles.footerRow}>
-        <Text style={styles.votesText}>
-          {typeData.vote_count || 0} votes total
-        </Text>
-
-        <TouchableOpacity style={styles.addAnswerCTA} onPress={handleAddAnswer}>
-          <Text style={styles.addAnswerText}>Add your answer </Text>
-          <MaterialCommunityIcons
-            name="pencil-outline"
-            size={16}
-            color="#5e8d9b"
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Engagement Row */}
-      <View style={styles.engagementRow}>
-        {/* Like */}
+        {/* Author Row */}
         <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
+          style={styles.authorRow}
+          onPress={handleUserPress}
+          activeOpacity={0.7}
         >
-          <Heart
-            size={22}
-            color={isLiked ? COLORS.error : "#5e8d9b"}
-            fill={isLiked ? COLORS.error : "transparent"}
+          <Image
+            source={{
+              uri: post.author_photo_url || "https://via.placeholder.com/24",
+            }}
+            style={styles.authorAvatar}
           />
-          <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
-            {formatCount(likeCount)}
+          <Text style={styles.authorName}>
+            @{post.author_username || post.author_name}
           </Text>
-        </TouchableOpacity>
-
-        {/* Comment */}
-        <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleCommentPress}
-        >
-          <MessageCircle size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.comment_count || 0)}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Views */}
-        <View style={styles.engagementButton}>
-          <ChartNoAxesCombined size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.public_view_count || post.view_count || 0)}
-          </Text>
-        </View>
-
-        {/* Share */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-          <Send size={22} color="#5e8d9b" />
-          {(post.share_count || 0) > 0 && (
-            <Text style={styles.engagementCount}>
-              {formatCount(post.share_count)}
-            </Text>
+          <Text style={styles.separator}>•</Text>
+          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+          {post.edited_at && (
+            <>
+              <Text style={styles.separator}>•</Text>
+              <Text style={styles.editedLabel}>Edited</Text>
+            </>
           )}
         </TouchableOpacity>
 
-        {/* Bookmark */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={22}
-            color="#5e8d9b"
-            fill={isSaved ? "#5e8d9b" : "transparent"}
-          />
+        {/* Question Text */}
+        <Text style={styles.questionText} numberOfLines={4}>
+          {typeData.title}
+        </Text>
+
+        {/* Top Answer Preview Section */}
+        {renderTopAnswer()}
+
+        {/* View All CTA */}
+        <TouchableOpacity
+          style={styles.viewAllCTA}
+          onPress={() => navigation.navigate("QnAQuestions", { post })}
+        >
+          <LinearGradient
+            colors={["#448AFF", "#2962FF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.viewAllGradient}
+          >
+            <Text style={styles.viewAllText}>
+              {questionCount === 1
+                ? "View 1 answer"
+                : `View all ${questionCount} answers`}
+            </Text>
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color="#FFFFFF"
+              style={{ marginLeft: 6 }}
+            />
+          </LinearGradient>
         </TouchableOpacity>
+
+        {/* Footer Row */}
+        <View style={styles.footerRow}>
+          <Text style={styles.votesText}>
+            {typeData.vote_count || 0} votes total
+          </Text>
+
+          <TouchableOpacity
+            style={styles.addAnswerCTA}
+            onPress={handleAddAnswer}
+          >
+            <Text style={styles.addAnswerText}>Add your answer </Text>
+            <MaterialCommunityIcons
+              name="pencil-outline"
+              size={16}
+              color="#5e8d9b"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Engagement Row */}
+        <View style={styles.engagementRow}>
+          {/* Like */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <Heart
+              size={22}
+              color={isLiked ? COLORS.error : "#5e8d9b"}
+              fill={isLiked ? COLORS.error : "transparent"}
+            />
+            <Text
+              style={[styles.engagementCount, isLiked && styles.likedCount]}
+            >
+              {formatCount(likeCount)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Comment */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleCommentPress}
+          >
+            <MessageCircle size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.comment_count || 0)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Views */}
+          <View style={styles.engagementButton}>
+            <ChartNoAxesCombined size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.public_view_count || post.view_count || 0)}
+            </Text>
+          </View>
+
+          {/* Share */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleShare}
+          >
+            <Send size={22} color="#5e8d9b" />
+            {(post.share_count || 0) > 0 && (
+              <Text style={styles.engagementCount}>
+                {formatCount(post.share_count)}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Bookmark */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleSave}
+          >
+            <Bookmark
+              size={22}
+              color="#5e8d9b"
+              fill={isSaved ? "#5e8d9b" : "transparent"}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+      <QnAEditModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        post={post}
+        onSave={handleSaveEdit}
+        isLoading={isUpdating}
+      />
+    </>
   );
 };
 
@@ -473,6 +593,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  ellipsisButton: {
+    padding: 8,
+  },
+  menuContainer: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    zIndex: 10,
+    minWidth: 150,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1D1D1F",
   },
 
   // Avatar Stack
@@ -530,18 +676,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#5e8d9b", // Muted teal
   },
-  separator: {
+  authorName: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#5e8d9b",
-    marginHorizontal: 4,
+    color: "#5e8d9b", // Muted teal
+  },
+  separator: {
+    color: COLORS.textTertiary,
+    marginHorizontal: 6,
+    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
   },
   timestamp: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    textTransform: "uppercase",
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
   },
+  editedLabel: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+    color: COLORS.textTertiary,
+    fontStyle: "italic",
+  },
+  // Original timestamp style, now replaced by the spread operator above
+  // timestamp: {
+  //   fontSize: 11,
+  //   fontWeight: "600",
+  //   color: "#5e8d9b",
+  //   textTransform: "uppercase",
+  // },
 
   // Question Text
   questionText: {

@@ -789,6 +789,18 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               navigation.navigate("MemberPublicProfile", { memberId: userId });
             }
           }}
+          onPostUpdate={(updatedPost) => {
+            setPosts((prevPosts) =>
+              prevPosts.map((p) =>
+                p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+              ),
+            );
+            if (selectedPost && selectedPost.id === updatedPost.id) {
+              setSelectedPost((prev) =>
+                prev ? { ...prev, ...updatedPost } : prev,
+              );
+            }
+          }}
         />
       )}
     </SafeAreaView>

@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,12 +26,15 @@ import {
   EDITORIAL_SPACING,
 } from "../../constants/theme";
 import AnimatedProgressBar from "./AnimatedProgressBar";
+import PollEditModal from "./PollEditModal";
+import { postService } from "../../services/postService";
 import {
   Heart,
   MessageCircle,
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  Ellipsis,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -43,6 +47,9 @@ const PollPostCard = ({
   onComment,
   onSave,
   onShare,
+  onDelete,
+  onEdit, // Now handled internally, but keeping for compatibility or override
+  onPostUpdate, // New prop for updating parent
   currentUserId,
   currentUserType,
 }) => {
@@ -53,6 +60,9 @@ const PollPostCard = ({
   const [totalVotes, setTotalVotes] = useState(typeData.total_votes || 0);
   const [isVoting, setIsVoting] = useState(false);
   const [votingIndex, setVotingIndex] = useState(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Sync state with props whenever they change (important for FlatList recycling)
   useEffect(() => {
@@ -146,6 +156,48 @@ const PollPostCard = ({
     if (onShare) onShare(post.id);
   };
 
+  const handleSaveEdit = async (updates) => {
+    try {
+      setIsUpdating(true);
+      const response = await postService.updatePost(post.id, updates);
+
+      // Notify parent to refresh/update local post data
+      if (onPostUpdate) {
+        onPostUpdate(response.post);
+      }
+
+      setShowEditModal(false);
+      Alert.alert("Success", "Post updated successfully");
+    } catch (error) {
+      console.error("Failed to update post:", error);
+      Alert.alert("Error", error.message || "Failed to update post");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postService.deletePost(post.id);
+              if (onDelete) onDelete(post.id);
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   // Format count for display
   const formatCount = (count) => {
     if (!count || count === 0) return "0";
@@ -156,6 +208,11 @@ const PollPostCard = ({
   };
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
+
+  // Check if current user owns this post
+  const isOwnPost =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
 
   const handleVote = async (optionIndex) => {
     // Only block if poll is expired or currently voting
@@ -303,129 +360,200 @@ const PollPostCard = ({
     );
   };
 
+  // Render modal outside container but inside component
+  // Note: For cleaner layering, modals should ideally be at root, but this works for simple cases
+  const renderModal = () => (
+    <PollEditModal
+      visible={showEditModal}
+      onClose={() => setShowEditModal(false)}
+      post={post}
+      onSave={handleSaveEdit}
+      isLoading={isUpdating}
+    />
+  );
+
+  // Return array or fragment to include modal
   return (
-    <View style={styles.container}>
-      {/* Header with Type Indicator & Chat Icon */}
-      <View style={styles.headerRow}>
-        <View style={styles.pollBadge}>
-          <Text style={styles.pollBadgeText}>POLL</Text>
+    <>
+      <View style={styles.container}>
+        {/* Header with Type Indicator & Ellipsis Menu */}
+        <View style={styles.headerRow}>
+          <View style={styles.pollBadge}>
+            <Text style={styles.pollBadgeText}>POLL</Text>
+          </View>
+          <View style={styles.rightHeaderContent}>
+            {isOwnPost && (
+              <TouchableOpacity
+                style={styles.ellipsisButton}
+                onPress={() => setShowMenu(!showMenu)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ellipsis size={20} color="#5B6B7C" />
+              </TouchableOpacity>
+            )}
+            <View style={styles.pollIconContainer}>
+              <Ionicons name="stats-chart" size={24} color="#3b65e4" />
+            </View>
+          </View>
         </View>
-        <View style={styles.pollIconContainer}>
-          <Ionicons name="stats-chart" size={24} color="#3b65e4" />
-        </View>
-      </View>
 
-      {/* Author Info */}
-      <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
-        <Image
-          source={
-            post.author_photo_url
-              ? { uri: post.author_photo_url }
-              : { uri: "https://via.placeholder.com/40" }
-          }
-          style={styles.profileImage}
-        />
-        <Text style={styles.authorName}>
-          @{post.author_username || post.author_name}
-        </Text>
-        <Text style={styles.separator}>•</Text>
-        <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-      </TouchableOpacity>
-
-      {/* Question */}
-      <Text style={styles.question}>{typeData.question}</Text>
-
-      {/* Extension Badge */}
-      {post.extension_count > 0 && (
-        <View style={styles.extensionBadge}>
-          <Text style={styles.extensionBadgeText}>
-            {getExtensionBadgeText(post.extension_count)}
-          </Text>
-        </View>
-      )}
-
-      {/* Options */}
-      <View style={styles.optionsContainer}>
-        {options.map((opt, idx) => renderOption(opt, idx))}
-      </View>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.voteCount}>
-          {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
-        </Text>
-        {post.expires_at && (
-          <CountdownTimer
-            expiresAt={post.expires_at}
-            style={[styles.expiryText, isExpired && styles.expiredText]}
-          />
+        {/* Edit/Delete Menu */}
+        {showMenu && isOwnPost && (
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                setShowEditModal(true);
+              }}
+            >
+              <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+              <Text style={styles.menuItemText}>Edit Post</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                handleDelete();
+              }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#DC2626" />
+              <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                Delete Post
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
-      </View>
 
-      {/* Engagement Row */}
-      <View style={styles.engagementRow}>
-        {/* Like */}
-        <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
-        >
-          <Heart
-            size={22}
-            color={isLiked ? COLORS.error : "#5e8d9b"}
-            fill={isLiked ? COLORS.error : "transparent"}
+        {/* Author Info */}
+        <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
+          <Image
+            source={
+              post.author_photo_url
+                ? { uri: post.author_photo_url }
+                : { uri: "https://via.placeholder.com/40" }
+            }
+            style={styles.profileImage}
           />
-          <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
-            {formatCount(likeCount)}
+          <Text style={styles.authorName}>
+            @{post.author_username || post.author_name}
           </Text>
-        </TouchableOpacity>
-
-        {/* Comment */}
-        <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleCommentPress}
-        >
-          <MessageCircle size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.comment_count || 0)}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Views */}
-        <View style={styles.engagementButton}>
-          <ChartNoAxesCombined size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.public_view_count || post.view_count || 0)}
-          </Text>
-        </View>
-
-        {/* Share */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-          <Send size={22} color="#5e8d9b" />
-          {(post.share_count || 0) > 0 && (
-            <Text style={styles.engagementCount}>
-              {formatCount(post.share_count)}
-            </Text>
+          <Text style={styles.separator}>•</Text>
+          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+          {post.edited_at && (
+            <>
+              <Text style={styles.separator}>•</Text>
+              <Text style={styles.editedLabel}>Edited</Text>
+            </>
           )}
         </TouchableOpacity>
 
-        {/* Bookmark */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={22}
-            color="#5e8d9b"
-            fill={isSaved ? "#5e8d9b" : "transparent"}
-          />
-        </TouchableOpacity>
-      </View>
+        {/* Question */}
+        <Text style={styles.question}>{typeData.question}</Text>
 
-      {/* Expired Overlay */}
-      {isExpired && !hasVoted && (
-        <View style={styles.expiredOverlay}>
-          <Text style={styles.expiredOverlayText}>Poll ended</Text>
+        {/* Extension Badge */}
+        {post.extension_count > 0 && (
+          <View style={styles.extensionBadge}>
+            <Text style={styles.extensionBadgeText}>
+              {getExtensionBadgeText(post.extension_count)}
+            </Text>
+          </View>
+        )}
+
+        {/* Poll Options */}
+        <View style={styles.optionsContainer}>
+          {options.map((option, index) => renderOption(option, index))}
         </View>
-      )}
-    </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.voteCount}>
+            {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+          </Text>
+          {post.expires_at && (
+            <CountdownTimer
+              expiresAt={post.expires_at}
+              style={[styles.expiryText, isExpired && styles.expiredText]}
+            />
+          )}
+        </View>
+
+        {/* Engagement Row */}
+        <View style={styles.engagementRow}>
+          {/* Like */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <Heart
+              size={22}
+              color={isLiked ? COLORS.error : "#5e8d9b"}
+              fill={isLiked ? COLORS.error : "transparent"}
+            />
+            {likeCount > 0 && (
+              <Text
+                style={[styles.engagementCount, isLiked && styles.likedCount]}
+              >
+                {formatCount(likeCount)}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Comment */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleCommentPress}
+          >
+            <MessageCircle size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.comment_count || 0)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Views */}
+          <View style={styles.engagementButton}>
+            <ChartNoAxesCombined size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.public_view_count || post.view_count || 0)}
+            </Text>
+          </View>
+
+          {/* Share */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleShare}
+          >
+            <Send size={22} color="#5e8d9b" />
+            {(post.share_count || 0) > 0 && (
+              <Text style={styles.engagementCount}>
+                {formatCount(post.share_count)}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Bookmark */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleSave}
+          >
+            <Bookmark
+              size={22}
+              color="#5e8d9b"
+              fill={isSaved ? "#5e8d9b" : "transparent"}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Expired Overlay */}
+        {isExpired && !hasVoted && (
+          <View style={styles.expiredOverlay}>
+            <Text style={styles.expiredOverlayText}>Poll ended</Text>
+          </View>
+        )}
+      </View>
+      {renderModal()}
+    </>
   );
 };
 
@@ -444,6 +572,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: SPACING.m,
   },
+  rightHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ellipsisButton: {
+    padding: 8,
+  },
   pollIconContainer: {
     width: 44,
     height: 44,
@@ -451,6 +587,29 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  menuContainer: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    zIndex: 10,
+    minWidth: 150,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1D1D1F",
   },
   pollBadge: {
     backgroundColor: "#E8EDF5", // Muted light blue
@@ -617,6 +776,19 @@ const styles = StyleSheet.create({
   voteCount: {
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  separator: {
+    color: COLORS.textTertiary,
+    marginHorizontal: 6,
+    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
+  },
+  timestamp: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+  },
+  editedLabel: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+    color: COLORS.textTertiary,
+    fontStyle: "italic",
   },
   expiryText: {
     fontSize: 13,

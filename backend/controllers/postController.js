@@ -1327,6 +1327,284 @@ const getUserPosts = async (req, res) => {
   }
 };
 
+// Update a post
+const updatePost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { updates } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!updates || typeof updates !== "object") {
+      return res.status(400).json({ error: "Updates object is required" });
+    }
+
+    // Fetch the existing post
+    const postResult = await pool.query("SELECT * FROM posts WHERE id = $1", [
+      postId,
+    ]);
+
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const post = postResult.rows[0];
+
+    // Check ownership
+    if (
+      String(post.author_id) !== String(userId) ||
+      post.author_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "You don't have permission to edit this post" });
+    }
+
+    const postType = post.post_type;
+    const typeData = post.type_data || {};
+    const updatedTypeData = { ...typeData };
+
+    // Validate editable fields based on post type
+    const allowedUpdates = {};
+
+    switch (postType) {
+      case "poll":
+        // Poll: question, expires_at
+        if (updates.question !== undefined) {
+          if (
+            typeof updates.question !== "string" ||
+            updates.question.trim().length === 0
+          ) {
+            return res.status(400).json({ error: "Invalid question text" });
+          }
+          updatedTypeData.question = updates.question.trim();
+        }
+        if (updates.expires_at !== undefined) {
+          const newExpiry = new Date(updates.expires_at);
+          const currentExpiry = post.expires_at
+            ? new Date(post.expires_at)
+            : null;
+          if (isNaN(newExpiry.getTime())) {
+            return res.status(400).json({ error: "Invalid expiry date" });
+          }
+          if (newExpiry <= new Date()) {
+            return res
+              .status(400)
+              .json({ error: "Expiry date must be in the future" });
+          }
+          if (currentExpiry && newExpiry < currentExpiry) {
+            return res
+              .status(400)
+              .json({ error: "Can only extend deadline, not shorten it" });
+          }
+          allowedUpdates.expires_at = newExpiry.toISOString();
+        }
+        break;
+
+      case "prompt":
+        // Prompt: prompt_text, max_length, expires_at
+        if (updates.prompt_text !== undefined) {
+          if (
+            typeof updates.prompt_text !== "string" ||
+            updates.prompt_text.trim().length === 0
+          ) {
+            return res.status(400).json({ error: "Invalid prompt text" });
+          }
+          updatedTypeData.prompt_text = updates.prompt_text.trim();
+        }
+        if (updates.max_length !== undefined) {
+          const newMaxLength = parseInt(updates.max_length, 10);
+          const currentMaxLength = typeData.max_length || 500;
+          if (isNaN(newMaxLength) || newMaxLength < 1) {
+            return res.status(400).json({ error: "Invalid max length" });
+          }
+          if (newMaxLength < currentMaxLength) {
+            return res
+              .status(400)
+              .json({ error: "Can only increase max length, not decrease it" });
+          }
+          updatedTypeData.max_length = newMaxLength;
+        }
+        if (updates.expires_at !== undefined) {
+          const newExpiry = new Date(updates.expires_at);
+          const currentExpiry = post.expires_at
+            ? new Date(post.expires_at)
+            : null;
+          if (isNaN(newExpiry.getTime())) {
+            return res.status(400).json({ error: "Invalid expiry date" });
+          }
+          if (newExpiry <= new Date()) {
+            return res
+              .status(400)
+              .json({ error: "Expiry date must be in the future" });
+          }
+          if (currentExpiry && newExpiry < currentExpiry) {
+            return res
+              .status(400)
+              .json({ error: "Can only extend deadline, not shorten it" });
+          }
+          allowedUpdates.expires_at = newExpiry.toISOString();
+        }
+        break;
+
+      case "qna":
+        // Q&A: title, max_questions_per_user, expires_at
+        if (updates.title !== undefined) {
+          if (
+            typeof updates.title !== "string" ||
+            updates.title.trim().length === 0
+          ) {
+            return res.status(400).json({ error: "Invalid title" });
+          }
+          updatedTypeData.title = updates.title.trim();
+        }
+        if (updates.max_questions_per_user !== undefined) {
+          const newMax = parseInt(updates.max_questions_per_user, 10);
+          const currentMax = typeData.max_questions_per_user || 1;
+          if (isNaN(newMax) || newMax < 1) {
+            return res
+              .status(400)
+              .json({ error: "Invalid max questions per user" });
+          }
+          if (newMax < currentMax) {
+            return res.status(400).json({
+              error:
+                "Can only increase max questions per user, not decrease it",
+            });
+          }
+          updatedTypeData.max_questions_per_user = newMax;
+        }
+        if (updates.expires_at !== undefined) {
+          const newExpiry = new Date(updates.expires_at);
+          const currentExpiry = post.expires_at
+            ? new Date(post.expires_at)
+            : null;
+          if (isNaN(newExpiry.getTime())) {
+            return res.status(400).json({ error: "Invalid expiry date" });
+          }
+          if (newExpiry <= new Date()) {
+            return res
+              .status(400)
+              .json({ error: "Expiry date must be in the future" });
+          }
+          if (currentExpiry && newExpiry < currentExpiry) {
+            return res
+              .status(400)
+              .json({ error: "Can only extend deadline, not shorten it" });
+          }
+          allowedUpdates.expires_at = newExpiry.toISOString();
+        }
+        break;
+
+      case "challenge":
+        // Challenge: title, description, deadline, target_count
+        if (updates.title !== undefined) {
+          if (
+            typeof updates.title !== "string" ||
+            updates.title.trim().length === 0
+          ) {
+            return res.status(400).json({ error: "Invalid title" });
+          }
+          updatedTypeData.title = updates.title.trim();
+        }
+        if (updates.description !== undefined) {
+          if (typeof updates.description !== "string") {
+            return res.status(400).json({ error: "Invalid description" });
+          }
+          updatedTypeData.description = updates.description.trim();
+        }
+        if (updates.target_count !== undefined) {
+          const newTarget = parseInt(updates.target_count, 10);
+          const currentTarget = typeData.target_count || 0;
+          if (isNaN(newTarget) || newTarget < 1) {
+            return res.status(400).json({ error: "Invalid target count" });
+          }
+          if (newTarget < currentTarget) {
+            return res.status(400).json({
+              error: "Can only increase target count, not decrease it",
+            });
+          }
+          updatedTypeData.target_count = newTarget;
+        }
+        if (updates.deadline !== undefined) {
+          const newDeadline = new Date(updates.deadline);
+          const currentDeadline = typeData.deadline
+            ? new Date(typeData.deadline)
+            : null;
+          if (isNaN(newDeadline.getTime())) {
+            return res.status(400).json({ error: "Invalid deadline" });
+          }
+          if (newDeadline <= new Date()) {
+            return res
+              .status(400)
+              .json({ error: "Deadline must be in the future" });
+          }
+          if (currentDeadline && newDeadline < currentDeadline) {
+            return res
+              .status(400)
+              .json({ error: "Can only extend deadline, not shorten it" });
+          }
+          updatedTypeData.deadline = newDeadline.toISOString();
+        }
+        break;
+
+      default:
+        return res.status(400).json({ error: "Invalid post type for editing" });
+    }
+
+    // Build query
+    const queryParams = [postId];
+    const setClauses = [];
+    let paramCount = 2;
+
+    // Always update type_data if it changed
+    setClauses.push(`type_data = $${paramCount}`);
+    queryParams.push(JSON.stringify(updatedTypeData));
+    paramCount++;
+
+    // Add expires_at if it was updated
+    if (allowedUpdates.expires_at) {
+      setClauses.push(`expires_at = $${paramCount}`);
+      queryParams.push(allowedUpdates.expires_at);
+      paramCount++;
+    }
+
+    // Always set edited_at
+    setClauses.push(`edited_at = NOW()`);
+
+    // Update edit_history for admin users (placeholder - need to detect admin)
+    // For now, we just track edited_at for all users
+
+    const updateQuery = `
+      UPDATE posts
+      SET ${setClauses.join(", ")}
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const updateResult = await pool.query(updateQuery, queryParams);
+
+    if (updateResult.rows.length === 0) {
+      return res.status(500).json({ error: "Failed to update post" });
+    }
+
+    const updatedPost = updateResult.rows[0];
+
+    res.json({
+      success: true,
+      message: "Post updated successfully",
+      post: updatedPost,
+    });
+  } catch (error) {
+    console.error("Error updating post:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // Delete a post
 const deletePost = async (req, res) => {
   try {
@@ -1374,5 +1652,6 @@ module.exports = {
   unlikePost,
   getPost,
   getUserPosts,
+  updatePost,
   deletePost,
 };

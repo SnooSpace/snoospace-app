@@ -535,6 +535,45 @@ export async function apiGet(path, timeoutMs, token) {
   return data;
 }
 
+export async function apiPut(path, body, timeoutMs, token) {
+  // Capture generation at request initiation for stale request detection
+  const requestGeneration = accountSwitchGeneration;
+
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let res;
+  try {
+    res = await withTimeout(
+      fetch(`${BACKEND_BASE_URL}${path}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(body ?? {}),
+      }),
+      timeoutMs,
+    );
+  } catch (e) {
+    if (e && e.message === "Request timed out") throw e;
+    throw new Error("Network error. Please check your connection.");
+  }
+  if (res.status === 401) {
+    // Check if account switched before attempting refresh
+    if (requestGeneration !== accountSwitchGeneration) {
+      console.log(
+        `[apiPut] Request stale (gen ${requestGeneration} vs ${accountSwitchGeneration}) - skipping refresh`,
+      );
+      throw new Error("Request aborted - account switched");
+    }
+    return tryRefreshAndRetry(
+      (newToken) => apiPut(path, body, timeoutMs, newToken),
+      requestGeneration,
+      token,
+    );
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw buildError(res, data);
+  return data;
+}
+
 export async function apiPatch(path, body, timeoutMs, token) {
   // Capture generation at request initiation for stale request detection
   const requestGeneration = accountSwitchGeneration;

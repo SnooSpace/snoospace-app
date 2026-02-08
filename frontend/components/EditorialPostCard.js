@@ -101,6 +101,7 @@ const EditorialPostCard = ({
   onShare,
   onDelete,
   onRequestDelete, // Optional: function(postId) -> void. If provided, overrides internal Alert.
+  onPostUpdate, // New prop
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
@@ -119,6 +120,8 @@ const EditorialPostCard = ({
         onComment={onComment}
         onSave={onSave}
         onShare={onShare}
+        onDelete={onDelete}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -134,6 +137,8 @@ const EditorialPostCard = ({
         onComment={onComment}
         onSave={onSave}
         onShare={onShare}
+        onDelete={onDelete}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -149,6 +154,8 @@ const EditorialPostCard = ({
         onComment={onComment}
         onSave={onSave}
         onShare={onShare}
+        onDelete={onDelete}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -164,6 +171,8 @@ const EditorialPostCard = ({
         onComment={onComment}
         onSave={onSave}
         onShare={onShare}
+        onDelete={onDelete}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />

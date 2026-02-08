@@ -12,34 +12,30 @@ import {
   StyleSheet,
   ActivityIndicator,
   Animated,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  apiPost,
-  apiDelete,
-  apiGet,
-  savePost,
-  unsavePost,
-} from "../../api/client";
-import { getAuthToken } from "../../api/auth";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-  EDITORIAL_TYPOGRAPHY,
-  EDITORIAL_SPACING,
-} from "../../constants/theme";
 import {
   Heart,
   MessageCircle,
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  Ellipsis,
 } from "lucide-react-native";
+import { savePost, unsavePost } from "../../api/client";
+import { postService } from "../../services/postService";
+import ChallengeEditModal from "./ChallengeEditModal";
 import EventBus from "../../utils/EventBus";
+import {
+  COLORS,
+  FONTS,
+  SHADOWS,
+  SPACING,
+  BORDER_RADIUS,
+} from "../../constants/theme";
 import CountdownTimer from "../CountdownTimer";
 import {
   getExtensionBadgeText,
@@ -53,6 +49,9 @@ const ChallengePostCard = ({
   onComment,
   onSave,
   onShare,
+  onDelete, // Now optionally used for callback
+  onEdit, // Now optionally used for callback
+  onPostUpdate, // New prop
   currentUserId,
   currentUserType,
 }) => {
@@ -70,10 +69,18 @@ const ChallengePostCard = ({
     post.preview_submission || null,
   );
   const [participantPreviews, setParticipantPreviews] = useState([]);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const challengeType = typeData.challenge_type || "single";
   const submissionType = typeData.submission_type || "image";
+
+  // Check if current user owns this post
+  const isOwnPost =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
 
   // Pulse animation for Live Now badge
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -167,6 +174,47 @@ const ChallengePostCard = ({
 
   const handleShare = () => {
     if (onShare) onShare(post.id);
+  };
+
+  const handleSaveEdit = async (updates) => {
+    try {
+      setIsUpdating(true);
+      const response = await postService.updatePost(post.id, updates);
+
+      if (onPostUpdate) {
+        onPostUpdate(response.post);
+      }
+
+      setShowEditModal(false);
+      Alert.alert("Success", "Post updated successfully");
+    } catch (error) {
+      console.error("Failed to update post:", error);
+      Alert.alert("Error", error.message || "Failed to update post");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postService.deletePost(post.id);
+              if (onDelete) onDelete(post.id);
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ],
+    );
   };
 
   // Format count for display
@@ -399,315 +447,380 @@ const ChallengePostCard = ({
   };
 
   return (
-    <LinearGradient
-      colors={["#C8E9EA", "#E8F7F8"]} // Softer gradient - less white
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
-      {/* Header Row: Badge & Trophy Icon */}
-      <View style={styles.headerRow}>
-        <View style={styles.badgesRow}>
-          {!isExpired &&
-            (() => {
-              const remaining = getTimeRemaining(post.expires_at);
-              const hours = remaining / (1000 * 60 * 60);
+    <>
+      <LinearGradient
+        colors={["#C8E9EA", "#E8F7F8"]} // Softer gradient - less white
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
+      >
+        {/* Header Row: Badge & Trophy Icon */}
+        <View style={styles.headerRow}>
+          <View style={styles.badgesRow}>
+            {!isExpired &&
+              (() => {
+                const remaining = getTimeRemaining(post.expires_at);
+                const hours = remaining / (1000 * 60 * 60);
 
-              // Show countdown if < 24h, otherwise "Live Now"
-              if (hours < 24 && hours > 0) {
+                // Show countdown if < 24h, otherwise "Live Now"
+                if (hours < 24 && hours > 0) {
+                  return (
+                    <Animated.View
+                      style={[
+                        styles.urgencyBadge,
+                        { transform: [{ scale: pulseAnim }] },
+                      ]}
+                    >
+                      <Text style={styles.urgencyIcon}>⏰</Text>
+                      <CountdownTimer
+                        expiresAt={post.expires_at}
+                        style={styles.urgencyText}
+                        prefix=""
+                      />
+                    </Animated.View>
+                  );
+                }
+
                 return (
                   <Animated.View
                     style={[
-                      styles.urgencyBadge,
+                      styles.liveBadge,
                       { transform: [{ scale: pulseAnim }] },
                     ]}
                   >
-                    <Text style={styles.urgencyIcon}>⏰</Text>
-                    <CountdownTimer
-                      expiresAt={post.expires_at}
-                      style={styles.urgencyText}
-                      prefix=""
-                    />
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>Live Now</Text>
                   </Animated.View>
                 );
-              }
-
-              return (
-                <Animated.View
-                  style={[
-                    styles.liveBadge,
-                    { transform: [{ scale: pulseAnim }] },
-                  ]}
-                >
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveText}>Live Now</Text>
-                </Animated.View>
-              );
-            })()}
-          <View style={styles.challengePill}>
-            <Text style={styles.challengePillText}>Challenge</Text>
+              })()}
+            <View style={styles.challengePill}>
+              <Text style={styles.challengePillText}>Challenge</Text>
+            </View>
+          </View>
+          <View style={styles.rightHeaderContent}>
+            {isOwnPost && (onEdit || onDelete) && (
+              <TouchableOpacity
+                style={styles.ellipsisButton}
+                onPress={() => setShowMenu(!showMenu)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ellipsis size={20} color="#5B6B7C" />
+              </TouchableOpacity>
+            )}
+            <View style={styles.trophyContainer}>
+              <Ionicons name="trophy" size={24} color="#1976D2" />
+            </View>
           </View>
         </View>
-        <View style={styles.trophyContainer}>
-          <Ionicons name="trophy" size={24} color="#1976D2" />
-        </View>
-      </View>
 
-      {/* Author Row */}
-      <TouchableOpacity
-        style={styles.authorRow}
-        onPress={handleUserPress}
-        activeOpacity={0.7}
-      >
-        <Image
-          source={
-            post.author_photo_url
-              ? { uri: post.author_photo_url }
-              : { uri: "https://via.placeholder.com/32" }
-          }
-          style={styles.authorAvatar}
-        />
-        <Text style={styles.authorUsername} numberOfLines={1}>
-          @
-          {post.author_username ||
-            post.author_name?.toLowerCase().replace(/\s+/g, "") ||
-            "user"}
-        </Text>
-        <Text style={styles.separator}>•</Text>
-        <Text style={styles.timestampText}>
-          {formatTimeAgo(post.created_at).toUpperCase()}
-        </Text>
-      </TouchableOpacity>
+        {/* Edit/Delete Menu */}
+        {showMenu && isOwnPost && (
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                setShowEditModal(true);
+              }}
+            >
+              <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+              <Text style={styles.menuItemText}>Edit Post</Text>
+            </TouchableOpacity>
 
-      {/* Title & Description */}
-      <View style={styles.contentContainer}>
-        <Text style={styles.title}>{typeData.title}</Text>
-        {typeData.description && (
-          <Text style={styles.description}>{typeData.description}</Text>
-        )}
-
-        {/* Extension Badge */}
-        {post.extension_count > 0 && (
-          <View style={styles.extensionBadge}>
-            <Text style={styles.extensionBadgeText}>
-              {getExtensionBadgeText(post.extension_count)}
-            </Text>
+            {(onDelete || isOwnPost) && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  handleDelete();
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                  Delete Post
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
-      </View>
 
-      {/* Progress Bar (if joined) */}
-      {renderProgressBar()}
-
-      {/* Preview Submission */}
-      {renderPreviewSubmission()}
-
-      {/* Join/Submit Button */}
-      {isExpired ? (
-        <View style={styles.expiredContainer}>
-          <Text style={styles.expiredText}>This challenge has ended</Text>
-        </View>
-      ) : hasJoined ? (
-        <View style={styles.joinedButtonsRow}>
-          <TouchableOpacity
-            style={styles.submitProofButton}
-            onPress={() =>
-              navigation.navigate("ChallengeSubmit", {
-                post,
-                participation: userParticipation,
-              })
-            }
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={["#34C759", "#2E7D32"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <Ionicons
-              name={getSubmissionTypeIcon()}
-              size={18}
-              color="#FFFFFF"
-              style={{ zIndex: 1 }}
-            />
-            <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
-              Submit Proof
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.leaveButton}
-            onPress={handleJoinChallenge}
-            disabled={isJoining}
-          >
-            {isJoining ? (
-              <ActivityIndicator size="small" color={COLORS.textSecondary} />
-            ) : (
-              <Ionicons
-                name="exit-outline"
-                size={18}
-                color={COLORS.textSecondary}
-              />
-            )}
-          </TouchableOpacity>
-        </View>
-      ) : (
+        {/* Author Row */}
         <TouchableOpacity
-          style={styles.joinButtonContainer}
-          onPress={handleJoinChallenge}
-          disabled={isJoining}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-            colors={["#448AFF", "#2962FF"]} // Brighter/deeper blue gradient
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.joinButtonGradient}
-          >
-            {isJoining ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.joinButtonText}>Join Challenge</Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={18}
-                  color="#FFFFFF"
-                  style={{ marginLeft: 6 }}
-                />
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
-      {/* Participant Count (below CTA) - Clickable to view all */}
-      {participantCount > 0 && (
-        <TouchableOpacity
-          style={styles.participantCountContainer}
-          onPress={() => navigation.navigate("ChallengeSubmissions", { post })}
+          style={styles.authorRow}
+          onPress={handleUserPress}
           activeOpacity={0.7}
         >
-          <Text style={styles.participantCountText}>Joined by</Text>
-          <View style={[styles.participantAvatars, { marginLeft: 8 }]}>
-            {participantPreviews.length > 0 ? (
-              <>
-                {participantPreviews.slice(0, 3).map((participant, index) => (
-                  <View
-                    key={`${participant.participant_id}-${participant.participant_type}`}
-                    style={[
-                      styles.participantAvatarImage,
-                      { zIndex: 3 - index, marginLeft: index > 0 ? -10 : 0 },
-                    ]}
-                  >
-                    {participant.participant_photo_url ? (
-                      <Image
-                        source={{ uri: participant.participant_photo_url }}
-                        style={styles.participantAvatarImg}
-                      />
-                    ) : (
-                      <View style={styles.participantAvatarPlaceholder}>
-                        <Ionicons name="person" size={12} color="#FFFFFF" />
-                      </View>
-                    )}
-                  </View>
-                ))}
-                {participantCount > 3 && (
-                  <View
-                    style={[styles.participantCountBadge, { marginLeft: -10 }]}
-                  >
-                    <Text style={styles.participantCountBadgeText}>
-                      +{participantCount - 3}
-                    </Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              // Fallback to placeholder if no previews loaded yet
-              <>
-                <View style={[styles.participantAvatar, { zIndex: 3 }]}>
-                  <Ionicons name="person" size={10} color="#FFFFFF" />
-                </View>
-                <View
-                  style={[
-                    styles.participantAvatar,
-                    { zIndex: 2, marginLeft: -8 },
-                  ]}
-                >
-                  <Ionicons name="person" size={10} color="#FFFFFF" />
-                </View>
-                {participantCount > 2 && (
-                  <View
-                    style={[styles.participantCountBadge, { marginLeft: -8 }]}
-                  >
-                    <Text style={styles.participantCountBadgeText}>
-                      +{participantCount - 2}
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Engagement Row */}
-      <View style={styles.engagementRow}>
-        {/* Like */}
-        <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
-        >
-          <Heart
-            size={22}
-            color={isLiked ? COLORS.error : "#5e8d9b"}
-            fill={isLiked ? COLORS.error : "transparent"}
+          <Image
+            source={
+              post.author_photo_url
+                ? { uri: post.author_photo_url }
+                : { uri: "https://via.placeholder.com/32" }
+            }
+            style={styles.authorAvatar}
           />
-          <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
-            {formatCount(likeCount)}
+          <Text style={styles.authorName} numberOfLines={1}>
+            @{post.author_username || post.author_name}
           </Text>
-        </TouchableOpacity>
-
-        {/* Comment */}
-        <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={handleCommentPress}
-        >
-          <MessageCircle size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.comment_count || 0)}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Views */}
-        <View style={styles.engagementButton}>
-          <ChartNoAxesCombined size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.public_view_count || post.view_count || 0)}
-          </Text>
-        </View>
-
-        {/* Share */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-          <Send size={22} color="#5e8d9b" />
-          {(post.share_count || 0) > 0 && (
-            <Text style={styles.engagementCount}>
-              {formatCount(post.share_count)}
-            </Text>
+          <Text style={styles.separator}>•</Text>
+          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+          {post.edited_at && (
+            <>
+              <Text style={styles.separator}>•</Text>
+              <Text style={styles.editedLabel}>Edited</Text>
+            </>
           )}
         </TouchableOpacity>
 
-        {/* Bookmark */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={22}
-            color="#5e8d9b"
-            fill={isSaved ? "#5e8d9b" : "transparent"}
-          />
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
+        {/* Title & Description */}
+        <View style={styles.contentContainer}>
+          <Text style={styles.title}>{typeData.title}</Text>
+          {typeData.description && (
+            <Text style={styles.description}>{typeData.description}</Text>
+          )}
+
+          {/* Extension Badge */}
+          {post.extension_count > 0 && (
+            <View style={styles.extensionBadge}>
+              <Text style={styles.extensionBadgeText}>
+                {getExtensionBadgeText(post.extension_count)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Progress Bar (if joined) */}
+        {renderProgressBar()}
+
+        {/* Preview Submission */}
+        {renderPreviewSubmission()}
+
+        {/* Join/Submit Button */}
+        {isExpired ? (
+          <View style={styles.expiredContainer}>
+            <Text style={styles.expiredText}>This challenge has ended</Text>
+          </View>
+        ) : hasJoined ? (
+          <View style={styles.joinedButtonsRow}>
+            <TouchableOpacity
+              style={styles.submitProofButton}
+              onPress={() =>
+                navigation.navigate("ChallengeSubmit", {
+                  post,
+                  participation: userParticipation,
+                })
+              }
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#34C759", "#2E7D32"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <Ionicons
+                name={getSubmissionTypeIcon()}
+                size={18}
+                color="#FFFFFF"
+                style={{ zIndex: 1 }}
+              />
+              <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
+                Submit Proof
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.leaveButton}
+              onPress={handleJoinChallenge}
+              disabled={isJoining}
+            >
+              {isJoining ? (
+                <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              ) : (
+                <Ionicons
+                  name="exit-outline"
+                  size={18}
+                  color={COLORS.textSecondary}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.joinButtonContainer}
+            onPress={handleJoinChallenge}
+            disabled={isJoining}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={["#448AFF", "#2962FF"]} // Brighter/deeper blue gradient
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.joinButtonGradient}
+            >
+              {isJoining ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.joinButtonText}>Join Challenge</Text>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={18}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 6 }}
+                  />
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* Participant Count (below CTA) - Clickable to view all */}
+        {participantCount > 0 && (
+          <TouchableOpacity
+            style={styles.participantCountContainer}
+            onPress={() =>
+              navigation.navigate("ChallengeSubmissions", { post })
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={styles.participantCountText}>Joined by</Text>
+            <View style={[styles.participantAvatars, { marginLeft: 8 }]}>
+              {participantPreviews.length > 0 ? (
+                <>
+                  {participantPreviews.slice(0, 3).map((participant, index) => (
+                    <View
+                      key={`${participant.participant_id}-${participant.participant_type}`}
+                      style={[
+                        styles.participantAvatarImage,
+                        { zIndex: 3 - index, marginLeft: index > 0 ? -10 : 0 },
+                      ]}
+                    >
+                      {participant.participant_photo_url ? (
+                        <Image
+                          source={{ uri: participant.participant_photo_url }}
+                          style={styles.participantAvatarImg}
+                        />
+                      ) : (
+                        <View style={styles.participantAvatarPlaceholder}>
+                          <Ionicons name="person" size={12} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                  {participantCount > 3 && (
+                    <View
+                      style={[
+                        styles.participantCountBadge,
+                        { marginLeft: -10 },
+                      ]}
+                    >
+                      <Text style={styles.participantCountBadgeText}>
+                        +{participantCount - 3}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                // Fallback to placeholder if no previews loaded yet
+                <>
+                  <View style={[styles.participantAvatar, { zIndex: 3 }]}>
+                    <Ionicons name="person" size={10} color="#FFFFFF" />
+                  </View>
+                  <View
+                    style={[
+                      styles.participantAvatar,
+                      { zIndex: 2, marginLeft: -8 },
+                    ]}
+                  >
+                    <Ionicons name="person" size={10} color="#FFFFFF" />
+                  </View>
+                  {participantCount > 2 && (
+                    <View
+                      style={[styles.participantCountBadge, { marginLeft: -8 }]}
+                    >
+                      <Text style={styles.participantCountBadgeText}>
+                        +{participantCount - 2}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Engagement Row */}
+        <View style={styles.engagementRow}>
+          {/* Like */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <Heart
+              size={22}
+              color={isLiked ? COLORS.error : "#5e8d9b"}
+              fill={isLiked ? COLORS.error : "transparent"}
+            />
+            <Text
+              style={[styles.engagementCount, isLiked && styles.likedCount]}
+            >
+              {formatCount(likeCount)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Comment */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleCommentPress}
+          >
+            <MessageCircle size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.comment_count || 0)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Views */}
+          <View style={styles.engagementButton}>
+            <ChartNoAxesCombined size={22} color="#5e8d9b" />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.public_view_count || post.view_count || 0)}
+            </Text>
+          </View>
+
+          {/* Share */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleShare}
+          >
+            <Send size={22} color="#5e8d9b" />
+            {(post.share_count || 0) > 0 && (
+              <Text style={styles.engagementCount}>
+                {formatCount(post.share_count)}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Bookmark */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleSave}
+          >
+            <Bookmark
+              size={22}
+              color="#5e8d9b"
+              fill={isSaved ? "#5e8d9b" : "transparent"}
+            />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+      <ChallengeEditModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        post={post}
+        onSave={handleSaveEdit}
+        isLoading={isUpdating}
+      />
+    </>
   );
 };
 
@@ -733,6 +846,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rightHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ellipsisButton: {
+    padding: 8,
+  },
+  menuContainer: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    zIndex: 10,
+    minWidth: 150,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1D1D1F",
+  },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -744,16 +888,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginRight: 8,
   },
-  authorUsername: {
+  authorName: {
     fontSize: 13,
     fontWeight: "600",
     color: "#5e8d9b",
   },
   separator: {
+    color: COLORS.textTertiary,
+    marginHorizontal: 6,
     fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    marginHorizontal: 4,
+  },
+  timestamp: {
+    fontSize: 13,
+    color: COLORS.textTertiary,
+  },
+  editedLabel: {
+    fontSize: 13,
+    color: COLORS.textTertiary,
+    fontStyle: "italic",
   },
   timestampText: {
     fontSize: 10,

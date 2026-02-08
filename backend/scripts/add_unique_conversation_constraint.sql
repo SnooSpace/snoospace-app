@@ -1,16 +1,14 @@
--- Add unique constraint to prevent duplicate conversations
--- Run this AFTER running fix_duplicate_conversations.sql to clean up existing duplicates
+-- Migration: Fix poll_votes unique constraint for multiple selection support
+-- This allows users to vote for multiple options in polls with allow_multiple=true
 
--- Step 1: Create unique constraint on conversations table
--- This ensures only one conversation can exist between the same two participants
-ALTER TABLE conversations
-ADD CONSTRAINT unique_conversation_participants 
-UNIQUE (participant1_id, participant1_type, participant2_id, participant2_type);
+BEGIN;
 
--- Verification: Check that constraint was added
-SELECT 
-  constraint_name, 
-  constraint_type 
-FROM information_schema.table_constraints 
-WHERE table_name = 'conversations' 
-  AND constraint_type = 'UNIQUE';
+-- Drop the old constraint that prevented multiple votes per user
+ALTER TABLE poll_votes 
+DROP CONSTRAINT IF EXISTS unique_poll_vote;
+
+-- Add new constraint that allows multiple votes but prevents duplicate votes for same option
+ALTER TABLE poll_votes 
+ADD CONSTRAINT unique_poll_vote UNIQUE(post_id, voter_id, voter_type, option_index);
+
+COMMIT;

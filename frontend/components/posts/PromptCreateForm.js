@@ -271,14 +271,16 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
           {showDatePicker && (
             <DateTimePicker
               value={expiresAt || new Date()}
-              mode="datetime"
+              mode="date"
               is24Hour={false}
               display="default"
               onChange={(event, selectedDate) => {
-                setShowDatePicker(Platform.OS === "ios");
+                setShowDatePicker(false);
                 if (selectedDate) {
-                  setExpiresAt(selectedDate);
-                  updateData({ expiresAt: selectedDate.toISOString() });
+                  const date = new Date(selectedDate);
+                  date.setHours(23, 59, 59, 999);
+                  setExpiresAt(date);
+                  updateData({ expiresAt: date.toISOString() });
                 }
               }}
               minimumDate={new Date()}

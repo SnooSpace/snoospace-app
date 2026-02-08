@@ -93,6 +93,13 @@ export const SHADOWS = {
     shadowRadius: 6,
     elevation: 4,
   },
+  large: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   primaryGlow: {
     shadowColor: "#1976D2", // Blue Glow
     shadowOffset: { width: 0, height: 4 },

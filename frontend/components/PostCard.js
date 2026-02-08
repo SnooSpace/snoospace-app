@@ -27,6 +27,7 @@ const PostCard = ({
   onUserPress,
   onLike,
   onComment,
+  onPostUpdate,
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
@@ -38,6 +39,7 @@ const PostCard = ({
       <PollPostCard
         post={post}
         onUserPress={onUserPress}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -49,6 +51,7 @@ const PostCard = ({
       <PromptPostCard
         post={post}
         onUserPress={onUserPress}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -60,6 +63,7 @@ const PostCard = ({
       <QnAPostCard
         post={post}
         onUserPress={onUserPress}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -71,6 +75,7 @@ const PostCard = ({
       <ChallengePostCard
         post={post}
         onUserPress={onUserPress}
+        onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -84,6 +89,7 @@ const PostCard = ({
       onUserPress={onUserPress}
       onLike={onLike}
       onComment={onComment}
+      onPostUpdate={onPostUpdate}
       currentUserId={currentUserId}
       currentUserType={currentUserType}
       isVideoPlaying={isVideoPlaying}

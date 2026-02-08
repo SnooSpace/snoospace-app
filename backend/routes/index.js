@@ -843,6 +843,7 @@ router.get(
 );
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
+router.put("/posts/:postId", authMiddleware, PostController.updatePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
 
 // Post Views (Qualified View System)
