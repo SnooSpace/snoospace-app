@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Alert,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { getAuthToken } from "../api/auth";
+import { getAuthToken, getActiveAccount } from "../api/auth";
 import {
   COLORS,
   FONTS,
@@ -35,9 +37,21 @@ const OpportunityFeedCard = ({
   onPress,
   onLike,
   onComment,
-  onSave,
   onShare,
 }) => {
+  const navigation = useNavigation();
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      const account = await getActiveAccount();
+      if (account?.id) {
+        // console.log("[OpportunityCard] CurrentUser:", account.id, "Creator:", opportunity.creator_id);
+        setCurrentUserId(account.id);
+      }
+    };
+    fetchUser();
+  }, [opportunity.creator_id]);
   const formatTimeAgo = (dateStr) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -171,8 +185,28 @@ const OpportunityFeedCard = ({
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
           </View>
-          <View style={styles.iconContainer}>
-            <Ionicons name="briefcase" size={24} color="#2D3748" />
+
+          <View style={styles.rightHeaderContent}>
+            {/* Use loose equality for safety if IDs are mixed string/number */}
+            {opportunity.creator_id == currentUserId && (
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() =>
+                  navigation.navigate("CreateOpportunityScreen", {
+                    opportunityToEdit: opportunity,
+                  })
+                }
+              >
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={20}
+                  color="#5B6B7C"
+                />
+              </TouchableOpacity>
+            )}
+            <View style={styles.iconContainer}>
+              <Ionicons name="briefcase" size={24} color="#2D3748" />
+            </View>
           </View>
         </View>
 
@@ -216,29 +250,6 @@ const OpportunityFeedCard = ({
           </ScrollView>
         )}
 
-        {/* Countdown Timer (if expires_at is set and not closed) */}
-        {opportunity.expires_at && !opportunity.closed_at && (
-          <View style={styles.countdownContainer}>
-            <Text style={styles.countdownIcon}>⏰</Text>
-            <Text style={styles.countdownLabel}>Applications close in </Text>
-            <CountdownTimer
-              expiresAt={opportunity.expires_at}
-              style={styles.countdownText}
-              prefix=""
-            />
-          </View>
-        )}
-
-        {/* Closed Banner (if manually closed or expired) */}
-        {(opportunity.closed_at ||
-          (opportunity.expires_at &&
-            new Date(opportunity.expires_at) < new Date())) && (
-          <View style={styles.closedBanner}>
-            <Text style={styles.closedIcon}>🚫</Text>
-            <Text style={styles.closedText}>Applications Closed</Text>
-          </View>
-        )}
-
         {/* Details Row */}
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
@@ -256,32 +267,56 @@ const OpportunityFeedCard = ({
 
         {/* Footer Row */}
         <View style={styles.footerRow}>
-          {/* Applicant Stack / Count */}
-          <View style={styles.applicantStack}>
-            {opportunity.applicants && opportunity.applicants.length > 0 ? (
+          {/* Footer Left: Applicants + Timer/Ended */}
+          <View style={styles.footerLeft}>
+            {/* Applicant Stack / Count */}
+            <View style={styles.applicantStack}>
+              {opportunity.applicants && opportunity.applicants.length > 0 ? (
+                <>
+                  {opportunity.applicants
+                    .slice(0, 3)
+                    .map((applicant, index) => (
+                      <Image
+                        key={index}
+                        source={{ uri: applicant.photo_url }}
+                        style={[
+                          styles.applicantAvatar,
+                          { marginLeft: index > 0 ? -10 : 0 },
+                        ]}
+                      />
+                    ))}
+                  {opportunity.applicant_count > 3 && (
+                    <Text style={styles.applicantCount}>
+                      +{opportunity.applicant_count - 3}
+                    </Text>
+                  )}
+                </>
+              ) : opportunity.applicant_count > 0 ? (
+                <Text style={styles.applicantCountText}>
+                  {opportunity.applicant_count} applicants
+                </Text>
+              ) : (
+                <Text style={styles.applicantCountText}>Be the first</Text>
+              )}
+            </View>
+
+            {/* Separator and Deadline/Ended Chip */}
+            {(opportunity.expires_at || opportunity.closed_at) && (
               <>
-                {opportunity.applicants.slice(0, 3).map((applicant, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri: applicant.photo_url }}
-                    style={[
-                      styles.applicantAvatar,
-                      { marginLeft: index > 0 ? -10 : 0 },
-                    ]}
+                <Text style={styles.footerSeparator}>•</Text>
+                {opportunity.closed_at ||
+                (opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date()) ? (
+                  <View style={styles.endedBadge}>
+                    <Text style={styles.endedBadgeText}>Ended</Text>
+                  </View>
+                ) : (
+                  <CountdownTimer
+                    expiresAt={opportunity.expires_at}
+                    style={styles.expiryText}
                   />
-                ))}
-                {opportunity.applicant_count > 3 && (
-                  <Text style={styles.applicantCount}>
-                    +{opportunity.applicant_count - 3}
-                  </Text>
                 )}
               </>
-            ) : opportunity.applicant_count > 0 ? (
-              <Text style={styles.applicantCountText}>
-                {opportunity.applicant_count} applicants
-              </Text>
-            ) : (
-              <Text style={styles.applicantCountText}>Be the first</Text>
             )}
           </View>
 
@@ -445,7 +480,21 @@ const styles = StyleSheet.create({
   iconContainer: {
     backgroundColor: "#FFFFFF",
     padding: 10,
-    borderRadius: 25,
+    borderRadius: 12, // Match ChallengeCard trophy container radius
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44, // Fixed size like ChallengeCard
+    height: 44,
+  },
+  rightHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editButton: {
+    padding: 8,
+    // Removed background color to match ChallengeCard style if desired, or keep it
+    // ChallengeCard uses simple opacity/icon
   },
   authorRow: {
     flexDirection: "row",
@@ -601,6 +650,30 @@ const styles = StyleSheet.create({
   applyButtonDisabled: {
     shadowColor: "#6B7280",
     opacity: 0.7,
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footerSeparator: {
+    color: COLORS.textTertiary,
+    marginHorizontal: 8,
+    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
+  },
+  expiryText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  endedBadge: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  endedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#DC2626",
   },
   applyButtonGradient: {
     flexDirection: "row",

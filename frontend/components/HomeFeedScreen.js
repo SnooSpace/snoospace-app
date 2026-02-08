@@ -32,7 +32,10 @@ import {
   getPendingAttendanceEvent,
   confirmAttendance,
 } from "../api/events";
-import { getFollowedOpportunities } from "../api/opportunities";
+import {
+  getFollowedOpportunities,
+  getOpportunities,
+} from "../api/opportunities";
 import EditorialPostCard from "./EditorialPostCard";
 import EventCard from "./EventCard";
 import OpportunityFeedCard from "./OpportunityFeedCard";
@@ -310,12 +313,69 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  // Load opportunities from followed communities
+  // Load opportunities based on role
   const loadOpportunities = async () => {
     try {
-      const response = await getFollowedOpportunities(3);
-      if (response?.success && response?.opportunities) {
-        setOpportunities(response.opportunities);
+      let response;
+      if (role === "community") {
+        // For communities, load THEIR OWN active opportunities
+        // And inject their profile info since it might be missing in "my opportunities" endpoint
+        const { getActiveAccount } = await import("../api/auth");
+        const token = await getAuthToken();
+        const account = await getActiveAccount();
+
+        let profile = null;
+        if (token && account?.email) {
+          try {
+            const profileRes = await apiPost(
+              "/auth/get-user-profile",
+              { email: account.email },
+              10000,
+              token,
+            );
+            profile = profileRes?.profile;
+          } catch (e) {
+            console.warn(
+              "Failed to fetch profile for opportunity injection",
+              e,
+            );
+          }
+        }
+
+        response = await getOpportunities("active");
+
+        // Inject creator info
+        if (
+          response &&
+          (response.opportunities || response.data || Array.isArray(response))
+        ) {
+          const rawOpps = response.opportunities || response.data || response;
+          if (Array.isArray(rawOpps) && profile) {
+            const injectedOpps = rawOpps.map((op) => ({
+              ...op,
+              creator_name:
+                op.creator_name ||
+                profile.name ||
+                profile.full_name ||
+                profile.username,
+              creator_photo:
+                op.creator_photo ||
+                profile.logo_url ||
+                profile.profile_picture ||
+                profile.photo_url,
+              creator_id: op.creator_id || profile.id,
+            }));
+            response = { opportunities: injectedOpps };
+          }
+        }
+      } else {
+        // For members, load followed opportunities
+        response = await getFollowedOpportunities(3);
+      }
+
+      const opps = response?.opportunities || response?.data || [];
+      if (Array.isArray(opps)) {
+        setOpportunities(opps);
       }
     } catch (error) {
       console.warn("[HomeFeed] Error loading opportunities:", error.message);
@@ -335,14 +395,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
     const merged = [];
     let eventIndex = 0;
+    let opportunityIndex = 0;
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
+    const OPPORTUNITY_INTERVAL = 3;
 
     if (posts.length > 0) {
       posts.forEach((post, index) => {
         merged.push({ ...post, itemType: "post" });
 
         const postNumber = index + 1;
+
+        // Insert Event
         const shouldInsertEvent =
           (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
           (eventIndex > 0 &&
@@ -353,26 +417,39 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           merged.push({ ...events[eventIndex], itemType: "event" });
           eventIndex++;
         }
+
+        // Insert Opportunity (Distributed every 3rd post)
+        if (
+          postNumber % OPPORTUNITY_INTERVAL === 0 &&
+          opportunityIndex < opportunities.length
+        ) {
+          merged.push({
+            ...opportunities[opportunityIndex],
+            itemType: "opportunity",
+          });
+          opportunityIndex++;
+        }
       });
 
+      // Append remaining events
       while (eventIndex < events.length) {
         merged.push({ ...events[eventIndex], itemType: "event" });
         eventIndex++;
       }
+
+      // Append remaining opportunities
+      while (opportunityIndex < opportunities.length) {
+        merged.push({
+          ...opportunities[opportunityIndex],
+          itemType: "opportunity",
+        });
+        opportunityIndex++;
+      }
     } else {
+      // If no posts, just show events then opportunities
       events.forEach((event) => {
         merged.push({ ...event, itemType: "event" });
       });
-    }
-
-    // Add opportunities after the first few items if available
-    if (opportunities.length > 0 && merged.length > 3) {
-      merged.splice(
-        3,
-        0,
-        ...opportunities.map((opp) => ({ ...opp, itemType: "opportunity" })),
-      );
-    } else {
       opportunities.forEach((opp) => {
         merged.push({ ...opp, itemType: "opportunity" });
       });

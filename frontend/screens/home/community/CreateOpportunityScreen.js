@@ -21,9 +21,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { COLORS } from "../../../constants/theme";
-import { createOpportunity } from "../../../api/opportunities";
+import {
+  createOpportunity,
+  updateOpportunity,
+} from "../../../api/opportunities";
 import { getActiveAccount } from "../../../api/auth";
 import {
   saveOpportunityDraft,
@@ -107,6 +111,8 @@ const TOTAL_STEPS = 8;
 export default function CreateOpportunityScreen({ navigation, route }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const opportunityToEdit = route.params?.opportunityToEdit;
+  const isEditing = !!opportunityToEdit;
 
   // Draft state
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
@@ -142,6 +148,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [availability, setAvailability] = useState("");
   const [turnaround, setTurnaround] = useState("");
   const [timezone, setTimezone] = useState("");
+  const [expiresAt, setExpiresAt] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Step 4: Skill Groups
   const [skillGroups, setSkillGroups] = useState([]);
@@ -159,10 +167,41 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [visibility, setVisibility] = useState("public");
   const [notifyTalent, setNotifyTalent] = useState(true);
 
-  // Check for draft on mount
+  // Check for draft on mount (only if NOT editing)
   useEffect(() => {
-    checkForDraft();
+    if (isEditing) {
+      loadEditData();
+    } else {
+      checkForDraft();
+    }
   }, []);
+
+  const loadEditData = () => {
+    if (!opportunityToEdit) return;
+    const data = opportunityToEdit;
+
+    setTitle(data.title || "");
+    setSelectedTypes(data.opportunity_types || data.roles || []);
+    setWorkType(data.work_type || "one_time");
+    setWorkMode(data.work_mode || "remote");
+    setEventId(data.event_id || null);
+    setExperienceLevel(data.experience_level || "any");
+    setAvailability(data.availability || "");
+    setTurnaround(data.turnaround || "");
+    setTimezone(data.timezone || "");
+    setSkillGroups(data.skill_groups || []);
+    setEligibilityMode(data.eligibility_mode || "any_one");
+    setPaymentType(data.payment_type || "fixed");
+    setBudgetRange(data.budget_range || "");
+    setPaymentNature(data.payment_nature || "paid");
+    setQuestions(data.questions || []);
+    setVisibility(data.visibility || "public");
+    setNotifyTalent(data.notify_talent !== false);
+
+    if (data.expires_at) {
+      setExpiresAt(new Date(data.expires_at));
+    }
+  };
 
   const checkForDraft = async () => {
     try {
@@ -193,6 +232,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     availability,
     turnaround,
     timezone,
+    expiresAt: expiresAt ? expiresAt.toISOString() : null,
     skillGroups,
     eligibilityMode,
     paymentType,
@@ -234,6 +274,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         setAvailability(draft.data.availability || "");
         setTurnaround(draft.data.turnaround || "");
         setTimezone(draft.data.timezone || "");
+        setExpiresAt(
+          draft.data.expiresAt ? new Date(draft.data.expiresAt) : null,
+        );
         setSkillGroups(draft.data.skillGroups || []);
         setEligibilityMode(draft.data.eligibilityMode || "any_one");
         setPaymentType(draft.data.paymentType || "fixed");
@@ -262,6 +305,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   };
 
   const handleClose = () => {
+    if (isEditing) {
+      navigation.goBack();
+      return;
+    }
     if (title.trim() === "" && selectedTypes.length === 0) {
       navigation.goBack();
       return;
@@ -446,6 +493,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         availability: availability.trim(),
         turnaround: turnaround.trim(),
         timezone: timezone.trim() || null,
+        expires_at: expiresAt ? expiresAt.toISOString() : null,
         payment_type: paymentType,
         budget_range: budgetRange.trim() || null,
         payment_nature: paymentNature,
@@ -457,14 +505,25 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         status: asDraft ? "draft" : "active",
       };
 
-      const response = await createOpportunity(payload);
+      let response;
+      if (isEditing && !asDraft) {
+        response = await updateOpportunity(opportunityToEdit.id, payload);
+      } else {
+        response = await createOpportunity(payload);
+      }
 
       if (response?.success) {
         Alert.alert(
-          asDraft ? "Draft Saved" : "Opportunity Published",
+          asDraft
+            ? "Draft Saved"
+            : isEditing
+              ? "Opportunity Updated"
+              : "Opportunity Published",
           asDraft
             ? "Your opportunity draft has been saved."
-            : "Your opportunity is now live!",
+            : isEditing
+              ? "Your opportunity has been successfully updated."
+              : "Your opportunity is now live!",
           [{ text: "OK", onPress: () => navigation.goBack() }],
         );
       }
@@ -731,6 +790,38 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         placeholder="e.g., IST, EST, or Any"
         placeholderTextColor={LIGHT_TEXT_COLOR}
       />
+
+      <Text style={styles.label}>Application Deadline (Optional)</Text>
+      <TouchableOpacity
+        style={styles.input}
+        onPress={() => setShowDatePicker(true)}
+      >
+        <Text style={{ color: expiresAt ? TEXT_COLOR : LIGHT_TEXT_COLOR }}>
+          {expiresAt
+            ? expiresAt.toLocaleDateString("en-US", {
+                weekday: "short",
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : "Select Deadline"}
+        </Text>
+      </TouchableOpacity>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={expiresAt || new Date()}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          minimumDate={new Date()}
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              setExpiresAt(selectedDate);
+            }
+          }}
+        />
+      )}
     </ScrollView>
   );
 
@@ -1168,6 +1259,16 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </Text>
         <Text style={styles.reviewBullet}>• {availability}</Text>
         <Text style={styles.reviewBullet}>• {turnaround}</Text>
+        {expiresAt && (
+          <Text style={styles.reviewBullet}>
+            • Deadline:{" "}
+            {expiresAt.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </Text>
+        )}
 
         <View style={styles.reviewDivider} />
 
@@ -1228,7 +1329,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Opportunity</Text>
+          <Text style={styles.headerTitle}>
+            {isEditing ? "Edit Opportunity" : "Create Opportunity"}
+          </Text>
           <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
@@ -1253,13 +1356,15 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <View style={styles.footer}>
           {currentStep === TOTAL_STEPS ? (
             <View style={styles.publishButtons}>
-              <TouchableOpacity
-                style={styles.draftButton}
-                onPress={() => handlePublish(true)}
-                disabled={saving}
-              >
-                <Text style={styles.draftButtonText}>Save as Draft</Text>
-              </TouchableOpacity>
+              {!isEditing && (
+                <TouchableOpacity
+                  style={styles.draftButton}
+                  onPress={() => handlePublish(true)}
+                  disabled={saving}
+                >
+                  <Text style={styles.draftButtonText}>Save as Draft</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={styles.publishButton}
                 onPress={() => handlePublish(false)}
@@ -1276,7 +1381,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   ) : (
                     <>
                       <Ionicons name="rocket" size={20} color="#FFFFFF" />
-                      <Text style={styles.publishButtonText}>Publish</Text>
+                      <Text style={styles.publishButtonText}>
+                        {isEditing ? "Update Opportunity" : "Publish"}
+                      </Text>
                     </>
                   )}
                 </LinearGradient>
