@@ -39,6 +39,7 @@ import {
   Send,
   Bookmark,
   Ellipsis,
+  Check,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
@@ -272,7 +273,7 @@ const QnAPostCard = ({
           {/* Top Answer Header */}
           <View style={styles.topAnswerHeader}>
             <View style={styles.topAnswerBadge}>
-              <Text style={styles.topAnswerBadgeText}>TOP ANSWER</Text>
+              <Text style={styles.topAnswerBadgeText}>TOP QUESTION</Text>
             </View>
 
             <View style={styles.topAnswerMeta}>
@@ -435,8 +436,8 @@ const QnAPostCard = ({
           >
             <Text style={styles.viewAllText}>
               {questionCount === 1
-                ? "View 1 answer"
-                : `View all ${questionCount} answers`}
+                ? "View 1 question"
+                : `View all ${questionCount} questions`}
             </Text>
             <Ionicons
               name="arrow-forward"
@@ -449,20 +450,26 @@ const QnAPostCard = ({
 
         {/* Footer Row */}
         <View style={styles.footerRow}>
-          <Text style={styles.votesText}>
-            {typeData.vote_count || 0} votes total
-          </Text>
-
           <TouchableOpacity
             style={styles.addAnswerCTA}
             onPress={handleAddAnswer}
+            disabled={userQuestionCount > 0}
           >
-            <Text style={styles.addAnswerText}>Add your answer </Text>
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={16}
-              color="#5e8d9b"
-            />
+            {userQuestionCount > 0 ? (
+              <>
+                <Text style={styles.addAnswerText}>Asked </Text>
+                <Check size={16} color="#5e8d9b" />
+              </>
+            ) : (
+              <>
+                <Text style={styles.addAnswerText}>Ask a question </Text>
+                <MaterialCommunityIcons
+                  name="pencil-outline"
+                  size={16}
+                  color="#5e8d9b"
+                />
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -804,7 +811,7 @@ const styles = StyleSheet.create({
   // Footer Row
   footerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
     paddingTop: 8,
   },
