@@ -27,6 +27,7 @@ import {
 } from "../../constants/theme";
 import AnimatedProgressBar from "./AnimatedProgressBar";
 import PollEditModal from "./PollEditModal";
+import PollVotersModal from "../modals/PollVotersModal";
 import { postService } from "../../services/postService";
 import {
   Heart,
@@ -62,6 +63,7 @@ const PollPostCard = ({
   const [votingIndex, setVotingIndex] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showVotersModal, setShowVotersModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Sync state with props whenever they change (important for FlatList recycling)
@@ -391,9 +393,13 @@ const PollPostCard = ({
                 <Ellipsis size={20} color="#5B6B7C" />
               </TouchableOpacity>
             )}
-            <View style={styles.pollIconContainer}>
+            <TouchableOpacity
+              style={styles.pollIconContainer}
+              onPress={() => setShowVotersModal(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="stats-chart" size={24} color="#3b65e4" />
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -553,6 +559,14 @@ const PollPostCard = ({
         )}
       </View>
       {renderModal()}
+
+      {/* Poll Voters Modal */}
+      <PollVotersModal
+        visible={showVotersModal}
+        onClose={() => setShowVotersModal(false)}
+        postId={post.id}
+        options={options}
+      />
     </>
   );
 };

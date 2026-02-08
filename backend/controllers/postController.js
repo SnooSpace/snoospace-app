@@ -1305,22 +1305,67 @@ const getUserPosts = async (req, res) => {
       return parsedPost;
     });
 
-    // Determine pagination metadata
-    const hasMore = posts.length > parsedLimit;
-    const trimmedPosts = hasMore ? posts.slice(0, parsedLimit) : posts;
-    const nextCursor =
-      trimmedPosts.length > 0
-        ? trimmedPosts[trimmedPosts.length - 1].created_at
-        : null;
+    // Add interaction status for polls (has_voted, voted_indexes)
+    if (viewerId && viewerType) {
+      const postsWithInteractions = await Promise.all(
+        posts.map(async (post) => {
+          const postType = post.post_type || "media";
 
-    console.log(
-      `[getUserPosts] hasMore: ${hasMore}, nextCursor: ${nextCursor}`,
-    );
-    res.json({
-      posts: trimmedPosts,
-      next_cursor: nextCursor,
-      has_more: hasMore,
-    });
+          if (postType === "poll") {
+            // Check if user has voted on this poll
+            const voteResult = await pool.query(
+              `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
+              [post.id, viewerId, viewerType],
+            );
+
+            return {
+              ...post,
+              has_voted: voteResult.rows.length > 0,
+              voted_indexes: voteResult.rows.map((r) => r.option_index),
+            };
+          }
+
+          return post;
+        }),
+      );
+
+      // Determine pagination metadata using posts with interactions
+      const hasMore = postsWithInteractions.length > parsedLimit;
+      const trimmedPosts = hasMore
+        ? postsWithInteractions.slice(0, parsedLimit)
+        : postsWithInteractions;
+      const nextCursor =
+        trimmedPosts.length > 0
+          ? trimmedPosts[trimmedPosts.length - 1].created_at
+          : null;
+
+      console.log(
+        `[getUserPosts] hasMore: ${hasMore}, nextCursor: ${nextCursor}`,
+      );
+      res.json({
+        posts: trimmedPosts,
+        next_cursor: nextCursor,
+        has_more: hasMore,
+      });
+    } else {
+      // No viewer info - return posts without interaction status (fallback)
+      // Determine pagination metadata
+      const hasMore = posts.length > parsedLimit;
+      const trimmedPosts = hasMore ? posts.slice(0, parsedLimit) : posts;
+      const nextCursor =
+        trimmedPosts.length > 0
+          ? trimmedPosts[trimmedPosts.length - 1].created_at
+          : null;
+
+      console.log(
+        `[getUserPosts] hasMore: ${hasMore}, nextCursor: ${nextCursor}`,
+      );
+      res.json({
+        posts: trimmedPosts,
+        next_cursor: nextCursor,
+        has_more: hasMore,
+      });
+    }
   } catch (error) {
     console.error("Error getting user posts:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -1644,6 +1689,84 @@ const deletePost = async (req, res) => {
   }
 };
 
+// Get poll voters grouped by option
+const getPollVoters = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    // Check if post exists and is a poll
+    const postCheck = await pool.query(
+      "SELECT post_type FROM posts WHERE id = $1",
+      [postId],
+    );
+
+    if (postCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    if (postCheck.rows[0].post_type !== "poll") {
+      return res.status(400).json({ error: "Post is not a poll" });
+    }
+
+    // Fetch all votes with voter profile information
+    const votesQuery = `
+      SELECT 
+        pv.option_index,
+        pv.voter_id,
+        pv.voter_type,
+        pv.created_at as voted_at,
+        CASE 
+          WHEN pv.voter_type = 'member' THEN m.name
+          WHEN pv.voter_type = 'community' THEN c.name
+          WHEN pv.voter_type = 'sponsor' THEN s.brand_name
+        END as voter_name,
+        CASE 
+          WHEN pv.voter_type = 'member' THEN m.username
+          WHEN pv.voter_type = 'community' THEN c.username
+          WHEN pv.voter_type = 'sponsor' THEN s.username
+        END as voter_username,
+        CASE 
+          WHEN pv.voter_type = 'member' THEN m.profile_photo_url
+          WHEN pv.voter_type = 'community' THEN c.logo_url
+          WHEN pv.voter_type = 'sponsor' THEN s.logo_url
+        END as voter_photo_url
+      FROM poll_votes pv
+      LEFT JOIN members m ON pv.voter_type = 'member' AND pv.voter_id = m.id
+      LEFT JOIN communities c ON pv.voter_type = 'community' AND pv.voter_id = c.id
+      LEFT JOIN sponsors s ON pv.voter_type = 'sponsor' AND pv.voter_id = s.id
+      WHERE pv.post_id = $1
+      ORDER BY pv.option_index, pv.created_at DESC
+    `;
+
+    const votesResult = await pool.query(votesQuery, [postId]);
+
+    // Group voters by option_index
+    const votersByOption = {};
+    votesResult.rows.forEach((vote) => {
+      const optionIndex = vote.option_index;
+      if (!votersByOption[optionIndex]) {
+        votersByOption[optionIndex] = [];
+      }
+      votersByOption[optionIndex].push({
+        voter_id: vote.voter_id,
+        voter_type: vote.voter_type,
+        voter_name: vote.voter_name,
+        voter_username: vote.voter_username,
+        voter_photo_url: vote.voter_photo_url,
+        voted_at: vote.voted_at,
+      });
+    });
+
+    res.json({
+      voters_by_option: votersByOption,
+      total_votes: votesResult.rows.length,
+    });
+  } catch (error) {
+    console.error("Error getting poll voters:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -1654,4 +1777,5 @@ module.exports = {
   getUserPosts,
   updatePost,
   deletePost,
+  getPollVoters,
 };

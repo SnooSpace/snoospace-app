@@ -841,6 +841,11 @@ router.get(
   authMiddleware,
   PostController.getUserPosts,
 );
+router.get(
+  "/posts/:postId/poll-voters",
+  authMiddleware,
+  PostController.getPollVoters,
+);
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
 router.put("/posts/:postId", authMiddleware, PostController.updatePost);

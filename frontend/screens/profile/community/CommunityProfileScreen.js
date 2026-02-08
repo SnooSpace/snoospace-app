@@ -414,6 +414,19 @@ export default function CommunityProfileScreen({ navigation }) {
           token,
         );
         userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
+
+        // Debug: Check if poll posts have vote data
+        const pollPosts = userPosts.filter(
+          (p) => p.post_type === "poll" || p.type === "poll",
+        );
+        if (pollPosts.length > 0) {
+          console.log("[CommunityProfile] Poll post data:", {
+            postId: pollPosts[0].id,
+            has_voted: pollPosts[0].has_voted,
+            voted_indexes: pollPosts[0].voted_indexes,
+            typeData: pollPosts[0].type_data,
+          });
+        }
       } catch {}
 
       const normalizedCategories = (() => {
