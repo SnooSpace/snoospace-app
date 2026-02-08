@@ -450,6 +450,13 @@ const QnAPostCard = ({
 
         {/* Footer Row */}
         <View style={styles.footerRow}>
+          {isExpired ? (
+            <View style={styles.endedBadge}>
+              <Text style={styles.endedBadgeText}>Ended</Text>
+            </View>
+          ) : (
+            <View />
+          )}
           <TouchableOpacity
             style={styles.addAnswerCTA}
             onPress={handleAddAnswer}
@@ -575,6 +582,18 @@ const styles = StyleSheet.create({
     color: "#3F7CF4",
     fontSize: 10,
     fontFamily: "BasicCommercial-Bold",
+    letterSpacing: 0.5,
+  },
+  endedBadge: {
+    backgroundColor: "#FEE2E2", // Light red background
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  endedBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 10,
+    color: "#DC2626", // Red text
     letterSpacing: 0.5,
   },
   leftHeaderContent: {
@@ -811,7 +830,7 @@ const styles = StyleSheet.create({
   // Footer Row
   footerRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 8,
   },

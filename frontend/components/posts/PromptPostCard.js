@@ -309,12 +309,7 @@ const PromptPostCard = ({
             const ageHours =
               (new Date() - new Date(post.created_at)) / (1000 * 60 * 60);
             if (ageHours >= 72) {
-              return (
-                <View style={styles.evergreenBadge}>
-                  <Text style={styles.evergreenIcon}>♻️</Text>
-                  <Text style={styles.evergreenText}>Evergreen</Text>
-                </View>
-              );
+              
             }
             return null;
           })()}
@@ -403,10 +398,6 @@ const PromptPostCard = ({
           />
           <Text style={styles.submittedText}>You've already responded</Text>
         </View>
-      ) : isExpired ? (
-        <View style={styles.expiredContainer}>
-          <Text style={styles.expiredText}>This prompt has ended</Text>
-        </View>
       ) : (
         <TouchableOpacity
           style={styles.tapToAnswerButton}
@@ -422,13 +413,23 @@ const PromptPostCard = ({
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.responseCount}>
-          {formatNumber(submissionCount)} response
-          {submissionCount !== 1 ? "s" : ""}
-          {totalReplyCount > 0
-            ? ` • ${formatNumber(totalReplyCount)} repl${totalReplyCount !== 1 ? "ies" : "y"}`
-            : ""}
-        </Text>
+        <View style={styles.footerLeft}>
+          <Text style={styles.responseCount}>
+            {formatNumber(submissionCount)} response
+            {submissionCount !== 1 ? "s" : ""}
+            {totalReplyCount > 0
+              ? ` • ${formatNumber(totalReplyCount)} repl${totalReplyCount !== 1 ? "ies" : "y"}`
+              : ""}
+          </Text>
+          {isExpired && (
+            <>
+              <Text style={styles.separator}>•</Text>
+              <View style={[styles.endedBadge, { marginLeft: 4 }]}>
+                <Text style={styles.endedBadgeText}>Ended</Text>
+              </View>
+            </>
+          )}
+        </View>
         <TouchableOpacity
           style={styles.viewAllButton}
           onPress={() => navigation.navigate("PromptSubmissions", { post })}
@@ -602,6 +603,18 @@ const styles = StyleSheet.create({
     color: "#C85A47", // Muted coral-red
     letterSpacing: 0.5,
   },
+  endedBadge: {
+    backgroundColor: "#FEE2E2", // Light red background
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  endedBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 10,
+    color: "#DC2626", // Red text
+    letterSpacing: 0.5,
+  },
   leftHeaderContent: {
     flexDirection: "row",
     alignItems: "center",
@@ -743,6 +756,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: SPACING.m,
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   responseCount: {
     fontSize: 14,

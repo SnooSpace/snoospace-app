@@ -169,7 +169,7 @@ const OpportunityFeedCard = ({
         {/* Header Row: Badge & Icon */}
         <View style={styles.headerRow}>
           <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>GIG</Text>
+            <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
           </View>
           <View style={styles.iconContainer}>
             <Ionicons name="briefcase" size={24} color="#2D3748" />

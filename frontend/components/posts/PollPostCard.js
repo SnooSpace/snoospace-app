@@ -476,12 +476,20 @@ const PollPostCard = ({
           <Text style={styles.voteCount}>
             {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
           </Text>
-          {post.expires_at && (
-            <CountdownTimer
-              expiresAt={post.expires_at}
-              style={[styles.expiryText, isExpired && styles.expiredText]}
-            />
-          )}
+          {post.expires_at &&
+            (isExpired ? (
+              <>
+                <Text style={styles.separator}>•</Text>
+                <View style={[styles.endedBadge, { marginLeft: 4 }]}>
+                  <Text style={styles.endedBadgeText}>Ended</Text>
+                </View>
+              </>
+            ) : (
+              <CountdownTimer
+                expiresAt={post.expires_at}
+                style={[styles.expiryText, isExpired && styles.expiredText]}
+              />
+            ))}
         </View>
 
         {/* Engagement Row */}
@@ -550,13 +558,6 @@ const PollPostCard = ({
             />
           </TouchableOpacity>
         </View>
-
-        {/* Expired Overlay */}
-        {isExpired && !hasVoted && (
-          <View style={styles.expiredOverlay}>
-            <Text style={styles.expiredOverlayText}>Poll ended</Text>
-          </View>
-        )}
       </View>
       {renderModal()}
 
@@ -635,6 +636,19 @@ const styles = StyleSheet.create({
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
     color: "#5B6B7C", // Deeper neutral blue
+    letterSpacing: 0.5,
+  },
+  endedBadge: {
+    backgroundColor: "#FEE2E2", // Light red background
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  endedBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 10,
+    color: "#DC2626", // Red text
     letterSpacing: 0.5,
   },
   authorRow: {

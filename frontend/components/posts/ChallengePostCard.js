@@ -457,6 +457,11 @@ const ChallengePostCard = ({
         {/* Header Row: Badge & Trophy Icon */}
         <View style={styles.headerRow}>
           <View style={styles.badgesRow}>
+            {isExpired && (
+              <View style={styles.endedBadge}>
+                <Text style={styles.endedBadgeText}>Ended</Text>
+              </View>
+            )}
             {!isExpired &&
               (() => {
                 const remaining = getTimeRemaining(post.expires_at);
@@ -595,11 +600,7 @@ const ChallengePostCard = ({
         {renderPreviewSubmission()}
 
         {/* Join/Submit Button */}
-        {isExpired ? (
-          <View style={styles.expiredContainer}>
-            <Text style={styles.expiredText}>This challenge has ended</Text>
-          </View>
-        ) : hasJoined ? (
+        {!isExpired && hasJoined ? (
           <View style={styles.joinedButtonsRow}>
             <TouchableOpacity
               style={styles.submitProofButton}
@@ -921,6 +922,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  endedBadge: {
+    backgroundColor: "#FEE2E2", // Light red background
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  endedBadgeText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 10,
+    color: "#DC2626", // Red text
+    letterSpacing: 0.5,
   },
   liveBadge: {
     flexDirection: "row",
