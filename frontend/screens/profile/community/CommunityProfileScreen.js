@@ -49,6 +49,7 @@ import { uploadImage } from "../../../api/cloudinary";
 import { useCrop } from "../../../components/MediaCrop";
 import PostCard from "../../../components/PostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
+import EditorialPostCard from "../../../components/EditorialPostCard";
 import VideoPlayer from "../../../components/VideoPlayer";
 import { mockData } from "../../../data/mockData";
 import HeadsEditorModal from "../../../components/modals/HeadsEditorModal";
@@ -122,6 +123,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState("posts"); // "posts" or "community"
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -133,6 +135,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
 
   // Real-time counts polling (5-second interval)
@@ -246,6 +249,10 @@ export default function CommunityProfileScreen({ navigation }) {
           );
           if (profileResponse?.profile?.id && mounted) {
             setCurrentUserId(profileResponse.profile.id);
+            // Get user type from API response
+            const userType =
+              profileResponse?.role || profileResponse?.profile?.type;
+            setCurrentUserType(userType);
           }
         }
       } catch (error) {
@@ -1143,156 +1150,290 @@ export default function CommunityProfileScreen({ navigation }) {
           )}
         </View>
 
+        {/* Tab Bar */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === "posts" && styles.tabItemActive,
+            ]}
+            onPress={() => setActiveTab("posts")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "posts" && styles.tabTextActive,
+              ]}
+            >
+              Posts
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === "community" && styles.tabItemActive,
+            ]}
+            onPress={() => setActiveTab("community")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "community" && styles.tabTextActive,
+              ]}
+            >
+              Community
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.postsSection}>
-          {posts.length > 0 ? (
-            <View style={styles.postsGrid}>
-              <FlatList
-                data={posts}
-                keyExtractor={(item) => item.id.toString()}
-                numColumns={3}
-                scrollEnabled={false}
-                columnWrapperStyle={{
-                  justifyContent: "flex-start",
-                  marginBottom: 2,
-                  gap: 2,
-                }}
-                renderItem={({ item, index }) => {
-                  const gap = 2; // Modern, tight gap
-                  const itemSize = (screenWidth - gap * 2) / 3;
+          {/* Posts Tab - Media Only (Images/Videos) */}
+          {activeTab === "posts" &&
+            (() => {
+              const mediaPosts = posts.filter((p) => {
+                // Exclude interactive post types from Posts tab
+                const postType = p.post_type || p.type;
+                const isInteractive = [
+                  "poll",
+                  "prompt",
+                  "qna",
+                  "challenge",
+                  "opportunity",
+                ].includes(postType);
 
-                  return (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={{
-                        width: itemSize,
-                        height: itemSize * 1.35, // Portrait aspect ratio
-                        marginBottom: 0,
-                        marginRight: 0, // Handled by gap
-                        borderRadius: 3, // Subtle radius
-                        overflow: "hidden",
-                      }}
-                      onPress={() => openPostModal(item)}
-                    >
-                      {(() => {
-                        let firstImageUrl = null;
-                        if (item?.image_urls) {
-                          if (Array.isArray(item.image_urls)) {
-                            const flatUrls = item.image_urls.flat();
-                            firstImageUrl = flatUrls.find(
-                              (u) =>
-                                typeof u === "string" && u.startsWith("http"),
-                            );
-                          } else if (
-                            typeof item.image_urls === "string" &&
-                            item.image_urls.startsWith("http")
-                          ) {
-                            firstImageUrl = item.image_urls;
-                          }
-                        }
+                // Only show media posts that are NOT interactive types
+                const hasImages = p.image_urls && p.image_urls.length > 0;
+                const hasVideo = !!p.video_url;
+                const hasMedia = hasImages || hasVideo;
 
-                        // Detect video by: explicit video_url OR URL extension
-                        const isVideo =
-                          !!item.video_url ||
-                          (firstImageUrl &&
-                            (firstImageUrl.toLowerCase().includes(".mp4") ||
-                              firstImageUrl.toLowerCase().includes(".mov") ||
-                              firstImageUrl.toLowerCase().includes(".webm")));
+                return hasMedia && !isInteractive;
+              });
 
-                        // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-                        // video_thumbnail might be stored as JSON array string '["url"]' in database
-                        let mediaUrl = null;
-                        if (item.video_thumbnail) {
-                          try {
-                            if (
-                              typeof item.video_thumbnail === "string" &&
-                              item.video_thumbnail.startsWith("[")
-                            ) {
-                              const parsed = JSON.parse(item.video_thumbnail);
-                              mediaUrl = Array.isArray(parsed)
-                                ? parsed[0]
-                                : item.video_thumbnail;
-                            } else {
-                              mediaUrl = item.video_thumbnail;
+              return mediaPosts.length > 0 ? (
+                <View style={styles.postsGrid}>
+                  <FlatList
+                    data={mediaPosts}
+                    keyExtractor={(item) => item.id.toString()}
+                    numColumns={3}
+                    scrollEnabled={false}
+                    columnWrapperStyle={{
+                      justifyContent: "flex-start",
+                      marginBottom: 2,
+                      gap: 2,
+                    }}
+                    renderItem={({ item, index }) => {
+                      const gap = 2; // Modern, tight gap
+                      const itemSize = (screenWidth - gap * 2) / 3;
+
+                      return (
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          style={{
+                            width: itemSize,
+                            height: itemSize * 1.35, // Portrait aspect ratio
+                            marginBottom: 0,
+                            marginRight: 0, // Handled by gap
+                            borderRadius: 3, // Subtle radius
+                            overflow: "hidden",
+                          }}
+                          onPress={() => openPostModal(item)}
+                        >
+                          {(() => {
+                            let firstImageUrl = null;
+                            if (item?.image_urls) {
+                              if (Array.isArray(item.image_urls)) {
+                                const flatUrls = item.image_urls.flat();
+                                firstImageUrl = flatUrls.find(
+                                  (u) =>
+                                    typeof u === "string" &&
+                                    u.startsWith("http"),
+                                );
+                              } else if (
+                                typeof item.image_urls === "string" &&
+                                item.image_urls.startsWith("http")
+                              ) {
+                                firstImageUrl = item.image_urls;
+                              }
                             }
-                          } catch (e) {
-                            mediaUrl = item.video_thumbnail;
-                          }
-                        }
-                        const videoSourceUrl = firstImageUrl || item.video_url;
-                        if (
-                          !mediaUrl &&
-                          isVideo &&
-                          videoSourceUrl &&
-                          videoSourceUrl.includes("cloudinary.com")
-                        ) {
-                          // Convert Cloudinary video URL to thumbnail with transformation params
-                          mediaUrl = videoSourceUrl
-                            .replace(
-                              "/upload/",
-                              "/upload/so_0,f_jpg,q_auto,w_800/",
-                            )
-                            .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-                        }
-                        if (!mediaUrl) {
-                          mediaUrl = videoSourceUrl;
-                        }
 
-                        return mediaUrl ? (
-                          <>
-                            <Image
-                              source={{ uri: mediaUrl }}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                backgroundColor: "#E5E5EA",
-                              }}
-                              resizeMode="cover"
-                            />
-                            {isVideo && (
+                            // Detect video by: explicit video_url OR URL extension
+                            const isVideo =
+                              !!item.video_url ||
+                              (firstImageUrl &&
+                                (firstImageUrl.toLowerCase().includes(".mp4") ||
+                                  firstImageUrl
+                                    .toLowerCase()
+                                    .includes(".mov") ||
+                                  firstImageUrl
+                                    .toLowerCase()
+                                    .includes(".webm")));
+
+                            // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+                            // video_thumbnail might be stored as JSON array string '["url"]' in database
+                            let mediaUrl = null;
+                            if (item.video_thumbnail) {
+                              try {
+                                if (
+                                  typeof item.video_thumbnail === "string" &&
+                                  item.video_thumbnail.startsWith("[")
+                                ) {
+                                  const parsed = JSON.parse(
+                                    item.video_thumbnail,
+                                  );
+                                  mediaUrl = Array.isArray(parsed)
+                                    ? parsed[0]
+                                    : item.video_thumbnail;
+                                } else {
+                                  mediaUrl = item.video_thumbnail;
+                                }
+                              } catch (e) {
+                                mediaUrl = item.video_thumbnail;
+                              }
+                            }
+                            const videoSourceUrl =
+                              firstImageUrl || item.video_url;
+                            if (
+                              !mediaUrl &&
+                              isVideo &&
+                              videoSourceUrl &&
+                              videoSourceUrl.includes("cloudinary.com")
+                            ) {
+                              // Convert Cloudinary video URL to thumbnail with transformation params
+                              mediaUrl = videoSourceUrl
+                                .replace(
+                                  "/upload/",
+                                  "/upload/so_0,f_jpg,q_auto,w_800/",
+                                )
+                                .replace(
+                                  /\.(mp4|mov|webm|avi|mkv|m3u8)$/i,
+                                  ".jpg",
+                                );
+                            }
+                            if (!mediaUrl) {
+                              mediaUrl = videoSourceUrl;
+                            }
+
+                            return mediaUrl ? (
+                              <>
+                                <Image
+                                  source={{ uri: mediaUrl }}
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    backgroundColor: "#E5E5EA",
+                                  }}
+                                  resizeMode="cover"
+                                />
+                                {isVideo && (
+                                  <View
+                                    style={{
+                                      position: "absolute",
+                                      top: 8,
+                                      right: 8,
+                                      backgroundColor: "rgba(0,0,0,0.5)",
+                                      borderRadius: 12,
+                                      padding: 4,
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name="play"
+                                      size={16}
+                                      color="#FFF"
+                                    />
+                                  </View>
+                                )}
+                              </>
+                            ) : (
                               <View
                                 style={{
-                                  position: "absolute",
-                                  top: 8,
-                                  right: 8,
-                                  backgroundColor: "rgba(0,0,0,0.5)",
-                                  borderRadius: 12,
-                                  padding: 4,
+                                  width: "100%",
+                                  height: "100%",
+                                  backgroundColor: "#E5E5EA",
+                                  justifyContent: "center",
+                                  alignItems: "center",
                                 }}
                               >
-                                <Ionicons name="play" size={16} color="#FFF" />
+                                <Ionicons
+                                  name="image-outline"
+                                  size={30}
+                                  color={LIGHT_TEXT_COLOR}
+                                />
                               </View>
-                            )}
-                          </>
-                        ) : (
-                          <View
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              backgroundColor: "#E5E5EA",
-                              justifyContent: "center",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Ionicons
-                              name="image-outline"
-                              size={30}
-                              color={LIGHT_TEXT_COLOR}
-                            />
-                          </View>
-                        );
-                      })()}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            </View>
-          ) : (
-            <View style={styles.emptyPostsContainer}>
-              <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                No posts
-              </Text>
-            </View>
-          )}
+                            );
+                          })()}
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </View>
+              ) : (
+                <View style={styles.emptyPostsContainer}>
+                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                    No posts
+                  </Text>
+                </View>
+              );
+            })()}
+
+          {/* Community Tab - Interactive Posts */}
+          {activeTab === "community" &&
+            (() => {
+              const interactivePosts = posts.filter((p) => {
+                const postType = p.post_type || p.type;
+                return [
+                  "poll",
+                  "prompt",
+                  "qna",
+                  "challenge",
+                  "opportunity",
+                ].includes(postType);
+              });
+
+              return interactivePosts.length > 0 ? (
+                <View style={styles.communityPostsList}>
+                  {interactivePosts.map((post) => (
+                    <View key={post.id} style={styles.communityPostItem}>
+                      <EditorialPostCard
+                        post={post}
+                        onLike={(postId, isLiked, count) => {
+                          setPosts((prevPosts) =>
+                            prevPosts.map((p) =>
+                              p.id === postId
+                                ? { ...p, is_liked: isLiked, like_count: count }
+                                : p,
+                            ),
+                          );
+                        }}
+                        onComment={(postId) => openCommentsModal(postId)}
+                        onShare={() => {}}
+                        onFollow={() => {}}
+                        showFollowButton={false}
+                        currentUserId={currentUserId}
+                        currentUserType={currentUserType}
+                        onUserPress={(userId, userType) => {}}
+                        onPostUpdate={(updatedPost) => {
+                          setPosts((prevPosts) =>
+                            prevPosts.map((p) =>
+                              p.id === updatedPost.id ? updatedPost : p,
+                            ),
+                          );
+                        }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyPostsContainer}>
+                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                    No community posts yet
+                  </Text>
+                  <Text style={styles.emptyPostsSubtext}>
+                    Create polls, prompts, Q&As, or challenges to engage with
+                    your community
+                  </Text>
+                </View>
+              );
+            })()}
         </View>
       </ScrollView>
 
@@ -1465,7 +1606,23 @@ export default function CommunityProfileScreen({ navigation }) {
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
-          posts={posts}
+          posts={posts.filter((p) => {
+            // Only show media posts in modal (exclude Community tab content)
+            const postType = p.post_type || p.type;
+            const isInteractive = [
+              "poll",
+              "prompt",
+              "qna",
+              "challenge",
+              "opportunity",
+            ].includes(postType);
+
+            const hasImages = p.image_urls && p.image_urls.length > 0;
+            const hasVideo = !!p.video_url;
+            const hasMedia = hasImages || hasVideo;
+
+            return hasMedia && !isInteractive;
+          })}
           initialPostId={selectedPost?.id}
           onClose={closePostModal}
           currentUserId={currentUserId}
@@ -1985,6 +2142,47 @@ const styles = StyleSheet.create({
   emptyText: {
     color: LIGHT_TEXT_COLOR,
     fontSize: 14,
+  },
+  // Tab Bar Styles
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+    backgroundColor: COLORS.background,
+    marginTop: 8,
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabItemActive: {
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#8E8E93",
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
+  // Community Posts List
+  communityPostsList: {
+    paddingHorizontal: 0,
+  },
+  communityPostItem: {
+    marginBottom: 8,
+  },
+  emptyPostsSubtext: {
+    fontSize: 14,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 32,
   },
   postsSection: {
     paddingHorizontal: 0,
