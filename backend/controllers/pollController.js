@@ -99,7 +99,7 @@ const createPollPost = async (req, res) => {
     const post = result.rows[0];
 
     console.log(
-      `[createPollPost] Created poll post ${post.id} by ${userType}:${userId}`
+      `[createPollPost] Created poll post ${post.id} by ${userType}:${userId}`,
     );
 
     res.status(201).json({
@@ -142,7 +142,7 @@ const vote = async (req, res) => {
     // Get the poll post
     const postResult = await pool.query(
       `SELECT id, post_type, type_data, status, expires_at FROM posts WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -192,63 +192,97 @@ const vote = async (req, res) => {
     // Check if user already voted
     const existingVote = await pool.query(
       `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     const previousIndexes = existingVote.rows.map((r) => r.option_index);
     const isChangingVote = previousIndexes.length > 0;
 
-    // If voting for the same option, just return current state (no change needed)
-    if (
-      isChangingVote &&
-      previousIndexes.length === votingIndexes.length &&
-      previousIndexes.every((idx) => votingIndexes.includes(idx))
-    ) {
-      return res.json({
-        success: true,
-        message: "Vote unchanged",
-        voted_indexes: votingIndexes,
-        total_votes: typeData.total_votes,
-        options: typeData.options,
-      });
+    // Handle voting differently for single vs multiple selection
+    let indexesToRemove = [];
+    let indexesToAdd = [];
+
+    if (typeData.allow_multiple && votingIndexes.length === 1) {
+      // For multiple selection with single option: implement toggle behavior
+      const toggleIndex = votingIndexes[0];
+      if (previousIndexes.includes(toggleIndex)) {
+        // Option is already selected, remove it
+        indexesToRemove = [toggleIndex];
+        indexesToAdd = [];
+      } else {
+        // Option is not selected, add it
+        indexesToRemove = [];
+        indexesToAdd = [toggleIndex];
+      }
+    } else if (typeData.allow_multiple && votingIndexes.length > 1) {
+      // Multiple selection with multiple options: use as complete new vote set
+      indexesToRemove = previousIndexes.filter(
+        (idx) => !votingIndexes.includes(idx),
+      );
+      indexesToAdd = votingIndexes.filter(
+        (idx) => !previousIndexes.includes(idx),
+      );
+    } else {
+      // Single selection: remove all previous votes and add new one
+      indexesToRemove = previousIndexes;
+      indexesToAdd = votingIndexes;
     }
 
-    // If changing vote, delete old votes first
-    if (isChangingVote) {
-      await pool.query(
-        `DELETE FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-        [postId, userId, userType]
-      );
+    // Delete specific votes that should be removed
+    if (indexesToRemove.length > 0) {
+      for (const idx of indexesToRemove) {
+        await pool.query(
+          `DELETE FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3 AND option_index = $4`,
+          [postId, userId, userType, idx],
+        );
+      }
     }
 
     // Insert new vote(s)
-    for (const idx of votingIndexes) {
+    for (const idx of indexesToAdd) {
       await pool.query(
         `INSERT INTO poll_votes (post_id, voter_id, voter_type, option_index)
          VALUES ($1, $2, $3, $4)`,
-        [postId, userId, userType, idx]
+        [postId, userId, userType, idx],
       );
     }
 
     // Update vote counts in type_data
-    // Decrement old options, increment new options
+    // Only adjust counts for options that changed
     const updatedOptions = typeData.options.map((opt) => {
       let newCount = opt.vote_count;
-      // Decrement if user previously voted for this option
-      if (previousIndexes.includes(opt.index)) {
+      // Decrement if this option was removed
+      if (indexesToRemove.includes(opt.index)) {
         newCount = Math.max(0, newCount - 1);
       }
-      // Increment if user now voted for this option
-      if (votingIndexes.includes(opt.index)) {
+      // Increment if this option was added
+      if (indexesToAdd.includes(opt.index)) {
         newCount = newCount + 1;
       }
       return { ...opt, vote_count: newCount };
     });
 
-    // Total votes only changes if this is a new vote (not a change)
-    const newTotalVotes = isChangingVote
-      ? typeData.total_votes || 0
-      : (typeData.total_votes || 0) + 1;
+    // Calculate new voted indexes after this operation
+    const finalVotedIndexes = [
+      ...previousIndexes.filter((idx) => !indexesToRemove.includes(idx)),
+      ...indexesToAdd,
+    ];
+
+    // Total votes changes when:
+    // - A new voter appears (had 0 votes, now has votes) → increment
+    // - A voter is completely removed (had votes, now has 0) → decrement
+    let newTotalVotes = typeData.total_votes || 0;
+    const hadVotes = previousIndexes.length > 0;
+    const hasVotes = finalVotedIndexes.length > 0;
+
+    if (!hadVotes && hasVotes) {
+      // New voter added
+      newTotalVotes = newTotalVotes + 1;
+    } else if (hadVotes && !hasVotes) {
+      // Voter completely removed
+      newTotalVotes = Math.max(0, newTotalVotes - 1);
+    }
+    // If hadVotes && hasVotes → voter is just changing options, count stays same
 
     const updatedTypeData = {
       ...typeData,
@@ -264,19 +298,19 @@ const vote = async (req, res) => {
     console.log(
       `[vote] User ${userType}:${userId} ${
         isChangingVote ? "changed vote" : "voted"
-      } on poll ${postId}`
+      } on poll ${postId}`,
     );
 
     // Debug: Log options being returned
     console.log(
       `[vote] Returning options:`,
-      JSON.stringify(updatedOptions, null, 2)
+      JSON.stringify(updatedOptions, null, 2),
     );
 
     res.json({
       success: true,
       message: isChangingVote ? "Vote changed" : "Vote recorded",
-      voted_indexes: votingIndexes,
+      voted_indexes: finalVotedIndexes,
       total_votes: newTotalVotes,
       options: updatedOptions,
     });
@@ -303,7 +337,7 @@ const removeVote = async (req, res) => {
     // Get current vote(s)
     const voteResult = await pool.query(
       `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     if (voteResult.rows.length === 0) {
@@ -315,13 +349,13 @@ const removeVote = async (req, res) => {
     // Delete votes
     await pool.query(
       `DELETE FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     // Update counts in type_data
     const postResult = await pool.query(
       `SELECT type_data FROM posts WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length > 0) {
@@ -349,13 +383,13 @@ const removeVote = async (req, res) => {
     }
 
     console.log(
-      `[removeVote] User ${userType}:${userId} removed vote from poll ${postId}`
+      `[removeVote] User ${userType}:${userId} removed vote from poll ${postId}`,
     );
 
     // Return updated options so frontend can update UI
     const updatedPost = await pool.query(
       `SELECT type_data FROM posts WHERE id = $1`,
-      [postId]
+      [postId],
     );
     const finalTypeData = updatedPost.rows[0]?.type_data || {};
 
@@ -384,7 +418,7 @@ const getResults = async (req, res) => {
     // Get the poll post
     const postResult = await pool.query(
       `SELECT id, post_type, type_data, status, expires_at FROM posts WHERE id = $1`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -406,7 +440,7 @@ const getResults = async (req, res) => {
     if (userId && userType) {
       const voteResult = await pool.query(
         `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-        [postId, userId, userType]
+        [postId, userId, userType],
       );
       userVotedIndexes = voteResult.rows.map((r) => r.option_index);
     }
@@ -459,7 +493,7 @@ const getVoteStatus = async (req, res) => {
 
     const voteResult = await pool.query(
       `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     res.json({

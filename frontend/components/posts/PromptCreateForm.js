@@ -3,7 +3,7 @@
  * Form for creating prompt posts
  */
 
-import React, { useState } from "react";
+import React, { useState, Platform } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Switch,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
 
@@ -25,6 +26,8 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
   const [submissionType, setSubmissionType] = useState("text");
   const [maxLength, setMaxLength] = useState(500);
   const [requireApproval, setRequireApproval] = useState(true);
+  const [expiresAt, setExpiresAt] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Notify parent of data changes
   const updateData = (updates) => {
@@ -41,6 +44,8 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
         updates.requireApproval !== undefined
           ? updates.requireApproval
           : requireApproval,
+      expires_at:
+        updates.expiresAt !== undefined ? updates.expiresAt : expiresAt,
     };
     onDataChange?.(newData);
   };
@@ -184,6 +189,102 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
             </Text>
           </View>
         )}
+
+        {/* Deadline (Optional) */}
+        <View style={styles.deadlineSection}>
+          <Text style={styles.settingTitle}>
+            Submission Deadline (Optional)
+          </Text>
+          <Text style={styles.settingDescription}>
+            Set when submissions should close
+          </Text>
+
+          {!expiresAt ? (
+            <View style={styles.presetButtons}>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => {
+                  const date = new Date();
+                  date.setDate(date.getDate() + 3);
+                  date.setHours(23, 59, 59, 999);
+                  setExpiresAt(date);
+                  updateData({ expiresAt: date.toISOString() });
+                }}
+                disabled={disabled}
+              >
+                <Text style={styles.presetButtonText}>3 Days</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => {
+                  const date = new Date();
+                  date.setDate(date.getDate() + 7);
+                  date.setHours(23, 59, 59, 999);
+                  setExpiresAt(date);
+                  updateData({ expiresAt: date.toISOString() });
+                }}
+                disabled={disabled}
+              >
+                <Text style={styles.presetButtonText}>1 Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => setShowDatePicker(true)}
+                disabled={disabled}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={16}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.presetButtonText}>Custom</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.deadlineDisplay}>
+              <View style={styles.deadlineInfo}>
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.deadlineText}>
+                  {expiresAt.toLocaleDateString()} at{" "}
+                  {expiresAt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setExpiresAt(null);
+                  updateData({ expiresAt: null });
+                }}
+                disabled={disabled}
+              >
+                <Text style={styles.clearButton}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={expiresAt || new Date()}
+              mode="datetime"
+              is24Hour={false}
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(Platform.OS === "ios");
+                if (selectedDate) {
+                  setExpiresAt(selectedDate);
+                  updateData({ expiresAt: selectedDate.toISOString() });
+                }
+              }}
+              minimumDate={new Date()}
+            />
+          )}
+        </View>
       </View>
     </View>
   );
@@ -307,6 +408,58 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: "#F57C00",
+  },
+  deadlineSection: {
+    paddingTop: SPACING.m,
+    marginTop: SPACING.m,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  presetButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.s,
+    marginTop: SPACING.m,
+  },
+  presetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: SPACING.s,
+    paddingHorizontal: SPACING.m,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  presetButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.primary,
+  },
+  deadlineDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.m,
+    padding: SPACING.m,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+  },
+  deadlineInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.s,
+  },
+  deadlineText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.textPrimary,
+  },
+  clearButton: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.error,
   },
 });
 

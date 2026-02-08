@@ -3,7 +3,7 @@
  * Form for creating poll posts
  */
 
-import React, { useState } from "react";
+import React, { useState, Platform } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
 
@@ -23,6 +24,8 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const [options, setOptions] = useState(["", ""]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
+  const [expiresAt, setExpiresAt] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Notify parent of data changes
   const updateData = (updates) => {
@@ -37,6 +40,8 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
         updates.showResultsBeforeVote !== undefined
           ? updates.showResultsBeforeVote
           : showResultsBeforeVote,
+      expires_at:
+        updates.expiresAt !== undefined ? updates.expiresAt : expiresAt,
     };
     onDataChange?.(newData);
   };
@@ -79,6 +84,35 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
       setShowResultsBeforeVote(newValue);
       updateData({ showResultsBeforeVote: newValue });
     }
+  };
+
+  const setDeadlinePreset = (days) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    date.setHours(23, 59, 59, 999); // End of day
+    setExpiresAt(date);
+    updateData({ expiresAt: date.toISOString() });
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    // Always close the picker after an interaction
+    setShowDatePicker(false);
+
+    // Save the selected date if provided
+    if (selectedDate) {
+      // Set to end of the selected day to match preset behavior
+      const date = new Date(selectedDate);
+      date.setHours(23, 59, 59, 999);
+
+      setExpiresAt(date);
+      updateData({ expiresAt: date.toISOString() });
+    }
+  };
+
+  const clearDeadline = () => {
+    setShowDatePicker(false); // Close picker first
+    setExpiresAt(null);
+    updateData({ expiresAt: null });
   };
 
   return (
@@ -194,6 +228,83 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
             )}
           </View>
         </TouchableOpacity>
+
+        {/* Deadline */}
+        <View style={styles.deadlineSection}>
+          <Text style={styles.settingTitle}>Poll Deadline (Optional)</Text>
+          <Text style={styles.settingDescription}>
+            Set when voting should close
+          </Text>
+
+          {!expiresAt ? (
+            <View style={styles.presetButtons}>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => setDeadlinePreset(1)}
+                disabled={disabled}
+              >
+                <Text style={styles.presetButtonText}>1 Day</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => setDeadlinePreset(3)}
+                disabled={disabled}
+              >
+                <Text style={styles.presetButtonText}>3 Days</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => setDeadlinePreset(7)}
+                disabled={disabled}
+              >
+                <Text style={styles.presetButtonText}>1 Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButton}
+                onPress={() => setShowDatePicker(true)}
+                disabled={disabled}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={16}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.presetButtonText}>Custom</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.deadlineDisplay}>
+              <View style={styles.deadlineInfo}>
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.deadlineText}>
+                  {expiresAt.toLocaleDateString()} at{" "}
+                  {expiresAt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={clearDeadline} disabled={disabled}>
+                <Text style={styles.clearButton}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={expiresAt || new Date()}
+              mode="date"
+              is24Hour={false}
+              display="default"
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+        </View>
       </View>
     </View>
   );
@@ -304,6 +415,58 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  deadlineSection: {
+    paddingTop: SPACING.m,
+    marginTop: SPACING.m,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  presetButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.s,
+    marginTop: SPACING.m,
+  },
+  presetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: SPACING.s,
+    paddingHorizontal: SPACING.m,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  presetButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.primary,
+  },
+  deadlineDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.m,
+    padding: SPACING.m,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+  },
+  deadlineInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.s,
+  },
+  deadlineText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.textPrimary,
+  },
+  clearButton: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.error,
   },
 });
 

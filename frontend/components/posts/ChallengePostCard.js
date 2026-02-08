@@ -40,6 +40,11 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
+import CountdownTimer from "../CountdownTimer";
+import {
+  getExtensionBadgeText,
+  getTimeRemaining,
+} from "../../utils/cardTiming";
 
 const ChallengePostCard = ({
   post,
@@ -403,14 +408,42 @@ const ChallengePostCard = ({
       {/* Header Row: Badge & Trophy Icon */}
       <View style={styles.headerRow}>
         <View style={styles.badgesRow}>
-          {!isExpired && (
-            <Animated.View
-              style={[styles.liveBadge, { transform: [{ scale: pulseAnim }] }]}
-            >
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live Now</Text>
-            </Animated.View>
-          )}
+          {!isExpired &&
+            (() => {
+              const remaining = getTimeRemaining(post.expires_at);
+              const hours = remaining / (1000 * 60 * 60);
+
+              // Show countdown if < 24h, otherwise "Live Now"
+              if (hours < 24 && hours > 0) {
+                return (
+                  <Animated.View
+                    style={[
+                      styles.urgencyBadge,
+                      { transform: [{ scale: pulseAnim }] },
+                    ]}
+                  >
+                    <Text style={styles.urgencyIcon}>⏰</Text>
+                    <CountdownTimer
+                      expiresAt={post.expires_at}
+                      style={styles.urgencyText}
+                      prefix=""
+                    />
+                  </Animated.View>
+                );
+              }
+
+              return (
+                <Animated.View
+                  style={[
+                    styles.liveBadge,
+                    { transform: [{ scale: pulseAnim }] },
+                  ]}
+                >
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>Live Now</Text>
+                </Animated.View>
+              );
+            })()}
           <View style={styles.challengePill}>
             <Text style={styles.challengePillText}>Challenge</Text>
           </View>
@@ -451,6 +484,15 @@ const ChallengePostCard = ({
         <Text style={styles.title}>{typeData.title}</Text>
         {typeData.description && (
           <Text style={styles.description}>{typeData.description}</Text>
+        )}
+
+        {/* Extension Badge */}
+        {post.extension_count > 0 && (
+          <View style={styles.extensionBadge}>
+            <Text style={styles.extensionBadgeText}>
+              {getExtensionBadgeText(post.extension_count)}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -749,6 +791,23 @@ const styles = StyleSheet.create({
     color: "#34C759",
     letterSpacing: 0.5,
   },
+  urgencyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  urgencyIcon: {
+    fontSize: 12,
+  },
+  urgencyText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
   challengePill: {
     backgroundColor: "#FFF4E0", // Muted amber/soft gold
     paddingHorizontal: 10,
@@ -777,6 +836,19 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
     marginBottom: SPACING.s,
     lineHeight: 20,
+  },
+  extensionBadge: {
+    backgroundColor: "#FFF4E0",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: SPACING.s,
+  },
+  extensionBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#A67C52",
   },
   // Progress Bar
   progressContainer: {

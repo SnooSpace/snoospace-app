@@ -244,6 +244,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           options: pollData.options.filter((o) => o.trim()), // Remove empty options
           allow_multiple: pollData.allow_multiple,
           show_results_before_vote: pollData.show_results_before_vote,
+          expires_at: pollData.expires_at,
         };
       } else if (postType === "prompt") {
         // Validate prompt data
@@ -255,6 +256,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           submission_type: promptData.submission_type,
           max_length: promptData.max_length,
           require_approval: promptData.require_approval,
+          expires_at: promptData.expires_at,
         };
       } else if (postType === "qna") {
         // Validate Q&A data

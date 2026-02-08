@@ -251,8 +251,16 @@ const QnAPostCard = ({
     <View style={styles.container}>
       {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
       <View style={styles.headerRow}>
-        <View style={styles.qnaBadge}>
-          <Text style={styles.qnaBadgeText}>Q&A</Text>
+        <View style={styles.leftHeaderContent}>
+          <View style={styles.qnaBadge}>
+            <Text style={styles.qnaBadgeText}>Q&A</Text>
+          </View>
+          {/* Resolved Badge (if any question resolved) */}
+          {post.has_resolved_questions && (
+            <View style={styles.resolvedBadge}>
+              <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.rightHeaderContent}>
@@ -440,6 +448,23 @@ const styles = StyleSheet.create({
     color: "#3F7CF4",
     fontSize: 10,
     fontFamily: "BasicCommercial-Bold",
+    letterSpacing: 0.5,
+  },
+  leftHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  resolvedBadge: {
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  resolvedBadgeText: {
+    color: "#059669",
+    fontSize: 10,
+    fontWeight: "700",
     letterSpacing: 0.5,
   },
 

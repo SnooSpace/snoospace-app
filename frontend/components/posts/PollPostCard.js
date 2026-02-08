@@ -33,6 +33,8 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
+import CountdownTimer from "../CountdownTimer";
+import { getExtensionBadgeText } from "../../utils/cardTiming";
 
 const PollPostCard = ({
   post,
@@ -164,39 +166,27 @@ const PollPostCard = ({
     try {
       const token = await getAuthToken();
 
-      // If clicking the already-selected option, remove the vote
-      if (votedIndexes.includes(optionIndex)) {
-        const response = await apiDelete(
-          `/posts/${post.id}/vote`,
-          {}, // empty body
-          15000,
-          token,
-        );
+      // Always use POST endpoint - backend implements toggle behavior
+      // If option is already selected, it will be removed
+      // If option is not selected, it will be added
+      const response = await apiPost(
+        `/posts/${post.id}/vote`,
+        { option_index: optionIndex },
+        15000,
+        token,
+      );
 
-        if (response.success) {
-          setHasVoted(false);
-          setVotedIndexes([]);
-          // Use updated options and total_votes from response
-          if (response.options) {
-            setOptions(response.options);
-          }
-          if (response.total_votes !== undefined) {
-            setTotalVotes(response.total_votes);
-          }
-        }
-      } else {
-        // Vote for a new option (or change vote)
-        const response = await apiPost(
-          `/posts/${post.id}/vote`,
-          { option_index: optionIndex },
-          15000,
-          token,
-        );
+      if (response.success) {
+        // Use the backend's authoritative voted_indexes response
+        const newVotedIndexes = response.voted_indexes || [];
+        setVotedIndexes(newVotedIndexes);
+        setHasVoted(newVotedIndexes.length > 0);
 
-        if (response.success) {
-          setHasVoted(true);
-          setVotedIndexes([optionIndex]);
+        // Use updated options and total_votes from response
+        if (response.options) {
           setOptions(response.options);
+        }
+        if (response.total_votes !== undefined) {
           setTotalVotes(response.total_votes);
         }
       }
@@ -345,6 +335,15 @@ const PollPostCard = ({
       {/* Question */}
       <Text style={styles.question}>{typeData.question}</Text>
 
+      {/* Extension Badge */}
+      {post.extension_count > 0 && (
+        <View style={styles.extensionBadge}>
+          <Text style={styles.extensionBadgeText}>
+            {getExtensionBadgeText(post.extension_count)}
+          </Text>
+        </View>
+      )}
+
       {/* Options */}
       <View style={styles.optionsContainer}>
         {options.map((opt, idx) => renderOption(opt, idx))}
@@ -356,9 +355,10 @@ const PollPostCard = ({
           {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
         </Text>
         {post.expires_at && (
-          <Text style={[styles.expiryText, isExpired && styles.expiredText]}>
-            • {formatExpiryTime(post.expires_at)}
-          </Text>
+          <CountdownTimer
+            expiresAt={post.expires_at}
+            style={[styles.expiryText, isExpired && styles.expiredText]}
+          />
         )}
       </View>
 
@@ -595,6 +595,19 @@ const styles = StyleSheet.create({
 
   percentageTextSelected: {
     color: "#ffffff",
+  },
+  extensionBadge: {
+    backgroundColor: "#FFF4E0",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginBottom: SPACING.m,
+  },
+  extensionBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#A67C52",
   },
   footer: {
     flexDirection: "row",

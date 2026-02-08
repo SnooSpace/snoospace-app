@@ -244,8 +244,24 @@ const PromptPostCard = ({
     <View style={styles.container}>
       {/* Header with Type Indicator & Star */}
       <View style={styles.headerRow}>
-        <View style={styles.nudgeBadge}>
-          <Text style={styles.nudgeBadgeText}>NUDGE</Text>
+        <View style={styles.leftHeaderContent}>
+          <View style={styles.nudgeBadge}>
+            <Text style={styles.nudgeBadgeText}>NUDGE</Text>
+          </View>
+          {/* Ever green indicator for prompts > 72h old */}
+          {(() => {
+            const ageHours =
+              (new Date() - new Date(post.created_at)) / (1000 * 60 * 60);
+            if (ageHours >= 72) {
+              return (
+                <View style={styles.evergreenBadge}>
+                  <Text style={styles.evergreenIcon}>♻️</Text>
+                  <Text style={styles.evergreenText}>Evergreen</Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
         </View>
         <View style={styles.starIconContainer}>
           <Ionicons name="star" size={24} color="#FFB800" />
@@ -472,6 +488,29 @@ const styles = StyleSheet.create({
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
     color: "#C85A47", // Muted coral-red
+    letterSpacing: 0.5,
+  },
+  leftHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  evergreenBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 3,
+  },
+  evergreenIcon: {
+    fontSize: 10,
+  },
+  evergreenText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 9,
+    color: "#4CAF50",
     letterSpacing: 0.5,
   },
   authorRow: {

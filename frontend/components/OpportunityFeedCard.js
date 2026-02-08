@@ -27,6 +27,8 @@ import {
 } from "lucide-react-native";
 import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import EventBus from "../utils/EventBus";
+import CountdownTimer from "./CountdownTimer";
+import { getCardState } from "../utils/cardTiming";
 
 const OpportunityFeedCard = ({
   opportunity,
@@ -214,6 +216,29 @@ const OpportunityFeedCard = ({
           </ScrollView>
         )}
 
+        {/* Countdown Timer (if expires_at is set and not closed) */}
+        {opportunity.expires_at && !opportunity.closed_at && (
+          <View style={styles.countdownContainer}>
+            <Text style={styles.countdownIcon}>⏰</Text>
+            <Text style={styles.countdownLabel}>Applications close in </Text>
+            <CountdownTimer
+              expiresAt={opportunity.expires_at}
+              style={styles.countdownText}
+              prefix=""
+            />
+          </View>
+        )}
+
+        {/* Closed Banner (if manually closed or expired) */}
+        {(opportunity.closed_at ||
+          (opportunity.expires_at &&
+            new Date(opportunity.expires_at) < new Date())) && (
+          <View style={styles.closedBanner}>
+            <Text style={styles.closedIcon}>🚫</Text>
+            <Text style={styles.closedText}>Applications Closed</Text>
+          </View>
+        )}
+
         {/* Details Row */}
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
@@ -262,22 +287,61 @@ const OpportunityFeedCard = ({
 
           {/* Apply Button */}
           <TouchableOpacity
-            style={styles.applyButton}
-            onPress={() => onPress?.(opportunity)}
+            style={[
+              styles.applyButton,
+              (opportunity.closed_at ||
+                (opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date())) &&
+                styles.applyButtonDisabled,
+            ]}
+            onPress={() => {
+              if (
+                !opportunity.closed_at &&
+                !(
+                  opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date()
+                )
+              ) {
+                onPress?.(opportunity);
+              }
+            }}
+            disabled={
+              opportunity.closed_at ||
+              (opportunity.expires_at &&
+                new Date(opportunity.expires_at) < new Date())
+            }
           >
             <LinearGradient
-              colors={["#448AFF", "#2962FF"]}
+              colors={
+                opportunity.closed_at ||
+                (opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date())
+                  ? ["#9CA3AF", "#6B7280"]
+                  : ["#448AFF", "#2962FF"]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.applyButtonGradient}
             >
-              <Text style={styles.applyButtonText}>Apply Now</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={18}
-                color="#FFFFFF"
-                style={{ marginLeft: 6 }}
-              />
+              <Text style={styles.applyButtonText}>
+                {opportunity.closed_at ||
+                (opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date())
+                  ? "Closed"
+                  : "Apply Now"}
+              </Text>
+              {!(
+                opportunity.closed_at ||
+                (opportunity.expires_at &&
+                  new Date(opportunity.expires_at) < new Date())
+              ) && (
+                <Ionicons
+                  name="arrow-forward"
+                  size={18}
+                  color="#FFFFFF"
+                  style={{ marginLeft: 6 }}
+                />
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -438,6 +502,44 @@ const styles = StyleSheet.create({
     color: "#3B82F6",
     fontWeight: "500",
   },
+  countdownContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  countdownIcon: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  countdownLabel: {
+    fontSize: 13,
+    color: "#5e8d9b",
+    fontWeight: "500",
+  },
+  countdownText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  closedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  closedIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  closedText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#DC2626",
+  },
   detailsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,6 +597,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
+  },
+  applyButtonDisabled: {
+    shadowColor: "#6B7280",
+    opacity: 0.7,
   },
   applyButtonGradient: {
     flexDirection: "row",

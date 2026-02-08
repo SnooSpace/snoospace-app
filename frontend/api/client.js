@@ -692,3 +692,53 @@ export async function getSavedPosts(offset = 0, limit = 20, token) {
 export async function checkSaveStatus(postIds, token) {
   return apiPost("/posts/save-status/batch", { postIds }, 15000, token);
 }
+
+/**
+ * CARD TIMING ENDPOINTS
+ */
+
+/**
+ * Extend a card's deadline
+ * @param {string} postId - Card/post ID
+ * @param {string} newEndTime - ISO timestamp for new deadline
+ * @param {string} reason - Optional reason for extension
+ */
+export async function extendCard(postId, newEndTime, reason, token) {
+  return apiPost(
+    `/posts/${postId}/extend`,
+    { new_end_time: newEndTime, reason },
+    15000,
+    token,
+  );
+}
+
+/**
+ * Get extension history for a card
+ * @param {string} postId - Card/post ID
+ */
+export async function getExtensionHistory(postId, token) {
+  return apiGet(`/posts/${postId}/extensions`, 10000, token);
+}
+
+/**
+ * Close an opportunity manually
+ * @param {string} postId - Opportunity post ID
+ */
+export async function closeOpportunity(postId, token) {
+  return apiPost(`/posts/${postId}/close`, {}, 10000, token);
+}
+
+/**
+ * Mark Q&A question as resolved
+ * @param {string} postId - Q&A post ID
+ * @param {string} questionId - Question ID to resolve
+ * @param {string} bestAnswerId - Optional best answer ID
+ */
+export async function resolveQnA(postId, questionId, bestAnswerId, token) {
+  return apiPost(
+    `/posts/${postId}/resolve`,
+    { questionId, bestAnswerId },
+    10000,
+    token,
+  );
+}

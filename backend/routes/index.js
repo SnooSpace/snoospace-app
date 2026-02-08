@@ -24,6 +24,7 @@ const PollController = require("../controllers/pollController");
 const PromptController = require("../controllers/promptController");
 const QnAController = require("../controllers/qnaController");
 const ChallengeController = require("../controllers/challengeController");
+const CardExtensionController = require("../controllers/cardExtensionController");
 const PronounController = require("../controllers/pronounController");
 const AnalyticsController = require("../controllers/analyticsController");
 const ModerationController = require("../controllers/moderationController");
@@ -1045,6 +1046,30 @@ router.delete(
   "/challenge-submissions/:id/like",
   authMiddleware,
   ChallengeController.unlikeSubmission,
+);
+
+// ============================================
+// CARD EXTENSION & STATE MANAGEMENT
+// ============================================
+router.post(
+  "/posts/:postId/extend",
+  authMiddleware,
+  CardExtensionController.extendCard,
+);
+router.get(
+  "/posts/:postId/extensions",
+  authMiddleware,
+  CardExtensionController.getExtensionHistory,
+);
+router.post(
+  "/posts/:postId/close",
+  authMiddleware,
+  CardExtensionController.closeOpportunity,
+);
+router.post(
+  "/posts/:postId/resolve",
+  authMiddleware,
+  CardExtensionController.resolveQnA,
 );
 
 // Comments
