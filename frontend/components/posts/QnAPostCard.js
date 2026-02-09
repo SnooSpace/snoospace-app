@@ -451,20 +451,28 @@ const QnAPostCard = ({
 
         {/* Footer Row */}
         <View style={styles.footerRow}>
-          {isExpired ? (
-            <View style={styles.endedBadge}>
-              <Text style={styles.endedBadgeText}>Ended</Text>
-            </View>
-          ) : post.expires_at ? (
-            <View style={styles.activeBadge}>
-              <CountdownTimer
-                expiresAt={post.expires_at}
-                style={styles.activeBadgeText}
-              />
-            </View>
-          ) : (
-            <View />
-          )}
+          <View style={styles.footerLeftStatus}>
+            {isExpired ? (
+              <View style={styles.endedBadge}>
+                <Text style={styles.endedBadgeText}>Ended</Text>
+              </View>
+            ) : post.expires_at ? (
+              <View style={styles.activeBadge}>
+                <CountdownTimer
+                  expiresAt={post.expires_at}
+                  style={styles.activeBadgeText}
+                />
+              </View>
+            ) : null}
+
+            {answeredCount > 0 && (
+              <Text style={styles.replyCountText}>
+                {formatCount(answeredCount)} repl
+                {answeredCount != 1 ? "ies" : "y"}
+              </Text>
+            )}
+          </View>
+
           <TouchableOpacity
             style={styles.addAnswerCTA}
             onPress={handleAddAnswer}
@@ -907,6 +915,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#DC2626",
+  },
+  footerLeftStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  replyCountText: {
+    fontSize: 14,
+    color: "#9CA3AF", // Muted gray like Prompt card
+    fontWeight: "400",
   },
 });
 
