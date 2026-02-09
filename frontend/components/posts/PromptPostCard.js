@@ -309,7 +309,6 @@ const PromptPostCard = ({
             const ageHours =
               (new Date() - new Date(post.created_at)) / (1000 * 60 * 60);
             if (ageHours >= 72) {
-              
             }
             return null;
           })()}
@@ -421,14 +420,6 @@ const PromptPostCard = ({
               ? ` • ${formatNumber(totalReplyCount)} repl${totalReplyCount !== 1 ? "ies" : "y"}`
               : ""}
           </Text>
-          {isExpired && (
-            <>
-              <Text style={styles.separator}>•</Text>
-              <View style={[styles.endedBadge, { marginLeft: 4 }]}>
-                <Text style={styles.endedBadgeText}>Ended</Text>
-              </View>
-            </>
-          )}
         </View>
         <TouchableOpacity
           style={styles.viewAllButton}

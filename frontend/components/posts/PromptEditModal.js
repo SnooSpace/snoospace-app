@@ -18,15 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   const [promptText, setPromptText] = useState("");
   const [maxLength, setMaxLength] = useState("500");
-  const [expiresAt, setExpiresAt] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Initialize form with post data
   useEffect(() => {
     if (post && visible) {
       setPromptText(post.type_data?.prompt_text || "");
       setMaxLength(String(post.type_data?.max_length || 500));
-      setExpiresAt(post.expires_at ? new Date(post.expires_at) : null);
     }
   }, [post, visible]);
 
@@ -42,16 +39,6 @@ const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     const currentMaxLength = post.type_data?.max_length || 500;
     if (newMaxLength !== currentMaxLength) {
       updates.max_length = newMaxLength;
-    }
-
-    if (expiresAt) {
-      const originalExpiry = post.expires_at
-        ? new Date(post.expires_at).getTime()
-        : null;
-      const newExpiry = expiresAt.getTime();
-      if (originalExpiry !== newExpiry) {
-        updates.expires_at = expiresAt.toISOString();
-      }
     }
 
     onSave(updates);
@@ -145,42 +132,6 @@ const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                     Can only increase, not decrease
                   </Text>
                 </View>
-
-                {/* Deadline */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Deadline (Optional)</Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={20}
-                      color="#5B6B7C"
-                    />
-                    <Text style={styles.dateButtonText}>
-                      {formatDate(expiresAt)}
-                    </Text>
-                  </TouchableOpacity>
-                  {expiresAt && (
-                    <TouchableOpacity
-                      onPress={clearDate}
-                      style={styles.clearButton}
-                    >
-                      <Text style={styles.clearButtonText}>Clear Deadline</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={expiresAt || new Date()}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleDateChange}
-                    minimumDate={new Date()}
-                  />
-                )}
               </ScrollView>
 
               {/* Actions */}

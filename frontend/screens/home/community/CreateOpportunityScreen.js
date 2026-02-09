@@ -27,6 +27,7 @@ import { COLORS } from "../../../constants/theme";
 import {
   createOpportunity,
   updateOpportunity,
+  getOpportunityDetail,
 } from "../../../api/opportunities";
 import { getActiveAccount } from "../../../api/auth";
 import {
@@ -36,6 +37,7 @@ import {
   hasOpportunityDraft,
   formatLastSaved,
 } from "../../../utils/opportunityDraftStorage";
+import EventBus from "../../../utils/EventBus";
 
 const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
@@ -176,9 +178,32 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     }
   }, []);
 
-  const loadEditData = () => {
+  const loadEditData = async () => {
     if (!opportunityToEdit) return;
-    const data = opportunityToEdit;
+
+    // ALWAYS fetch fresh data from the server when editing
+    // This ensures we have the latest version including any updates made elsewhere
+    let data = opportunityToEdit; // Start with passed data as fallback
+
+    try {
+      setSaving(true);
+      const response = await getOpportunityDetail(opportunityToEdit.id);
+      console.log(
+        "[EditData] API Response received, expires_at:",
+        response?.opportunity?.expires_at,
+      );
+      if (response?.success && response?.opportunity) {
+        data = response.opportunity;
+      } else {
+        // Fallback to passed data if API fails
+        console.warn("Failed to fetch latest opportunity, using passed data");
+      }
+    } catch (error) {
+      console.error("Error fetching full opportunity details for edit:", error);
+      // Continue with passed data on error
+    } finally {
+      setSaving(false);
+    }
 
     setTitle(data.title || "");
     setSelectedTypes(data.opportunity_types || data.roles || []);
@@ -199,7 +224,14 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setNotifyTalent(data.notify_talent !== false);
 
     if (data.expires_at) {
+      console.log(
+        "[EditData] Setting expiresAt to:",
+        new Date(data.expires_at),
+      );
       setExpiresAt(new Date(data.expires_at));
+    } else {
+      console.log("[EditData] No expires_at found, setting null");
+      setExpiresAt(null);
     }
   };
 
@@ -524,7 +556,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             : isEditing
               ? "Your opportunity has been successfully updated."
               : "Your opportunity is now live!",
-          [{ text: "OK", onPress: () => navigation.goBack() }],
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                if (response.opportunity) {
+                  EventBus.emit("opportunityUpdated", response.opportunity);
+                }
+                navigation.goBack();
+              },
+            },
+          ],
         );
       }
     } catch (error) {
@@ -1332,9 +1374,25 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           <Text style={styles.headerTitle}>
             {isEditing ? "Edit Opportunity" : "Create Opportunity"}
           </Text>
-          <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
+          {isEditing ? (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setCurrentStep(TOTAL_STEPS)}
+            >
+              <Text
+                style={[
+                  styles.cancelText,
+                  { color: PRIMARY_COLOR, fontWeight: "600" },
+                ]}
+              >
+                Review
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Progress Indicator */}

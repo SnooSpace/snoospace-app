@@ -311,10 +311,12 @@ const OpportunityFeedCard = ({
                     <Text style={styles.endedBadgeText}>Ended</Text>
                   </View>
                 ) : (
-                  <CountdownTimer
-                    expiresAt={opportunity.expires_at}
-                    style={styles.expiryText}
-                  />
+                  <View style={styles.activeBadge}>
+                    <CountdownTimer
+                      expiresAt={opportunity.expires_at}
+                      style={styles.activeBadgeText}
+                    />
+                  </View>
                 )}
               </>
             )}
@@ -660,8 +662,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
   },
-  expiryText: {
-    fontSize: 13,
+  activeBadge: {
+    backgroundColor: "#F3F4F6", // Light gray
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
     color: COLORS.textSecondary,
   },
   endedBadge: {

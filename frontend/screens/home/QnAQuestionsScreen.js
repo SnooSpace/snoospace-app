@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
-import { getAuthToken } from "../../api/auth";
+import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 
 const QnAQuestionsScreen = ({ route, navigation }) => {
@@ -30,9 +30,18 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
   const [sort, setSort] = useState("top"); // top, recent
   const [expandedQuestionId, setExpandedQuestionId] = useState(null);
 
+  // Current user state
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
+
   // Question input state
   const [questionText, setQuestionText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reply state
+  const [replyingToQuestionId, setReplyingToQuestionId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   const fetchQuestions = useCallback(
     async (showLoading = true) => {
@@ -42,7 +51,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         const response = await apiGet(
           `/posts/${post.id}/questions?filter=${filter}&sort=${sort}`,
           15000,
-          token
+          token,
         );
 
         if (response.success) {
@@ -55,12 +64,38 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         setIsRefreshing(false);
       }
     },
-    [post.id, filter, sort]
+    [post.id, filter, sort],
   );
 
   useEffect(() => {
     fetchQuestions();
   }, [fetchQuestions]);
+
+  // Fetch current user info
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const account = await getActiveAccount();
+        console.log("[QnA Questions] Current account:", account);
+        if (account) {
+          setCurrentUserId(account.id);
+          setCurrentUserType(account.type);
+          console.log("[QnA Questions] Set current user:", {
+            userId: account.id,
+            userType: account.type,
+            postAuthorId: post.author_id,
+            postAuthorType: post.author_type,
+            isOwner:
+              post.author_id === account.id &&
+              post.author_type === account.type,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -80,7 +115,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           is_anonymous: isAnonymous && typeData.allow_anonymous,
         },
         15000,
-        token
+        token,
       );
 
       if (response.success) {
@@ -112,8 +147,8 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                   : q.upvote_count + 1,
                 has_upvoted: !hasUpvoted,
               }
-            : q
-        )
+            : q,
+        ),
       );
 
       if (hasUpvoted) {
@@ -125,6 +160,45 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
       console.error("Error toggling upvote:", error);
       // Revert on error
       fetchQuestions(false);
+    }
+  };
+
+  const handleReply = (questionId) => {
+    setReplyingToQuestionId(questionId);
+    setReplyText("");
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToQuestionId(null);
+    setReplyText("");
+  };
+
+  const handleSubmitReply = async (questionId) => {
+    if (!replyText.trim() || isSubmittingReply) return;
+
+    setIsSubmittingReply(true);
+    try {
+      const token = await getAuthToken();
+      const response = await apiPost(
+        `/questions/${questionId}/answer`,
+        {
+          content: replyText.trim(),
+        },
+        15000,
+        token,
+      );
+
+      if (response.success) {
+        setReplyText("");
+        setReplyingToQuestionId(null);
+        fetchQuestions(false);
+        Alert.alert("Reply posted!", "Your reply has been posted.");
+      }
+    } catch (error) {
+      console.error("Error submitting reply:", error);
+      Alert.alert("Error", error?.message || "Failed to submit reply");
+    } finally {
+      setIsSubmittingReply(false);
     }
   };
 
@@ -222,6 +296,79 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
               </View>
             )}
           </View>
+
+          {/* Reply Button (only for post owner) */}
+          {(() => {
+            const isOwner =
+              currentUserId &&
+              currentUserType &&
+              String(post.author_id) === String(currentUserId) &&
+              post.author_type === currentUserType;
+
+            console.log("[QnA Questions] Reply button check:", {
+              questionId: item.id,
+              currentUserId,
+              currentUserType,
+              postAuthorId: post.author_id,
+              postAuthorType: post.author_type,
+              postAuthorIdStr: String(post.author_id),
+              currentUserIdStr: String(currentUserId),
+              idsMatch: String(post.author_id) === String(currentUserId),
+              typesMatch: post.author_type === currentUserType,
+              isOwner,
+              replyingTo: replyingToQuestionId,
+              shouldShow: isOwner && replyingToQuestionId !== item.id,
+            });
+
+            return isOwner && replyingToQuestionId !== item.id ? (
+              <TouchableOpacity
+                style={styles.replyButton}
+                onPress={() => handleReply(item.id)}
+              >
+                <Ionicons name="chatbubble-outline" size={14} color="#5856D6" />
+                <Text style={styles.replyButtonText}>Reply</Text>
+              </TouchableOpacity>
+            ) : null;
+          })()}
+
+          {/* Reply Input (when replying) */}
+          {replyingToQuestionId === item.id && (
+            <View style={styles.replyInputContainer}>
+              <TextInput
+                style={styles.replyInput}
+                placeholder="Write your reply..."
+                placeholderTextColor={COLORS.textSecondary}
+                value={replyText}
+                onChangeText={setReplyText}
+                multiline
+                maxLength={1000}
+                autoFocus
+              />
+              <View style={styles.replyActions}>
+                <TouchableOpacity
+                  style={styles.cancelReplyButton}
+                  onPress={handleCancelReply}
+                >
+                  <Text style={styles.cancelReplyText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.sendReplyButton,
+                    (!replyText.trim() || isSubmittingReply) &&
+                      styles.sendReplyButtonDisabled,
+                  ]}
+                  onPress={() => handleSubmitReply(item.id)}
+                  disabled={!replyText.trim() || isSubmittingReply}
+                >
+                  {isSubmittingReply ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.sendReplyText}>Send</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Expand/Collapse for Answers */}
           {hasAnswers && (
@@ -665,6 +812,66 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "500",
     marginRight: 4,
+  },
+  // Reply Button
+  replyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: SPACING.xs,
+    paddingVertical: 6,
+  },
+  replyButtonText: {
+    fontSize: 13,
+    color: "#5856D6",
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  // Reply Input
+  replyInputContainer: {
+    marginTop: SPACING.s,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: BORDER_RADIUS.m,
+    padding: SPACING.m,
+  },
+  replyInput: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    minHeight: 60,
+    maxHeight: 120,
+    textAlignVertical: "top",
+  },
+  replyActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: SPACING.s,
+    gap: SPACING.s,
+  },
+  cancelReplyButton: {
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: COLORS.border,
+  },
+  cancelReplyText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.textSecondary,
+  },
+  sendReplyButton: {
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#5856D6",
+    minWidth: 60,
+    alignItems: "center",
+  },
+  sendReplyButtonDisabled: {
+    backgroundColor: COLORS.border,
+  },
+  sendReplyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   // Answers
   answersContainer: {

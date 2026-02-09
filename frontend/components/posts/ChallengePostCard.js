@@ -472,14 +472,14 @@ const ChallengePostCard = ({
                   return (
                     <Animated.View
                       style={[
-                        styles.urgencyBadge,
+                        styles.activeBadge,
                         { transform: [{ scale: pulseAnim }] },
                       ]}
                     >
                       <Text style={styles.urgencyIcon}>⏰</Text>
                       <CountdownTimer
                         expiresAt={post.expires_at}
-                        style={styles.urgencyText}
+                        style={styles.activeBadgeText}
                         prefix=""
                       />
                     </Animated.View>
@@ -489,12 +489,15 @@ const ChallengePostCard = ({
                 return (
                   <Animated.View
                     style={[
-                      styles.liveBadge,
-                      { transform: [{ scale: pulseAnim }] },
+                      styles.activeBadge,
+                      {
+                        transform: [{ scale: pulseAnim }],
+                        flexDirection: "row",
+                      },
                     ]}
                   >
                     <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>Live Now</Text>
+                    <Text style={styles.activeBadgeText}>Live Now</Text>
                   </Animated.View>
                 );
               })()}
@@ -956,23 +959,24 @@ const styles = StyleSheet.create({
     color: "#34C759",
     letterSpacing: 0.5,
   },
-  urgencyBadge: {
+  activeBadge: {
+    backgroundColor: "#F3F4F6", // Light gray
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  },
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
   },
   urgencyIcon: {
     fontSize: 12,
   },
-  urgencyText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
+
   challengePill: {
     backgroundColor: "#FFF4E0", // Muted amber/soft gold
     paddingHorizontal: 10,

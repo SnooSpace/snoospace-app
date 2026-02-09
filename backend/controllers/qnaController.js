@@ -118,7 +118,7 @@ const submitQuestion = async (req, res) => {
     const postResult = await pool.query(
       `SELECT id, author_id, author_type, type_data, expires_at 
        FROM posts WHERE id = $1 AND post_type = 'qna'`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -137,7 +137,7 @@ const submitQuestion = async (req, res) => {
     const existingCount = await pool.query(
       `SELECT COUNT(*) as count FROM qna_questions 
        WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-      [postId, userId, userType]
+      [postId, userId, userType],
     );
 
     const maxQuestions = typeData.max_questions_per_user || 1;
@@ -155,7 +155,7 @@ const submitQuestion = async (req, res) => {
       `INSERT INTO qna_questions (post_id, author_id, author_type, question, is_pinned, upvote_count, is_anonymous)
        VALUES ($1, $2, $3, $4, false, 0, $5)
        RETURNING id, created_at`,
-      [postId, userId, userType, content.trim(), isAnonymousQuestion]
+      [postId, userId, userType, content.trim(), isAnonymousQuestion],
     );
 
     const question = insertResult.rows[0];
@@ -167,7 +167,7 @@ const submitQuestion = async (req, res) => {
       [
         JSON.stringify({ question_count: (typeData.question_count || 0) + 1 }),
         postId,
-      ]
+      ],
     );
 
     // Get author info for response
@@ -178,7 +178,7 @@ const submitQuestion = async (req, res) => {
       if (userType === "member") {
         const authorResult = await pool.query(
           "SELECT name, profile_photo_url FROM members WHERE id = $1",
-          [userId]
+          [userId],
         );
         if (authorResult.rows[0]) {
           authorName = authorResult.rows[0].name;
@@ -187,7 +187,7 @@ const submitQuestion = async (req, res) => {
       } else if (userType === "community") {
         const authorResult = await pool.query(
           "SELECT name, logo_url FROM communities WHERE id = $1",
-          [userId]
+          [userId],
         );
         if (authorResult.rows[0]) {
           authorName = authorResult.rows[0].name;
@@ -210,7 +210,7 @@ const submitQuestion = async (req, res) => {
           type: "qna_question",
           postId: parseInt(postId),
           questionId: question.id,
-        }
+        },
       );
     } catch (e) {
       console.error("[QnA] Failed to send notification:", e);
@@ -346,7 +346,7 @@ const getQuestions = async (req, res) => {
             LEFT JOIN communities c ON a.author_type = 'community' AND a.author_id = c.id
             WHERE a.question_id = $1
             ORDER BY a.is_best_answer DESC, a.created_at ASC`,
-            [q.id]
+            [q.id],
           );
           answers = answersResult.rows;
         }
@@ -356,14 +356,14 @@ const getQuestions = async (req, res) => {
           is_answered: q.answered_at !== null || q.answer_count > 0,
           answers,
         };
-      })
+      }),
     );
 
     // Get total count
     const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM qna_questions q
        WHERE q.post_id = $1 AND q.is_hidden = false ${filterClause}`,
-      [postId]
+      [postId],
     );
 
     res.json({
@@ -404,7 +404,7 @@ const upvoteQuestion = async (req, res) => {
     // Check question exists
     const questionResult = await pool.query(
       "SELECT id, post_id, author_id, author_type FROM qna_questions WHERE id = $1",
-      [questionId]
+      [questionId],
     );
 
     if (questionResult.rows.length === 0) {
@@ -417,7 +417,7 @@ const upvoteQuestion = async (req, res) => {
     const existingUpvote = await pool.query(
       `SELECT id FROM qna_question_upvotes 
        WHERE question_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [questionId, userId, userType]
+      [questionId, userId, userType],
     );
 
     if (existingUpvote.rows.length > 0) {
@@ -428,7 +428,7 @@ const upvoteQuestion = async (req, res) => {
     await pool.query(
       `INSERT INTO qna_question_upvotes (question_id, voter_id, voter_type)
        VALUES ($1, $2, $3)`,
-      [questionId, userId, userType]
+      [questionId, userId, userType],
     );
 
     // Update upvote count
@@ -437,7 +437,7 @@ const upvoteQuestion = async (req, res) => {
        SET upvote_count = upvote_count + 1 
        WHERE id = $1
        RETURNING upvote_count`,
-      [questionId]
+      [questionId],
     );
 
     const newCount = updateResult.rows[0].upvote_count;
@@ -449,7 +449,7 @@ const upvoteQuestion = async (req, res) => {
         if (userType === "member") {
           const voterResult = await pool.query(
             "SELECT name FROM members WHERE id = $1",
-            [userId]
+            [userId],
           );
           voterName = voterResult.rows[0]?.name || "Someone";
         }
@@ -464,7 +464,7 @@ const upvoteQuestion = async (req, res) => {
             type: "qna_upvote",
             postId: question.post_id,
             questionId: parseInt(questionId),
-          }
+          },
         );
       } catch (e) {
         console.error("[QnA] Failed to send upvote notification:", e);
@@ -499,7 +499,7 @@ const removeUpvote = async (req, res) => {
     const deleteResult = await pool.query(
       `DELETE FROM qna_question_upvotes 
        WHERE question_id = $1 AND voter_id = $2 AND voter_type = $3`,
-      [questionId, userId, userType]
+      [questionId, userId, userType],
     );
 
     if (deleteResult.rowCount === 0) {
@@ -512,7 +512,7 @@ const removeUpvote = async (req, res) => {
        SET upvote_count = GREATEST(upvote_count - 1, 0) 
        WHERE id = $1
        RETURNING upvote_count`,
-      [questionId]
+      [questionId],
     );
 
     res.json({
@@ -555,7 +555,7 @@ const answerQuestion = async (req, res) => {
        FROM qna_questions q
        JOIN posts p ON q.post_id = p.id
        WHERE q.id = $1`,
-      [questionId]
+      [questionId],
     );
 
     if (questionResult.rows.length === 0) {
@@ -565,8 +565,9 @@ const answerQuestion = async (req, res) => {
     const question = questionResult.rows[0];
 
     // Check if user is post author or designated expert
+    // Convert to strings to handle type mismatches (DB might return string, req.user might have number)
     const isPostAuthor =
-      question.post_author_id === userId &&
+      String(question.post_author_id) === String(userId) &&
       question.post_author_type === userType;
 
     let isExpert = false;
@@ -574,7 +575,7 @@ const answerQuestion = async (req, res) => {
       const expertResult = await pool.query(
         `SELECT id FROM qna_experts 
          WHERE post_id = $1 AND user_id = $2 AND user_type = $3`,
-        [question.post_id, userId, userType]
+        [question.post_id, userId, userType],
       );
       isExpert = expertResult.rows.length > 0;
     }
@@ -596,7 +597,7 @@ const answerQuestion = async (req, res) => {
         userType,
         content.trim(),
         media_urls ? JSON.stringify(media_urls) : null,
-      ]
+      ],
     );
 
     const answer = insertResult.rows[0];
@@ -606,7 +607,7 @@ const answerQuestion = async (req, res) => {
       `UPDATE qna_questions 
        SET answered_at = NOW(), answered_by = $1, answer = $2
        WHERE id = $3 AND answered_at IS NULL`,
-      [userId, content.trim(), questionId]
+      [userId, content.trim(), questionId],
     );
 
     // Update answered count in post type_data
@@ -618,7 +619,7 @@ const answerQuestion = async (req, res) => {
          (COALESCE((type_data->>'answered_count')::int, 0) + 1)::text::jsonb
        )
        WHERE id = $1`,
-      [question.post_id]
+      [question.post_id],
     );
 
     // Get author info
@@ -628,7 +629,7 @@ const answerQuestion = async (req, res) => {
     if (userType === "member") {
       const authorResult = await pool.query(
         "SELECT name, profile_photo_url FROM members WHERE id = $1",
-        [userId]
+        [userId],
       );
       if (authorResult.rows[0]) {
         authorName = authorResult.rows[0].name;
@@ -637,7 +638,7 @@ const answerQuestion = async (req, res) => {
     } else if (userType === "community") {
       const authorResult = await pool.query(
         "SELECT name, logo_url FROM communities WHERE id = $1",
-        [userId]
+        [userId],
       );
       if (authorResult.rows[0]) {
         authorName = authorResult.rows[0].name;
@@ -659,7 +660,7 @@ const answerQuestion = async (req, res) => {
             postId: question.post_id,
             questionId: parseInt(questionId),
             answerId: answer.id,
-          }
+          },
         );
       } catch (e) {
         console.error("[QnA] Failed to send answer notification:", e);
@@ -711,7 +712,7 @@ const markBestAnswer = async (req, res) => {
        JOIN qna_questions q ON a.question_id = q.id
        JOIN posts p ON q.post_id = p.id
        WHERE a.id = $1`,
-      [answerId]
+      [answerId],
     );
 
     if (answerResult.rows.length === 0) {
@@ -732,14 +733,14 @@ const markBestAnswer = async (req, res) => {
       await pool.query(
         `UPDATE qna_answers SET is_best_answer = false 
          WHERE question_id = $1`,
-        [answer.question_id]
+        [answer.question_id],
       );
     }
 
     // Update this answer
     await pool.query(
       `UPDATE qna_answers SET is_best_answer = $1 WHERE id = $2`,
-      [is_best, answerId]
+      [is_best, answerId],
     );
 
     res.json({
@@ -777,7 +778,7 @@ const moderateQuestion = async (req, res) => {
        FROM qna_questions q
        JOIN posts p ON q.post_id = p.id
        WHERE q.id = $1`,
-      [questionId]
+      [questionId],
     );
 
     if (questionResult.rows.length === 0) {
@@ -819,9 +820,9 @@ const moderateQuestion = async (req, res) => {
 
     await pool.query(
       `UPDATE qna_questions SET ${updates.join(
-        ", "
+        ", ",
       )} WHERE id = $${paramIndex}`,
-      values
+      values,
     );
 
     res.json({
@@ -861,7 +862,7 @@ const addExpert = async (req, res) => {
     const postResult = await pool.query(
       `SELECT author_id, author_type FROM posts 
        WHERE id = $1 AND post_type = 'qna'`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -880,7 +881,7 @@ const addExpert = async (req, res) => {
       await pool.query(
         `INSERT INTO qna_experts (post_id, user_id, user_type, added_by_id, added_by_type)
          VALUES ($1, $2, $3, $4, $5)`,
-        [postId, expert_id, expert_type, userId, userType]
+        [postId, expert_id, expert_type, userId, userType],
       );
     } catch (e) {
       if (e.code === "23505") {
@@ -897,7 +898,7 @@ const addExpert = async (req, res) => {
     if (expert_type === "member") {
       const expertResult = await pool.query(
         "SELECT name, profile_photo_url FROM members WHERE id = $1",
-        [expert_id]
+        [expert_id],
       );
       if (expertResult.rows[0]) {
         expertName = expertResult.rows[0].name;
@@ -906,7 +907,7 @@ const addExpert = async (req, res) => {
     } else if (expert_type === "community") {
       const expertResult = await pool.query(
         "SELECT name, logo_url FROM communities WHERE id = $1",
-        [expert_id]
+        [expert_id],
       );
       if (expertResult.rows[0]) {
         expertName = expertResult.rows[0].name;
@@ -915,7 +916,7 @@ const addExpert = async (req, res) => {
     }
 
     console.log(
-      `[QnA] Added expert ${expert_type}:${expert_id} to post ${postId}`
+      `[QnA] Added expert ${expert_type}:${expert_id} to post ${postId}`,
     );
 
     res.status(201).json({
@@ -952,7 +953,7 @@ const removeExpert = async (req, res) => {
     const postResult = await pool.query(
       `SELECT author_id, author_type FROM posts 
        WHERE id = $1 AND post_type = 'qna'`,
-      [postId]
+      [postId],
     );
 
     if (postResult.rows.length === 0) {
@@ -970,7 +971,7 @@ const removeExpert = async (req, res) => {
     const deleteResult = await pool.query(
       `DELETE FROM qna_experts 
        WHERE post_id = $1 AND user_id = $2 AND user_type = $3`,
-      [postId, expertId, expert_type || "member"]
+      [postId, expertId, expert_type || "member"],
     );
 
     if (deleteResult.rowCount === 0) {
@@ -1013,7 +1014,7 @@ const getExperts = async (req, res) => {
        LEFT JOIN communities c ON e.user_type = 'community' AND e.user_id = c.id
        WHERE e.post_id = $1
        ORDER BY e.created_at ASC`,
-      [postId]
+      [postId],
     );
 
     res.json({

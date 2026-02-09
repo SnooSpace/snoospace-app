@@ -14,6 +14,9 @@ import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
 import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
 import ChallengeSubmissionsScreen from "../screens/home/ChallengeSubmissionsScreen";
 import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
+import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
+import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
+import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 
 const Stack = createStackNavigator();
 
@@ -98,6 +101,27 @@ export default function CommunityHomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="CreateOpportunityScreen"
+        component={CreateOpportunityScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="OpportunityView"
+        component={OpportunityViewScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="ApplyToOpportunity"
+        component={ApplyToOpportunityScreen}
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

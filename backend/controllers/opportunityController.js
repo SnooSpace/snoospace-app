@@ -27,6 +27,7 @@ const createOpportunity = async (req, res) => {
       availability,
       turnaround,
       timezone,
+      expires_at,
       payment_type,
       budget_range,
       payment_nature,
@@ -70,11 +71,11 @@ const createOpportunity = async (req, res) => {
       INSERT INTO opportunities (
         title, creator_id, creator_type, status,
         opportunity_types, work_type, work_mode, event_id,
-        experience_level, availability, turnaround, timezone,
+        experience_level, availability, turnaround, timezone, expires_at,
         payment_type, budget_range, payment_nature,
         eligibility_mode, visibility, notify_talent
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `;
 
@@ -91,6 +92,7 @@ const createOpportunity = async (req, res) => {
       availability,
       turnaround,
       timezone || null,
+      expires_at || null,
       payment_type || "fixed",
       budget_range || null,
       payment_nature || "paid",
@@ -210,6 +212,8 @@ const getOpportunities = async (req, res) => {
         o.budget_range,
         o.visibility,
         o.applicant_count,
+        o.expires_at,
+        o.closed_at,
         o.created_at,
         o.updated_at,
         COALESCE(
@@ -339,6 +343,7 @@ const updateOpportunity = async (req, res) => {
       availability,
       turnaround,
       timezone,
+      expires_at,
       payment_type,
       budget_range,
       payment_nature,
@@ -372,6 +377,7 @@ const updateOpportunity = async (req, res) => {
     addUpdate("availability", availability);
     addUpdate("turnaround", turnaround);
     addUpdate("timezone", timezone);
+    addUpdate("expires_at", expires_at);
     addUpdate("payment_type", payment_type);
     addUpdate("budget_range", budget_range);
     addUpdate("payment_nature", payment_nature);

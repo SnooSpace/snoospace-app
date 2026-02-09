@@ -11,7 +11,7 @@ import {
   getUrgencyColor,
 } from "../utils/cardTiming";
 
-const CountdownTimer = ({ expiresAt, style, prefix = "• " }) => {
+const CountdownTimer = ({ expiresAt, style, prefix = "" }) => {
   const [display, setDisplay] = useState("");
   const [color, setColor] = useState("#9CA3AF");
 

@@ -45,6 +45,7 @@ import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
 import QnAEditModal from "./QnAEditModal";
 import EventBus from "../../utils/EventBus";
+import CountdownTimer from "../CountdownTimer";
 
 const QnAPostCard = ({
   post,
@@ -453,6 +454,13 @@ const QnAPostCard = ({
           {isExpired ? (
             <View style={styles.endedBadge}>
               <Text style={styles.endedBadgeText}>Ended</Text>
+            </View>
+          ) : post.expires_at ? (
+            <View style={styles.activeBadge}>
+              <CountdownTimer
+                expiresAt={post.expires_at}
+                style={styles.activeBadgeText}
+              />
             </View>
           ) : (
             <View />
@@ -874,6 +882,31 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
+  },
+  likedCount: {
+    color: COLORS.error,
+  },
+  activeBadge: {
+    backgroundColor: "#F3F4F6", // Light gray
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+  },
+  endedBadge: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  endedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#DC2626",
   },
 });
 

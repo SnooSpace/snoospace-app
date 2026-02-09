@@ -748,10 +748,27 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     );
   };
 
-  const handlePostUpdate = (updatedPost) => {
+  const handlePostUpdate = (updatedItem) => {
+    // Determine if it's a post or opportunity based on some property or just try both
+    // But better to be explicit or generic.
+    // The EventBus might send an opportunity, EditorialPostCard might send a post.
+
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
-        p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+        p.id === updatedItem.id ? { ...p, ...updatedItem } : p,
+      ),
+    );
+
+    setOpportunities((prevOpps) =>
+      prevOpps.map((o) =>
+        o.id === updatedItem.id ? { ...o, ...updatedItem } : o,
+      ),
+    );
+
+    // Also update feedItems if they store a copy
+    setFeedItems((prevFeed) =>
+      prevFeed.map((item) =>
+        item.id === updatedItem.id ? { ...item, ...updatedItem } : item,
       ),
     );
   };
@@ -838,6 +855,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     EventBus.emit("postDeleted", postId);
   };
 
+  // Listen for global events (deletions, updates from other screens)
+  useEffect(() => {
+    // Using direct references since setPosts/setOpportunities use callback form
+    EventBus.on("postDeleted", handleDelete);
+    EventBus.on("opportunityUpdated", handlePostUpdate);
+
+    return () => {
+      EventBus.off("postDeleted", handleDelete);
+      EventBus.off("opportunityUpdated", handlePostUpdate);
+    };
+  }, []);
+
   // Note: handleScroll is now replaced by scrollHandler using Reanimated
 
   const handleLogoPress = useCallback(() => {
@@ -878,6 +907,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               prev.map((o) => (o.id === id ? { ...o, is_saved: saved } : o)),
             );
           }}
+          onPostUpdate={handlePostUpdate}
         />
       );
     }

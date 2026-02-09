@@ -485,10 +485,12 @@ const PollPostCard = ({
                 </View>
               </>
             ) : (
-              <CountdownTimer
-                expiresAt={post.expires_at}
-                style={[styles.expiryText, isExpired && styles.expiredText]}
-              />
+              <View style={styles.activeBadge}>
+                <CountdownTimer
+                  expiresAt={post.expires_at}
+                  style={styles.activeBadgeText}
+                />
+              </View>
             ))}
         </View>
 
@@ -870,6 +872,17 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
+  },
+  activeBadge: {
+    backgroundColor: "#F3F4F6", // Light gray
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
   },
 });
 
