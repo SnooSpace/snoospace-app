@@ -14,12 +14,18 @@ import {
   Image,
   RefreshControl,
   Dimensions,
+  Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import FullscreenVideoModal from "../../components/FullscreenVideoModal";
+import RemovalRequestsModal from "../../components/RemovalRequestsModal";
+import { Video, ResizeMode } from "expo-av";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 const COLUMN_COUNT = 2;
@@ -36,6 +42,32 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState("submissions"); // submissions, participants
   const [filter, setFilter] = useState("approved"); // approved, featured
   const [visibilityInfo, setVisibilityInfo] = useState(null);
+  const [fullscreenVideo, setFullscreenVideo] = useState(null); // { uri }
+  const [fullscreenImage, setFullscreenImage] = useState(null); // { uri }
+  const [actionSheet, setActionSheet] = useState(null); // { submission }
+  const [showRemovalRequests, setShowRemovalRequests] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const challengeEnded =
+    post.expires_at && new Date(post.expires_at) <= new Date();
+
+  // Check if current user is the challenge host
+  useEffect(() => {
+    const checkHost = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("user_id");
+        const userType = await AsyncStorage.getItem("user_type");
+        if (userId && userType) {
+          setIsHost(
+            parseInt(userId) === post.author_id &&
+              userType === post.author_type,
+          );
+        }
+      } catch (e) {
+        // silent fail
+      }
+    };
+    checkHost();
+  }, [post.author_id, post.author_type]);
 
   const fetchSubmissions = useCallback(
     async (showLoading = true) => {
@@ -157,6 +189,42 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleRequestRemoval = async (submission) => {
+    setActionSheet(null);
+    Alert.alert(
+      "Request Removal",
+      "Since this challenge has ended, your submission can only be removed by the challenge host. Would you like to send a removal request?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request Removal",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await getAuthToken();
+              await apiPost(
+                `/challenge-submissions/${submission.id}/request-removal`,
+                { reason: "User requested removal" },
+                15000,
+                token,
+              );
+              Alert.alert(
+                "Request Sent",
+                "Your removal request has been sent to the challenge host. You'll be notified when they respond.",
+              );
+            } catch (error) {
+              const errMsg =
+                error?.response?.data?.error ||
+                error.message ||
+                "Failed to send request";
+              Alert.alert("Error", errMsg);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderSubmission = ({ item, index }) => {
     const hasMedia = item.media_urls && item.media_urls.length > 0;
     const hasVideo = item.video_url;
@@ -171,7 +239,16 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         ]}
         activeOpacity={0.8}
         onPress={() => {
-          // Could navigate to detail view
+          if (hasVideo && item.video_url) {
+            setFullscreenVideo({ uri: item.video_url });
+          } else if (hasMedia && item.media_urls && item.media_urls[0]) {
+            setFullscreenImage({ uri: item.media_urls[0] });
+          }
+        }}
+        onLongPress={() => {
+          if (item.is_own_submission) {
+            setActionSheet({ submission: item });
+          }
         }}
       >
         {/* Media */}
@@ -204,6 +281,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         {item.is_featured && (
           <View style={styles.featuredBadge}>
             <Ionicons name="star" size={10} color="#FFD700" />
+          </View>
+        )}
+
+        {/* Deleted Post Indicator */}
+        {item.source_post_deleted && (
+          <View style={styles.deletedOverlay}>
+            <Ionicons name="trash-outline" size={14} color="#999" />
+            <Text style={styles.deletedText}>Post deleted</Text>
           </View>
         )}
 
@@ -469,6 +554,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Challenge</Text>
         <View style={styles.headerRight}>
+          {isHost && challengeEnded && (
+            <TouchableOpacity
+              style={styles.removalRequestsButton}
+              onPress={() => setShowRemovalRequests(true)}
+            >
+              <Ionicons name="mail-unread-outline" size={20} color="#FF9500" />
+            </TouchableOpacity>
+          )}
           <Text style={styles.countBadge}>
             {activeTab === "submissions"
               ? submissions.length
@@ -514,6 +607,99 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       ) : null}
+
+      {/* Fullscreen Video Modal */}
+      {fullscreenVideo && (
+        <FullscreenVideoModal
+          visible={!!fullscreenVideo}
+          source={{ uri: fullscreenVideo.uri }}
+          onClose={() => setFullscreenVideo(null)}
+          initialMuted={false}
+          aspectRatio={9 / 16}
+        />
+      )}
+
+      {/* Fullscreen Image Modal */}
+      <Modal
+        visible={!!fullscreenImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreenImage(null)}
+      >
+        <View style={styles.fullscreenOverlay}>
+          <TouchableOpacity
+            style={styles.fullscreenClose}
+            onPress={() => setFullscreenImage(null)}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {fullscreenImage && (
+            <Image
+              source={{ uri: fullscreenImage.uri }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Action Sheet Modal */}
+      <Modal
+        visible={!!actionSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActionSheet(null)}
+      >
+        <TouchableOpacity
+          style={styles.actionSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setActionSheet(null)}
+        >
+          <View style={styles.actionSheetContainer}>
+            <Text style={styles.actionSheetTitle}>Submission Options</Text>
+            {challengeEnded && actionSheet?.submission?.is_own_submission && (
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() => handleRequestRemoval(actionSheet.submission)}
+              >
+                <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                <Text
+                  style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}
+                >
+                  Request Removal
+                </Text>
+              </TouchableOpacity>
+            )}
+            {!challengeEnded && actionSheet?.submission?.is_own_submission && (
+              <View style={styles.actionSheetInfoRow}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color="#999"
+                />
+                <Text style={styles.actionSheetInfoText}>
+                  Delete the original post to remove this submission while the
+                  challenge is active.
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.actionSheetButton, styles.actionSheetCancel]}
+              onPress={() => setActionSheet(null)}
+            >
+              <Text style={styles.actionSheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Removal Requests Modal (for challenge host) */}
+      <RemovalRequestsModal
+        visible={showRemovalRequests}
+        onClose={() => setShowRemovalRequests(false)}
+        postId={post.id}
+        onRequestReviewed={() => fetchSubmissions(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -542,8 +728,13 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     minWidth: 40,
-    alignItems: "flex-end",
+  },
+  removalRequestsButton: {
+    padding: 4,
   },
   countBadge: {
     fontSize: 12,
@@ -856,6 +1047,104 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...SHADOWS.md,
+  },
+  // Fullscreen modals
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    padding: 8,
+  },
+  fullscreenImage: {
+    width: "100%",
+    height: "80%",
+  },
+  // Deleted post indicator
+  deletedOverlay: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 3,
+  },
+  deletedText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#999",
+  },
+  // Action Sheet
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  actionSheetContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  actionSheetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  actionSheetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+    backgroundColor: "#F8F8F8",
+  },
+  actionSheetButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  actionSheetInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 8,
+  },
+  actionSheetInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#999",
+    lineHeight: 18,
+  },
+  actionSheetCancel: {
+    backgroundColor: "#F0F0F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
   },
 });
 

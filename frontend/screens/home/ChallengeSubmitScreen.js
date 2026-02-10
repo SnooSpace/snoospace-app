@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -61,7 +62,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       if (status !== "granted") {
         Alert.alert(
           "Permission needed",
-          "Please grant camera access to take photos"
+          "Please grant camera access to take photos",
         );
         return;
       }
@@ -72,7 +73,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setSelectedImages((prev) =>
-          [...prev, result.assets[0].uri].slice(0, 5)
+          [...prev, result.assets[0].uri].slice(0, 5),
         );
       }
     } catch (error) {
@@ -104,7 +105,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       if (status !== "granted") {
         Alert.alert(
           "Permission needed",
-          "Please grant camera access to record video"
+          "Please grant camera access to record video",
         );
         return;
       }
@@ -168,7 +169,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         Alert.alert(
           "Video Upload",
           "Video uploading will be available after AWS S3 migration. Your submission has been saved with the description only.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         videoUrl = selectedVideo; // Placeholder - won't work in production without cloud upload
       }
@@ -182,7 +183,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           video_thumbnail: videoThumbnail,
         },
         30000,
-        token
+        token,
       );
 
       if (response.success) {
@@ -196,14 +197,14 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
               text: "OK",
               onPress: () => navigation.goBack(),
             },
-          ]
+          ],
         );
       }
     } catch (error) {
       console.error("Error submitting proof:", error);
       Alert.alert(
         "Error",
-        error?.message || "Failed to submit. Please try again."
+        error?.message || "Failed to submit. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -259,10 +260,14 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       <Text style={styles.sectionLabel}>Add Video</Text>
       {selectedVideo ? (
         <View style={styles.videoWrapper}>
-          <View style={styles.selectedVideo}>
-            <Ionicons name="videocam" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.videoSelectedText}>Video selected</Text>
-          </View>
+          <Video
+            source={{ uri: selectedVideo }}
+            style={styles.selectedVideo}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping={false}
+            shouldPlay={false}
+          />
           <TouchableOpacity
             style={styles.removeVideoButton}
             onPress={removeVideo}

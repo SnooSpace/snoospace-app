@@ -657,11 +657,15 @@ const getSubmissions = async (req, res) => {
           )
           ELSE false
         END as has_liked,
-        (cp.participant_id = $4 AND cp.participant_type = $5) as is_own_submission
+        (cp.participant_id = $4 AND cp.participant_type = $5) as is_own_submission,
+        css.source_post_id,
+        css.is_from_tagged_post,
+        CASE WHEN css.source_post_id IS NULL AND css.is_from_tagged_post = true THEN true ELSE false END as source_post_deleted
        FROM challenge_submissions cs
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
        LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
+       LEFT JOIN challenge_submission_sources css ON css.submission_id = cs.id
        WHERE cs.post_id = $1 ${filterClause} ${visibilityClause}
        ORDER BY cs.is_featured DESC, cs.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -1177,6 +1181,409 @@ const unlikeSubmission = async (req, res) => {
 };
 
 // =============================================================================
+// REMOVAL REQUESTS & CHALLENGE SEARCH
+// =============================================================================
+
+/**
+ * Request removal of a submission (after challenge ends)
+ * POST /challenge-submissions/:id/request-removal
+ */
+const requestSubmissionRemoval = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { reason } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get submission and verify ownership
+    const submissionResult = await pool.query(
+      `SELECT cs.id, cs.post_id,
+              cp.participant_id, cp.participant_type,
+              p.expires_at
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       JOIN posts p ON cs.post_id = p.id
+       WHERE cs.id = $1`,
+      [id],
+    );
+
+    if (submissionResult.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    const submission = submissionResult.rows[0];
+
+    // Verify the requester owns this submission
+    if (
+      submission.participant_id !== userId ||
+      submission.participant_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({
+          error: "You can only request removal of your own submissions",
+        });
+    }
+
+    // Verify challenge has ended
+    if (
+      !submission.expires_at ||
+      new Date(submission.expires_at) > new Date()
+    ) {
+      return res.status(400).json({
+        error:
+          "You can only request removal after the challenge has ended. Delete the post instead.",
+      });
+    }
+
+    // Check if already requested
+    const existingRequest = await pool.query(
+      `SELECT id, status FROM submission_removal_requests 
+       WHERE submission_id = $1 AND requester_id = $2 AND requester_type = $3`,
+      [id, userId, userType],
+    );
+
+    if (existingRequest.rows.length > 0) {
+      const existing = existingRequest.rows[0];
+      if (existing.status === "pending") {
+        return res
+          .status(400)
+          .json({ error: "Removal request already pending" });
+      } else if (existing.status === "rejected") {
+        return res
+          .status(400)
+          .json({ error: "Removal request was previously rejected" });
+      }
+    }
+
+    // Create removal request
+    const insertResult = await pool.query(
+      `INSERT INTO submission_removal_requests 
+       (submission_id, requester_id, requester_type, reason)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, created_at`,
+      [id, userId, userType, reason?.trim() || null],
+    );
+
+    // Send notification to challenge author
+    try {
+      const challengeResult = await pool.query(
+        `SELECT author_id, author_type FROM posts WHERE id = $1`,
+        [submission.post_id],
+      );
+      if (challengeResult.rows.length > 0) {
+        const challengeAuthor = challengeResult.rows[0];
+        let requesterName = "Someone";
+        if (userType === "member") {
+          const nameResult = await pool.query(
+            "SELECT name FROM members WHERE id = $1",
+            [userId],
+          );
+          requesterName = nameResult.rows[0]?.name || "Someone";
+        }
+
+        await pushService.sendPushNotification(
+          pool,
+          challengeAuthor.author_id,
+          challengeAuthor.author_type,
+          "Submission Removal Request 📋",
+          `${requesterName} requested to remove their challenge submission`,
+          {
+            type: "removal_request",
+            postId: submission.post_id,
+            submissionId: parseInt(id),
+            requestId: insertResult.rows[0].id,
+          },
+        );
+      }
+    } catch (e) {
+      console.error(
+        "[Challenge] Failed to send removal request notification:",
+        e,
+      );
+    }
+
+    console.log(`[Challenge] Removal request created for submission ${id}`);
+
+    res.status(201).json({
+      success: true,
+      request: {
+        id: insertResult.rows[0].id,
+        status: "pending",
+        created_at: insertResult.rows[0].created_at,
+      },
+    });
+  } catch (error) {
+    console.error("[Challenge] Error requesting removal:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Review a removal request (approve/reject)
+ * PATCH /submission-removal-requests/:id
+ */
+const reviewRemovalRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { status } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Status must be 'approved' or 'rejected'" });
+    }
+
+    // Get request and verify reviewer is challenge author
+    const requestResult = await pool.query(
+      `SELECT srr.id, srr.submission_id, srr.requester_id, srr.requester_type, srr.status as current_status,
+              cs.post_id,
+              p.author_id, p.author_type
+       FROM submission_removal_requests srr
+       JOIN challenge_submissions cs ON srr.submission_id = cs.id
+       JOIN posts p ON cs.post_id = p.id
+       WHERE srr.id = $1`,
+      [id],
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: "Removal request not found" });
+    }
+
+    const request = requestResult.rows[0];
+
+    // Only challenge author can review
+    if (request.author_id !== userId || request.author_type !== userType) {
+      return res
+        .status(403)
+        .json({ error: "Only the challenge host can review removal requests" });
+    }
+
+    if (request.current_status !== "pending") {
+      return res
+        .status(400)
+        .json({ error: "This request has already been reviewed" });
+    }
+
+    // Update request status
+    await pool.query(
+      `UPDATE submission_removal_requests 
+       SET status = $1, reviewed_by = $2, reviewed_at = NOW()
+       WHERE id = $3`,
+      [status, userId, id],
+    );
+
+    // If approved, delete the submission
+    if (status === "approved") {
+      await pool.query(`DELETE FROM challenge_submissions WHERE id = $1`, [
+        request.submission_id,
+      ]);
+
+      // Decrement submission count
+      await pool.query(
+        `UPDATE posts SET type_data = jsonb_set(
+           type_data, 
+           '{submission_count}', 
+           (GREATEST(COALESCE((type_data->>'submission_count')::int, 0) - 1, 0))::text::jsonb
+         ) WHERE id = $1`,
+        [request.post_id],
+      );
+    }
+
+    // Notify the requester
+    try {
+      const message =
+        status === "approved"
+          ? "Your removal request was approved ✓"
+          : "Your removal request was declined";
+
+      await pushService.sendPushNotification(
+        pool,
+        request.requester_id,
+        request.requester_type,
+        message,
+        status === "approved"
+          ? "Your challenge submission has been removed."
+          : "The challenge host declined your removal request.",
+        {
+          type: "removal_request_review",
+          postId: request.post_id,
+          status,
+        },
+      );
+    } catch (e) {
+      console.error("[Challenge] Failed to send review notification:", e);
+    }
+
+    res.json({ success: true, status });
+  } catch (error) {
+    console.error("[Challenge] Error reviewing removal request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Get pending removal requests for a challenge
+ * GET /posts/:postId/removal-requests
+ */
+const getPendingRemovalRequests = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify user is the challenge author
+    const postResult = await pool.query(
+      `SELECT author_id, author_type FROM posts WHERE id = $1 AND post_type = 'challenge'`,
+      [postId],
+    );
+
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: "Challenge not found" });
+    }
+
+    const post = postResult.rows[0];
+    if (post.author_id !== userId || post.author_type !== userType) {
+      return res
+        .status(403)
+        .json({ error: "Only the challenge host can view removal requests" });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        srr.id,
+        srr.submission_id,
+        srr.requester_id,
+        srr.requester_type,
+        srr.reason,
+        srr.status,
+        srr.created_at,
+        cs.content as submission_content,
+        cs.media_urls as submission_media,
+        cs.video_url as submission_video,
+        cs.submission_type,
+        CASE 
+          WHEN srr.requester_type = 'member' THEN m.name
+        END as requester_name,
+        CASE 
+          WHEN srr.requester_type = 'member' THEN m.profile_photo_url
+        END as requester_photo
+       FROM submission_removal_requests srr
+       JOIN challenge_submissions cs ON srr.submission_id = cs.id
+       LEFT JOIN members m ON srr.requester_type = 'member' AND srr.requester_id = m.id
+       WHERE cs.post_id = $1 AND srr.status = 'pending'
+       ORDER BY srr.created_at DESC`,
+      [postId],
+    );
+
+    res.json({
+      success: true,
+      requests: result.rows,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error getting removal requests:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Search for active challenges in a community
+ * GET /challenges/search?q={query}&communityId={communityId}
+ */
+const searchChallenges = async (req, res) => {
+  try {
+    const { q, communityId } = req.query;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!communityId) {
+      return res.status(400).json({ error: "communityId is required" });
+    }
+
+    // Search active challenges posted by the community
+    let queryStr = `
+      SELECT 
+        p.id,
+        p.caption,
+        p.type_data,
+        p.expires_at,
+        p.created_at,
+        p.author_id,
+        p.author_type,
+        CASE 
+          WHEN p.author_type = 'community' THEN c.name
+          WHEN p.author_type = 'member' THEN m.name
+        END as author_name,
+        CASE 
+          WHEN p.author_type = 'community' THEN c.logo_url
+          WHEN p.author_type = 'member' THEN m.profile_photo_url
+        END as author_photo,
+        EXISTS (
+          SELECT 1 FROM challenge_participations cp 
+          WHERE cp.post_id = p.id AND cp.participant_id = $2 AND cp.participant_type = $3
+        ) as is_joined
+      FROM posts p
+      LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
+      LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
+      WHERE p.post_type = 'challenge'
+        AND p.author_id = $1 AND p.author_type = 'community'
+        AND (p.expires_at IS NULL OR p.expires_at > NOW())
+    `;
+    const params = [communityId, userId, userType];
+
+    if (q && q.trim()) {
+      queryStr += ` AND p.caption ILIKE $4`;
+      params.push(`%${q.trim()}%`);
+    }
+
+    queryStr += ` ORDER BY p.created_at DESC LIMIT 20`;
+
+    const result = await pool.query(queryStr, params);
+
+    const challenges = result.rows.map((row) => ({
+      id: row.id,
+      title:
+        row.type_data?.title ||
+        row.caption?.substring(0, 50) ||
+        "Untitled Challenge",
+      caption: row.caption,
+      type_data: row.type_data,
+      expires_at: row.expires_at,
+      author_name: row.author_name,
+      author_photo: row.author_photo,
+      is_joined: row.is_joined,
+      created_at: row.created_at,
+    }));
+
+    res.json({
+      success: true,
+      challenges,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error searching challenges:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
@@ -1195,4 +1602,8 @@ module.exports = {
   highlightParticipant,
   likeSubmission,
   unlikeSubmission,
+  requestSubmissionRemoval,
+  reviewRemovalRequest,
+  getPendingRemovalRequests,
+  searchChallenges,
 };

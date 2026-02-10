@@ -92,7 +92,9 @@ const createPost = async (req, res) => {
             .json({ error: "Invalid tagged entity format" });
         }
         if (
-          !["member", "community", "sponsor", "venue"].includes(entity.type)
+          !["member", "community", "sponsor", "venue", "challenge"].includes(
+            entity.type,
+          )
         ) {
           return res.status(400).json({ error: "Invalid entity type" });
         }
@@ -144,9 +146,21 @@ const createPost = async (req, res) => {
       });
     }
 
+    // Check for challenge tag
+    const challengeTag = taggedEntities?.find((e) => e.type === "challenge");
+    const challengeTags =
+      taggedEntities?.filter((e) => e.type === "challenge") || [];
+    if (challengeTags.length > 1) {
+      return res
+        .status(400)
+        .json({ error: "You can only tag one challenge per post" });
+    }
+
+    const linkedChallengeId = challengeTag ? challengeTag.id : null;
+
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail, linked_challenge_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id, created_at
     `;
 
@@ -160,10 +174,185 @@ const createPost = async (req, res) => {
       validatedMediaTypes ? JSON.stringify(validatedMediaTypes) : null,
       validatedCropMetadata ? JSON.stringify(validatedCropMetadata) : null,
       videoThumbnails ? JSON.stringify(videoThumbnails) : null,
+      linkedChallengeId,
     ];
 
     const result = await pool.query(query, values);
     const post = result.rows[0];
+
+    // =========================================================================
+    // CHALLENGE TAG HANDLING: Auto-join + create submission
+    // =========================================================================
+    if (challengeTag) {
+      try {
+        const challengeId = challengeTag.id;
+        console.log(`[createPost] Challenge tag detected: ${challengeId}`);
+
+        // Verify challenge exists and is still active
+        const challengeResult = await pool.query(
+          `SELECT id, type_data, expires_at, author_id, author_type 
+           FROM posts WHERE id = $1 AND post_type = 'challenge'`,
+          [challengeId],
+        );
+
+        if (challengeResult.rows.length === 0) {
+          console.warn(
+            `[createPost] Tagged challenge ${challengeId} not found, skipping`,
+          );
+        } else {
+          const challenge = challengeResult.rows[0];
+          const challengeTypeData = challenge.type_data || {};
+
+          // Check if challenge has ended
+          if (
+            challenge.expires_at &&
+            new Date(challenge.expires_at) < new Date()
+          ) {
+            console.warn(
+              `[createPost] Tagged challenge ${challengeId} has ended, skipping`,
+            );
+          } else {
+            // Check if user is already a participant
+            let participationId = null;
+            let wasAutoJoined = false;
+            const existingParticipation = await pool.query(
+              `SELECT id FROM challenge_participations 
+               WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
+              [challengeId, userId, userType],
+            );
+
+            if (existingParticipation.rows.length > 0) {
+              participationId = existingParticipation.rows[0].id;
+            } else {
+              // Auto-join the challenge
+              const joinResult = await pool.query(
+                `INSERT INTO challenge_participations 
+                 (post_id, participant_id, participant_type, status, progress)
+                 VALUES ($1, $2, $3, 'joined', 0)
+                 RETURNING id`,
+                [challengeId, userId, userType],
+              );
+              participationId = joinResult.rows[0].id;
+              wasAutoJoined = true;
+
+              // Update participant count in type_data
+              await pool.query(
+                `UPDATE posts SET type_data = type_data || $1 WHERE id = $2`,
+                [
+                  JSON.stringify({
+                    participant_count:
+                      (challengeTypeData.participant_count || 0) + 1,
+                  }),
+                  challengeId,
+                ],
+              );
+              console.log(
+                `[createPost] Auto-joined user ${userType}:${userId} to challenge ${challengeId}`,
+              );
+            }
+
+            // Determine submission type from media
+            let submissionType = "text";
+            const hasVideo = validatedMediaTypes?.includes("video");
+            if (hasVideo) {
+              submissionType = "video";
+            } else if (imageUrls && imageUrls.length > 0) {
+              submissionType = "image";
+            }
+
+            // Determine initial status
+            const initialStatus = challengeTypeData.require_approval
+              ? "pending"
+              : "approved";
+
+            // Extract first video URL and thumbnail
+            let videoUrl = null;
+            let videoThumb = null;
+            if (hasVideo && validatedMediaTypes) {
+              const videoIdx = validatedMediaTypes.indexOf("video");
+              if (videoIdx !== -1) {
+                videoUrl = imageUrls[videoIdx];
+                videoThumb = videoThumbnails?.[videoIdx] || null;
+              }
+            }
+
+            // Create challenge submission
+            const submissionResult = await pool.query(
+              `INSERT INTO challenge_submissions 
+               (post_id, participant_id, content, media_urls, video_url, video_thumbnail, submission_type, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               RETURNING id`,
+              [
+                challengeId,
+                participationId,
+                caption?.trim() || null,
+                imageUrls ? JSON.stringify(imageUrls) : null,
+                videoUrl,
+                videoThumb,
+                submissionType,
+                initialStatus,
+              ],
+            );
+
+            const submissionId = submissionResult.rows[0].id;
+
+            // Link submission to source post
+            await pool.query(
+              `INSERT INTO challenge_submission_sources 
+               (submission_id, source_post_id, is_from_tagged_post)
+               VALUES ($1, $2, TRUE)`,
+              [submissionId, post.id],
+            );
+
+            // Update submission count in type_data
+            await pool.query(
+              `UPDATE posts SET type_data = jsonb_set(
+                 type_data, 
+                 '{submission_count}', 
+                 (COALESCE((type_data->>'submission_count')::int, 0) + 1)::text::jsonb
+               ) WHERE id = $1`,
+              [challengeId],
+            );
+
+            // Update participant progress for progress-based challenges
+            if (challengeTypeData.challenge_type === "progress") {
+              const submissionCountResult = await pool.query(
+                `SELECT COUNT(*) as count FROM challenge_submissions 
+                 WHERE participant_id = $1`,
+                [participationId],
+              );
+              const targetCount = challengeTypeData.target_count || 1;
+              const progress = Math.min(
+                100,
+                Math.round(
+                  (parseInt(submissionCountResult.rows[0].count) /
+                    targetCount) *
+                    100,
+                ),
+              );
+
+              await pool.query(
+                `UPDATE challenge_participations 
+                 SET progress = $1, 
+                     status = CASE WHEN $1 >= 100 THEN 'completed' ELSE 'in_progress' END
+                 WHERE id = $2`,
+                [progress, participationId],
+              );
+            }
+
+            console.log(
+              `[createPost] Challenge submission ${submissionId} created from tagged post ${post.id}`,
+            );
+          }
+        }
+      } catch (challengeError) {
+        // Non-fatal: don't block post creation if challenge tag handling fails
+        console.error(
+          "[createPost] Error handling challenge tag:",
+          challengeError,
+        );
+      }
+    }
 
     // Create notifications for tagged users
     if (
@@ -1663,7 +1852,7 @@ const deletePost = async (req, res) => {
 
     // Check if post exists and belongs to user
     const postCheck = await pool.query(
-      "SELECT id FROM posts WHERE id = $1 AND author_id = $2 AND author_type = $3",
+      "SELECT id, linked_challenge_id FROM posts WHERE id = $1 AND author_id = $2 AND author_type = $3",
       [postId, userId, userType],
     );
 
@@ -1671,6 +1860,104 @@ const deletePost = async (req, res) => {
       return res
         .status(404)
         .json({ error: "Post not found or not authorized" });
+    }
+
+    const postToDelete = postCheck.rows[0];
+
+    // =========================================================================
+    // CHALLENGE SUBMISSION CLEANUP
+    // =========================================================================
+    if (postToDelete.linked_challenge_id) {
+      try {
+        const challengeId = postToDelete.linked_challenge_id;
+        console.log(
+          `[deletePost] Post ${postId} has linked challenge ${challengeId}`,
+        );
+
+        // Get the challenge to check if it has ended
+        const challengeResult = await pool.query(
+          `SELECT expires_at, type_data FROM posts WHERE id = $1 AND post_type = 'challenge'`,
+          [challengeId],
+        );
+
+        if (challengeResult.rows.length > 0) {
+          const challenge = challengeResult.rows[0];
+          const challengeHasEnded =
+            challenge.expires_at && new Date(challenge.expires_at) < new Date();
+
+          // Get the linked submission
+          const sourceResult = await pool.query(
+            `SELECT css.submission_id, css.id as source_id, cs.participant_id
+             FROM challenge_submission_sources css
+             JOIN challenge_submissions cs ON cs.id = css.submission_id
+             WHERE css.source_post_id = $1`,
+            [postId],
+          );
+
+          if (sourceResult.rows.length > 0) {
+            const { submission_id, participant_id } = sourceResult.rows[0];
+
+            if (challengeHasEnded) {
+              // Challenge has ended: keep submission visible but mark source as deleted
+              // ON DELETE SET NULL on source_post_id handles this automatically when post is deleted
+              console.log(
+                `[deletePost] Challenge ended - submission ${submission_id} will remain (source nullified)`,
+              );
+            } else {
+              // Challenge still active: delete the submission and adjust progress
+              console.log(
+                `[deletePost] Challenge active - deleting submission ${submission_id}`,
+              );
+
+              // Delete the submission (CASCADE will handle source link)
+              await pool.query(
+                `DELETE FROM challenge_submissions WHERE id = $1`,
+                [submission_id],
+              );
+
+              // Decrement submission count
+              await pool.query(
+                `UPDATE posts SET type_data = jsonb_set(
+                   type_data, 
+                   '{submission_count}', 
+                   (GREATEST(COALESCE((type_data->>'submission_count')::int, 0) - 1, 0))::text::jsonb
+                 ) WHERE id = $1`,
+                [challengeId],
+              );
+
+              // Recalculate participant progress for progress-based challenges
+              const challengeTypeData = challenge.type_data || {};
+              if (challengeTypeData.challenge_type === "progress") {
+                const submissionCountResult = await pool.query(
+                  `SELECT COUNT(*) as count FROM challenge_submissions 
+                   WHERE participant_id = $1`,
+                  [participant_id],
+                );
+                const targetCount = challengeTypeData.target_count || 1;
+                const newCount = parseInt(submissionCountResult.rows[0].count);
+                const progress = Math.min(
+                  100,
+                  Math.round((newCount / targetCount) * 100),
+                );
+
+                await pool.query(
+                  `UPDATE challenge_participations 
+                   SET progress = $1, 
+                       status = CASE WHEN $1 >= 100 THEN 'completed' ELSE 'in_progress' END
+                   WHERE id = $2`,
+                  [progress, participant_id],
+                );
+              }
+            }
+          }
+        }
+      } catch (challengeError) {
+        // Non-fatal: don't block post deletion
+        console.error(
+          "[deletePost] Error handling challenge cleanup:",
+          challengeError,
+        );
+      }
     }
 
     // Delete post (CASCADE will handle related likes and comments)

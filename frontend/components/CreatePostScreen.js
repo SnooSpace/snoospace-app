@@ -23,6 +23,7 @@ import { Camera, Info, X, Video } from "lucide-react-native";
 import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
+import EntityTagSelector from "./EntityTagSelector";
 import { getAuthToken } from "../api/auth";
 import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
@@ -30,6 +31,7 @@ import HapticsService from "../services/HapticsService";
 import GradientButton from "./GradientButton";
 import { COLORS, SHADOWS, FONTS } from "../constants/theme";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
+import { Ionicons } from "@expo/vector-icons";
 
 // Use theme COLORS imported from constants
 
@@ -41,9 +43,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [cropMetadata, setCropMetadata] = useState([]); // NEW: Track crop metadata (scale, translate)
   const [mediaTypes, setMediaTypes] = useState([]); // NEW: Track 'image' or 'video' for each media item
   const [taggedEntities, setTaggedEntities] = useState([]);
+  const [entityTags, setEntityTags] = useState([]); // From EntityTagSelector (challenges, etc.)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const [showEntityTagger, setShowEntityTagger] = useState(false);
   const imageUploaderRef = useRef(null);
 
   // Animation for Share button
@@ -151,11 +155,18 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       // Extract URLs from results
       const imageUrls = uploadedResults.map((result) => result.url);
 
-      // 2. Prepare tagged entities data
-      const taggedEntitiesData = taggedEntities.map((entity) => ({
-        id: entity.id,
-        type: entity.type,
-      }));
+      // 2. Prepare tagged entities data (merge @ mentions + entity selector tags)
+      const allTaggedEntities = [
+        ...taggedEntities.map((entity) => ({
+          id: entity.id,
+          type: entity.type,
+        })),
+        ...entityTags.map((entity) => ({
+          id: entity.id,
+          type: entity.type,
+        })),
+      ];
+      const taggedEntitiesData = allTaggedEntities;
 
       // 3. Get auth token
       const token = await getAuthToken();
@@ -208,7 +219,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
       // 5. Success: navigate to Home tab
       HapticsService.triggerNotificationSuccess();
-      Alert.alert("Success", "Post created successfully!", [
+      const challengeTag = entityTags.find((e) => e.type === "challenge");
+      const successMessage = challengeTag
+        ? `Post created and submitted to "${challengeTag.name}"! ${!challengeTag.is_joined ? "You were auto-joined to the challenge." : ""}`
+        : "Post created successfully!";
+      Alert.alert("Success", successMessage, [
         {
           text: "OK",
           onPress: () => {
@@ -541,6 +556,36 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               allowVideos={true}
             />
           </View>
+
+          {/* Challenge / Entity Tag Selector */}
+          {showEntityTagger && (
+            <View style={styles.entityTaggerContainer}>
+              <EntityTagSelector
+                onEntitiesChange={setEntityTags}
+                initialEntities={entityTags}
+              />
+            </View>
+          )}
+
+          {/* Challenge tag banner (shown when a challenge is tagged) */}
+          {entityTags.some((e) => e.type === "challenge") && (
+            <View style={styles.challengeBanner}>
+              <Ionicons name="trophy" size={18} color="#FF6B35" />
+              <Text style={styles.challengeBannerText}>
+                Tagged: {entityTags.find((e) => e.type === "challenge")?.name}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEntityTags(
+                    entityTags.filter((e) => e.type !== "challenge"),
+                  );
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -571,6 +616,22 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               size={32}
               color={COLORS.editorial.textSecondary}
               strokeWidth={2}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setShowEntityTagger(!showEntityTagger);
+            }}
+            style={styles.toolbarButton}
+          >
+            <Ionicons
+              name="trophy-outline"
+              size={28}
+              color={
+                showEntityTagger ? "#FF6B35" : COLORS.editorial.textSecondary
+              }
             />
           </TouchableOpacity>
 
@@ -743,6 +804,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: COLORS.textDark,
+  },
+  // Entity tagger & challenge banner
+  entityTaggerContainer: {
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  challengeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3ED",
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFD4BC",
+    gap: 8,
+  },
+  challengeBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FF6B35",
   },
 });
 

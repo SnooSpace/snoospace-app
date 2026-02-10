@@ -1054,6 +1054,28 @@ router.delete(
   ChallengeController.unlikeSubmission,
 );
 
+// Challenge tagging - search & removal requests
+router.get(
+  "/challenges/search",
+  authMiddleware,
+  ChallengeController.searchChallenges,
+);
+router.post(
+  "/challenge-submissions/:id/request-removal",
+  authMiddleware,
+  ChallengeController.requestSubmissionRemoval,
+);
+router.patch(
+  "/submission-removal-requests/:id",
+  authMiddleware,
+  ChallengeController.reviewRemovalRequest,
+);
+router.get(
+  "/posts/:postId/removal-requests",
+  authMiddleware,
+  ChallengeController.getPendingRemovalRequests,
+);
+
 // ============================================
 // CARD EXTENSION & STATE MANAGEMENT
 // ============================================

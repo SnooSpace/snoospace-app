@@ -21,12 +21,23 @@ const COLORS = {
   background: "#FFFFFF",
   white: "#fff",
   border: "#E5E5E5",
+  challenge: "#FF6B35",
+  challengeLight: "#FFF3ED",
 };
 
-const EntityTagSelector = ({ 
-  onEntitiesChange, 
+/**
+ * EntityTagSelector — Challenge Tagging Component
+ *
+ * Two-step flow:
+ *   Step 1: Search for a community
+ *   Step 2: Pick an active challenge from that community
+ *
+ * Only one challenge can be tagged per post.
+ */
+const EntityTagSelector = ({
+  onEntitiesChange,
   initialEntities = [],
-  style 
+  style,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -34,329 +45,443 @@ const EntityTagSelector = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
+  // Two-step challenge flow
+  const [step, setStep] = useState("community"); // 'community' | 'challenge'
+  const [selectedCommunity, setSelectedCommunity] = useState(null);
+  const [challenges, setChallenges] = useState([]);
+  const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
+
   useEffect(() => {
     if (onEntitiesChange) {
       onEntitiesChange(selectedEntities);
     }
   }, [selectedEntities]);
 
-  const searchEntities = async (query) => {
-    if (query.length < 1) {
+  const hasChallenge = selectedEntities.some((e) => e.type === "challenge");
+
+  // ─── Step 1: Search communities ───────────────────────────────
+  const searchCommunities = async (query) => {
+    if (query.length < 2) {
       setSearchResults([]);
       setShowResults(false);
       return;
     }
 
     setIsSearching(true);
-    setShowResults(true); // Show results container even while searching
-    
+    setShowResults(true);
+
     try {
       const token = await getAuthToken();
       if (!token) {
-        console.warn('No auth token available for search');
         setSearchResults([]);
         setShowResults(false);
         return;
       }
 
-      // Search members (only endpoint currently available)
-      // Other entity types can be added when their search endpoints are implemented
-      try {
-        const membersRes = await apiGet(`/members/search?q=${encodeURIComponent(query)}`, 15000, token);
-        // Backend returns { results: [...], nextOffset: ..., hasMore: ... }
-        const members = membersRes.results || membersRes.members || [];
-        const results = members.map(member => ({ ...member, type: 'member' }));
-        
-        setSearchResults(results);
-        setShowResults(results.length > 0 || query.length > 0); // Show container if there are results or user is typing
-      } catch (memberError) {
-        console.error("Error searching members:", memberError);
-        setSearchResults([]);
-        // Keep showResults true if user is still typing to show "No results" message
-        setShowResults(query.length > 0);
-      }
+      const res = await apiGet(
+        `/communities/search?query=${encodeURIComponent(query)}`,
+        15000,
+        token,
+      );
+      const communities = (res.results || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        username: c.username,
+        logo_url: c.logo_url,
+      }));
+      setSearchResults(communities);
+      setShowResults(communities.length > 0 || query.length > 0);
     } catch (error) {
-      console.error("Error in searchEntities:", error);
+      console.error("Error searching communities:", error);
       setSearchResults([]);
-      setShowResults(false);
+      setShowResults(query.length > 0);
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleSearchChange = (text) => {
-    setSearchQuery(text);
-    searchEntities(text);
+  // ─── Step 2: Fetch active challenges for selected community ───
+  const fetchChallengesForCommunity = async (communityId) => {
+    setIsLoadingChallenges(true);
+    try {
+      const token = await getAuthToken();
+      const res = await apiGet(
+        `/challenges/search?communityId=${communityId}`,
+        15000,
+        token,
+      );
+      setChallenges(res.challenges || []);
+    } catch (error) {
+      console.error("Error fetching challenges:", error);
+      setChallenges([]);
+    } finally {
+      setIsLoadingChallenges(false);
+    }
   };
 
-  const selectEntity = (entity) => {
-    const isAlreadySelected = selectedEntities.some(
-      selected => selected.id === entity.id && selected.type === entity.type
-    );
+  // ─── Handlers ─────────────────────────────────────────────────
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+    if (step === "community") {
+      searchCommunities(text);
+    }
+    // For challenge step, filter locally
+  };
 
-    if (!isAlreadySelected) {
-      const newSelected = [...selectedEntities, entity];
-      setSelectedEntities(newSelected);
+  const selectCommunity = (community) => {
+    setSelectedCommunity(community);
+    setStep("challenge");
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowResults(false);
+    fetchChallengesForCommunity(community.id);
+  };
+
+  const selectChallenge = (challenge) => {
+    if (hasChallenge) {
+      Alert.alert("Limit Reached", "You can only tag one challenge per post.");
+      return;
     }
 
+    const challengeEntity = {
+      id: challenge.id,
+      type: "challenge",
+      name:
+        challenge.title || challenge.caption?.substring(0, 50) || "Challenge",
+      communityName: selectedCommunity?.name,
+      communityId: selectedCommunity?.id,
+      expires_at: challenge.expires_at,
+      is_joined: challenge.is_joined,
+    };
+
+    const newSelected = [...selectedEntities, challengeEntity];
+    setSelectedEntities(newSelected);
+
+    // Reset flow
     setSearchQuery("");
+    setShowResults(false);
+    setStep("community");
+    setSelectedCommunity(null);
+    setChallenges([]);
+  };
+
+  const removeEntity = (entityId) => {
+    const newSelected = selectedEntities.filter((e) => e.id !== entityId);
+    setSelectedEntities(newSelected);
+  };
+
+  const goBackToCommunities = () => {
+    setStep("community");
+    setSelectedCommunity(null);
+    setChallenges([]);
+    setSearchQuery("");
+    setSearchResults([]);
     setShowResults(false);
   };
 
-  const removeEntity = (entityToRemove) => {
-    const updated = selectedEntities.filter(
-      entity => !(entity.id === entityToRemove.id && entity.type === entityToRemove.type)
-    );
-    setSelectedEntities(updated);
-  };
+  // ─── Filtered challenges (client-side filter when user types) ─
+  const filteredChallenges =
+    searchQuery.length > 0
+      ? challenges.filter(
+          (c) =>
+            (c.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.caption || "").toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      : challenges;
 
-  const getEntityDisplayName = (entity) => {
-    switch (entity.type) {
-      case 'member':
-        return entity.name;
-      case 'community':
-        return entity.name;
-      case 'sponsor':
-        return entity.brand_name;
-      case 'venue':
-        return entity.name;
-      default:
-        return entity.name || entity.brand_name;
-    }
-  };
+  // ─── Render ───────────────────────────────────────────────────
+  const renderCommunityResults = () => (
+    <ScrollView
+      style={styles.resultsContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      {isSearching ? (
+        <ActivityIndicator
+          size="small"
+          color={COLORS.challenge}
+          style={{ paddingVertical: 16 }}
+        />
+      ) : searchResults.length === 0 && searchQuery.length > 0 ? (
+        <Text style={styles.noResults}>No communities found</Text>
+      ) : (
+        searchResults.map((community) => (
+          <TouchableOpacity
+            key={community.id}
+            style={styles.resultItem}
+            onPress={() => selectCommunity(community)}
+          >
+            {community.logo_url ? (
+              <Image
+                source={{ uri: community.logo_url }}
+                style={styles.resultAvatar}
+              />
+            ) : (
+              <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
+                <Ionicons name="people" size={18} color="#999" />
+              </View>
+            )}
+            <View style={styles.resultInfo}>
+              <Text style={styles.resultName}>{community.name}</Text>
+              {community.username && (
+                <Text style={styles.resultHandle}>@{community.username}</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#CCC" />
+          </TouchableOpacity>
+        ))
+      )}
+    </ScrollView>
+  );
 
-  const getEntityUsername = (entity) => {
-    return entity.username || `@${entity.name || entity.brand_name}`;
-  };
-
-  const renderSelectedEntities = () => {
-    if (selectedEntities.length === 0) return null;
-
-    return (
-      <View style={styles.selectedContainer}>
-        <Text style={styles.selectedLabel}>Tagged:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {selectedEntities.map((entity, index) => (
-            <TouchableOpacity
-              key={`${entity.id}-${entity.type}`}
-              style={styles.selectedTag}
-              onPress={() => removeEntity(entity)}
-            >
-              <Text style={styles.selectedTagText}>
-                {getEntityDisplayName(entity)}
+  const renderChallengeList = () => (
+    <ScrollView
+      style={styles.resultsContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      {isLoadingChallenges ? (
+        <ActivityIndicator
+          size="small"
+          color={COLORS.challenge}
+          style={{ paddingVertical: 16 }}
+        />
+      ) : filteredChallenges.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="trophy-outline" size={32} color="#CCC" />
+          <Text style={styles.noResults}>
+            {challenges.length === 0
+              ? "No active challenges in this community"
+              : "No matching challenges"}
+          </Text>
+        </View>
+      ) : (
+        filteredChallenges.map((challenge) => (
+          <TouchableOpacity
+            key={challenge.id}
+            style={styles.challengeItem}
+            onPress={() => selectChallenge(challenge)}
+          >
+            <View style={styles.challengeIcon}>
+              <Ionicons name="trophy" size={18} color={COLORS.challenge} />
+            </View>
+            <View style={styles.challengeInfo}>
+              <Text style={styles.challengeTitle} numberOfLines={1}>
+                {challenge.title ||
+                  challenge.caption?.substring(0, 50) ||
+                  "Challenge"}
               </Text>
-              <Ionicons name="close" size={16} color={COLORS.white} />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const getEntityAvatar = (entity) => {
-    switch (entity.type) {
-      case 'member':
-        return entity.profile_photo_url;
-      case 'community':
-        return entity.logo_url;
-      case 'sponsor':
-        return entity.logo_url;
-      case 'venue':
-        return null; // Venues might not have avatars
-      default:
-        return null;
-    }
-  };
-
-  const renderSearchResults = () => {
-    if (!showResults) return null;
-
-    return (
-      <View style={styles.resultsContainer}>
-        <ScrollView style={styles.resultsList} keyboardShouldPersistTaps="handled">
-          {isSearching ? (
-            <View style={styles.resultItem}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.resultName}>Searching...</Text>
+              {challenge.expires_at && (
+                <Text style={styles.challengeExpiry}>
+                  Ends {new Date(challenge.expires_at).toLocaleDateString()}
+                </Text>
+              )}
             </View>
-          ) : searchResults.length === 0 ? (
-            <View style={styles.resultItem}>
-              <Text style={styles.resultName}>No results found</Text>
-            </View>
-          ) : (
-            searchResults.map((entity, index) => {
-            const isSelected = selectedEntities.some(
-              selected => selected.id === entity.id && selected.type === entity.type
-            );
-            const avatarUrl = getEntityAvatar(entity);
+            {challenge.is_joined && (
+              <View style={styles.joinedBadge}>
+                <Text style={styles.joinedText}>Joined</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))
+      )}
+    </ScrollView>
+  );
 
-            return (
-              <TouchableOpacity
-                key={`${entity.id}-${entity.type}`}
-                style={[
-                  styles.resultItem,
-                  isSelected && styles.resultItemSelected
-                ]}
-                onPress={() => selectEntity(entity)}
-                disabled={isSelected}
-              >
-                {avatarUrl ? (
-                  <Image
-                    source={{ uri: avatarUrl }}
-                    style={styles.resultAvatar}
-                  />
-                ) : (
-                  <View style={[styles.resultAvatar, styles.resultAvatarPlaceholder]}>
-                    <Ionicons name="person" size={20} color={COLORS.textLight} />
-                  </View>
-                )}
-                <View style={styles.resultMeta}>
-                  <Text style={styles.resultName} numberOfLines={1}>
-                    {getEntityDisplayName(entity)}
-                  </Text>
-                  <Text style={styles.resultUsername} numberOfLines={1}>
-                    @{entity.username || entity.name?.toLowerCase().replace(/\s+/g, '') || 'user'}
-                  </Text>
-                </View>
-                {isSelected && (
-                  <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
-                )}
-              </TouchableOpacity>
-            );
-          })
-          )}
-        </ScrollView>
-      </View>
-    );
-  };
+  // If already tagged, show minimal "tagged" state
+  if (hasChallenge) {
+    return null; // The banner in CreatePostScreen handles displaying the tag
+  }
 
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>Tag People & Places</Text>
-      
+      {/* Step indicator / breadcrumb */}
+      <View style={styles.stepHeader}>
+        {step === "challenge" && selectedCommunity && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={goBackToCommunities}
+          >
+            <Ionicons name="arrow-back" size={18} color={COLORS.challenge} />
+          </TouchableOpacity>
+        )}
+        <View style={styles.stepBadge}>
+          <Ionicons name="trophy" size={14} color={COLORS.challenge} />
+          <Text style={styles.stepText}>
+            {step === "community"
+              ? "Select a community"
+              : `${selectedCommunity?.name} › Challenges`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Search Input */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={COLORS.textLight} />
+        <Ionicons name="search" size={18} color="#999" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search members, communities, sponsors, venues..."
-          placeholderTextColor={COLORS.textLight}
+          placeholder={
+            step === "community"
+              ? "Search communities..."
+              : "Search challenges..."
+          }
+          placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={handleSearchChange}
           autoCapitalize="none"
-          autoCorrect={false}
         />
-        {isSearching && (
-          <ActivityIndicator size="small" color={COLORS.primary} />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => {
+              setSearchQuery("");
+              setSearchResults([]);
+              setShowResults(false);
+            }}
+          >
+            <Ionicons name="close-circle" size={18} color="#CCC" />
+          </TouchableOpacity>
         )}
       </View>
 
-      {renderSelectedEntities()}
-      {renderSearchResults()}
+      {/* Results */}
+      {step === "community" && showResults && renderCommunityResults()}
+      {step === "challenge" && renderChallengeList()}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
-  label: {
-    fontSize: 16,
+  // Step header
+  stepHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 8,
+  },
+  backButton: {
+    padding: 4,
+  },
+  stepBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  stepText: {
+    fontSize: 13,
     fontWeight: "600",
-    color: COLORS.textDark,
-    marginBottom: 12,
+    color: COLORS.challenge,
   },
+  // Search
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: "#F5F5F5",
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: COLORS.background,
+    paddingVertical: 10,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.textDark,
-    marginLeft: 8,
+    padding: 0,
   },
-  selectedContainer: {
-    marginTop: 12,
-  },
-  selectedLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textDark,
-    marginBottom: 8,
-  },
-  selectedTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  selectedTagText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "500",
-    marginRight: 6,
-  },
+  // Results
   resultsContainer: {
-    marginTop: 12,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    maxHeight: 250,
+    marginTop: 8,
     borderRadius: 12,
-    maxHeight: 200,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: "#FAFAFA",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
-  resultsList: {
-    maxHeight: 200,
+  noResults: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 13,
+    paddingVertical: 16,
   },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  // Community result items
   resultItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  resultItemSelected: {
-    backgroundColor: "#F0F0FF",
+    borderBottomColor: "#F0F0F0",
   },
   resultAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
   },
-  resultAvatarPlaceholder: {
-    backgroundColor: COLORS.border,
+  avatarPlaceholder: {
+    backgroundColor: "#E5E5E5",
     alignItems: "center",
     justifyContent: "center",
   },
-  resultMeta: {
+  resultInfo: {
     flex: 1,
   },
   resultName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: COLORS.textDark,
-    marginBottom: 2,
   },
-  resultUsername: {
+  resultHandle: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 1,
+  },
+  // Challenge items
+  challengeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  challengeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.challengeLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  challengeInfo: {
+    flex: 1,
+  },
+  challengeTitle: {
     fontSize: 14,
-    color: COLORS.textLight,
+    fontWeight: "600",
+    color: COLORS.textDark,
+  },
+  challengeExpiry: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 2,
+  },
+  joinedBadge: {
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  joinedText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4CAF50",
   },
 });
 
