@@ -55,7 +55,7 @@ const MentionInput = ({
     }
   }, [taggedEntities, onTaggedEntitiesChange]);
 
-  const searchMembers = async (query) => {
+  const searchEntities = async (query) => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setSearchResults([]);
@@ -68,25 +68,27 @@ const MentionInput = ({
         setSearchResults([]);
         return;
       }
-      // Use global search but filter to only members (mentions are typically for members)
+      // Use global search to get both members and communities
       const res = await globalSearch(trimmed, { limit: 20, offset: 0 });
       const allResults = res?.results || [];
-      // Filter to only members for mentions
-      const memberResults = allResults.filter((r) => r.type === "member");
+      // Include both members and communities for mentions
+      const entityResults = allResults.filter(
+        (r) => r.type === "member" || r.type === "community",
+      );
       // Filter out null/undefined and ensure each item has required properties
-      const validResults = memberResults
-        .filter((m) => m != null && typeof m === "object" && m.id)
-        .map((m) => ({
-          ...m,
-          type: "member",
-          profile_photo_url: m.profile_photo_url || null,
-          full_name: m.full_name || m.name || "",
-          name: m.name || m.full_name || "",
-          username: m.username || "",
+      const validResults = entityResults
+        .filter((e) => e != null && typeof e === "object" && e.id)
+        .map((e) => ({
+          ...e,
+          type: e.type, // Keep original type (member or community)
+          profile_photo_url: e.profile_photo_url || e.logo_url || null,
+          full_name: e.full_name || e.name || "",
+          name: e.name || e.full_name || "",
+          username: e.username || "",
         }));
       setSearchResults(validResults);
     } catch (error) {
-      console.error("Error searching members:", error);
+      console.error("Error searching entities:", error);
       // Don't show error to user, just silently fail
       setSearchResults([]);
     } finally {
@@ -146,7 +148,7 @@ const MentionInput = ({
       setSearchQuery(mentionQuery);
       setShowSearch(true);
       if (mentionQuery.length >= 2) {
-        searchMembers(mentionQuery);
+        searchEntities(mentionQuery);
       } else {
         setSearchResults([]);
       }
@@ -242,8 +244,10 @@ const MentionInput = ({
   const renderSearchResult = ({ item }) => {
     if (!item || !item.id) return null;
 
+    const isCommunity = item.type === "community";
     const profilePhotoUrl = item?.profile_photo_url;
-    const fullName = item?.full_name || item?.name || "Member";
+    const fullName =
+      item?.full_name || item?.name || (isCommunity ? "Community" : "Member");
     const username = item?.username || "user";
 
     return (
@@ -263,7 +267,11 @@ const MentionInput = ({
               styles.searchResultAvatarPlaceholder,
             ]}
           >
-            <Ionicons name="person" size={18} color={COLORS.textLight} />
+            <Ionicons
+              name={isCommunity ? "people" : "person"}
+              size={18}
+              color={COLORS.textLight}
+            />
           </View>
         )}
         <View style={styles.searchResultInfo}>
@@ -274,6 +282,11 @@ const MentionInput = ({
             @{username}
           </Text>
         </View>
+        {isCommunity && (
+          <View style={styles.communityBadge}>
+            <Text style={styles.communityBadgeText}>Community</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -454,6 +467,17 @@ const styles = StyleSheet.create({
   searchEmptyText: {
     fontSize: 14,
     color: COLORS.textLight,
+  },
+  communityBadge: {
+    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  communityBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#666",
   },
 });
 
