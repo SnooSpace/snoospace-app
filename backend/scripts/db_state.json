@@ -1,0 +1,81 @@
+{
+  "exactDuplicateGroups": 0,
+  "exactDuplicates": [],
+  "bidirectionalDuplicateGroups": 1,
+  "bidirectionalDuplicates": [
+    {
+      "id_a": "11",
+      "id_b": "18",
+      "a_p1": "9",
+      "a_p1t": "community",
+      "a_p2": "28",
+      "a_p2t": "member"
+    }
+  ],
+  "totalConversations": 7,
+  "conversations": [
+    {
+      "id": "3",
+      "p1": "28",
+      "p1t": "member",
+      "p2": "29",
+      "p2t": "member",
+      "last_message_at": "2026-01-31T15:15:31.752Z",
+      "msgs": "6"
+    },
+    {
+      "id": "11",
+      "p1": "9",
+      "p1t": "community",
+      "p2": "28",
+      "p2t": "member",
+      "last_message_at": "2026-02-05T17:54:37.972Z",
+      "msgs": "47"
+    },
+    {
+      "id": "13",
+      "p1": "28",
+      "p1t": "member",
+      "p2": "37",
+      "p2t": "member",
+      "last_message_at": "2025-12-28T09:34:53.391Z",
+      "msgs": "1"
+    },
+    {
+      "id": "14",
+      "p1": "9",
+      "p1t": "community",
+      "p2": "38",
+      "p2t": "member",
+      "last_message_at": "2026-01-08T10:17:54.200Z",
+      "msgs": "1"
+    },
+    {
+      "id": "15",
+      "p1": "28",
+      "p1t": "member",
+      "p2": "38",
+      "p2t": "member",
+      "last_message_at": "2026-01-09T06:42:10.249Z",
+      "msgs": "1"
+    },
+    {
+      "id": "16",
+      "p1": "9",
+      "p1t": "community",
+      "p2": "29",
+      "p2t": "member",
+      "last_message_at": "2026-01-09T18:53:19.710Z",
+      "msgs": "2"
+    },
+    {
+      "id": "18",
+      "p1": "28",
+      "p1t": "member",
+      "p2": "9",
+      "p2t": "community",
+      "last_message_at": "2026-02-03T19:49:54.023Z",
+      "msgs": "3"
+    }
+  ]
+}

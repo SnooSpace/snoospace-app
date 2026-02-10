@@ -2,6 +2,47 @@ const { createPool } = require("../config/db");
 const pool = createPool();
 
 /**
+ * Helper: Get or create conversation with proper participant normalization
+ * Implemented here to avoid circular dependency with messageController
+ */
+const getOrCreateConversation = async (
+  participant1Id,
+  participant1Type,
+  participant2Id,
+  participant2Type,
+) => {
+  // Convert IDs to numbers for consistent comparison
+  const id1 = Number(participant1Id);
+  const id2 = Number(participant2Id);
+
+  // Ensure consistent ordering (smaller ID first, or if same ID, alphabetically by type)
+  let p1Id, p1Type, p2Id, p2Type;
+  if (id1 < id2 || (id1 === id2 && participant1Type < participant2Type)) {
+    p1Id = participant1Id;
+    p1Type = participant1Type;
+    p2Id = participant2Id;
+    p2Type = participant2Type;
+  } else {
+    p1Id = participant2Id;
+    p1Type = participant2Type;
+    p2Id = participant1Id;
+    p2Type = participant1Type;
+  }
+
+  // Use INSERT ... ON CONFLICT to handle race conditions safely
+  const result = await pool.query(
+    `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type) 
+     VALUES ($1, $2, $3, $4) 
+     ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type) 
+     DO UPDATE SET updated_at = COALESCE(conversations.updated_at, NOW())
+     RETURNING id`,
+    [p1Id, p1Type, p2Id, p2Type],
+  );
+
+  return result.rows[0].id;
+};
+
+/**
  * Share a post to user(s) via DM or copy link
  * POST /posts/:postId/share
  */
@@ -81,38 +122,19 @@ const sharePost = async (req, res) => {
 
     // Send message to each recipient
     for (const recipient of recipients) {
-      // Normalize participant order (lower ID first)
-      const p1Id = userId < recipient.id ? userId : recipient.id;
-      const p1Type = userId < recipient.id ? userType : recipient.type;
-      const p2Id = userId < recipient.id ? recipient.id : userId;
-      const p2Type = userId < recipient.id ? recipient.type : userType;
-
-      // Find existing conversation
-      let conversationId;
-      const existingConv = await pool.query(
-        `SELECT id FROM conversations 
-         WHERE participant1_id = $1 AND participant1_type = $2 
-           AND participant2_id = $3 AND participant2_type = $4`,
-        [p1Id, p1Type, p2Id, p2Type],
+      // Get or create conversation using our helper function
+      const conversationId = await getOrCreateConversation(
+        userId,
+        userType,
+        recipient.id,
+        recipient.type,
       );
 
-      if (existingConv.rows.length > 0) {
-        conversationId = existingConv.rows[0].id;
-        // Update last message time
-        await pool.query(
-          `UPDATE conversations SET last_message_at = NOW() WHERE id = $1`,
-          [conversationId],
-        );
-      } else {
-        // Create new conversation
-        const newConv = await pool.query(
-          `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type, last_message_at)
-           VALUES ($1, $2, $3, $4, NOW())
-           RETURNING id`,
-          [p1Id, p1Type, p2Id, p2Type],
-        );
-        conversationId = newConv.rows[0].id;
-      }
+      // Update last message time
+      await pool.query(
+        `UPDATE conversations SET last_message_at = NOW() WHERE id = $1`,
+        [conversationId],
+      );
 
       // Create message with post preview
       const messageText = message || "Shared a post with you";
