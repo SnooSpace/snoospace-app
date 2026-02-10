@@ -156,6 +156,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   // Step 4: Skill Groups
   const [skillGroups, setSkillGroups] = useState([]);
   const [eligibilityMode, setEligibilityMode] = useState("any_one");
+  const [customTool, setCustomTool] = useState("");
+  const [showCustomToolInput, setShowCustomToolInput] = useState({});
+  const [customSampleType, setCustomSampleType] = useState("");
+  const [showCustomSampleInput, setShowCustomSampleInput] = useState({});
 
   // Step 5: Compensation
   const [paymentType, setPaymentType] = useState("fixed");
@@ -418,6 +422,24 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       : [...group.tools, tool];
 
     updateSkillGroup(role, "tools", tools);
+  };
+
+  const addCustomTool = (role) => {
+    if (!customTool.trim()) return;
+    const group = skillGroups.find((g) => g.role === role);
+    if (!group) return;
+
+    const newTools = [...group.tools, customTool.trim()];
+    updateSkillGroup(role, "tools", newTools);
+    setCustomTool("");
+    setShowCustomToolInput({ ...showCustomToolInput, [role]: false });
+  };
+
+  const addCustomSampleType = (role) => {
+    if (!customSampleType.trim()) return;
+    updateSkillGroup(role, "sample_type", customSampleType.trim());
+    setCustomSampleType("");
+    setShowCustomSampleInput({ ...showCustomSampleInput, [role]: false });
   };
 
   const addQuestion = () => {
@@ -925,6 +947,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
           <Text style={styles.skillGroupLabel}>Tools Required</Text>
           <View style={styles.toolsContainer}>
+            {/* Preset tools */}
             {(TOOL_PRESETS[group.role] || []).map((tool) => (
               <TouchableOpacity
                 key={tool}
@@ -944,37 +967,169 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 </Text>
               </TouchableOpacity>
             ))}
+
+            {/* Custom tools added by user */}
+            {group.tools
+              .filter((t) => !(TOOL_PRESETS[group.role] || []).includes(t))
+              .map((tool) => (
+                <TouchableOpacity
+                  key={tool}
+                  style={[styles.toolChip, styles.toolChipSelected]}
+                  onPress={() => toggleTool(group.role, tool)}
+                >
+                  <Text style={styles.toolChipTextSelected}>{tool}</Text>
+                  <Ionicons
+                    name="close"
+                    size={14}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 4 }}
+                  />
+                </TouchableOpacity>
+              ))}
+
+            {/* Add Custom Tool Button */}
+            {!showCustomToolInput[group.role] && (
+              <TouchableOpacity
+                style={[styles.toolChip, styles.chipAdd]}
+                onPress={() =>
+                  setShowCustomToolInput({
+                    ...showCustomToolInput,
+                    [group.role]: true,
+                  })
+                }
+              >
+                <Ionicons name="add" size={16} color={PRIMARY_COLOR} />
+                <Text style={styles.chipAddText}>Custom</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {SAMPLE_TYPES[group.role] && (
-            <>
-              <Text style={styles.skillGroupLabel}>Sample Type Expected</Text>
-              <View style={styles.sampleTypesContainer}>
-                {SAMPLE_TYPES[group.role].map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.sampleTypeChip,
-                      group.sample_type === type &&
-                        styles.sampleTypeChipSelected,
-                    ]}
-                    onPress={() =>
-                      updateSkillGroup(group.role, "sample_type", type)
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.sampleTypeText,
-                        group.sample_type === type &&
-                          styles.sampleTypeTextSelected,
-                      ]}
-                    >
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
+          {/* Custom Tool Input */}
+          {showCustomToolInput[group.role] && (
+            <View style={styles.customInputRow}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                value={customTool}
+                onChangeText={setCustomTool}
+                placeholder="Enter custom tool"
+                placeholderTextColor={LIGHT_TEXT_COLOR}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => addCustomTool(group.role)}
+              >
+                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowCustomToolInput({
+                    ...showCustomToolInput,
+                    [group.role]: false,
+                  });
+                  setCustomTool("");
+                }}
+              >
+                <Ionicons name="close" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Sample Type Expected - Always show this section */}
+          <Text style={styles.skillGroupLabel}>Sample Type Expected</Text>
+          <View style={styles.sampleTypesContainer}>
+            {/* Preset sample types */}
+            {(SAMPLE_TYPES[group.role] || []).map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.sampleTypeChip,
+                  group.sample_type === type && styles.sampleTypeChipSelected,
+                ]}
+                onPress={() =>
+                  updateSkillGroup(group.role, "sample_type", type)
+                }
+              >
+                <Text
+                  style={[
+                    styles.sampleTypeText,
+                    group.sample_type === type && styles.sampleTypeTextSelected,
+                  ]}
+                >
+                  {type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            {/* Custom sample type if not in presets */}
+            {group.sample_type &&
+              !(SAMPLE_TYPES[group.role] || []).includes(group.sample_type) && (
+                <TouchableOpacity
+                  style={[styles.sampleTypeChip, styles.sampleTypeChipSelected]}
+                  onPress={() =>
+                    updateSkillGroup(group.role, "sample_type", null)
+                  }
+                >
+                  <Text style={styles.sampleTypeTextSelected}>
+                    {group.sample_type}
+                  </Text>
+                  <Ionicons
+                    name="close"
+                    size={14}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 4 }}
+                  />
+                </TouchableOpacity>
+              )}
+
+            {/* Add Custom Sample Type Button */}
+            {!showCustomSampleInput[group.role] && (
+              <TouchableOpacity
+                style={[styles.sampleTypeChip, styles.chipAdd]}
+                onPress={() =>
+                  setShowCustomSampleInput({
+                    ...showCustomSampleInput,
+                    [group.role]: true,
+                  })
+                }
+              >
+                <Ionicons name="add" size={16} color={PRIMARY_COLOR} />
+                <Text style={styles.chipAddText}>Custom</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Custom Sample Type Input */}
+          {showCustomSampleInput[group.role] && (
+            <View style={styles.customInputRow}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                value={customSampleType}
+                onChangeText={setCustomSampleType}
+                placeholder="Enter custom sample type"
+                placeholderTextColor={LIGHT_TEXT_COLOR}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => addCustomSampleType(group.role)}
+              >
+                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowCustomSampleInput({
+                    ...showCustomSampleInput,
+                    [group.role]: false,
+                  });
+                  setCustomSampleType("");
+                }}
+              >
+                <Ionicons name="close" size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       ))}
