@@ -223,32 +223,43 @@ const createPost = async (req, res) => {
 
             if (existingParticipation.rows.length > 0) {
               participationId = existingParticipation.rows[0].id;
+              console.log(
+                `[createPost] User already participant (id=${participationId}) in challenge ${challengeId}`,
+              );
             } else {
               // Auto-join the challenge
-              const joinResult = await pool.query(
-                `INSERT INTO challenge_participations 
-                 (post_id, participant_id, participant_type, status, progress)
-                 VALUES ($1, $2, $3, 'joined', 0)
-                 RETURNING id`,
-                [challengeId, userId, userType],
-              );
-              participationId = joinResult.rows[0].id;
-              wasAutoJoined = true;
+              try {
+                const joinResult = await pool.query(
+                  `INSERT INTO challenge_participations 
+                   (post_id, participant_id, participant_type, status, progress)
+                   VALUES ($1, $2, $3, 'joined', 0)
+                   RETURNING id`,
+                  [challengeId, userId, userType],
+                );
+                participationId = joinResult.rows[0].id;
+                wasAutoJoined = true;
 
-              // Update participant count in type_data
-              await pool.query(
-                `UPDATE posts SET type_data = type_data || $1 WHERE id = $2`,
-                [
-                  JSON.stringify({
-                    participant_count:
-                      (challengeTypeData.participant_count || 0) + 1,
-                  }),
-                  challengeId,
-                ],
-              );
-              console.log(
-                `[createPost] Auto-joined user ${userType}:${userId} to challenge ${challengeId}`,
-              );
+                // Update participant count in type_data
+                await pool.query(
+                  `UPDATE posts SET type_data = type_data || $1 WHERE id = $2`,
+                  [
+                    JSON.stringify({
+                      participant_count:
+                        (challengeTypeData.participant_count || 0) + 1,
+                    }),
+                    challengeId,
+                  ],
+                );
+                console.log(
+                  `[createPost] Auto-joined user ${userType}:${userId} to challenge ${challengeId} (participation=${participationId})`,
+                );
+              } catch (joinError) {
+                console.error(
+                  `[createPost] Failed to auto-join challenge ${challengeId}:`,
+                  joinError.message,
+                );
+                throw joinError; // Can't create submission without participation
+              }
             }
 
             // Determine submission type from media
@@ -260,10 +271,9 @@ const createPost = async (req, res) => {
               submissionType = "image";
             }
 
-            // Determine initial status
-            const initialStatus = challengeTypeData.require_approval
-              ? "pending"
-              : "approved";
+            // Tagged-post submissions are always auto-approved since
+            // the post itself is already publicly visible
+            const initialStatus = "approved";
 
             // Extract first video URL and thumbnail
             let videoUrl = null;
@@ -277,71 +287,104 @@ const createPost = async (req, res) => {
             }
 
             // Create challenge submission
-            const submissionResult = await pool.query(
-              `INSERT INTO challenge_submissions 
-               (post_id, participant_id, content, media_urls, video_url, video_thumbnail, submission_type, status)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-               RETURNING id`,
-              [
-                challengeId,
-                participationId,
-                caption?.trim() || null,
-                imageUrls ? JSON.stringify(imageUrls) : null,
-                videoUrl,
-                videoThumb,
-                submissionType,
-                initialStatus,
-              ],
-            );
+            let submissionId;
+            try {
+              const submissionResult = await pool.query(
+                `INSERT INTO challenge_submissions 
+                 (post_id, participant_id, content, media_urls, video_url, video_thumbnail, submission_type, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 RETURNING id`,
+                [
+                  challengeId,
+                  participationId,
+                  caption?.trim() || null,
+                  imageUrls ? JSON.stringify(imageUrls) : null,
+                  videoUrl,
+                  videoThumb,
+                  submissionType,
+                  initialStatus,
+                ],
+              );
+              submissionId = submissionResult.rows[0].id;
+              console.log(
+                `[createPost] Challenge submission ${submissionId} created (status=${initialStatus}) for challenge ${challengeId}`,
+              );
+            } catch (subError) {
+              console.error(
+                `[createPost] Failed to INSERT challenge_submissions for challenge ${challengeId}, participation ${participationId}:`,
+                subError.message,
+              );
+              throw subError;
+            }
 
-            const submissionId = submissionResult.rows[0].id;
-
-            // Link submission to source post
-            await pool.query(
-              `INSERT INTO challenge_submission_sources 
-               (submission_id, source_post_id, is_from_tagged_post)
-               VALUES ($1, $2, TRUE)`,
-              [submissionId, post.id],
-            );
+            // Link submission to source post (non-fatal if this fails)
+            try {
+              await pool.query(
+                `INSERT INTO challenge_submission_sources 
+                 (submission_id, source_post_id, is_from_tagged_post)
+                 VALUES ($1, $2, TRUE)`,
+                [submissionId, post.id],
+              );
+            } catch (sourceError) {
+              console.error(
+                `[createPost] Failed to link submission ${submissionId} to source post ${post.id}:`,
+                sourceError.message,
+              );
+              // Non-fatal: submission already exists, just missing source link
+            }
 
             // Update submission count in type_data
-            await pool.query(
-              `UPDATE posts SET type_data = jsonb_set(
-                 type_data, 
-                 '{submission_count}', 
-                 (COALESCE((type_data->>'submission_count')::int, 0) + 1)::text::jsonb
-               ) WHERE id = $1`,
-              [challengeId],
-            );
-
-            // Update participant progress for progress-based challenges
-            if (challengeTypeData.challenge_type === "progress") {
-              const submissionCountResult = await pool.query(
-                `SELECT COUNT(*) as count FROM challenge_submissions 
-                 WHERE participant_id = $1`,
-                [participationId],
-              );
-              const targetCount = challengeTypeData.target_count || 1;
-              const progress = Math.min(
-                100,
-                Math.round(
-                  (parseInt(submissionCountResult.rows[0].count) /
-                    targetCount) *
-                    100,
-                ),
-              );
-
+            try {
               await pool.query(
-                `UPDATE challenge_participations 
-                 SET progress = $1, 
-                     status = CASE WHEN $1 >= 100 THEN 'completed' ELSE 'in_progress' END
-                 WHERE id = $2`,
-                [progress, participationId],
+                `UPDATE posts SET type_data = jsonb_set(
+                   type_data, 
+                   '{submission_count}', 
+                   (COALESCE((type_data->>'submission_count')::int, 0) + 1)::text::jsonb
+                 ) WHERE id = $1`,
+                [challengeId],
+              );
+            } catch (countError) {
+              console.error(
+                `[createPost] Failed to update submission_count for challenge ${challengeId}:`,
+                countError.message,
               );
             }
 
+            // Update participant progress for progress-based challenges
+            if (challengeTypeData.challenge_type === "progress") {
+              try {
+                const submissionCountResult = await pool.query(
+                  `SELECT COUNT(*) as count FROM challenge_submissions 
+                   WHERE participant_id = $1`,
+                  [participationId],
+                );
+                const targetCount = challengeTypeData.target_count || 1;
+                const progress = Math.min(
+                  100,
+                  Math.round(
+                    (parseInt(submissionCountResult.rows[0].count) /
+                      targetCount) *
+                      100,
+                  ),
+                );
+
+                await pool.query(
+                  `UPDATE challenge_participations 
+                   SET progress = $1, 
+                       status = CASE WHEN $1 >= 100 THEN 'completed' ELSE 'in_progress' END
+                   WHERE id = $2`,
+                  [progress, participationId],
+                );
+              } catch (progressError) {
+                console.error(
+                  `[createPost] Failed to update progress for participation ${participationId}:`,
+                  progressError.message,
+                );
+              }
+            }
+
             console.log(
-              `[createPost] Challenge submission ${submissionId} created from tagged post ${post.id}`,
+              `[createPost] Challenge tag handling complete: submission ${submissionId} from post ${post.id}`,
             );
           }
         }
@@ -349,7 +392,7 @@ const createPost = async (req, res) => {
         // Non-fatal: don't block post creation if challenge tag handling fails
         console.error(
           "[createPost] Error handling challenge tag:",
-          challengeError,
+          challengeError.message || challengeError,
         );
       }
     }
