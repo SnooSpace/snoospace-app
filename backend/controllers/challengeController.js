@@ -396,10 +396,10 @@ const submitProof = async (req, res) => {
 
     const typeData = post.type_data || {};
 
-    // Check submission limit
+    // Check submission limit (exclude rejected — allow re-submission)
     const submissionCountResult = await pool.query(
       `SELECT COUNT(*) as count FROM challenge_submissions 
-       WHERE participant_id = $1`,
+       WHERE participant_id = $1 AND status != 'rejected'`,
       [post.participation_id],
     );
 
@@ -595,11 +595,16 @@ const getSubmissions = async (req, res) => {
     }
 
     // Build filter clause
+    // For the 'approved' filter, also show the current user's own pending
+    // submissions so they can see their status
     let filterClause = "";
     if (filter === "pending" && isAuthor) {
       filterClause = "AND cs.status = 'pending'";
     } else if (filter === "featured") {
       filterClause = "AND cs.is_featured = true AND cs.status = 'approved'";
+    } else if (userParticipationId) {
+      // Show approved + user's own pending/rejected
+      filterClause = `AND (cs.status = 'approved' OR cs.participant_id = ${userParticipationId})`;
     } else {
       filterClause = "AND cs.status = 'approved'";
     }
@@ -1222,11 +1227,9 @@ const requestSubmissionRemoval = async (req, res) => {
       submission.participant_id !== userId ||
       submission.participant_type !== userType
     ) {
-      return res
-        .status(403)
-        .json({
-          error: "You can only request removal of your own submissions",
-        });
+      return res.status(403).json({
+        error: "You can only request removal of your own submissions",
+      });
     }
 
     // Verify challenge has ended
@@ -1583,6 +1586,76 @@ const searchChallenges = async (req, res) => {
   }
 };
 
+/**
+ * Get submission status for the current user
+ * GET /posts/:postId/submission-status
+ * Returns how many submissions the user has made and how many remain
+ */
+const getSubmissionStatus = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get post type_data and participation
+    const postResult = await pool.query(
+      `SELECT p.type_data, p.expires_at,
+              cp.id as participation_id
+       FROM posts p
+       LEFT JOIN challenge_participations cp ON cp.post_id = p.id
+         AND cp.participant_id = $2 AND cp.participant_type = $3
+       WHERE p.id = $1 AND p.post_type = 'challenge'`,
+      [postId, userId, userType],
+    );
+
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: "Challenge not found" });
+    }
+
+    const post = postResult.rows[0];
+    const typeData = post.type_data || {};
+    const maxSubmissions = typeData.max_submissions_per_user || 1;
+
+    if (!post.participation_id) {
+      return res.json({
+        success: true,
+        submitted: 0,
+        max: maxSubmissions,
+        can_submit: false,
+        reason: "Not participating",
+      });
+    }
+
+    // Count active submissions (exclude rejected)
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as count FROM challenge_submissions
+       WHERE participant_id = $1 AND status != 'rejected'`,
+      [post.participation_id],
+    );
+
+    const submitted = parseInt(countResult.rows[0].count);
+    const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
+
+    res.json({
+      success: true,
+      submitted,
+      max: maxSubmissions,
+      remaining: Math.max(0, maxSubmissions - submitted),
+      can_submit: submitted < maxSubmissions && !isExpired,
+      require_approval: !!typeData.require_approval,
+      submission_type: typeData.submission_type || "image",
+      description: typeData.description || null,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error getting submission status:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // =============================================================================
 // EXPORTS
 // =============================================================================
@@ -1595,6 +1668,7 @@ module.exports = {
   getParticipantPreviews,
   submitProof,
   getSubmissions,
+  getSubmissionStatus,
   updateProgress,
   markComplete,
   moderateSubmission,

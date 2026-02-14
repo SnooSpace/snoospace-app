@@ -3,7 +3,7 @@
  * Allows users to submit proof for a challenge (text, image, or video)
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { apiPost } from "../../api/client";
+import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -36,6 +36,34 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoThumbnail, setVideoThumbnail] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Submission status
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [submissionStatus, setSubmissionStatus] = useState(null);
+
+  // Fetch submission status on mount
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const token = await getAuthToken();
+        const response = await apiGet(
+          `/posts/${post.id}/submission-status`,
+          10000,
+          token,
+        );
+        if (response.success) {
+          setSubmissionStatus(response);
+        }
+      } catch (error) {
+        console.error("Error fetching submission status:", error);
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+    fetchStatus();
+  }, [post.id]);
+
+  const canSubmitMore = submissionStatus?.can_submit !== false;
 
   const pickImage = async () => {
     try {
@@ -135,6 +163,15 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async () => {
+    // Check submission limit first
+    if (!canSubmitMore) {
+      Alert.alert(
+        "Submission Limit Reached",
+        `You have already submitted ${submissionStatus.max} time(s) for this challenge.`,
+      );
+      return;
+    }
+
     // Validate based on submission type
     if (submissionType === "text" && !content.trim()) {
       Alert.alert("Required", "Please add a description of your progress");
@@ -190,7 +227,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         Alert.alert(
           "Submitted! 🎉",
           typeData.require_approval
-            ? "Your submission is pending review."
+            ? "Your submission is pending review by the host."
             : "Your submission has been posted!",
           [
             {
@@ -202,16 +239,20 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error submitting proof:", error);
-      Alert.alert(
-        "Error",
-        error?.message || "Failed to submit. Please try again.",
-      );
+      const errorMsg = error?.message || "Failed to submit. Please try again.";
+      // Show specific limit error clearly
+      if (errorMsg.includes("can only submit")) {
+        Alert.alert("Submission Limit Reached", errorMsg);
+      } else {
+        Alert.alert("Error", errorMsg);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const canSubmit = () => {
+    if (!canSubmitMore) return false;
     if (submissionType === "text") {
       return content.trim().length > 0;
     }
@@ -222,6 +263,19 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       return selectedVideo !== null;
     }
     return false;
+  };
+
+  const getSubmissionTypeLabel = () => {
+    switch (submissionType) {
+      case "video":
+        return "Video";
+      case "image":
+        return "Photo";
+      case "text":
+        return "Text";
+      default:
+        return "Any";
+    }
   };
 
   const renderImagePicker = () => (
@@ -291,6 +345,16 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     </View>
   );
 
+  if (statusLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -339,43 +403,145 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             </Text>
           </View>
 
-          {/* Description Input */}
-          <View style={styles.inputSection}>
-            <Text style={styles.sectionLabel}>Description</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Share how you completed this challenge..."
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              maxLength={500}
-              value={content}
-              onChangeText={setContent}
-            />
-            <Text style={styles.charCount}>{content.length}/500</Text>
+          {/* Submission Limit Reached Banner */}
+          {!canSubmitMore && (
+            <View style={styles.limitReachedBanner}>
+              <Ionicons name="warning" size={20} color="#FF3B30" />
+              <View style={styles.limitReachedContent}>
+                <Text style={styles.limitReachedTitle}>
+                  Submission Limit Reached
+                </Text>
+                <Text style={styles.limitReachedText}>
+                  You have already used all {submissionStatus?.max || 1}{" "}
+                  submission(s) for this challenge.
+                  {typeData.require_approval
+                    ? " If your submission was rejected, you may submit again."
+                    : ""}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Guidelines Card */}
+          <View style={styles.guidelinesCard}>
+            <Text style={styles.guidelinesTitle}>Submission Guidelines</Text>
+            <View style={styles.guidelineRow}>
+              <Ionicons
+                name="document-text-outline"
+                size={16}
+                color={COLORS.textSecondary}
+              />
+              <Text style={styles.guidelineText}>
+                Submission type:{" "}
+                <Text style={styles.guidelineHighlight}>
+                  {getSubmissionTypeLabel()}
+                </Text>
+              </Text>
+            </View>
+            <View style={styles.guidelineRow}>
+              <Ionicons
+                name="layers-outline"
+                size={16}
+                color={COLORS.textSecondary}
+              />
+              <Text style={styles.guidelineText}>
+                Submissions allowed:{" "}
+                <Text style={styles.guidelineHighlight}>
+                  {submissionStatus?.max || 1} per user
+                </Text>
+              </Text>
+            </View>
+            {submissionStatus && (
+              <View style={styles.guidelineRow}>
+                <Ionicons
+                  name={
+                    canSubmitMore
+                      ? "checkmark-circle-outline"
+                      : "close-circle-outline"
+                  }
+                  size={16}
+                  color={canSubmitMore ? "#34C759" : "#FF3B30"}
+                />
+                <Text
+                  style={[
+                    styles.guidelineText,
+                    !canSubmitMore && { color: "#FF3B30" },
+                  ]}
+                >
+                  Remaining:{" "}
+                  <Text style={styles.guidelineHighlight}>
+                    {submissionStatus.remaining}
+                  </Text>
+                </Text>
+              </View>
+            )}
+            {typeData.require_approval && (
+              <View style={styles.guidelineRow}>
+                <Ionicons name="time-outline" size={16} color="#FF9500" />
+                <Text style={styles.guidelineText}>
+                  Submissions require{" "}
+                  <Text style={styles.guidelineHighlight}>host approval</Text>
+                </Text>
+              </View>
+            )}
+            {typeData.description && (
+              <View style={[styles.guidelineRow, { marginTop: 4 }]}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.guidelineText}>{typeData.description}</Text>
+              </View>
+            )}
           </View>
 
-          {/* Media Picker based on submission type */}
-          {(submissionType === "image" || submissionType === "any") &&
-            renderImagePicker()}
-          {(submissionType === "video" || submissionType === "any") &&
-            renderVideoPicker()}
+          {/* Only show input fields if user can still submit */}
+          {canSubmitMore && (
+            <>
+              {/* Description Input */}
+              <View style={styles.inputSection}>
+                <Text style={styles.sectionLabel}>Description</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Share how you completed this challenge..."
+                  placeholderTextColor={COLORS.textSecondary}
+                  multiline
+                  maxLength={500}
+                  value={content}
+                  onChangeText={setContent}
+                />
+                <Text style={styles.charCount}>{content.length}/500</Text>
+              </View>
 
-          {/* Tips */}
-          <View style={styles.tipsSection}>
-            <Text style={styles.tipsTitle}>Tips for a great submission:</Text>
-            <View style={styles.tipRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-              <Text style={styles.tipText}>Show clear proof of completion</Text>
-            </View>
-            <View style={styles.tipRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-              <Text style={styles.tipText}>Add a brief description</Text>
-            </View>
-            <View style={styles.tipRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-              <Text style={styles.tipText}>Good lighting helps!</Text>
-            </View>
-          </View>
+              {/* Media Picker based on submission type */}
+              {(submissionType === "image" || submissionType === "any") &&
+                renderImagePicker()}
+              {(submissionType === "video" || submissionType === "any") &&
+                renderVideoPicker()}
+
+              {/* Tips */}
+              <View style={styles.tipsSection}>
+                <Text style={styles.tipsTitle}>
+                  Tips for a great submission:
+                </Text>
+                <View style={styles.tipRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                  <Text style={styles.tipText}>
+                    Show clear proof of completion
+                  </Text>
+                </View>
+                <View style={styles.tipRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                  <Text style={styles.tipText}>Add a brief description</Text>
+                </View>
+                <View style={styles.tipRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                  <Text style={styles.tipText}>Good lighting helps!</Text>
+                </View>
+              </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -386,6 +552,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.surface,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -433,7 +604,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF950010",
     padding: SPACING.m,
     borderRadius: BORDER_RADIUS.m,
-    marginBottom: SPACING.l,
+    marginBottom: SPACING.m,
   },
   challengeTitle: {
     fontSize: 14,
@@ -441,6 +612,60 @@ const styles = StyleSheet.create({
     color: "#FF9500",
     marginLeft: SPACING.s,
     flex: 1,
+  },
+  // Submission limit reached banner
+  limitReachedBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF0F0",
+    padding: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    marginBottom: SPACING.m,
+    gap: SPACING.s,
+    borderWidth: 1,
+    borderColor: "#FF3B3020",
+  },
+  limitReachedContent: {
+    flex: 1,
+  },
+  limitReachedTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FF3B30",
+    marginBottom: 4,
+  },
+  limitReachedText: {
+    fontSize: 13,
+    color: "#CC2D26",
+    lineHeight: 18,
+  },
+  // Guidelines card
+  guidelinesCard: {
+    backgroundColor: COLORS.screenBackground,
+    padding: SPACING.m,
+    borderRadius: BORDER_RADIUS.m,
+    marginBottom: SPACING.l,
+  },
+  guidelinesTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.s,
+  },
+  guidelineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.s,
+    marginBottom: 6,
+  },
+  guidelineText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  guidelineHighlight: {
+    fontWeight: "600",
+    color: COLORS.textPrimary,
   },
   inputSection: {
     marginBottom: SPACING.l,

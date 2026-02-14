@@ -1018,6 +1018,11 @@ router.get(
   authMiddleware,
   ChallengeController.getSubmissions,
 );
+router.get(
+  "/posts/:postId/submission-status",
+  authMiddleware,
+  ChallengeController.getSubmissionStatus,
+);
 router.patch(
   "/posts/:postId/progress",
   authMiddleware,

@@ -160,6 +160,31 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleFeature = async (submissionId, currentlyFeatured) => {
+    try {
+      const token = await getAuthToken();
+      await apiPatch(
+        `/challenge-submissions/${submissionId}/feature`,
+        { is_featured: !currentlyFeatured },
+        10000,
+        token,
+      );
+
+      fetchSubmissions(false);
+      setActionSheet(null);
+
+      Alert.alert(
+        "Success",
+        !currentlyFeatured
+          ? "Submission featured! ⭐"
+          : "Submission unfeatured.",
+      );
+    } catch (error) {
+      console.error("Error featuring submission:", error);
+      Alert.alert("Error", "Failed to update featured status.");
+    }
+  };
+
   const handleLike = async (submissionId, hasLiked) => {
     try {
       const token = await getAuthToken();
@@ -277,7 +302,10 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           }
         }}
         onLongPress={() => {
-          if (item.is_own_submission) {
+          // Allow long-press for:
+          // 1. Own submissions (for removal request after challenge ends)
+          // 2. Hosts on any approved submission (for featuring)
+          if (item.is_own_submission || isHost) {
             setActionSheet({ submission: item });
           }
         }}
@@ -312,6 +340,20 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         {item.is_featured && (
           <View style={styles.featuredBadge}>
             <Ionicons name="star" size={10} color="#FFD700" />
+          </View>
+        )}
+
+        {/* Pending/Rejected Badge for user's own submissions */}
+        {item.is_own_submission && item.status === "pending" && (
+          <View style={styles.pendingBadge}>
+            <Ionicons name="time" size={10} color="#FF9500" />
+            <Text style={styles.pendingBadgeText}>Pending</Text>
+          </View>
+        )}
+        {item.is_own_submission && item.status === "rejected" && (
+          <View style={styles.rejectedBadge}>
+            <Ionicons name="close-circle" size={10} color="#FF3B30" />
+            <Text style={styles.rejectedBadgeText}>Rejected</Text>
           </View>
         )}
 
@@ -732,6 +774,31 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         >
           <View style={styles.actionSheetContainer}>
             <Text style={styles.actionSheetTitle}>Submission Options</Text>
+            {/* Feature/Unfeature option for host on approved submissions */}
+            {isHost && actionSheet?.submission?.status === "approved" && (
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() =>
+                  handleFeature(
+                    actionSheet.submission.id,
+                    actionSheet.submission.is_featured,
+                  )
+                }
+              >
+                <Ionicons
+                  name={
+                    actionSheet.submission.is_featured ? "star-outline" : "star"
+                  }
+                  size={20}
+                  color="#FFD700"
+                />
+                <Text style={styles.actionSheetButtonText}>
+                  {actionSheet.submission.is_featured
+                    ? "Unfeature Submission"
+                    : "Feature Submission ⭐"}
+                </Text>
+              </TouchableOpacity>
+            )}
             {challengeEnded && actionSheet?.submission?.is_own_submission && (
               <TouchableOpacity
                 style={styles.actionSheetButton}
@@ -950,6 +1017,40 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF8E1",
     padding: 4,
     borderRadius: 12,
+  },
+  pendingBadge: {
+    position: "absolute",
+    top: SPACING.xs,
+    left: SPACING.xs,
+    backgroundColor: "rgba(255,149,0,0.9)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  pendingBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  rejectedBadge: {
+    position: "absolute",
+    top: SPACING.xs,
+    left: SPACING.xs,
+    backgroundColor: "rgba(255,59,48,0.9)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  rejectedBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   submissionFooter: {
     flexDirection: "row",

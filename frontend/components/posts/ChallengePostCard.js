@@ -528,6 +528,18 @@ const ChallengePostCard = ({
           </View>
         </View>
 
+        {/* Deadline Date/Time - on its own line */}
+        {post.expires_at && (
+          <View style={styles.deadlineRow}>
+            <Ionicons name="calendar-outline" size={14} color="#5e8d9b" />
+            <Text style={styles.deadlineText}>
+              {isExpired
+                ? `Ended ${new Date(post.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${new Date(post.expires_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`
+                : `Ends ${new Date(post.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${new Date(post.expires_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`}
+            </Text>
+          </View>
+        )}
+
         {/* Edit/Delete Menu */}
         {showMenu && isOwnPost && (
           <View style={styles.menuContainer}>
@@ -1012,6 +1024,18 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
     marginBottom: SPACING.s,
     lineHeight: 20,
+  },
+  deadlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: SPACING.s,
+    marginBottom: SPACING.s,
+  },
+  deadlineText: {
+    fontSize: 13,
+    color: "#5e8d9b",
+    fontWeight: "500",
   },
   extensionBadge: {
     backgroundColor: "#FFF4E0",
