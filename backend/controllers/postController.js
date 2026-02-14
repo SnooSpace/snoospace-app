@@ -271,9 +271,10 @@ const createPost = async (req, res) => {
               submissionType = "image";
             }
 
-            // Tagged-post submissions are always auto-approved since
-            // the post itself is already publicly visible
-            const initialStatus = "approved";
+            // Determine initial status based on challenge settings
+            const initialStatus = challengeTypeData.require_approval
+              ? "pending"
+              : "approved";
 
             // Extract first video URL and thumbnail
             let videoUrl = null;

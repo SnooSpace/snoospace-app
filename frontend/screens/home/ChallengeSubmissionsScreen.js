@@ -19,13 +19,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { apiGet, apiPost, apiDelete } from "../../api/client";
+import { apiGet, apiPost, apiDelete, apiPatch } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import FullscreenVideoModal from "../../components/FullscreenVideoModal";
 import RemovalRequestsModal from "../../components/RemovalRequestsModal";
 import { Video, ResizeMode } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getActiveAccount } from "../../utils/accountManager";
 
 const { width } = Dimensions.get("window");
 const COLUMN_COUNT = 2;
@@ -54,16 +55,21 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   useEffect(() => {
     const checkHost = async () => {
       try {
-        const userId = await AsyncStorage.getItem("user_id");
-        const userType = await AsyncStorage.getItem("user_type");
-        if (userId && userType) {
-          setIsHost(
-            parseInt(userId) === post.author_id &&
-              userType === post.author_type,
-          );
+        const account = await getActiveAccount();
+        if (account) {
+          const match =
+            account.id === post.author_id && account.type === post.author_type;
+          console.log("[ChallengeSubmissions] checkHost:", {
+            accountId: account.id,
+            accountType: account.type,
+            authorId: post.author_id,
+            authorType: post.author_type,
+            match,
+          });
+          setIsHost(match);
         }
       } catch (e) {
-        // silent fail
+        console.error("[ChallengeSubmissions] checkHost error:", e);
       }
     };
     checkHost();
@@ -126,6 +132,31 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     } else {
       fetchParticipants();
       setIsRefreshing(false);
+    }
+  };
+
+  const handleModerate = async (submissionId, newStatus) => {
+    try {
+      const token = await getAuthToken();
+      await apiPatch(
+        `/challenge-submissions/${submissionId}/status`,
+        { status: newStatus },
+        10000,
+        token,
+      );
+
+      // Refresh the list
+      fetchSubmissions(false);
+
+      Alert.alert(
+        "Success",
+        newStatus === "approved"
+          ? "Submission approved and now visible to everyone."
+          : "Submission rejected.",
+      );
+    } catch (error) {
+      console.error("Error moderating submission:", error);
+      Alert.alert("Error", "Failed to update submission status.");
     }
   };
 
@@ -317,6 +348,26 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             <Text style={styles.likeCount}>{item.like_count || 0}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Approve / Reject actions for host on pending submissions */}
+        {isHost && filter === "pending" && item.status === "pending" && (
+          <View style={styles.moderateRow}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => handleModerate(item.id, "approved")}
+            >
+              <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.moderateButtonText}>Approve</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => handleModerate(item.id, "rejected")}
+            >
+              <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.moderateButtonText}>Reject</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -487,6 +538,30 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               Featured
             </Text>
           </TouchableOpacity>
+          {/* Pending filter pill — visible only to challenge host */}
+          {isHost && (
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                filter === "pending" && styles.filterPillActive,
+              ]}
+              onPress={() => setFilter("pending")}
+            >
+              <Ionicons
+                name="time"
+                size={12}
+                color={filter === "pending" ? "#FFFFFF" : "#FF9500"}
+              />
+              <Text
+                style={[
+                  styles.filterPillText,
+                  filter === "pending" && styles.filterPillTextActive,
+                ]}
+              >
+                Pending
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -907,6 +982,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginLeft: 4,
+  },
+  // Moderation buttons (host-only, pending submissions)
+  moderateRow: {
+    flexDirection: "row",
+    paddingHorizontal: SPACING.xs,
+    paddingBottom: SPACING.xs,
+    gap: 6,
+  },
+  approveButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#34C759",
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.s,
+    gap: 4,
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF3B30",
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.s,
+    gap: 4,
+  },
+  moderateButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   // Participant Card
   participantCard: {
