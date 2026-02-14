@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Animated,
 } from "react-native";
 import {
   SafeAreaView,
@@ -22,8 +23,19 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  Settings,
+  Bookmark,
+  ChevronDown,
+  Camera,
+  Pencil,
+  ChevronRight,
+  Play,
+  Image as LucideImage,
+  X,
+} from "lucide-react-native";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import {
   clearAuthSession,
@@ -70,6 +82,7 @@ import {
   SPACING,
   BORDER_RADIUS,
   SHADOWS,
+  FONTS,
 } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
@@ -96,9 +109,10 @@ const formatPhoneNumber = (value) => {
 };
 
 // Map to new theme
+// Map to new theme (consistent with MemberProfile)
 const PRIMARY_COLOR = COLORS.primary;
-const TEXT_COLOR = COLORS.textPrimary;
-const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+const TEXT_COLOR = "#0F172A"; // Slate 900
+const LIGHT_TEXT_COLOR = "#6B7280"; // Slate 500
 
 export default function CommunityProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -119,6 +133,10 @@ export default function CommunityProfileScreen({ navigation }) {
   });
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // Standard Animated Value for Scroll (Native Driver)
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const [headsModalVisible, setHeadsModalVisible] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -137,6 +155,12 @@ export default function CommunityProfileScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Tab underline animation
+  const tabUnderlineX = useRef(new Animated.Value(0)).current;
+  const tabUnderlineScale = useRef(new Animated.Value(0)).current;
+  const tabWidths = useRef({}).current;
+  const tabOffsets = useRef({}).current;
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
@@ -171,6 +195,38 @@ export default function CommunityProfileScreen({ navigation }) {
   const handleToggleHaptics = async (value) => {
     setHapticsEnabled(value);
     await HapticsService.setEnabled(value);
+  };
+
+  useEffect(() => {
+    // Underline sliding animation
+    if (tabOffsets[activeTab] !== undefined) {
+      Animated.parallel([
+        Animated.spring(tabUnderlineX, {
+          toValue: tabOffsets[activeTab],
+          useNativeDriver: false,
+          tension: 50,
+          friction: 8,
+        }),
+        Animated.spring(tabUnderlineScale, {
+          toValue: tabWidths[activeTab],
+          useNativeDriver: false,
+          tension: 50,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [activeTab]);
+
+  const handleTabLayout = (tab, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    tabOffsets[tab] = x;
+    tabWidths[tab] = width;
+
+    // Set initial position for active tab underline
+    if (tab === activeTab) {
+      tabUnderlineX.setValue(x);
+      tabUnderlineScale.setValue(width);
+    }
   };
 
   useEffect(() => {
@@ -876,8 +932,53 @@ export default function CommunityProfileScreen({ navigation }) {
       {/* Add gradient overlay only when no banner */}
       {!profile.banner_url && <GradientSafeArea variant="primary" />}
 
-      <ScrollView
+      {/* Custom Fixed Header (Status Bar Scrim Only) */}
+      <View style={[styles.headerContainer, { height: insets.top }]}>
+        {/* iOS Blur */}
+        {Platform.OS === "ios" && (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                opacity: scrollY.interpolate({
+                  inputRange: [0, 20],
+                  outputRange: [0, 1],
+                  extrapolate: "clamp",
+                }),
+              },
+            ]}
+          >
+            <BlurView
+              intensity={20}
+              tint="light"
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        )}
+
+        {/* Background Fade */}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: "rgba(250, 249, 247, 0.98)",
+              opacity: scrollY.interpolate({
+                inputRange: [0, 20],
+                outputRange: [0, 1], // Fades in background
+                extrapolate: "clamp",
+              }),
+            },
+          ]}
+        />
+      </View>
+
+      <Animated.ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -903,7 +1004,7 @@ export default function CommunityProfileScreen({ navigation }) {
               {bannerUploading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Ionicons name="camera" size={20} color="#fff" />
+                <Camera size={20} color="#fff" />
               )}
             </TouchableOpacity>
           </View>
@@ -918,7 +1019,10 @@ export default function CommunityProfileScreen({ navigation }) {
           ]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
+          <Settings
+            size={26}
+            color={COLORS.editorial?.textSecondary || "#6B7280"}
+          />
         </TouchableOpacity>
 
         {/* Bookmark Icon */}
@@ -931,7 +1035,10 @@ export default function CommunityProfileScreen({ navigation }) {
           ]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="bookmark-outline" size={24} color={TEXT_COLOR} />
+          <Bookmark
+            size={26}
+            color={COLORS.editorial?.textSecondary || "#6B7280"}
+          />
         </TouchableOpacity>
 
         <View
@@ -979,11 +1086,10 @@ export default function CommunityProfileScreen({ navigation }) {
               <Text style={styles.usernameText}>
                 {profile.username ? `@${profile.username}` : ""}
               </Text>
-              <Ionicons
-                name="chevron-down"
-                size={14}
-                color={LIGHT_TEXT_COLOR}
-                style={{ marginLeft: 4 }}
+              <ChevronDown
+                size={26}
+                color="#3B82F6"
+                style={{ marginLeft: -2 }}
               />
             </TouchableOpacity>
             {Array.isArray(profile.categories) &&
@@ -1059,7 +1165,24 @@ export default function CommunityProfileScreen({ navigation }) {
                 HapticsService.triggerImpactLight();
                 navigation.navigate("EditCommunityProfile", { profile });
               }}
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "rgba(68, 138, 255, 0.2)",
+                backgroundColor: "rgba(68, 138, 255, 0.12)",
+                shadowColor: "transparent",
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                elevation: 0,
+                overflow: "hidden",
+              }}
+              gradientStyle={{
+                borderRadius: 0,
+                paddingHorizontal: 20,
+              }}
+              colors={["transparent", "transparent"]}
+              textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
             />
             <GradientButton
               title="Create Post"
@@ -1069,7 +1192,9 @@ export default function CommunityProfileScreen({ navigation }) {
                   role: "community",
                 });
               }}
-              style={{ flex: 1 }}
+              style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+              gradientStyle={{ borderRadius: 16 }}
+              textStyle={{ fontFamily: FONTS.semiBold }}
             />
           </View>
 
@@ -1077,7 +1202,7 @@ export default function CommunityProfileScreen({ navigation }) {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Community Heads</Text>
               <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
-                <Ionicons name="pencil" size={20} color={PRIMARY_COLOR} />
+                <Pencil size={20} color={PRIMARY_COLOR} />
               </TouchableOpacity>
             </View>
             {profile.heads && profile.heads.length > 0 ? (
@@ -1133,11 +1258,7 @@ export default function CommunityProfileScreen({ navigation }) {
                       )}
                     </View>
                     {canNavigate && (
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={LIGHT_TEXT_COLOR}
-                      />
+                      <ChevronRight size={18} color={LIGHT_TEXT_COLOR} />
                     )}
                   </TouchableOpacity>
                 );
@@ -1165,38 +1286,37 @@ export default function CommunityProfileScreen({ navigation }) {
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[
-              styles.tabItem,
-              activeTab === "posts" && styles.tabItemActive,
-            ]}
-            onPress={() => setActiveTab("posts")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "posts" && styles.tabTextActive,
-              ]}
+          {["posts", "community"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={styles.tabItem}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setActiveTab(tab);
+              }}
+              onLayout={(e) => handleTabLayout(tab, e)}
             >
-              Posts
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab && styles.tabTextActive,
+                  activeTab === tab && { fontWeight: "700" },
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {/* Sliding indicator */}
+          <Animated.View
             style={[
-              styles.tabItem,
-              activeTab === "community" && styles.tabItemActive,
+              styles.activeTabIndicator,
+              {
+                transform: [{ translateX: tabUnderlineX }],
+                width: tabUnderlineScale,
+              },
             ]}
-            onPress={() => setActiveTab("community")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "community" && styles.tabTextActive,
-              ]}
-            >
-              Community
-            </Text>
-          </TouchableOpacity>
+          />
         </View>
 
         <View style={styles.postsSection}>
@@ -1348,11 +1468,7 @@ export default function CommunityProfileScreen({ navigation }) {
                                       padding: 4,
                                     }}
                                   >
-                                    <Ionicons
-                                      name="play"
-                                      size={16}
-                                      color="#FFF"
-                                    />
+                                    <Play size={16} color="#FFF" fill="#FFF" />
                                   </View>
                                 )}
                               </>
@@ -1366,8 +1482,7 @@ export default function CommunityProfileScreen({ navigation }) {
                                   alignItems: "center",
                                 }}
                               >
-                                <Ionicons
-                                  name="image-outline"
+                                <LucideImage
                                   size={30}
                                   color={LIGHT_TEXT_COLOR}
                                 />
@@ -1448,7 +1563,7 @@ export default function CommunityProfileScreen({ navigation }) {
               );
             })()}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <SettingsModal
         visible={showSettingsModal}
@@ -1502,7 +1617,7 @@ export default function CommunityProfileScreen({ navigation }) {
                   }}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={24} color={TEXT_COLOR} />
+                  <X size={24} color={TEXT_COLOR} />
                 </TouchableOpacity>
               </View>
               <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
@@ -1959,14 +2074,23 @@ const styles = StyleSheet.create({
     top: BANNER_HEIGHT + 12, // Default case (with banner)
     zIndex: 10,
     padding: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
+  headerContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    height: 50, // Match header content height
+  },
+
   summarySection: {
     paddingHorizontal: 20,
     paddingTop: 0, // Avatar overlap handles spacing
@@ -2001,6 +2125,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB", // Subtle border
   },
   avatar: {
     width: "100%",
@@ -2013,14 +2139,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   usernameText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#555555", // Darker than secondary, lighter than primary
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#3B82F6",
   },
   communityName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: FONTS.primary,
+    fontSize: 24,
+    color: "#0F172A",
+    textAlign: "center",
   },
   categoriesRow: {
     flexDirection: "row",
@@ -2067,14 +2194,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statNumber: {
+    fontFamily: FONTS.primary,
     fontSize: 20,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    color: "#0F172A",
+    marginBottom: 5,
   },
   statLabel: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 4,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#6B7280",
   },
   editProfileButton: {
     alignSelf: "center",
@@ -2163,25 +2291,32 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E5EA",
     backgroundColor: COLORS.background,
     marginTop: 8,
+    position: "relative",
   },
   tabItem: {
     flex: 1,
     paddingVertical: 12,
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    // borderBottomWidth: 2, // Handled by animated indicator
+    // borderBottomColor: "transparent",
   },
   tabItemActive: {
-    borderBottomColor: COLORS.primary,
+    // borderBottomColor: COLORS.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#8E8E93",
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: LIGHT_TEXT_COLOR,
   },
   tabTextActive: {
-    color: COLORS.primary,
-    fontWeight: "600",
+    color: PRIMARY_COLOR,
+  },
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 1,
   },
   // Community Posts List
   communityPostsList: {
