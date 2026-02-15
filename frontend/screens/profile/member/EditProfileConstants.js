@@ -36,6 +36,10 @@ export const INTEREST_CATEGORIES = {
       "bikes",
       "driving",
       "meditation",
+      "apparel",
+      "merch",
+      "clothing",
+      "gear",
     ],
   },
   SPORTS: {
@@ -54,6 +58,9 @@ export const INTEREST_CATEGORIES = {
       "cricket",
       "badminton",
       "cycling",
+      "protein",
+      "supplement",
+      "nutrition",
     ],
   },
   ARTS: {
@@ -108,6 +115,7 @@ export const INTEREST_CATEGORIES = {
       "wine",
       "beer",
       "dining",
+      "energy drink",
     ],
   },
   OUTDOORS: {
@@ -141,6 +149,9 @@ export const INTEREST_CATEGORIES = {
       "console",
       "science",
       "data",
+      "hardware",
+      "software",
+      "web3",
     ],
   },
   SOCIAL: {

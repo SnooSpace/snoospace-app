@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Modal,
   View,
@@ -12,14 +12,32 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  Animated,
+  Easing,
+  TouchableWithoutFeedback,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  User,
+  Camera,
+  Link,
+  Trash2,
+  X,
+  PlusCircle,
+  ChevronRight,
+  Star,
+} from "lucide-react-native";
 import { launchImageLibraryAsync, MediaTypeOptions } from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { uploadImage } from "../../api/cloudinary";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SHADOWS, BORDER_RADIUS, SPACING } from "../../constants/theme";
+import {
+  COLORS,
+  SHADOWS,
+  BORDER_RADIUS,
+  SPACING,
+  FONTS,
+} from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 
 const PRIMARY = COLORS.primary;
@@ -28,6 +46,58 @@ const LIGHT_TEXT = COLORS.textSecondary;
 const BG = COLORS.surface;
 
 const { width, height } = Dimensions.get("window");
+
+const AnimatedStar = ({ isPrimary, onPress }) => {
+  const scale = React.useRef(new Animated.Value(1)).current;
+  const glow = React.useRef(new Animated.Value(isPrimary ? 1 : 0)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: isPrimary ? 1.2 : 1,
+        useNativeDriver: true,
+        friction: 4,
+        tension: 40,
+      }),
+      Animated.timing(glow, {
+        toValue: isPrimary ? 1 : 0,
+        duration: 300,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 4,
+        tension: 40,
+      }).start();
+    });
+  }, [isPrimary]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.starContainer, isPrimary && styles.starContainerPrimary]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {isPrimary ? (
+        <LinearGradient
+          colors={["#FFF1F2", "#FFE4E6"]}
+          style={styles.starGradient}
+        >
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <Star size={18} color="#E11D48" fill="#E11D48" />
+          </Animated.View>
+        </LinearGradient>
+      ) : (
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Star size={18} color="#D1D5DB" />
+        </Animated.View>
+      )}
+    </TouchableOpacity>
+  );
+};
 
 export default function HeadsEditorModal({
   visible,
@@ -60,28 +130,34 @@ export default function HeadsEditorModal({
 
   const canAdd = useMemo(
     () => heads.length < maxHeads,
-    [heads.length, maxHeads]
+    [heads.length, maxHeads],
   );
 
-  const setPrimary = (idx) => {
-    setHeads((prev) => prev.map((h, i) => ({ ...h, is_primary: i === idx })));
-    HapticsService.triggerSelection();
-  };
+  const setPrimary = useCallback(
+    (idx) => {
+      setHeads((prev) => prev.map((h, i) => ({ ...h, is_primary: i === idx })));
+      HapticsService.triggerSelection();
+    },
+    [setHeads],
+  );
 
-  const updateField = (idx, key, value) => {
-    setHeads((prev) =>
-      prev.map((h, i) => {
-        if (i !== idx) return h;
-        let nextValue = value;
-        if (key === "phone") {
-          nextValue = (value || "").replace(/[^0-9]/g, "").slice(0, 10);
-        }
-        return { ...h, [key]: nextValue };
-      })
-    );
-  };
+  const updateField = useCallback(
+    (idx, key, value) => {
+      setHeads((prev) =>
+        prev.map((h, i) => {
+          if (i !== idx) return h;
+          let nextValue = value;
+          if (key === "phone") {
+            nextValue = (value || "").replace(/[^0-9]/g, "").slice(0, 10);
+          }
+          return { ...h, [key]: nextValue };
+        }),
+      );
+    },
+    [setHeads],
+  );
 
-  const addHead = () => {
+  const addHead = useCallback(() => {
     if (!canAdd) return;
     setHeads((prev) => [
       ...prev,
@@ -97,43 +173,55 @@ export default function HeadsEditorModal({
       },
     ]);
     HapticsService.triggerSelection();
-  };
+  }, [canAdd, setHeads]);
 
-  const removeHead = (idx) => {
-    const next = heads.filter((_, i) => i !== idx);
-    // ensure exactly one primary
-    if (next.length > 0 && !next.some((h) => h.is_primary))
-      next[0].is_primary = true;
-    setHeads(next);
-    HapticsService.triggerImpactMedium();
-  };
+  const removeHead = useCallback(
+    (idx) => {
+      setHeads((prev) => {
+        const next = prev.filter((_, i) => i !== idx);
+        // ensure exactly one primary
+        if (next.length > 0 && !next.some((h) => h.is_primary)) {
+          next[0].is_primary = true;
+        }
+        return next;
+      });
+      HapticsService.triggerImpactMedium();
+    },
+    [setHeads],
+  );
 
-  const clearLink = (idx) => {
-    updateField(idx, "member_id", null);
-    updateField(idx, "member_username", null);
-    updateField(idx, "member_photo_url", null);
-  };
+  const clearLink = useCallback(
+    (idx) => {
+      updateField(idx, "member_id", null);
+      updateField(idx, "member_username", null);
+      updateField(idx, "member_photo_url", null);
+    },
+    [updateField],
+  );
 
-  const openLinkModal = (idx) => {
-    setLinkingIndex(idx);
-    const existingUsername = heads[idx]?.member_username || "";
-    setMemberQuery(existingUsername);
-    setMemberResults([]);
-    setMemberSearchError("");
-    if (existingUsername && existingUsername.trim().length >= 2) {
-      searchMembers(existingUsername.trim());
-    }
-  };
+  const openLinkModal = useCallback(
+    (idx) => {
+      setLinkingIndex(idx);
+      const existingUsername = heads[idx]?.member_username || "";
+      setMemberQuery(existingUsername);
+      setMemberResults([]);
+      setMemberSearchError("");
+      if (existingUsername && existingUsername.trim().length >= 2) {
+        searchMembers(existingUsername.trim());
+      }
+    },
+    [heads, searchMembers],
+  );
 
-  const closeLinkModal = () => {
+  const closeLinkModal = useCallback(() => {
     setLinkingIndex(-1);
     setMemberQuery("");
     setMemberResults([]);
     setMemberLoading(false);
     setMemberSearchError("");
-  };
+  }, []);
 
-  const searchMembers = async (query) => {
+  const searchMembers = useCallback(async (query) => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setMemberResults([]);
@@ -150,7 +238,7 @@ export default function HeadsEditorModal({
       const res = await apiGet(
         `/members/search?q=${encodeURIComponent(trimmed)}`,
         15000,
-        token
+        token,
       );
       const results = res?.results || [];
       setMemberResults(results);
@@ -163,7 +251,7 @@ export default function HeadsEditorModal({
     } finally {
       setMemberLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (linkingIndex === -1) return;
@@ -176,40 +264,64 @@ export default function HeadsEditorModal({
       searchMembers(memberQuery);
     }, 300);
     return () => clearTimeout(handler);
-  }, [memberQuery, linkingIndex]);
+  }, [memberQuery, linkingIndex, searchMembers]);
 
-  const handleSelectMember = (member) => {
-    if (linkingIndex === -1) return;
-    updateField(linkingIndex, "member_id", member.id);
-    updateField(
-      linkingIndex,
-      "member_username",
-      member.username || member.full_name || member.name || "member"
-    );
-    updateField(
-      linkingIndex,
-      "member_photo_url",
-      member.profile_photo_url || null
-    );
-    closeLinkModal();
-    HapticsService.triggerSelection();
-  };
+  const handleSelectMember = useCallback(
+    (member) => {
+      if (linkingIndex === -1) return;
+      updateField(linkingIndex, "member_id", member.id);
+      updateField(
+        linkingIndex,
+        "member_username",
+        member.username || member.full_name || member.name || "member",
+      );
+      updateField(
+        linkingIndex,
+        "member_photo_url",
+        member.profile_photo_url || null,
+      );
+      closeLinkModal();
+      HapticsService.triggerSelection();
+    },
+    [linkingIndex, updateField, closeLinkModal],
+  );
 
-  const pickAvatar = async (idx) => {
-    try {
-      const picker = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.9,
-      });
-      if (picker.canceled || !picker.assets || !picker.assets[0]) return;
-      const url = await uploadImage(picker.assets[0].uri);
-      updateField(idx, "profile_pic_url", url);
-    } catch (e) {
-      Alert.alert("Upload failed", e?.message || "Could not upload");
-    }
-  };
+  const pickAvatar = useCallback(
+    async (idx) => {
+      try {
+        const picker = await launchImageLibraryAsync({
+          mediaTypes: MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.9,
+        });
+        if (picker.canceled || !picker.assets || !picker.assets[0]) return;
+        const url = await uploadImage(picker.assets[0].uri);
+        updateField(idx, "profile_pic_url", url);
+      } catch (e) {
+        Alert.alert("Upload failed", e?.message || "Could not upload");
+      }
+    },
+    [updateField],
+  );
+
+  const confirmUnlink = useCallback(
+    (idx) => {
+      Alert.alert(
+        "Unlink Profile",
+        "Are you sure you want to remove the link to this member profile?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Unlink",
+            style: "destructive",
+            onPress: () => clearLink(idx),
+          },
+        ],
+      );
+    },
+    [clearLink],
+  );
 
   const validate = (list) => {
     if (!list || list.length === 0) return "Add at least one head";
@@ -295,94 +407,118 @@ export default function HeadsEditorModal({
     }
   };
 
-  const renderItem = ({ item, index }) => (
-    <View style={styles.row}>
-      <TouchableOpacity style={styles.avatar} onPress={() => pickAvatar(index)}>
-        {item.profile_pic_url ? (
-          <Image
-            source={{ uri: item.profile_pic_url }}
-            style={styles.avatarImg}
-          />
-        ) : (
-          <Ionicons name="person-circle-outline" size={48} color={LIGHT_TEXT} />
-        )}
-      </TouchableOpacity>
-      <View style={{ flex: 1 }}>
-        <TextInput
-          value={item.name}
-          onChangeText={(t) => updateField(index, "name", t)}
-          placeholder="Head name"
-          placeholderTextColor={LIGHT_TEXT}
-          style={styles.input}
+  const renderItem = useCallback(
+    ({ item, index }) => (
+      <View style={styles.card}>
+        <AnimatedStar
+          isPrimary={item.is_primary}
+          onPress={() => setPrimary(index)}
         />
-        <TextInput
-          value={item.email || ""}
-          onChangeText={(t) => updateField(index, "email", t)}
-          placeholder="Email (optional)"
-          placeholderTextColor={LIGHT_TEXT}
-          style={styles.input}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          value={item.phone || ""}
-          onChangeText={(t) => updateField(index, "phone", t)}
-          placeholder="Phone (optional)"
-          placeholderTextColor={LIGHT_TEXT}
-          style={styles.input}
-          keyboardType="phone-pad"
-          maxLength={10}
-        />
-        {item.member_id && (
-          <Text style={styles.linkedInfo}>
-            Linked to @{item.member_username || item.member_id}
-          </Text>
-        )}
-        <View style={styles.linkActions}>
-          <TouchableOpacity
-            onPress={() => openLinkModal(index)}
-            style={styles.linkButton}
-          >
-            <Ionicons name="person-add-outline" size={16} color={PRIMARY} />
-            <Text style={styles.linkButtonText}>
-              {item.member_id ? "Change linked member" : "Link member profile"}
-            </Text>
-          </TouchableOpacity>
-          {item.member_id && (
+
+        <View style={styles.cardHeader}>
+          <View style={styles.avatarContainer}>
             <TouchableOpacity
-              onPress={() => clearLink(index)}
-              style={styles.unlinkButton}
+              style={styles.avatarWrapper}
+              onPress={() => pickAvatar(index)}
+              activeOpacity={0.9}
             >
-              <Text style={styles.unlinkText}>Remove</Text>
+              {item.profile_pic_url ? (
+                <Image
+                  source={{ uri: item.profile_pic_url }}
+                  style={styles.avatarImg}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <User size={24} color={LIGHT_TEXT} />
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                <Camera size={12} color={COLORS.textPrimary} />
+              </View>
             </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.inline}>
-          <TouchableOpacity
-            onPress={() => setPrimary(index)}
-            style={[
-              styles.primaryBtn,
-              item.is_primary ? styles.primaryActive : null,
-            ]}
-          >
-            <Text
-              style={[
-                styles.primaryText,
-                item.is_primary ? { color: "#fff" } : null,
-              ]}
-            >
-              {item.is_primary ? "Primary" : "Set as Primary"}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => removeHead(index)}
-            style={styles.removeBtn}
-          >
-            <Text style={styles.removeText}>Delete</Text>
-          </TouchableOpacity>
+          </View>
+
+          <View style={styles.cardContent}>
+            <TextInput
+              value={item.name}
+              onChangeText={(t) => updateField(index, "name", t)}
+              placeholder="Head Name"
+              placeholderTextColor={LIGHT_TEXT}
+              style={styles.inputName}
+            />
+
+            <View style={styles.inputGroup}>
+              <TextInput
+                value={item.email || ""}
+                onChangeText={(t) => updateField(index, "email", t)}
+                placeholder="Email (optional)"
+                placeholderTextColor={LIGHT_TEXT}
+                style={styles.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TextInput
+                value={item.phone || ""}
+                onChangeText={(t) => updateField(index, "phone", t)}
+                placeholder="Phone (optional)"
+                placeholderTextColor={LIGHT_TEXT}
+                style={styles.input}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+            </View>
+
+            {/* Linked Member Section */}
+            <View style={styles.linkedSection}>
+              {item.member_id ? (
+                <View style={styles.linkedRow}>
+                  <View style={styles.linkedBadge}>
+                    <Text style={styles.linkedLabel}>
+                      Linked to @{item.member_username || item.member_id}
+                    </Text>
+                  </View>
+                  <View style={styles.linkedActions}>
+                    <TouchableOpacity onPress={() => openLinkModal(index)}>
+                      <Text style={styles.actionTextNeutral}>Change</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => confirmUnlink(index)}>
+                      <Text style={styles.actionTextDestructive}>Unlink</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => openLinkModal(index)}
+                  style={styles.linkButton}
+                >
+                  <Link size={14} color={TEXT_COLOR} />
+                  <Text style={styles.linkButtonText}>Link Member Profile</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Delete Row */}
+            <View style={styles.footerRow}>
+              <View /> {/* Spacer */}
+              <TouchableOpacity
+                onPress={() => removeHead(index)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Trash2 size={20} color={COLORS.error} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
-    </View>
+    ),
+    [
+      setPrimary,
+      updateField,
+      pickAvatar,
+      openLinkModal,
+      confirmUnlink,
+      removeHead,
+    ],
   );
 
   return (
@@ -394,80 +530,69 @@ export default function HeadsEditorModal({
         onRequestClose={onCancel}
         statusBarTranslucent={true}
       >
-        <View style={styles.overlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Edit Community Heads</Text>
-              <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
-                <Ionicons name="close" size={24} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
+        <TouchableWithoutFeedback onPress={onCancel}>
+          <View style={styles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContainer}>
+                <View style={styles.header}>
+                  <Text style={styles.title}>Edit Community Heads</Text>
+                  <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
+                    <X size={24} color={TEXT_COLOR} />
+                  </TouchableOpacity>
+                </View>
 
-            <FlatList
-              data={heads}
-              keyExtractor={(_, i) => String(i)}
-              renderItem={renderItem}
-              contentContainerStyle={styles.listContent}
-              style={styles.list}
-            />
+                <FlatList
+                  data={heads}
+                  keyExtractor={(_, i) => String(i)}
+                  renderItem={renderItem}
+                  contentContainerStyle={styles.listContent}
+                  style={styles.list}
+                />
 
-            <View style={styles.footer}>
-              <TouchableOpacity
-                disabled={!canAdd}
-                onPress={addHead}
-                style={[styles.addBtn, !canAdd && { opacity: 0.5 }]}
-              >
-                <Ionicons name="add" size={20} color={PRIMARY} />
-                <Text style={styles.addText}>Add Head</Text>
-              </TouchableOpacity>
-              <Text style={styles.limitText}>Up to {maxHeads} heads</Text>
-            </View>
+                <View style={styles.footerContainer}>
+                  <TouchableOpacity
+                    onPress={addHead}
+                    style={[styles.addBtn, !canAdd && { opacity: 0.5 }]}
+                    disabled={!canAdd}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.addIconContainer}>
+                      <PlusCircle size={18} color="#6366F1" />
+                    </View>
+                    <Text style={styles.addText}>Add Community Head</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.limitText}>
+                    {heads.length}/{maxHeads} heads used
+                  </Text>
+                </View>
 
-            <View style={styles.actions}>
-              {/* Cancel Button - Ghost Style */}
-              <TouchableOpacity
-                onPress={onCancel}
-                style={styles.ghostButton}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.ghostButtonText}>Cancel</Text>
-              </TouchableOpacity>
+                <View style={styles.actionArea}>
+                  <TouchableOpacity
+                    onPress={handleSave}
+                    disabled={saving || !hasChanges}
+                    style={[
+                      styles.saveButton,
+                      (!hasChanges || saving) && styles.disabledSaveButton,
+                    ]}
+                  >
+                    {saving ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.saveButtonText}>Save Changes</Text>
+                    )}
+                  </TouchableOpacity>
 
-              {/* Save Button - Primary Gradient Support */}
-              <TouchableOpacity
-                onPress={handleSave}
-                disabled={saving || !hasChanges}
-                style={[
-                  styles.gradientButtonContainer,
-                  !hasChanges && styles.disabledButtonContainer,
-                ]}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={
-                    hasChanges ? COLORS.primaryGradient : ["#E5E5EA", "#E5E5EA"]
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.gradientButton}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.gradientButtonText,
-                        !hasChanges && styles.disabledButtonText,
-                      ]}
-                    >
-                      Save Changes
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+                  <TouchableOpacity
+                    onPress={onCancel}
+                    style={styles.discardButton}
+                  >
+                    <Text style={styles.discardButtonText}>Discard</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal
@@ -476,83 +601,89 @@ export default function HeadsEditorModal({
         animationType="slide"
         onRequestClose={closeLinkModal}
       >
-        <View style={styles.linkOverlay}>
-          <View style={[styles.linkSheet, SHADOWS.md]}>
-            <View style={styles.linkHeader}>
-              <Text style={styles.linkTitle}>Link Member Profile</Text>
-              <TouchableOpacity onPress={closeLinkModal} style={{ padding: 4 }}>
-                <Ionicons name="close" size={22} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              value={memberQuery}
-              onChangeText={setMemberQuery}
-              placeholder="Search members by name or username"
-              placeholderTextColor={LIGHT_TEXT}
-              style={styles.linkSearchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {memberQuery.trim().length < 2 ? (
-              <Text style={styles.linkHint}>
-                Type at least 2 characters to search
-              </Text>
-            ) : memberLoading ? (
-              <View style={styles.linkLoading}>
-                <ActivityIndicator size="small" color={PRIMARY} />
-              </View>
-            ) : memberResults.length === 0 ? (
-              <Text style={styles.linkHint}>
-                {memberSearchError || "No members found"}
-              </Text>
-            ) : (
-              <FlatList
-                data={memberResults}
-                keyExtractor={(item) => String(item.id)}
-                renderItem={({ item }) => (
+        <TouchableWithoutFeedback onPress={closeLinkModal}>
+          <View style={styles.linkOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.linkSheet, SHADOWS.md]}>
+                <View style={styles.linkHeader}>
+                  <Text style={styles.linkTitle}>Link Member Profile</Text>
                   <TouchableOpacity
-                    style={styles.linkResultItem}
-                    onPress={() => handleSelectMember(item)}
+                    onPress={closeLinkModal}
+                    style={{ padding: 4 }}
                   >
-                    {item.profile_photo_url ? (
-                      <Image
-                        source={{ uri: item.profile_photo_url }}
-                        style={styles.linkResultAvatar}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.linkResultAvatar,
-                          styles.linkResultAvatarPlaceholder,
-                        ]}
-                      >
-                        <Ionicons name="person" size={18} color={LIGHT_TEXT} />
-                      </View>
-                    )}
-                    <View style={styles.linkResultMeta}>
-                      <Text style={styles.linkResultName} numberOfLines={1}>
-                        {item.full_name || item.name || "Member"}
-                      </Text>
-                      <Text style={styles.linkResultUsername} numberOfLines={1}>
-                        @{item.username || "user"}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={LIGHT_TEXT}
-                    />
+                    <X size={22} color={TEXT_COLOR} />
                   </TouchableOpacity>
+                </View>
+                <TextInput
+                  value={memberQuery}
+                  onChangeText={setMemberQuery}
+                  placeholder="Search members by name or username"
+                  placeholderTextColor={LIGHT_TEXT}
+                  style={styles.linkSearchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {memberQuery.trim().length < 2 ? (
+                  <Text style={styles.linkHint}>
+                    Type at least 2 characters to search
+                  </Text>
+                ) : memberLoading ? (
+                  <View style={styles.linkLoading}>
+                    <ActivityIndicator size="small" color={PRIMARY} />
+                  </View>
+                ) : memberResults.length === 0 ? (
+                  <Text style={styles.linkHint}>
+                    {memberSearchError || "No members found"}
+                  </Text>
+                ) : (
+                  <FlatList
+                    data={memberResults}
+                    keyExtractor={(item) => String(item.id)}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.linkResultItem}
+                        onPress={() => handleSelectMember(item)}
+                      >
+                        {item.profile_photo_url ? (
+                          <Image
+                            source={{ uri: item.profile_photo_url }}
+                            style={styles.linkResultAvatar}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.linkResultAvatar,
+                              styles.linkResultAvatarPlaceholder,
+                            ]}
+                          >
+                            <User size={18} color={LIGHT_TEXT} />
+                          </View>
+                        )}
+                        <View style={styles.linkResultMeta}>
+                          <Text style={styles.linkResultName} numberOfLines={1}>
+                            {item.full_name || item.name || "Member"}
+                          </Text>
+                          <Text
+                            style={styles.linkResultUsername}
+                            numberOfLines={1}
+                          >
+                            @{item.username || "user"}
+                          </Text>
+                        </View>
+                        <ChevronRight size={18} color={LIGHT_TEXT} />
+                      </TouchableOpacity>
+                    )}
+                    ItemSeparatorComponent={() => (
+                      <View style={styles.linkSeparator} />
+                    )}
+                    style={styles.linkResults}
+                    keyboardShouldPersistTaps="handled"
+                  />
                 )}
-                ItemSeparatorComponent={() => (
-                  <View style={styles.linkSeparator} />
-                )}
-                style={styles.linkResults}
-                keyboardShouldPersistTaps="handled"
-              />
-            )}
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </>
   );
@@ -560,19 +691,23 @@ export default function HeadsEditorModal({
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: SPACING.l,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modalContainer: {
     backgroundColor: BG,
-    borderRadius: 24, // Increased Radius
+    borderRadius: 24,
     width: "100%",
     maxWidth: 500,
     maxHeight: "90%",
-    ...SHADOWS.md, // Elevation
+    ...SHADOWS.md,
     overflow: "hidden",
   },
   header: {
@@ -581,204 +716,263 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
-    fontSize: 20, // Larger Title
+    fontSize: 20,
     fontWeight: "bold",
     color: TEXT_COLOR,
+    fontFamily: FONTS.primary, // BasicCommercial Bold
   },
   list: {
     maxHeight: height * 0.5,
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start", // Align top for multiline
     paddingVertical: 16,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5", // Sublime separator
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: "hidden",
-    alignItems: "center",
+  // Card Styles
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: "#F2F2F7",
+    position: "relative",
+  },
+  starContainer: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    width: 32,
+    height: 32,
     justifyContent: "center",
-    backgroundColor: "#F2F2F7",
-    marginTop: 4,
+    alignItems: "center",
+  },
+  starContainerPrimary: {
+    shadowColor: "#E11D48",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  starGradient: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  avatarContainer: {
+    alignItems: "center",
+  },
+  avatarWrapper: {
+    position: "relative",
   },
   avatarImg: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F2F2F7",
   },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.m,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    color: TEXT_COLOR,
-    marginBottom: 8,
-    fontSize: 15,
-  },
-  inline: {
-    flexDirection: "row",
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F2F2F7",
+    justifyContent: "center",
     alignItems: "center",
-    gap: 12,
-    marginTop: 8,
   },
-  linkedInfo: {
-    fontSize: 13,
-    color: LIGHT_TEXT,
+  cameraBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: "#fff",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cardContent: {
+    flex: 1,
+    gap: 12,
+  },
+  inputName: {
+    fontFamily: FONTS.primary, // BasicCommercial Bold
+    fontSize: 16,
+    color: TEXT_COLOR,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+    paddingVertical: 8,
     marginBottom: 4,
   },
-  linkActions: {
+  inputGroup: {
+    gap: 10,
+  },
+  input: {
+    backgroundColor: "#FAFAFA",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: FONTS.medium, // Manrope Medium
+    color: TEXT_COLOR,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  linkedSection: {
+    marginTop: 4,
+  },
+  linkedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  linkedBadge: {
+    backgroundColor: "#F2F2F7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  linkedLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.medium,
+  },
+  linkedActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 8,
+  },
+  actionTextNeutral: {
+    fontSize: 13,
+    color: TEXT_COLOR,
+    fontFamily: FONTS.medium,
+  },
+  actionTextDestructive: {
+    fontSize: 13,
+    color: COLORS.error,
+    fontFamily: FONTS.medium,
   },
   linkButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: PRIMARY,
-    borderRadius: BORDER_RADIUS.s,
-    backgroundColor: "rgba(25, 118, 210, 0.05)", // Subtle tint
   },
   linkButtonText: {
-    color: PRIMARY,
-    fontWeight: "600",
     fontSize: 13,
+    color: TEXT_COLOR,
+    fontFamily: FONTS.medium,
   },
-  unlinkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  unlinkText: {
-    color: COLORS.error,
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  primaryBtn: {
-    borderWidth: 1,
-    borderColor: PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.pill,
-  },
-  primaryActive: {
-    backgroundColor: PRIMARY,
-  },
-  primaryText: {
-    color: PRIMARY,
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  removeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  removeText: {
-    color: COLORS.error,
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  footer: {
+  footerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    marginTop: 8,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: "#F2F2F7",
+    paddingTop: 12,
+  },
+  // Footer
+  footerContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    gap: 12,
   },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-  },
-  addText: {
-    color: PRIMARY,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  limitText: {
-    color: LIGHT_TEXT,
-    fontSize: 13,
-  },
-  actions: {
-    padding: 20,
-    flexDirection: "row",
-    gap: 16,
-    justifyContent: "flex-end",
-    backgroundColor: BG, // Ensure opaque over list
-  },
-  ghostButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: BORDER_RADIUS.pill,
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 16,
+    backgroundColor: "#F8FAFC", // Slate 50
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: PRIMARY,
+    borderColor: "#E2E8F0", // Slate 200
+    ...SHADOWS.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+  },
+  addIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF", // Blue 50 (Muted Sapphire Tint)
     justifyContent: "center",
     alignItems: "center",
-    minWidth: 100,
+    borderWidth: 1,
+    borderColor: "#DBEAFE", // Blue 100
   },
-  ghostButtonText: {
-    color: PRIMARY,
+  addText: {
+    color: "#475569", // Slate 600
     fontWeight: "600",
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: FONTS.medium,
   },
-  gradientButtonContainer: {
-    borderRadius: BORDER_RADIUS.pill,
+  limitText: {
+    fontSize: 12,
+    color: LIGHT_TEXT,
+    fontFamily: FONTS.medium,
+    textAlign: "center",
+  },
+  actionArea: {
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    gap: 12,
+  },
+  saveButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
     ...SHADOWS.primaryGlow,
-    minWidth: 120,
   },
-  disabledButtonContainer: {
+  disabledSaveButton: {
+    backgroundColor: "#E5E5EA",
     shadowOpacity: 0,
     elevation: 0,
   },
-  gradientButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: BORDER_RADIUS.pill,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gradientButtonText: {
+  saveButtonText: {
     color: "#fff",
-    fontWeight: "600",
     fontSize: 16,
+    fontFamily: FONTS.medium,
+    fontWeight: "600",
   },
-  disabledButtonText: {
-    color: "#8E8E93",
+  discardButton: {
+    alignItems: "center",
+    paddingVertical: 12,
   },
-
+  discardButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+  },
   // Link Modal Styles
   linkOverlay: {
-    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     padding: 20,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
   },
   linkSheet: {
     backgroundColor: BG,
@@ -797,6 +991,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: TEXT_COLOR,
+    fontFamily: FONTS.primary,
   },
   linkSearchInput: {
     borderWidth: 1,
@@ -806,12 +1001,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: TEXT_COLOR,
     fontSize: 16,
+    fontFamily: FONTS.medium,
   },
   linkHint: {
     fontSize: 14,
     color: LIGHT_TEXT,
     textAlign: "center",
     marginTop: 16,
+    fontFamily: FONTS.medium,
   },
   linkLoading: {
     paddingVertical: 20,
@@ -844,10 +1041,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: TEXT_COLOR,
+    fontFamily: FONTS.primary,
   },
   linkResultUsername: {
     fontSize: 14,
     color: LIGHT_TEXT,
+    fontFamily: FONTS.medium,
   },
   linkSeparator: {
     height: 1,

@@ -20,6 +20,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -417,7 +418,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
+          <ArrowLeft size={24} color="#1D1D1F" />
         </TouchableOpacity>
       </View>
 
@@ -624,15 +625,29 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     title={isFollowing ? "Following" : "Follow"}
                     colors={
                       isFollowing
-                        ? ["#E5E5EA", "#E5E5EA"] // Gray for following
-                        : ["#00C6FF", "#0072FF"] // Blue/Cyan Gradient
+                        ? ["transparent", "transparent"]
+                        : ["#448AFF", "#2962FF"] // Match Create Post
                     }
                     textStyle={
                       isFollowing
-                        ? { color: "#1D1D1F" }
-                        : { color: "#FFFFFF", fontWeight: "bold" }
+                        ? { fontFamily: FONTS.medium, color: "#2962FF" }
+                        : { fontFamily: FONTS.semiBold, color: "#FFFFFF" }
                     }
-                    style={{ flex: 1 }}
+                    style={[
+                      { flex: 1, borderRadius: 16, overflow: "hidden" },
+                      isFollowing && {
+                        borderWidth: 1,
+                        borderColor: "rgba(68, 138, 255, 0.2)",
+                        backgroundColor: "rgba(68, 138, 255, 0.12)",
+                        shadowColor: "transparent",
+                        shadowOpacity: 0,
+                        shadowRadius: 0,
+                        elevation: 0,
+                      },
+                    ]}
+                    gradientStyle={
+                      isFollowing ? { borderRadius: 0 } : { borderRadius: 16 }
+                    }
                     onPress={async () => {
                       const next = !isFollowing;
                       setIsFollowing(next);
@@ -688,8 +703,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   />
                   <GradientButton
                     title="Message"
-                    style={{ flex: 1 }}
-                    colors={["#1D1D1F", "#1D1D1F"]} // Black
+                    style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                    gradientStyle={{ borderRadius: 16 }}
+                    colors={["#111827", "#111827"]} // Charcoal Black
+                    textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                     onPress={() => {
                       // Navigate to Chat screen via Home stack
                       const root = navigation

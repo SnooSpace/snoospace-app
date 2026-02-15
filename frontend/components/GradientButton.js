@@ -60,6 +60,8 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   gradient: {
+    width: "100%", // Ensure gradient fills the container
+    alignSelf: "stretch",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: BORDER_RADIUS.pill,

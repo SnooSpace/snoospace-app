@@ -12,11 +12,25 @@ import {
   ScrollView,
   Modal,
   Alert,
+  Animated,
+  Platform,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
+import {
+  ChevronRight,
+  Pencil,
+  ArrowLeft,
+  Play,
+  Image as LucideImage,
+} from "lucide-react-native";
+import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import GradientSafeArea from "../../../components/GradientSafeArea";
+import HapticsService from "../../../services/HapticsService";
+import { FONTS } from "../../../constants/theme";
 import {
   getPublicCommunity,
   getCommunityPosts,
@@ -126,30 +140,30 @@ const styles = StyleSheet.create({
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    overflow: "visible",
-    borderWidth: 4,
-    borderColor: "#FFFFFF",
     backgroundColor: "#E5E5EA",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   avatar: {
     width: "100%",
     height: "100%",
     borderRadius: AVATAR_SIZE / 2,
   },
-  communityName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+  usernameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
   },
   usernameText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#555555",
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#3B82F6",
+  },
+  communityName: {
+    fontFamily: FONTS.primary,
+    fontSize: 24,
+    color: "#0F172A",
+    textAlign: "center",
   },
   categoriesRow: {
     flexDirection: "row",
@@ -159,7 +173,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   bio: {
-    fontSize: 14,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
     lineHeight: 22,
     color: TEXT_COLOR,
     textAlign: "center",
@@ -175,57 +190,67 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
-  statValue: {
+  statNumber: {
+    fontFamily: FONTS.primary,
     fontSize: 20,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    color: "#0F172A",
+    marginBottom: 5,
   },
   statLabel: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 4,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#6B7280",
   },
   sectionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
-    ...SHADOWS.sm,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: "rgba(0,0,0,0.03)",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#0F172A",
+    letterSpacing: -0.3,
   },
   headRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
+    gap: 16,
+    paddingVertical: 8,
   },
   headAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#F2F2F7",
   },
   headName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
   },
   primaryTag: {
-    fontSize: 12,
+    fontSize: 14,
     color: PRIMARY_COLOR,
     fontWeight: "600",
-    marginTop: 2,
   },
   headSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: LIGHT_TEXT_COLOR,
-    marginTop: 2,
   },
   emptyText: {
     color: LIGHT_TEXT_COLOR,
@@ -234,24 +259,51 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 10,
+    gap: 10,
+    marginTop: 0, // Handled by gap/sectionHeader
+  },
+  sponsorTypesList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  // Tab Bar Styles
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+    backgroundColor: "#FFFFFF",
+    marginTop: 8,
+    position: "relative",
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  tabText: {
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: LIGHT_TEXT_COLOR,
+  },
+  tabTextActive: {
+    color: PRIMARY_COLOR,
+  },
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 1,
   },
   postsSection: {
     paddingHorizontal: 0,
     paddingTop: 8,
   },
-  gridItem: {
-    backgroundColor: "#E5E5EA",
-  },
-  gridImage: {
-    width: "100%",
-    height: "100%",
-  },
-  gridPlaceholder: {
-    backgroundColor: "#F2F2F7",
-    justifyContent: "center",
-    alignItems: "center",
+  postsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 10,
   },
   emptyPostsContainer: {
     paddingVertical: 40,
@@ -260,6 +312,26 @@ const styles = StyleSheet.create({
   emptyPostsText: {
     color: LIGHT_TEXT_COLOR,
     fontSize: 14,
+  },
+  headerContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
 
@@ -292,6 +364,40 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const followersCount =
     profile?.followers_count ?? profile?.follower_count ?? 0;
   const followingCount = profile?.following_count ?? profile?.following ?? 0;
+
+  // Scroll Animation state
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Tabs state
+  const [activeTab, setActiveTab] = useState("posts");
+  const [tabLayouts, setTabLayouts] = useState({});
+  const tabUnderlineX = useRef(new Animated.Value(0)).current;
+  const tabUnderlineScale = useRef(new Animated.Value(0)).current;
+
+  const handleTabLayout = (key, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    setTabLayouts((prev) => ({ ...prev, [key]: { x, width } }));
+  };
+
+  useEffect(() => {
+    const layout = tabLayouts[activeTab];
+    if (layout) {
+      Animated.parallel([
+        Animated.spring(tabUnderlineX, {
+          toValue: layout.x + layout.width * 0.2,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 8,
+        }),
+        Animated.spring(tabUnderlineScale, {
+          toValue: layout.width * 0.6,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [activeTab, tabLayouts]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -659,7 +765,51 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" style="dark" />
+      <DynamicStatusBar style="light-content" />
+
+      {/* Add gradient overlay only when no banner */}
+      {!profile?.banner_url && <GradientSafeArea variant="primary" />}
+
+      {/* Custom Fixed Header (Status Bar Scrim Only) */}
+      <View style={[styles.headerContainer, { height: insets.top }]}>
+        {/* iOS Blur */}
+        {Platform.OS === "ios" && (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                opacity: scrollY.interpolate({
+                  inputRange: [0, 20],
+                  outputRange: [0, 1],
+                  extrapolate: "clamp",
+                }),
+              },
+            ]}
+          >
+            <BlurView
+              intensity={20}
+              tint="light"
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        )}
+
+        {/* Background Fade */}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: "rgba(250, 249, 247, 0.98)",
+              opacity: scrollY.interpolate({
+                inputRange: [0, 20],
+                outputRange: [0, 1],
+                extrapolate: "clamp",
+              }),
+            },
+          ]}
+        />
+      </View>
+
       <TouchableOpacity
         onPress={() => navigation.goBack()}
         style={[
@@ -668,16 +818,33 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             position: "absolute",
             top: insets.top + 8,
             left: 16,
-            zIndex: 100,
+            zIndex: 1100,
           },
         ]}
       >
-        <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
+        <ArrowLeft size={24} color="#1D1D1F" />
       </TouchableOpacity>
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 100 }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={false}
+            onRefresh={() => {
+              HapticsService.triggerImpactLight();
+              loadProfile();
+              loadPosts(true);
+            }}
+            colors={[PRIMARY_COLOR]}
+            tintColor={PRIMARY_COLOR}
+          />
+        }
       >
         {/* Banner - only render if banner exists */}
         {profile?.banner_url && (
@@ -686,7 +853,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               source={{ uri: profile.banner_url }}
               style={styles.bannerImage}
             />
-            {/* Blur + Dim Overlay for mood effect */}
             <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
           </View>
         )}
@@ -727,12 +893,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 </LinearGradient>
               )}
             </View>
-            {/* Identity Block: Name â†’ Username â†’ Categories â†’ Bio */}
+            {/* Identity Block */}
             <Text style={styles.communityName}>
               {profile?.name || "Community"}
             </Text>
             {profile?.username && (
-              <Text style={styles.usernameText}>@{profile.username}</Text>
+              <View style={styles.usernameRow}>
+                <Text style={styles.usernameText}>@{profile.username}</Text>
+              </View>
             )}
             {Array.isArray(profile?.categories) &&
               profile.categories.length > 0 && (
@@ -744,135 +912,48 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               )}
 
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-            {/* Stats Row */}
-            <View style={styles.statsRow}>
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={() =>
-                  navigation.navigate("CommunityPublicEventsList", {
-                    communityId: profile.id,
-                    initialTab: "upcoming",
-                  })
-                }
-              >
-                <Text style={styles.statValue}>
-                  {(profile.events_scheduled_count || 0) +
-                    (profile.events_hosted_count || 0)}
-                </Text>
-                <Text style={styles.statLabel}>Events</Text>
-              </TouchableOpacity>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {profile.followers_count || 0}
-                </Text>
-                <Text style={styles.statLabel}>Followers</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={() => {
-                  navigation.push("CommunityFollowingList", {
-                    communityId,
-                    title: "Following",
-                  });
-                }}
-              >
-                <Text style={styles.statValue}>{followingCount}</Text>
-                <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{profile.posts_count || 0}</Text>
-                <Text style={styles.statLabel}>Posts</Text>
-              </View>
+          </View>
+
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() =>
+                navigation.navigate("CommunityPublicEventsList", {
+                  communityId: profile.id,
+                  initialTab: "upcoming",
+                })
+              }
+            >
+              <Text style={styles.statNumber}>
+                {(profile.events_scheduled_count || 0) +
+                  (profile.events_hosted_count || 0)}
+              </Text>
+              <Text style={styles.statLabel}>Events</Text>
+            </TouchableOpacity>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>
+                {profile.followers_count || 0}
+              </Text>
+              <Text style={styles.statLabel}>Followers</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                navigation.push("CommunityFollowingList", {
+                  communityId,
+                  title: "Following",
+                });
+              }}
+            >
+              <Text style={styles.statNumber}>{followingCount}</Text>
+              <Text style={styles.statLabel}>Following</Text>
+            </TouchableOpacity>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{profile.posts_count || 0}</Text>
+              <Text style={styles.statLabel}>Posts</Text>
             </View>
           </View>
-
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Community Heads</Text>
-            {profile?.heads && profile.heads.length > 0 ? (
-              profile.heads.map((head, idx) => {
-                const canNavigate = !!head.member_id;
-                return (
-                  <TouchableOpacity
-                    key={head.id || idx}
-                    style={[styles.headRow, !canNavigate && { opacity: 0.85 }]}
-                    onPress={() => handleHeadPress(head)}
-                    disabled={!canNavigate}
-                  >
-                    {head.profile_pic_url || head.member_photo_url ? (
-                      <Image
-                        source={{
-                          uri: head.profile_pic_url || head.member_photo_url,
-                        }}
-                        style={styles.headAvatar}
-                      />
-                    ) : (
-                      <LinearGradient
-                        colors={getGradientForName(head.name || "Head")}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[
-                          styles.headAvatar,
-                          { justifyContent: "center", alignItems: "center" },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            color: "#fff",
-                          }}
-                        >
-                          {getInitials(head.name || "H")}
-                        </Text>
-                      </LinearGradient>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.headName}>{head.name}</Text>
-                      {head.is_primary && (
-                        <Text style={styles.primaryTag}>Primary</Text>
-                      )}
-                      {head.email && (
-                        <Text style={styles.headSub}>{head.email}</Text>
-                      )}
-                      {["community", "sponsor", "venue"].includes(viewerRole) &&
-                        head.phone && (
-                          <Text style={styles.headSub}>
-                            {formatPhoneNumber(head.phone)}
-                          </Text>
-                        )}
-                    </View>
-                    {canNavigate && (
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color="#8E8E93"
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={styles.emptyText}>No heads listed</Text>
-            )}
-          </View>
-
-          {profile?.sponsor_types &&
-            profile.sponsor_types.length > 0 &&
-            viewerRole !== "member" &&
-            viewerRole !== "venue" && (
-              <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Sponsor Types</Text>
-                <View style={styles.chipRow}>
-                  {profile.sponsor_types.map((type, idx) => (
-                    <ThemeChip
-                      key={`st-${idx}`}
-                      label={String(type)}
-                      index={idx + 3}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
 
           <View
             style={{
@@ -880,7 +961,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               flexDirection: "row",
               gap: 10,
               width: "100%",
-              paddingHorizontal: 20,
               marginBottom: 25,
             }}
           >
@@ -888,16 +968,31 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               title={isFollowing ? "Following" : "Follow"}
               colors={
                 isFollowing
-                  ? ["#E5E5EA", "#E5E5EA"] // Gray for following
-                  : ["#00C6FF", "#0072FF"] // Blue/Cyan Gradient
+                  ? ["transparent", "transparent"]
+                  : ["#448AFF", "#2962FF"] // Match Create Post
               }
               textStyle={
                 isFollowing
-                  ? { color: "#1D1D1F" }
-                  : { color: "#FFFFFF", fontWeight: "bold" }
+                  ? { fontFamily: FONTS.medium, color: "#2962FF" }
+                  : { fontFamily: FONTS.semiBold, color: "#FFFFFF" }
               }
-              style={{ flex: 1 }}
+              style={[
+                { flex: 1, borderRadius: 16, overflow: "hidden" },
+                isFollowing && {
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                },
+              ]}
+              gradientStyle={
+                isFollowing ? { borderRadius: 0 } : { borderRadius: 16 }
+              }
               onPress={async () => {
+                HapticsService.triggerImpactLight();
                 if (isFollowing) {
                   // Unfollow logic
                   try {
@@ -946,10 +1041,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             />
             <GradientButton
               title="Message"
-              colors={["#1D1D1F", "#1D1D1F"]} // Black
-              style={{ flex: 1 }}
+              colors={["#111827", "#111827"]} // Charcoal Black
+              style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+              gradientStyle={{ borderRadius: 16 }}
+              textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
               onPress={() => {
-                // Navigate to Chat screen via Home stack
+                HapticsService.triggerImpactLight();
                 const root = navigation.getParent()?.getParent()?.getParent();
                 if (root) {
                   root.navigate("MemberHome", {
@@ -962,48 +1059,239 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       },
                     },
                   });
-                } else {
-                  // Fallback: try to navigate through parent
-                  const parent = navigation.getParent();
-                  if (parent) {
-                    parent.navigate("Home", {
-                      screen: "Chat",
-                      params: {
-                        recipientId: communityId,
-                        recipientType: "community",
-                      },
-                    });
-                  }
                 }
               }}
             />
           </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Community Heads</Text>
+            </View>
+            {profile?.heads && profile.heads.length > 0 ? (
+              <View style={{ paddingVertical: 4 }}>
+                {profile.heads.map((head, idx) => {
+                  const canNavigate = !!head.member_id;
+                  return (
+                    <TouchableOpacity
+                      key={head.id || idx}
+                      style={[
+                        styles.headRow,
+                        !canNavigate && { opacity: 0.85 },
+                      ]}
+                      onPress={() => handleHeadPress(head)}
+                      disabled={!canNavigate}
+                    >
+                      {head.profile_pic_url || head.member_photo_url ? (
+                        <Image
+                          source={{
+                            uri: head.profile_pic_url || head.member_photo_url,
+                          }}
+                          style={styles.headAvatar}
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={getGradientForName(head.name || "Head")}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[
+                            styles.headAvatar,
+                            { justifyContent: "center", alignItems: "center" },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontWeight: "bold",
+                              color: "#fff",
+                            }}
+                          >
+                            {getInitials(head.name || "H")}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={styles.headName}>{head.name}</Text>
+                        {head.is_primary && (
+                          <Text style={styles.primaryTag}>Primary</Text>
+                        )}
+                        {head.email && (
+                          <Text style={styles.headSub}>{head.email}</Text>
+                        )}
+                      </View>
+                      {canNavigate && (
+                        <ChevronRight size={20} color="#8E8E93" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>No heads listed</Text>
+            )}
+          </View>
+
+          {profile?.sponsor_types &&
+            profile.sponsor_types.length > 0 &&
+            viewerRole !== "member" &&
+            viewerRole !== "venue" && (
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
+                </View>
+                <View style={styles.sponsorTypesList}>
+                  {profile.sponsor_types.map((type, idx) => (
+                    <ThemeChip
+                      key={`st-${idx}`}
+                      label={String(type)}
+                      index={idx}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+        </View>
+
+        {/* Tab Bar */}
+        <View style={styles.tabBar}>
+          {["posts", "community"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={styles.tabItem}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setActiveTab(tab);
+              }}
+              onLayout={(e) => handleTabLayout(tab, e)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab && styles.tabTextActive,
+                  activeTab === tab && { fontFamily: FONTS.semiBold },
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <Animated.View
+            style={[
+              styles.activeTabIndicator,
+              {
+                transform: [{ translateX: tabUnderlineX }],
+                width: tabUnderlineScale,
+              },
+            ]}
+          />
         </View>
 
         <View style={styles.postsSection}>
-          {posts.length > 0 ? (
-            <FlatList
-              data={posts}
-              keyExtractor={(item) => item.id.toString()}
-              numColumns={3}
-              columnWrapperStyle={{
-                justifyContent: "flex-start",
-                marginBottom: GAP,
-                gap: GAP,
-              }}
-              renderItem={renderGridItem}
-              scrollEnabled={false}
-            />
-          ) : (
-            <View style={styles.emptyPostsContainer}>
-              <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                No posts
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+          {/* Posts Tab - Media Only (Images/Videos) */}
+          {activeTab === "posts" &&
+            (() => {
+              const mediaPosts = posts.filter((p) => {
+                // Exclude interactive post types from Posts tab
+                const postType = p.post_type || p.type;
+                const isInteractive = [
+                  "poll",
+                  "prompt",
+                  "qna",
+                  "challenge",
+                  "opportunity",
+                ].includes(postType);
 
+                // Only show media posts that are NOT interactive types
+                const hasImages = p.image_urls && p.image_urls.length > 0;
+                const hasVideo = !!p.video_url;
+                const hasMedia = hasImages || hasVideo;
+
+                return hasMedia && !isInteractive;
+              });
+
+              return mediaPosts.length > 0 ? (
+                <FlatList
+                  data={mediaPosts}
+                  keyExtractor={(item) => item.id.toString()}
+                  numColumns={3}
+                  columnWrapperStyle={{
+                    justifyContent: "flex-start",
+                    marginBottom: 2,
+                    gap: 2,
+                  }}
+                  scrollEnabled={false}
+                  renderItem={renderGridItem}
+                />
+              ) : (
+                <View style={styles.emptyPostsContainer}>
+                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                    No posts
+                  </Text>
+                </View>
+              );
+            })()}
+
+          {/* Community Tab - Interactive Posts */}
+          {activeTab === "community" &&
+            (() => {
+              const interactivePosts = posts.filter((p) => {
+                const postType = p.post_type || p.type;
+                return [
+                  "poll",
+                  "prompt",
+                  "qna",
+                  "challenge",
+                  "opportunity",
+                ].includes(postType);
+              });
+
+              return interactivePosts.length > 0 ? (
+                <View style={styles.communityPostsList}>
+                  {interactivePosts.map((post) => (
+                    <View key={post.id} style={styles.communityPostItem}>
+                      <EditorialPostCard
+                        post={post}
+                        onLike={(postId, isLiked, count) => {
+                          setPosts((prevPosts) =>
+                            prevPosts.map((p) =>
+                              p.id === postId
+                                ? { ...p, is_liked: isLiked, like_count: count }
+                                : p,
+                            ),
+                          );
+                        }}
+                        onComment={(postId) => openCommentsModal(postId)}
+                        onShare={() => {}}
+                        onFollow={() => {}}
+                        showFollowButton={false}
+                        currentUserId={currentUserId}
+                        currentUserType="member" // Viewing as member
+                        onUserPress={(userId, userType) => {}}
+                        onPostUpdate={(updatedPost) => {
+                          setPosts((prevPosts) =>
+                            prevPosts.map((p) =>
+                              p.id === updatedPost.id ? updatedPost : p,
+                            ),
+                          );
+                        }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyPostsContainer}>
+                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
+                    No community posts yet
+                  </Text>
+                  <Text style={styles.emptyPostsSubtext}>
+                    This community hasn't posted any polls, prompts, or
+                    challenges yet.
+                  </Text>
+                </View>
+              );
+            })()}
+        </View>
+      </Animated.ScrollView>
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}

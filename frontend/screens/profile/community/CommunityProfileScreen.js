@@ -1206,63 +1206,64 @@ export default function CommunityProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             {profile.heads && profile.heads.length > 0 ? (
-              profile.heads.map((head, index) => {
-                const canNavigate = !!head.member_id;
-                return (
-                  <TouchableOpacity
-                    key={head.id || index}
-                    onPress={() => handleHeadPress(head)}
-                    disabled={!canNavigate}
-                    style={[styles.headRow, !canNavigate && { opacity: 0.85 }]}
-                  >
-                    {head.profile_pic_url || head.member_photo_url ? (
-                      <Image
-                        source={{
-                          uri: head.profile_pic_url || head.member_photo_url,
-                        }}
-                        style={styles.headAvatar}
-                      />
-                    ) : (
-                      <LinearGradient
-                        colors={getGradientForName(head.name || "Head")}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[
-                          styles.headAvatar,
-                          { justifyContent: "center", alignItems: "center" },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            color: "#fff",
+              <View style={{ paddingVertical: 4 }}>
+                {profile.heads.map((head, index) => {
+                  const canNavigate = !!head.member_id;
+                  return (
+                    <TouchableOpacity
+                      key={head.id || index}
+                      onPress={() => handleHeadPress(head)}
+                      disabled={!canNavigate}
+                      style={[
+                        styles.headRow,
+                        !canNavigate && { opacity: 0.85 },
+                      ]}
+                    >
+                      {head.profile_pic_url || head.member_photo_url ? (
+                        <Image
+                          source={{
+                            uri: head.profile_pic_url || head.member_photo_url,
                           }}
+                          style={styles.headAvatar}
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={getGradientForName(head.name || "Head")}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[
+                            styles.headAvatar,
+                            { justifyContent: "center", alignItems: "center" },
+                          ]}
                         >
-                          {getInitials(head.name || "H")}
-                        </Text>
-                      </LinearGradient>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.headName}>{head.name}</Text>
-                      {head.is_primary && (
-                        <Text style={styles.primaryTag}>Primary</Text>
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontWeight: "bold",
+                              color: "#fff",
+                            }}
+                          >
+                            {getInitials(head.name || "H")}
+                          </Text>
+                        </LinearGradient>
                       )}
-                      {head.email && (
-                        <Text style={styles.headSub}>{head.email}</Text>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={styles.headName}>{head.name}</Text>
+                        {head.is_primary && (
+                          <Text style={styles.primaryTag}>Primary</Text>
+                        )}
+                        {/* Hide contacts in premium card view for cleaner look, usually click to see details? 
+                            Ref image only shows Name + Role. 
+                            I'll hide phone/email to match "Premium" minimalist look unless space permits.
+                            But user said "Match the Ref". Ref has Name + Role. */}
+                      </View>
+                      {canNavigate && (
+                        <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
                       )}
-                      {head.phone && (
-                        <Text style={styles.headSub}>
-                          {formatPhoneNumber(head.phone)}
-                        </Text>
-                      )}
-                    </View>
-                    {canNavigate && (
-                      <ChevronRight size={18} color={LIGHT_TEXT_COLOR} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             ) : (
               <Text style={styles.emptyText}>No heads added yet</Text>
             )}
@@ -1270,13 +1271,15 @@ export default function CommunityProfileScreen({ navigation }) {
 
           {profile.sponsor_types && profile.sponsor_types.length > 0 && (
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
+              </View>
               <View style={styles.sponsorTypesList}>
                 {profile.sponsor_types.map((type, index) => (
                   <ThemeChip
                     key={index}
                     label={type}
-                    index={index + 2} // Shift colors to differ from categories
+                    index={index} // Removed the +2 shift to allow keyword-based styling to take precedence properly
                   />
                 ))}
               </View>
@@ -2115,18 +2118,11 @@ const styles = StyleSheet.create({
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    overflow: "visible", // Allow shadow to show
-    borderWidth: 4,
-    borderColor: "#FFFFFF",
+    overflow: "hidden", // Member profile uses hidden? Member has simple image.
+    // Member Style: No shadow, simple border
     backgroundColor: "#E5E5EA",
-    // Soft shadow for depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 8,
     borderWidth: 1,
-    borderColor: "#E5E7EB", // Subtle border
+    borderColor: "#E5E7EB",
   },
   avatar: {
     width: "100%",
@@ -2177,7 +2173,8 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
   },
   bio: {
-    fontSize: 14,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
     lineHeight: 22,
     color: TEXT_COLOR,
     textAlign: "center",
@@ -2216,69 +2213,67 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   sectionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
-    ...SHADOWS.sm,
-    // Removed border for cleaner look, or keep very subtle
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 16,
+    // Soft premium shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: "rgba(0,0,0,0.03)",
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: FONTS.primary, // Bold font
+    fontSize: 18,
+    color: "#0F172A",
+    letterSpacing: -0.3,
   },
   sponsorTypesList: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 10, // Space between title and chips
+    gap: 10,
   },
   sponsorTypeTag: {
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    // Legacy style, unused if using ThemeChip
   },
   sponsorTypeText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+    // Legacy style
   },
   headRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
+    gap: 16,
+    paddingVertical: 8,
   },
   headAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#F2F2F7",
   },
   headName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
   },
   primaryTag: {
-    fontSize: 12,
+    fontSize: 14,
     color: PRIMARY_COLOR,
     fontWeight: "600",
-    marginTop: 2,
   },
   headSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: LIGHT_TEXT_COLOR,
-    marginTop: 2,
   },
   emptyText: {
     color: LIGHT_TEXT_COLOR,
