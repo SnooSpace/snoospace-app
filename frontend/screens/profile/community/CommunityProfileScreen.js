@@ -23,6 +23,8 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { BlurView } from "expo-blur";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -53,6 +55,11 @@ import {
   updateCommunityProfile,
   updateCommunityHeads,
 } from "../../../api/communities";
+import { getCommunityEvents } from "../../../api/events";
+import {
+  getGradientForName,
+  getInitials,
+} from "../../../utils/AvatarGenerator";
 import {
   launchImageLibraryAsync,
   requestMediaLibraryPermissionsAsync,
@@ -89,12 +96,6 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
-
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  getGradientForName,
-  getInitials,
-} from "../../../utils/AvatarGenerator";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -142,7 +143,9 @@ export default function CommunityProfileScreen({ navigation }) {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState("posts"); // "posts" or "community"
+  const [activeTab, setActiveTab] = useState("posts"); // "posts", "community", or "events"
+  const [communityEvents, setCommunityEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -556,6 +559,18 @@ export default function CommunityProfileScreen({ navigation }) {
 
       setProfile(mappedProfile);
       setPosts(userPosts);
+
+      // Fetch community events
+      try {
+        const eventsRes = await getCommunityEvents();
+        const allEvents = Array.isArray(eventsRes?.events)
+          ? eventsRes.events
+          : [];
+        setCommunityEvents(allEvents);
+      } catch (evErr) {
+        console.log("[CommunityProfile] Failed to load events:", evErr);
+        setCommunityEvents([]);
+      }
       setAuthError(false);
       // Initialize counts polling with initial values
       initializeCounts({
@@ -1295,7 +1310,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
-          {["posts", "community"].map((tab) => (
+          {["posts", "community", "events"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={styles.tabItem}
@@ -1309,7 +1324,6 @@ export default function CommunityProfileScreen({ navigation }) {
                 style={[
                   styles.tabText,
                   activeTab === tab && styles.tabTextActive,
-                  activeTab === tab && { fontWeight: "700" },
                 ]}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -1568,6 +1582,379 @@ export default function CommunityProfileScreen({ navigation }) {
                     Create polls, prompts, Q&As, or challenges to engage with
                     your community
                   </Text>
+                </View>
+              );
+            })()}
+
+          {/* Events Tab */}
+          {activeTab === "events" &&
+            (() => {
+              if (communityEvents.length === 0) {
+                return (
+                  <View style={styles.emptyPostsContainer}>
+                    <Text
+                      style={[styles.emptyPostsText, { fontWeight: "bold" }]}
+                    >
+                      No events yet
+                    </Text>
+                    <Text style={styles.emptyPostsSubtext}>
+                      Create events to engage with your community
+                    </Text>
+                  </View>
+                );
+              }
+
+              const formatEventDate = (dateString) => {
+                const date = new Date(dateString);
+                const day = date.getDate();
+                const months = [
+                  "Jan",
+                  "Feb",
+                  "Mar",
+                  "Apr",
+                  "May",
+                  "Jun",
+                  "Jul",
+                  "Aug",
+                  "Sep",
+                  "Oct",
+                  "Nov",
+                  "Dec",
+                ];
+                return `${day} ${months[date.getMonth()]}`;
+              };
+              const formatEventTime = (dateString) => {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString("en-IN", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                });
+              };
+              const getLowestPrice = (item) => {
+                if (item.ticket_types && item.ticket_types.length > 0) {
+                  const prices = item.ticket_types
+                    .map((t) => parseFloat(t.base_price) || 0)
+                    .filter((p) => p > 0);
+                  if (prices.length > 0) return Math.min(...prices);
+                }
+                if (item.min_price && parseFloat(item.min_price) > 0)
+                  return parseFloat(item.min_price);
+                if (item.base_price && parseFloat(item.base_price) > 0)
+                  return parseFloat(item.base_price);
+                return null;
+              };
+              const monthNames = [
+                "JAN",
+                "FEB",
+                "MAR",
+                "APR",
+                "MAY",
+                "JUN",
+                "JUL",
+                "AUG",
+                "SEP",
+                "OCT",
+                "NOV",
+                "DEC",
+              ];
+
+              return (
+                <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                  {communityEvents.map((item) => {
+                    const displayImage =
+                      item.banner_carousel?.[0]?.image_url ||
+                      item.banner_url ||
+                      item.image_url;
+                    const lowestPrice = getLowestPrice(item);
+                    const dateObj = new Date(
+                      item.event_date || item.start_datetime,
+                    );
+                    const month = monthNames[dateObj.getMonth()];
+                    const day = dateObj.getDate();
+                    const isPast = dateObj < new Date();
+                    const isCancelled = item.is_cancelled;
+                    const locationDisplay =
+                      item.event_type === "virtual"
+                        ? "Virtual Event"
+                        : item.location_name || item.venue_name || "In-person";
+
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          navigation.navigate("EventDetails", {
+                            eventId: item.id,
+                            eventData: item,
+                          })
+                        }
+                        style={{
+                          backgroundColor: COLORS.surface,
+                          borderRadius: 20,
+                          marginBottom: 24,
+                          overflow: "hidden",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.06,
+                          shadowRadius: 6,
+                          elevation: 4,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: "100%",
+                            height: 200,
+                            position: "relative",
+                          }}
+                        >
+                          {displayImage ? (
+                            <Image
+                              source={{ uri: displayImage }}
+                              style={{ width: "100%", height: "100%" }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <LinearGradient
+                              colors={getGradientForName(item.title || "Event")}
+                              style={{ width: "100%", height: "100%" }}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                            />
+                          )}
+                          {isPast && (
+                            <View
+                              style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: "rgba(0,0,0,0.08)",
+                              }}
+                            />
+                          )}
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 12,
+                              left: 12,
+                              backgroundColor: "rgba(255,255,255,0.95)",
+                              paddingHorizontal: 8,
+                              paddingVertical: 6,
+                              borderRadius: 10,
+                              alignItems: "center",
+                              minWidth: 44,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                fontFamily: FONTS.semiBold,
+                                color: PRIMARY_COLOR,
+                                marginBottom: 2,
+                              }}
+                            >
+                              {month}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontFamily: FONTS.primary,
+                                color: TEXT_COLOR,
+                              }}
+                            >
+                              {day}
+                            </Text>
+                          </View>
+                          {isCancelled && (
+                            <View
+                              style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: "rgba(0,0,0,0.5)",
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontFamily: FONTS.primary,
+                                  color: "#FFFFFF",
+                                  letterSpacing: 1,
+                                }}
+                              >
+                                CANCELLED
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ padding: 16 }}>
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontFamily: FONTS.semiBold,
+                              color: TEXT_COLOR,
+                              marginBottom: 10,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {item.title}
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={14}
+                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontFamily: FONTS.regular,
+                                color: isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR,
+                              }}
+                            >
+                              {formatEventDate(
+                                item.event_date || item.start_datetime,
+                              )}{" "}
+                              •{" "}
+                              {formatEventTime(
+                                item.event_date || item.start_datetime,
+                              )}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Ionicons
+                              name={
+                                item.event_type === "virtual"
+                                  ? "videocam-outline"
+                                  : "location-outline"
+                              }
+                              size={14}
+                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontFamily: FONTS.regular,
+                                color: isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {locationDisplay}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              marginTop: 12,
+                              paddingTop: 12,
+                              borderTopWidth: 1,
+                              borderTopColor: "#F3F4F6",
+                            }}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#E5E7EB",
+                                    zIndex: 3,
+                                  }}
+                                />
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#D1D5DB",
+                                    marginLeft: -8,
+                                    zIndex: 2,
+                                  }}
+                                />
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#9CA3AF",
+                                    marginLeft: -8,
+                                    zIndex: 1,
+                                  }}
+                                />
+                              </View>
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  fontFamily: FONTS.medium,
+                                  color: "#36454F",
+                                  marginLeft: 6,
+                                }}
+                              >
+                                +
+                                {item.attendee_count ||
+                                  item.registration_count ||
+                                  0}
+                              </Text>
+                            </View>
+                            <View>
+                              {lowestPrice ? (
+                                <Text
+                                  style={{
+                                    fontSize: 16,
+                                    fontFamily: FONTS.semiBold,
+                                    color: isPast ? "#36454F" : "#36454F",
+                                  }}
+                                >
+                                  ₹{lowestPrice}
+                                </Text>
+                              ) : (
+                                <Text
+                                  style={{
+                                    fontSize: 16,
+                                    fontFamily: FONTS.semiBold,
+                                    color: "#5fab56",
+                                  }}
+                                >
+                                  Free
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               );
             })()}

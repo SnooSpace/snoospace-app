@@ -127,8 +127,8 @@ const createEvent = async (req, res) => {
       const bannerInserts = banner_carousel.map((banner, index) =>
         pool.query(
           `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-          [eventId, banner.url, banner.cloudinary_public_id || null, index]
-        )
+          [eventId, banner.url, banner.cloudinary_public_id || null, index],
+        ),
       );
       await Promise.all(bannerInserts);
     }
@@ -138,8 +138,8 @@ const createEvent = async (req, res) => {
       const galleryInserts = gallery.map((image, index) =>
         pool.query(
           `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
-          [eventId, image.url, image.cloudinary_public_id || null, index]
-        )
+          [eventId, image.url, image.cloudinary_public_id || null, index],
+        ),
       );
       await Promise.all(galleryInserts);
     }
@@ -155,8 +155,8 @@ const createEvent = async (req, res) => {
             highlight.title,
             highlight.description || null,
             index,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(highlightInserts);
     }
@@ -183,8 +183,8 @@ const createEvent = async (req, res) => {
             account.profile_photo_url || null,
             account.cloudinary_public_id || null,
             index,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(featuredInserts);
     }
@@ -204,8 +204,8 @@ const createEvent = async (req, res) => {
             item.icon_name || "information-circle",
             item.label,
             index,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(thingsInserts);
     }
@@ -242,12 +242,12 @@ const createEvent = async (req, res) => {
                 allowed: true,
                 deadline_hours_before: 24,
                 percentage: 100,
-              }
+              },
             ),
             index,
             ticket.is_active !== false,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(ticketInserts);
     }
@@ -278,8 +278,8 @@ const createEvent = async (req, res) => {
             dc.min_cart_value || null,
             dc.applicable_ticket_ids || null,
             dc.is_active !== false,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(codeInserts);
     }
@@ -309,8 +309,8 @@ const createEvent = async (req, res) => {
             rule.valid_until || null,
             rule.priority || 100,
             rule.is_active !== false,
-          ]
-        )
+          ],
+        ),
       );
       await Promise.all(ruleInserts);
     }
@@ -323,8 +323,8 @@ const createEvent = async (req, res) => {
           `INSERT INTO event_discover_categories (event_id, category_id, is_featured) 
            VALUES ($1, $2, false)
            ON CONFLICT (event_id, category_id) DO NOTHING`,
-          [eventId, categoryId]
-        )
+          [eventId, categoryId],
+        ),
       );
       await Promise.all(categoryInserts);
     }
@@ -397,7 +397,7 @@ const getCommunityEvents = async (req, res) => {
          FROM event_gallery 
          WHERE event_id = $1 
          ORDER BY image_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch banner carousel images
@@ -406,7 +406,7 @@ const getCommunityEvents = async (req, res) => {
          FROM event_banners 
          WHERE event_id = $1 
          ORDER BY image_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch highlights
@@ -415,7 +415,7 @@ const getCommunityEvents = async (req, res) => {
          FROM event_highlights 
          WHERE event_id = $1 
          ORDER BY highlight_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch things to know
@@ -424,7 +424,7 @@ const getCommunityEvents = async (req, res) => {
          FROM event_things_to_know 
          WHERE event_id = $1 
          ORDER BY item_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch featured accounts with enriched data
@@ -482,7 +482,7 @@ const getCommunityEvents = async (req, res) => {
             highlights_count: highlightsResult.rows.length,
             things_to_know_count: thingsToKnowResult.rows.length,
             featured_accounts_count: featuredAccountsResult.rows.length,
-          }
+          },
         );
 
         // Transform banner rows to match frontend expected format (url instead of image_url)
@@ -512,7 +512,7 @@ const getCommunityEvents = async (req, res) => {
          FROM ticket_types 
          WHERE event_id = $1
          ORDER BY display_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch discount codes
@@ -523,7 +523,7 @@ const getCommunityEvents = async (req, res) => {
          FROM discount_codes 
          WHERE event_id = $1
          ORDER BY created_at ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch pricing rules
@@ -533,7 +533,7 @@ const getCommunityEvents = async (req, res) => {
          FROM pricing_rules 
          WHERE event_id = $1
          ORDER BY priority ASC`,
-          [eventId]
+          [eventId],
         );
 
         // Fetch categories (discover categories assigned to this event)
@@ -543,7 +543,7 @@ const getCommunityEvents = async (req, res) => {
            INNER JOIN discover_categories dc ON edc.category_id = dc.id
            WHERE edc.event_id = $1
            ORDER BY edc.display_order ASC`,
-          [eventId]
+          [eventId],
         );
 
         return {
@@ -558,7 +558,7 @@ const getCommunityEvents = async (req, res) => {
           pricing_rules: pricingRulesResult.rows,
           categories: categoriesResult.rows,
         };
-      })
+      }),
     );
 
     res.json({
@@ -622,7 +622,7 @@ const getMyEvents = async (req, res) => {
            WHERE event_id = $1 
            ORDER BY image_order ASC 
            LIMIT 3`,
-          [event.id]
+          [event.id],
         );
 
         // Get ticket types with prices
@@ -630,7 +630,7 @@ const getMyEvents = async (req, res) => {
           `SELECT id, name, base_price FROM ticket_types 
            WHERE event_id = $1 AND is_active = true 
            ORDER BY base_price ASC`,
-          [event.id]
+          [event.id],
         );
 
         return {
@@ -641,7 +641,7 @@ const getMyEvents = async (req, res) => {
           })),
           ticket_types: ticketsResult.rows,
         };
-      })
+      }),
     );
 
     res.json({
@@ -671,7 +671,7 @@ const getEventAttendees = async (req, res) => {
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
       "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (registrationCheck.rows.length === 0) {
@@ -688,14 +688,14 @@ const getEventAttendees = async (req, res) => {
     // Age filter (calculate from dob)
     if (ageMin) {
       filterConditions.push(
-        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) >= $${paramIndex}`
+        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) >= $${paramIndex}`,
       );
       filterParams.push(parseInt(ageMin));
       paramIndex++;
     }
     if (ageMax) {
       filterConditions.push(
-        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) <= $${paramIndex}`
+        `EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob)) <= $${paramIndex}`,
       );
       filterParams.push(parseInt(ageMax));
       paramIndex++;
@@ -875,7 +875,7 @@ const getEventAttendeesForCommunity = async (req, res) => {
     // Verify event exists and get community_id
     const eventCheck = await pool.query(
       "SELECT id, community_id, title FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
 
     if (eventCheck.rows.length === 0) {
@@ -966,7 +966,7 @@ const recordSwipe = async (req, res) => {
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
       "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (registrationCheck.rows.length === 0) {
@@ -978,7 +978,7 @@ const recordSwipe = async (req, res) => {
     // Check if already swiped on this person
     const existingSwipe = await pool.query(
       "SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3",
-      [eventId, userId, swiped_id]
+      [eventId, userId, swiped_id],
     );
 
     if (existingSwipe.rows.length > 0) {
@@ -988,7 +988,7 @@ const recordSwipe = async (req, res) => {
     // Record the swipe
     await pool.query(
       "INSERT INTO event_swipes (event_id, swiper_id, swiped_id, swipe_direction) VALUES ($1, $2, $3, $4)",
-      [eventId, userId, swiped_id, swipe_direction]
+      [eventId, userId, swiped_id, swipe_direction],
     );
 
     let isMatch = false;
@@ -998,7 +998,7 @@ const recordSwipe = async (req, res) => {
     if (swipe_direction === "right") {
       const mutualSwipe = await pool.query(
         "SELECT id FROM event_swipes WHERE event_id = $1 AND swiper_id = $2 AND swiped_id = $3 AND swipe_direction = $4",
-        [eventId, swiped_id, userId, "right"]
+        [eventId, swiped_id, userId, "right"],
       );
 
       if (mutualSwipe.rows.length > 0) {
@@ -1008,7 +1008,7 @@ const recordSwipe = async (req, res) => {
 
         await pool.query(
           "INSERT INTO event_matches (event_id, member1_id, member2_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-          [eventId, member1Id, member2Id]
+          [eventId, member1Id, member2Id],
         );
 
         // Get match data
@@ -1117,7 +1117,7 @@ const requestNextEvent = async (req, res) => {
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
       "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (registrationCheck.rows.length === 0) {
@@ -1129,7 +1129,7 @@ const requestNextEvent = async (req, res) => {
     // Check if already sent a request
     const existingRequest = await pool.query(
       "SELECT id FROM next_event_requests WHERE current_event_id = $1 AND requester_id = $2 AND requested_id = $3",
-      [eventId, userId, requested_id]
+      [eventId, userId, requested_id],
     );
 
     if (existingRequest.rows.length > 0) {
@@ -1141,7 +1141,7 @@ const requestNextEvent = async (req, res) => {
     // Create the request
     const result = await pool.query(
       "INSERT INTO next_event_requests (requester_id, requested_id, current_event_id, message) VALUES ($1, $2, $3, $4) RETURNING id",
-      [userId, requested_id, eventId, message || null]
+      [userId, requested_id, eventId, message || null],
     );
 
     res.json({
@@ -1262,7 +1262,7 @@ const discoverEvents = async (req, res) => {
          WHERE event_id = $1 
          ORDER BY image_order ASC 
          LIMIT 3`,
-          [event.id]
+          [event.id],
         );
 
         return {
@@ -1275,7 +1275,7 @@ const discoverEvents = async (req, res) => {
               weekday: "short",
               month: "short",
               day: "numeric",
-            }
+            },
           ),
           formatted_time: new Date(event.event_date).toLocaleTimeString(
             "en-US",
@@ -1283,10 +1283,10 @@ const discoverEvents = async (req, res) => {
               hour: "numeric",
               minute: "2-digit",
               hour12: true,
-            }
+            },
           ),
         };
-      })
+      }),
     );
 
     res.json({
@@ -1436,7 +1436,7 @@ const updateEvent = async (req, res) => {
     // Verify event exists and belongs to this community
     const existingResult = await pool.query(
       "SELECT * FROM events WHERE id = $1 AND creator_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (existingResult.rows.length === 0) {
@@ -1478,7 +1478,7 @@ const updateEvent = async (req, res) => {
       "[updateEvent] Received access_type:",
       access_type,
       "invite_public_visibility:",
-      invite_public_visibility
+      invite_public_visibility,
     );
 
     // Validate Google Maps URL if provided
@@ -1605,12 +1605,12 @@ const updateEvent = async (req, res) => {
     // Update banner carousel if provided
     if (banner_carousel && Array.isArray(banner_carousel)) {
       console.log(
-        `[updateEvent] Saving ${banner_carousel.length} banners for event ${eventId}`
+        `[updateEvent] Saving ${banner_carousel.length} banners for event ${eventId}`,
       );
       if (banner_carousel.length > 0) {
         console.log(
           `[updateEvent] First banner:`,
-          JSON.stringify(banner_carousel[0])
+          JSON.stringify(banner_carousel[0]),
         );
       }
       // Delete existing banners
@@ -1626,7 +1626,7 @@ const updateEvent = async (req, res) => {
           console.log(
             `[updateEvent] Banner ${index}: resolved URL = ${
               imageUrl ? imageUrl.substring(0, 50) + "..." : "NULL"
-            }`
+            }`,
           );
           return pool.query(
             `INSERT INTO event_banners (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
@@ -1635,12 +1635,12 @@ const updateEvent = async (req, res) => {
               imageUrl,
               banner.cloudinary_public_id || banner.public_id || null,
               index,
-            ]
+            ],
           );
         });
         await Promise.all(bannerInserts);
         console.log(
-          `[updateEvent] Successfully saved ${banner_carousel.length} banners`
+          `[updateEvent] Successfully saved ${banner_carousel.length} banners`,
         );
       }
     }
@@ -1648,12 +1648,12 @@ const updateEvent = async (req, res) => {
     // Update gallery if provided
     if (gallery && Array.isArray(gallery)) {
       console.log(
-        `[updateEvent] Saving ${gallery.length} gallery images for event ${eventId}`
+        `[updateEvent] Saving ${gallery.length} gallery images for event ${eventId}`,
       );
       if (gallery.length > 0) {
         console.log(
           `[updateEvent] First gallery image:`,
-          JSON.stringify(gallery[0])
+          JSON.stringify(gallery[0]),
         );
       }
       // Delete existing gallery
@@ -1669,7 +1669,7 @@ const updateEvent = async (req, res) => {
           console.log(
             `[updateEvent] Gallery ${index}: resolved URL = ${
               imageUrl ? imageUrl.substring(0, 50) + "..." : "NULL"
-            }`
+            }`,
           );
           return pool.query(
             `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) VALUES ($1, $2, $3, $4)`,
@@ -1678,12 +1678,12 @@ const updateEvent = async (req, res) => {
               imageUrl,
               image.cloudinary_public_id || image.public_id || null,
               index,
-            ]
+            ],
           );
         });
         await Promise.all(galleryInserts);
         console.log(
-          `[updateEvent] Successfully saved ${gallery.length} gallery images`
+          `[updateEvent] Successfully saved ${gallery.length} gallery images`,
         );
       }
     }
@@ -1691,7 +1691,7 @@ const updateEvent = async (req, res) => {
     // Update highlights if provided
     if (highlights && Array.isArray(highlights)) {
       console.log(
-        `[updateEvent] Saving ${highlights.length} highlights for event ${eventId}`
+        `[updateEvent] Saving ${highlights.length} highlights for event ${eventId}`,
       );
       await pool.query("DELETE FROM event_highlights WHERE event_id = $1", [
         eventId,
@@ -1706,12 +1706,12 @@ const updateEvent = async (req, res) => {
               h.title,
               h.description || null,
               index,
-            ]
-          )
+            ],
+          ),
         );
         await Promise.all(highlightInserts);
         console.log(
-          `[updateEvent] Successfully saved ${highlights.length} highlights`
+          `[updateEvent] Successfully saved ${highlights.length} highlights`,
         );
       }
     }
@@ -1719,7 +1719,7 @@ const updateEvent = async (req, res) => {
     // Update things_to_know if provided
     if (things_to_know && Array.isArray(things_to_know)) {
       console.log(
-        `[updateEvent] Saving ${things_to_know.length} things_to_know for event ${eventId}`
+        `[updateEvent] Saving ${things_to_know.length} things_to_know for event ${eventId}`,
       );
       await pool.query("DELETE FROM event_things_to_know WHERE event_id = $1", [
         eventId,
@@ -1734,8 +1734,8 @@ const updateEvent = async (req, res) => {
               item.label,
               item.preset_id || null,
               index,
-            ]
-          )
+            ],
+          ),
         );
         await Promise.all(thingsInserts);
       }
@@ -1745,7 +1745,7 @@ const updateEvent = async (req, res) => {
     if (featured_accounts && Array.isArray(featured_accounts)) {
       await pool.query(
         "DELETE FROM event_featured_accounts WHERE event_id = $1",
-        [eventId]
+        [eventId],
       );
       if (featured_accounts.length > 0) {
         const accountInserts = featured_accounts.map((acc, index) =>
@@ -1763,8 +1763,8 @@ const updateEvent = async (req, res) => {
               acc.linked_account_type || null,
               acc.linked_account_id || null,
               index,
-            ]
-          )
+            ],
+          ),
         );
         await Promise.all(accountInserts);
       }
@@ -1773,17 +1773,17 @@ const updateEvent = async (req, res) => {
     // Update ticket_types if provided
     if (ticket_types && Array.isArray(ticket_types)) {
       console.log(
-        `[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`
+        `[updateEvent] Saving ${ticket_types.length} ticket types for event ${eventId}`,
       );
 
       // Get existing ticket type IDs to track which ones to keep
       // Convert to Number to ensure consistent comparison (database may return BigInt)
       const existingTicketsResult = await pool.query(
         "SELECT id FROM ticket_types WHERE event_id = $1",
-        [eventId]
+        [eventId],
       );
       const existingIds = new Set(
-        existingTicketsResult.rows.map((r) => parseInt(r.id))
+        existingTicketsResult.rows.map((r) => parseInt(r.id)),
       );
       const incomingIds = new Set();
 
@@ -1798,7 +1798,7 @@ const updateEvent = async (req, res) => {
           const ticketId = parseInt(ticket.id);
           incomingIds.add(ticketId);
           console.log(
-            `[updateEvent] Updating existing ticket type ${ticketId}`
+            `[updateEvent] Updating existing ticket type ${ticketId}`,
           );
           await pool.query(
             `UPDATE ticket_types SET 
@@ -1824,18 +1824,18 @@ const updateEvent = async (req, res) => {
                   allowed: true,
                   deadline_hours_before: 24,
                   percentage: 100,
-                }
+                },
               ),
               index,
               ticket.is_active !== false,
               ticketId,
               eventId,
-            ]
+            ],
           );
         } else {
           // Insert new ticket type
           console.log(
-            `[updateEvent] Inserting new ticket type: ${ticket.name}`
+            `[updateEvent] Inserting new ticket type: ${ticket.name}`,
           );
           await pool.query(
             `INSERT INTO ticket_types (
@@ -1862,11 +1862,11 @@ const updateEvent = async (req, res) => {
                   allowed: true,
                   deadline_hours_before: 24,
                   percentage: 100,
-                }
+                },
               ),
               index,
               ticket.is_active !== false,
-            ]
+            ],
           );
         }
       }
@@ -1886,7 +1886,7 @@ const updateEvent = async (req, res) => {
               (SELECT COALESCE(sold_count, 0) FROM ticket_types WHERE id = $1) as sold_count,
               EXISTS(SELECT 1 FROM ticket_gifts WHERE ticket_type_id = $1 AND status = 'active') as has_gifts,
               EXISTS(SELECT 1 FROM registration_tickets WHERE ticket_type_id = $1) as has_registrations`,
-            [id]
+            [id],
           );
 
           const { sold_count, has_gifts, has_registrations } =
@@ -1897,30 +1897,30 @@ const updateEvent = async (req, res) => {
           if (!hasSoldTickets) {
             await pool.query("DELETE FROM ticket_types WHERE id = $1", [id]);
             console.log(
-              `[updateEvent] Deleted ticket type ${id} (no dependencies)`
+              `[updateEvent] Deleted ticket type ${id} (no dependencies)`,
             );
           } else {
             // Mark as inactive instead of deleting - ticket has sold tickets
             await pool.query(
               "UPDATE ticket_types SET is_active = false WHERE id = $1",
-              [id]
+              [id],
             );
             console.log(
-              `[updateEvent] Deactivated ticket type ${id} (has sold tickets: sold_count=${sold_count}, gifts=${has_gifts}, registrations=${has_registrations})`
+              `[updateEvent] Deactivated ticket type ${id} (has sold tickets: sold_count=${sold_count}, gifts=${has_gifts}, registrations=${has_registrations})`,
             );
           }
         }
       }
 
       console.log(
-        `[updateEvent] Successfully saved ${ticket_types.length} ticket types`
+        `[updateEvent] Successfully saved ${ticket_types.length} ticket types`,
       );
     }
 
     // Update discount_codes if provided
     if (discount_codes && Array.isArray(discount_codes)) {
       console.log(
-        `[updateEvent] Saving ${discount_codes.length} discount codes for event ${eventId}`
+        `[updateEvent] Saving ${discount_codes.length} discount codes for event ${eventId}`,
       );
 
       await pool.query("DELETE FROM discount_codes WHERE event_id = $1", [
@@ -1948,12 +1948,12 @@ const updateEvent = async (req, res) => {
               dc.min_cart_value || null,
               dc.applicable_ticket_ids || null,
               dc.is_active !== false,
-            ]
-          )
+            ],
+          ),
         );
         await Promise.all(codeInserts);
         console.log(
-          `[updateEvent] Successfully saved ${discount_codes.length} discount codes`
+          `[updateEvent] Successfully saved ${discount_codes.length} discount codes`,
         );
       }
     }
@@ -1961,7 +1961,7 @@ const updateEvent = async (req, res) => {
     // Update pricing_rules if provided
     if (pricing_rules && Array.isArray(pricing_rules)) {
       console.log(
-        `[updateEvent] Saving ${pricing_rules.length} pricing rules for event ${eventId}`
+        `[updateEvent] Saving ${pricing_rules.length} pricing rules for event ${eventId}`,
       );
 
       await pool.query("DELETE FROM pricing_rules WHERE event_id = $1", [
@@ -1988,12 +1988,12 @@ const updateEvent = async (req, res) => {
               rule.valid_until || null,
               rule.priority || 100,
               rule.is_active !== false,
-            ]
-          )
+            ],
+          ),
         );
         await Promise.all(ruleInserts);
         console.log(
-          `[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`
+          `[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`,
         );
       }
     }
@@ -2001,13 +2001,13 @@ const updateEvent = async (req, res) => {
     // Update discover categories if provided
     if (categories && Array.isArray(categories)) {
       console.log(
-        `[updateEvent] Saving ${categories.length} discover categories for event ${eventId}`
+        `[updateEvent] Saving ${categories.length} discover categories for event ${eventId}`,
       );
 
       // Delete existing category assignments
       await pool.query(
         "DELETE FROM event_discover_categories WHERE event_id = $1",
-        [eventId]
+        [eventId],
       );
 
       // Insert new category assignments
@@ -2017,12 +2017,12 @@ const updateEvent = async (req, res) => {
             `INSERT INTO event_discover_categories (event_id, category_id, is_featured) 
              VALUES ($1, $2, false)
              ON CONFLICT (event_id, category_id) DO NOTHING`,
-            [eventId, categoryId]
-          )
+            [eventId, categoryId],
+          ),
         );
         await Promise.all(categoryInserts);
         console.log(
-          `[updateEvent] Successfully saved ${categories.length} discover categories`
+          `[updateEvent] Successfully saved ${categories.length} discover categories`,
         );
       }
     }
@@ -2032,7 +2032,7 @@ const updateEvent = async (req, res) => {
       // Get community name for notification
       const communityResult = await pool.query(
         "SELECT name FROM communities WHERE id = $1",
-        [userId]
+        [userId],
       );
       const communityName = communityResult.rows[0]?.name || "Community";
 
@@ -2040,7 +2040,7 @@ const updateEvent = async (req, res) => {
       const attendeesResult = await pool.query(
         `SELECT member_id FROM event_registrations 
          WHERE event_id = $1 AND registration_status = 'registered'`,
-        [eventId]
+        [eventId],
       );
 
       // Determine if this is a reschedule (date change) or regular update
@@ -2090,18 +2090,18 @@ const updateEvent = async (req, res) => {
             {
               type: notificationType,
               eventId: parseInt(eventId),
-            }
+            },
           );
         } catch (notifError) {
           console.warn(
             `[updateEvent] Failed to notify member ${attendee.member_id}:`,
-            notifError.message
+            notifError.message,
           );
         }
       }
 
       console.log(
-        `[Event Update] Notified ${attendeesResult.rows.length} attendees about ${notificationType} for event ${eventId}`
+        `[Event Update] Notified ${attendeesResult.rows.length} attendees about ${notificationType} for event ${eventId}`,
       );
     }
 
@@ -2114,7 +2114,7 @@ const updateEvent = async (req, res) => {
           ? (
               await pool.query(
                 "SELECT COUNT(*) FROM event_registrations WHERE event_id = $1",
-                [eventId]
+                [eventId],
               )
             ).rows[0].count
           : 0,
@@ -2163,7 +2163,7 @@ const getEventById = async (req, res) => {
        FROM event_banners 
        WHERE event_id = $1 
        ORDER BY image_order ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch gallery
@@ -2172,7 +2172,7 @@ const getEventById = async (req, res) => {
        FROM event_gallery 
        WHERE event_id = $1 
        ORDER BY image_order ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch highlights
@@ -2181,7 +2181,7 @@ const getEventById = async (req, res) => {
        FROM event_highlights 
        WHERE event_id = $1 
        ORDER BY highlight_order ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch things to know
@@ -2190,7 +2190,7 @@ const getEventById = async (req, res) => {
        FROM event_things_to_know 
        WHERE event_id = $1 
        ORDER BY item_order ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch featured accounts with linked data
@@ -2233,7 +2233,7 @@ const getEventById = async (req, res) => {
          FROM community_heads 
          WHERE community_id = $1
          ORDER BY is_primary DESC, id ASC`,
-        [event.creator_id]
+        [event.creator_id],
       );
     }
 
@@ -2246,7 +2246,7 @@ const getEventById = async (req, res) => {
        FROM ticket_types 
        WHERE event_id = $1 AND is_active = true
        ORDER BY display_order ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Transform banner and gallery data to include `url` field for frontend compatibility
@@ -2274,7 +2274,7 @@ const getEventById = async (req, res) => {
        FROM discount_codes 
        WHERE event_id = $1
        ORDER BY created_at ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch pricing rules
@@ -2284,7 +2284,7 @@ const getEventById = async (req, res) => {
        FROM pricing_rules 
        WHERE event_id = $1
        ORDER BY priority ASC`,
-      [eventId]
+      [eventId],
     );
 
     // Fetch discover categories
@@ -2294,7 +2294,7 @@ const getEventById = async (req, res) => {
        JOIN discover_categories dc ON edc.category_id = dc.id
        WHERE edc.event_id = $1
        ORDER BY dc.name ASC`,
-      [eventId]
+      [eventId],
     );
     const categories = categoriesResult.rows.map((c) => c.name);
 
@@ -2302,10 +2302,10 @@ const getEventById = async (req, res) => {
     const registrationCountResult = await pool.query(
       `SELECT COUNT(*) as count FROM event_registrations 
        WHERE event_id = $1 AND registration_status IN ('registered', 'attended', 'confirmed')`,
-      [eventId]
+      [eventId],
     );
     const registrationCount = parseInt(
-      registrationCountResult.rows[0]?.count || 0
+      registrationCountResult.rows[0]?.count || 0,
     );
 
     // Calculate ticket capacities
@@ -2367,20 +2367,20 @@ const getEventById = async (req, res) => {
     if (userId && userType === "member") {
       const inviteCheck = await pool.query(
         "SELECT id FROM ticket_gifts WHERE event_id = $1 AND recipient_id = $2 AND status = 'active'",
-        [eventId, userId]
+        [eventId, userId],
       );
       isInvited = inviteCheck.rows.length > 0;
 
       const interestCheck = await pool.query(
         "SELECT id FROM event_interests WHERE event_id = $1 AND member_id = $2",
-        [eventId, userId]
+        [eventId, userId],
       );
       isInterested = interestCheck.rows.length > 0;
 
       // Check if user is registered for this event and get attendance data
       const registrationCheck = await pool.query(
         "SELECT id, attendance_status, attendance_confirmed_at FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
-        [eventId, userId]
+        [eventId, userId],
       );
       isRegistered = registrationCheck.rows.length > 0;
       registrationData = registrationCheck.rows[0] || null;
@@ -2388,7 +2388,7 @@ const getEventById = async (req, res) => {
       // Check if user has requested an invite for this event
       const inviteRequestCheck = await pool.query(
         "SELECT status FROM invite_requests WHERE event_id = $1 AND member_id = $2",
-        [eventId, userId]
+        [eventId, userId],
       );
       if (inviteRequestCheck.rows.length > 0) {
         inviteRequestStatus = inviteRequestCheck.rows[0].status;
@@ -2433,7 +2433,7 @@ const getEventById = async (req, res) => {
       } else {
         // Public viewers only see 'public' visibility tickets
         filteredTicketTypes = ticketTypesResult.rows.filter(
-          (t) => t.visibility === "public" || !t.visibility
+          (t) => t.visibility === "public" || !t.visibility,
         );
       }
     }
@@ -2441,7 +2441,7 @@ const getEventById = async (req, res) => {
     // Calculate min_price from ALL tickets (before visibility filtering) for display
     // This ensures frontend always shows the correct price even when tickets are hidden
     const allTicketPrices = ticketTypesResult.rows.map(
-      (t) => parseFloat(t.base_price) || 0
+      (t) => parseFloat(t.base_price) || 0,
     );
     const minPrice =
       allTicketPrices.length > 0 ? Math.min(...allTicketPrices) : null;
@@ -2543,7 +2543,7 @@ const deleteEvent = async (req, res) => {
               (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id) as attendee_count
        FROM events e
        WHERE e.id = $1`,
-      [eventId]
+      [eventId],
     );
 
     if (eventResult.rows.length === 0) {
@@ -2557,12 +2557,12 @@ const deleteEvent = async (req, res) => {
     const requestUserId = parseInt(userId);
 
     console.log(
-      `[deleteEvent] Checking ownership: creator_id=${creatorId}, userId=${requestUserId}, userType=${userType}`
+      `[deleteEvent] Checking ownership: creator_id=${creatorId}, userId=${requestUserId}, userType=${userType}`,
     );
 
     if (creatorId !== requestUserId) {
       console.log(
-        `[deleteEvent] Permission denied: creator_id (${creatorId}) !== userId (${requestUserId})`
+        `[deleteEvent] Permission denied: creator_id (${creatorId}) !== userId (${requestUserId})`,
       );
       return res.status(403).json({
         error: "You don't have permission to delete this event",
@@ -2588,16 +2588,16 @@ const deleteEvent = async (req, res) => {
     try {
       const interestedUsersResult = await pool.query(
         "SELECT member_id FROM event_interests WHERE event_id = $1",
-        [eventId]
+        [eventId],
       );
       interestedUserIds = interestedUsersResult.rows.map((r) => r.member_id);
       console.log(
-        `[deleteEvent] Found ${interestedUserIds.length} interested users for event ${eventId}`
+        `[deleteEvent] Found ${interestedUserIds.length} interested users for event ${eventId}`,
       );
     } catch (err) {
       console.warn(
         "[deleteEvent] Could not fetch interested users:",
-        err.message
+        err.message,
       );
     }
 
@@ -2606,11 +2606,11 @@ const deleteEvent = async (req, res) => {
     try {
       const bannersResult = await pool.query(
         "SELECT cloudinary_public_id FROM event_banners WHERE event_id = $1 AND cloudinary_public_id IS NOT NULL",
-        [eventId]
+        [eventId],
       );
       const galleryResult = await pool.query(
         "SELECT cloudinary_public_id FROM event_gallery WHERE event_id = $1 AND cloudinary_public_id IS NOT NULL",
-        [eventId]
+        [eventId],
       );
       cloudinaryIds = [
         ...bannersResult.rows.map((r) => r.cloudinary_public_id),
@@ -2619,7 +2619,7 @@ const deleteEvent = async (req, res) => {
     } catch (err) {
       console.warn(
         "[deleteEvent] Could not fetch Cloudinary IDs for cleanup:",
-        err.message
+        err.message,
       );
     }
 
@@ -2649,7 +2649,7 @@ const deleteEvent = async (req, res) => {
       } catch (err) {
         // Table may not exist, continue
         console.warn(
-          `[deleteEvent] Query failed (non-critical): ${query} - ${err.message}`
+          `[deleteEvent] Query failed (non-critical): ${query} - ${err.message}`,
         );
       }
     }
@@ -2660,18 +2660,18 @@ const deleteEvent = async (req, res) => {
     // TODO: Clean up Cloudinary images in background (non-blocking)
     if (cloudinaryIds.length > 0) {
       console.log(
-        `[deleteEvent] Would delete ${cloudinaryIds.length} Cloudinary images (cleanup not implemented)`
+        `[deleteEvent] Would delete ${cloudinaryIds.length} Cloudinary images (cleanup not implemented)`,
       );
     }
 
     console.log(
-      `[deleteEvent] Event "${event.title}" (ID: ${eventId}) deleted by community ${userId}`
+      `[deleteEvent] Event "${event.title}" (ID: ${eventId}) deleted by community ${userId}`,
     );
 
     // Notify interested users that the event was deleted
     if (interestedUserIds.length > 0) {
       console.log(
-        `[deleteEvent] Sending notifications to ${interestedUserIds.length} interested users`
+        `[deleteEvent] Sending notifications to ${interestedUserIds.length} interested users`,
       );
       for (const memberId of interestedUserIds) {
         try {
@@ -2689,7 +2689,7 @@ const deleteEvent = async (req, res) => {
         } catch (notifError) {
           console.warn(
             `[deleteEvent] Failed to notify member ${memberId}:`,
-            notifError.message
+            notifError.message,
           );
         }
       }
@@ -2732,7 +2732,7 @@ const cancelEvent = async (req, res) => {
        FROM events e
        LEFT JOIN communities c ON e.creator_id = c.id
        WHERE e.id = $1`,
-      [eventId]
+      [eventId],
     );
 
     if (eventResult.rows.length === 0) {
@@ -2766,7 +2766,7 @@ const cancelEvent = async (req, res) => {
     // Update event to cancelled
     await pool.query(
       `UPDATE events SET is_cancelled = true, updated_at = NOW() WHERE id = $1`,
-      [eventId]
+      [eventId],
     );
 
     // Get all registered attendees
@@ -2775,12 +2775,12 @@ const cancelEvent = async (req, res) => {
        FROM event_registrations er
        JOIN members m ON er.member_id = m.id
        WHERE er.event_id = $1 AND er.registration_status = 'registered'`,
-      [eventId]
+      [eventId],
     );
 
     const attendees = attendeesResult.rows;
     console.log(
-      `[cancelEvent] Notifying ${attendees.length} attendees about cancellation of event ${eventId}`
+      `[cancelEvent] Notifying ${attendees.length} attendees about cancellation of event ${eventId}`,
     );
 
     // Create in-app notifications for all attendees
@@ -2805,8 +2805,8 @@ const cancelEvent = async (req, res) => {
           "community",
           "event_cancelled",
           notificationPayload,
-        ]
-      )
+        ],
+      ),
     );
 
     await Promise.all(notificationPromises);
@@ -2818,13 +2818,13 @@ const cancelEvent = async (req, res) => {
          FROM push_tokens pt
          JOIN event_registrations er ON pt.user_id = er.member_id AND pt.user_type = 'member'
          WHERE er.event_id = $1 AND er.registration_status = 'registered' AND pt.is_active = true`,
-        [eventId]
+        [eventId],
       );
 
       if (pushTokensResult.rows.length > 0) {
         // Log for now - actual push implementation would use Expo Push API
         console.log(
-          `[cancelEvent] Would send ${pushTokensResult.rows.length} push notifications`
+          `[cancelEvent] Would send ${pushTokensResult.rows.length} push notifications`,
         );
         // TODO: Implement actual Expo push notification sending
         // const messages = pushTokensResult.rows.map(row => ({
@@ -2838,12 +2838,12 @@ const cancelEvent = async (req, res) => {
     } catch (pushError) {
       console.warn(
         "[cancelEvent] Push notification query failed (non-critical):",
-        pushError.message
+        pushError.message,
       );
     }
 
     console.log(
-      `[cancelEvent] Event "${event.title}" (ID: ${eventId}) cancelled by community ${userId}`
+      `[cancelEvent] Event "${event.title}" (ID: ${eventId}) cancelled by community ${userId}`,
     );
 
     res.json({
@@ -2878,7 +2878,7 @@ const toggleEventInterest = async (req, res) => {
     // Check if interest already exists
     const existingInterest = await pool.query(
       "SELECT id FROM event_interests WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     let isInterested;
@@ -2886,14 +2886,14 @@ const toggleEventInterest = async (req, res) => {
       // Remove interest
       await pool.query(
         "DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2",
-        [eventId, userId]
+        [eventId, userId],
       );
       isInterested = false;
     } else {
       // Add interest
       await pool.query(
         "INSERT INTO event_interests (event_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [eventId, userId]
+        [eventId, userId],
       );
       isInterested = true;
     }
@@ -2967,7 +2967,7 @@ const getInterestedEvents = async (req, res) => {
          FROM event_banners 
          WHERE event_id = ANY($1) 
          ORDER BY event_id, image_order ASC`,
-        [eventIds]
+        [eventIds],
       );
       bannersResult.rows.forEach((banner) => {
         if (!bannersMap[banner.event_id]) {
@@ -3045,7 +3045,7 @@ const registerForEvent = async (req, res) => {
        FROM events e 
        JOIN communities c ON e.community_id = c.id 
        WHERE e.id = $1`,
-      [eventId]
+      [eventId],
     );
     if (eventResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -3058,7 +3058,7 @@ const registerForEvent = async (req, res) => {
       const inviteCheck = await client.query(
         `SELECT id FROM ticket_gifts 
          WHERE event_id = $1 AND recipient_id = $2 AND status = 'active'`,
-        [eventId, userId]
+        [eventId, userId],
       );
       if (inviteCheck.rows.length === 0) {
         await client.query("ROLLBACK");
@@ -3080,7 +3080,7 @@ const registerForEvent = async (req, res) => {
     const existingReg = await client.query(
       `SELECT id FROM event_registrations 
        WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
-      [eventId, userId]
+      [eventId, userId],
     );
     if (existingReg.rows.length > 0) {
       await client.query("ROLLBACK");
@@ -3092,7 +3092,7 @@ const registerForEvent = async (req, res) => {
     // 6. Get member info for gender validation
     const memberResult = await client.query(
       "SELECT name, email, gender FROM members WHERE id = $1",
-      [userId]
+      [userId],
     );
     const member = memberResult.rows[0];
 
@@ -3100,7 +3100,7 @@ const registerForEvent = async (req, res) => {
     for (const item of tickets) {
       const ticketResult = await client.query(
         `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2 AND is_active = true FOR UPDATE`,
-        [item.ticketTypeId, eventId]
+        [item.ticketTypeId, eventId],
       );
       if (ticketResult.rows.length === 0) {
         throw new Error(`Invalid ticket type: ${item.ticketTypeId}`);
@@ -3120,7 +3120,7 @@ const registerForEvent = async (req, res) => {
           throw new Error(
             available <= 0
               ? `Sold out: ${ticket.name}`
-              : `Only ${available} tickets left for ${ticket.name}`
+              : `Only ${available} tickets left for ${ticket.name}`,
           );
         }
       }
@@ -3137,12 +3137,12 @@ const registerForEvent = async (req, res) => {
       // Check min/max per order
       if (ticket.min_per_order && item.quantity < ticket.min_per_order) {
         throw new Error(
-          `Minimum ${ticket.min_per_order} tickets required for ${ticket.name}`
+          `Minimum ${ticket.min_per_order} tickets required for ${ticket.name}`,
         );
       }
       if (ticket.max_per_order && item.quantity > ticket.max_per_order) {
         throw new Error(
-          `Maximum ${ticket.max_per_order} tickets allowed for ${ticket.name}`
+          `Maximum ${ticket.max_per_order} tickets allowed for ${ticket.name}`,
         );
       }
 
@@ -3154,7 +3154,7 @@ const registerForEvent = async (req, res) => {
         ticket.gender_restriction !== member.gender
       ) {
         throw new Error(
-          `${ticket.name} is only available for ${ticket.gender_restriction}`
+          `${ticket.name} is only available for ${ticket.gender_restriction}`,
         );
       }
 
@@ -3165,14 +3165,14 @@ const registerForEvent = async (req, res) => {
            FROM registration_tickets rt
            JOIN event_registrations er ON rt.registration_id = er.id
            WHERE er.member_id = $1 AND rt.ticket_type_id = $2 AND er.registration_status != 'cancelled'`,
-          [userId, item.ticketTypeId]
+          [userId, item.ticketTypeId],
         );
         if (
           parseInt(existingCount.rows[0].total) + item.quantity >
           ticket.max_per_user
         ) {
           throw new Error(
-            `You can only purchase ${ticket.max_per_user} tickets of type "${ticket.name}"`
+            `You can only purchase ${ticket.max_per_user} tickets of type "${ticket.name}"`,
           );
         }
       }
@@ -3194,7 +3194,7 @@ const registerForEvent = async (req, res) => {
         promoCode || null,
         discountAmount || 0,
         qrCodeHash,
-      ]
+      ],
     );
     const registrationId = regResult.rows[0].id;
 
@@ -3202,7 +3202,7 @@ const registerForEvent = async (req, res) => {
     for (const item of tickets) {
       const ticketInfo = await client.query(
         "SELECT name, base_price FROM ticket_types WHERE id = $1",
-        [item.ticketTypeId]
+        [item.ticketTypeId],
       );
       const ticket = ticketInfo.rows[0];
 
@@ -3216,18 +3216,18 @@ const registerForEvent = async (req, res) => {
           item.quantity,
           item.unitPrice,
           item.quantity * item.unitPrice,
-        ]
+        ],
       );
 
       await client.query(
         "UPDATE ticket_types SET sold_count = sold_count + $1 WHERE id = $2",
-        [item.quantity, item.ticketTypeId]
+        [item.quantity, item.ticketTypeId],
       );
 
       // Check if ticket type is now sold out
       const updatedTicket = await client.query(
         "SELECT sold_count, total_quantity FROM ticket_types WHERE id = $1",
-        [item.ticketTypeId]
+        [item.ticketTypeId],
       );
       if (
         updatedTicket.rows[0].total_quantity &&
@@ -3241,7 +3241,7 @@ const registerForEvent = async (req, res) => {
     // 11. Remove from bookmarks (event_interests) if bookmarked
     await client.query(
       "DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     const totalTicketCount = tickets.reduce((sum, t) => sum + t.quantity, 0);
@@ -3251,7 +3251,7 @@ const registerForEvent = async (req, res) => {
       // Get member photo for avatar
       const memberPhotoResult = await client.query(
         "SELECT profile_photo_url FROM members WHERE id = $1",
-        [userId]
+        [userId],
       );
       const memberAvatar = memberPhotoResult.rows[0]?.profile_photo_url || null;
 
@@ -3285,7 +3285,7 @@ const registerForEvent = async (req, res) => {
         {
           type: "event_registration",
           eventId: parseInt(eventId),
-        }
+        },
       );
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);
@@ -3297,7 +3297,7 @@ const registerForEvent = async (req, res) => {
       // Get all reservations for this session to decrement reserved_count
       const reservations = await client.query(
         `SELECT ticket_type_id, quantity FROM ticket_reservations WHERE session_id = $1`,
-        [sessionId]
+        [sessionId],
       );
 
       // Decrement reserved_count for each (since we're converting to sold)
@@ -3306,18 +3306,18 @@ const registerForEvent = async (req, res) => {
           `UPDATE ticket_types 
            SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1) 
            WHERE id = $2`,
-          [reservation.quantity, reservation.ticket_type_id]
+          [reservation.quantity, reservation.ticket_type_id],
         );
       }
 
       // Delete the reservation records
       await client.query(
         `DELETE FROM ticket_reservations WHERE session_id = $1`,
-        [sessionId]
+        [sessionId],
       );
 
       console.log(
-        `[registerForEvent] Consumed reservation ${sessionId} for user ${userId}`
+        `[registerForEvent] Consumed reservation ${sessionId} for user ${userId}`,
       );
     }
 
@@ -3346,15 +3346,15 @@ const registerForEvent = async (req, res) => {
         // Get interested users for this event
         const interestedUsersResult = await pool.query(
           "SELECT member_id FROM event_interests WHERE event_id = $1",
-          [eventId]
+          [eventId],
         );
         const interestedUserIds = interestedUsersResult.rows.map(
-          (r) => r.member_id
+          (r) => r.member_id,
         );
 
         if (interestedUserIds.length > 0) {
           console.log(
-            `[registerForEvent] Sending sold out notifications to ${interestedUserIds.length} interested users`
+            `[registerForEvent] Sending sold out notifications to ${interestedUserIds.length} interested users`,
           );
 
           // Send notifications to interested users
@@ -3382,12 +3382,12 @@ const registerForEvent = async (req, res) => {
                 {
                   type: "tickets_sold_out",
                   eventId: parseInt(eventId),
-                }
+                },
               );
             } catch (notifError) {
               console.warn(
                 `[registerForEvent] Failed to notify member ${memberId} about sold out:`,
-                notifError.message
+                notifError.message,
               );
             }
           }
@@ -3395,7 +3395,7 @@ const registerForEvent = async (req, res) => {
       } catch (soldOutError) {
         console.error(
           "[registerForEvent] Error sending sold out notifications:",
-          soldOutError
+          soldOutError,
         );
         // Don't fail registration if sold out notification fails
       }
@@ -3444,7 +3444,7 @@ const cancelRegistration = async (req, res) => {
        FROM event_registrations er
        JOIN events e ON er.event_id = e.id
        WHERE er.event_id = $1 AND er.member_id = $2 AND er.registration_status = 'registered'`,
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (regResult.rows.length === 0) {
@@ -3459,7 +3459,7 @@ const cancelRegistration = async (req, res) => {
        FROM registration_tickets rt
        JOIN ticket_types tt ON rt.ticket_type_id = tt.id
        WHERE rt.registration_id = $1`,
-      [registration.id]
+      [registration.id],
     );
 
     const hoursUntilEvent =
@@ -3483,14 +3483,14 @@ const cancelRegistration = async (req, res) => {
       `UPDATE event_registrations 
        SET registration_status = 'cancelled', cancelled_at = NOW(), refund_amount = $1, updated_at = NOW()
        WHERE id = $2`,
-      [refundAmount, registration.id]
+      [refundAmount, registration.id],
     );
 
     // 5. Restore ticket sold counts
     for (const ticket of ticketsResult.rows) {
       await client.query(
         "UPDATE ticket_types SET sold_count = GREATEST(0, sold_count - $1) WHERE id = $2",
-        [ticket.quantity, ticket.ticket_type_id]
+        [ticket.quantity, ticket.ticket_type_id],
       );
     }
 
@@ -3499,7 +3499,7 @@ const cancelRegistration = async (req, res) => {
     // 6. Send cancellation email (async)
     const memberResult = await pool.query(
       "SELECT name, email FROM members WHERE id = $1",
-      [userId]
+      [userId],
     );
     const member = memberResult.rows[0];
 
@@ -3516,7 +3516,7 @@ const cancelRegistration = async (req, res) => {
         // Get community ID for the event
         const eventResult = await pool.query(
           "SELECT community_id FROM events WHERE id = $1",
-          [eventId]
+          [eventId],
         );
         const communityId = eventResult.rows[0]?.community_id;
 
@@ -3524,7 +3524,7 @@ const cancelRegistration = async (req, res) => {
           // Get community name
           const communityResult = await pool.query(
             "SELECT name FROM communities WHERE id = $1",
-            [communityId]
+            [communityId],
           );
           const communityName = communityResult.rows[0]?.name || "Community";
 
@@ -3555,13 +3555,13 @@ const cancelRegistration = async (req, res) => {
             {
               type: "refund_processed",
               eventId: parseInt(eventId),
-            }
+            },
           );
         }
       } catch (notifError) {
         console.error(
           "[cancelRegistration] Failed to send refund notification:",
-          notifError.message
+          notifError.message,
         );
         // Don't fail cancellation if notification fails
       }
@@ -3573,7 +3573,7 @@ const cancelRegistration = async (req, res) => {
       message:
         refundAmount > 0
           ? `Cancelled. Refund of ₹${refundAmount.toLocaleString(
-              "en-IN"
+              "en-IN",
             )} will be processed.`
           : "Cancelled. No refund applicable based on policy.",
     });
@@ -3645,7 +3645,7 @@ const getMyTicket = async (req, res) => {
        FROM registration_tickets
        WHERE registration_id = $1
        ORDER BY ticket_name`,
-      [registration.registration_id]
+      [registration.registration_id],
     );
 
     // Generate QR code data string
@@ -3738,7 +3738,7 @@ const verifyTicket = async (req, res) => {
     // Verify community owns this event
     const eventCheck = await pool.query(
       "SELECT id, title, community_id FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
 
     if (eventCheck.rows.length === 0) {
@@ -3822,7 +3822,7 @@ const verifyTicket = async (req, res) => {
     // Get ticket summary
     const ticketsResult = await pool.query(
       `SELECT ticket_name, quantity FROM registration_tickets WHERE registration_id = $1`,
-      [registrationId]
+      [registrationId],
     );
 
     const ticketSummary =
@@ -3837,7 +3837,7 @@ const verifyTicket = async (req, res) => {
            checked_in_at = NOW(),
            updated_at = NOW()
        WHERE id = $1`,
-      [registrationId]
+      [registrationId],
     );
 
     res.json({
@@ -3903,7 +3903,7 @@ const createTicketGift = async (req, res) => {
     // 2. Validate event belongs to this community
     const eventResult = await client.query(
       "SELECT id, title, creator_id, access_type FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
     if (eventResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -3920,7 +3920,7 @@ const createTicketGift = async (req, res) => {
     // 3. Validate ticket type and availability
     const ticketResult = await client.query(
       `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2`,
-      [ticketTypeId, eventId]
+      [ticketTypeId, eventId],
     );
     if (ticketResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -3944,7 +3944,7 @@ const createTicketGift = async (req, res) => {
     // 4. Validate recipient exists
     const recipientResult = await client.query(
       "SELECT id, name, email FROM members WHERE id = $1",
-      [recipientId]
+      [recipientId],
     );
     if (recipientResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -3969,7 +3969,7 @@ const createTicketGift = async (req, res) => {
         canReshare || false,
         message,
         messagePreset,
-      ]
+      ],
     );
     const gift = giftResult.rows[0];
 
@@ -3997,7 +3997,7 @@ const createTicketGift = async (req, res) => {
           qr_code_hash = COALESCE(event_registrations.qr_code_hash, $3),
           updated_at = NOW()
         RETURNING *`,
-        [eventId, recipientId, qrHash]
+        [eventId, recipientId, qrHash],
       );
       registration = regResult.rows[0];
 
@@ -4006,19 +4006,19 @@ const createTicketGift = async (req, res) => {
         `INSERT INTO registration_tickets (
           registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price
         ) VALUES ($1, $2, $3, $4, 0, 0)`,
-        [registration.id, ticketTypeId, ticketType.name, quantity]
+        [registration.id, ticketTypeId, ticketType.name, quantity],
       );
 
       // Update gift with used quantity
       await client.query(
         `UPDATE ticket_gifts SET used_quantity = $1, remaining_quantity = 0 WHERE id = $2`,
-        [quantity, gift.id]
+        [quantity, gift.id],
       );
 
       // Update ticket sold count
       await client.query(
         `UPDATE ticket_types SET sold_count = sold_count + $1 WHERE id = $2`,
-        [quantity, ticketTypeId]
+        [quantity, ticketTypeId],
       );
     }
 
@@ -4087,7 +4087,7 @@ const createTicketGift = async (req, res) => {
           eventId: eventId,
           giftId: gift.id,
           conversationId: conversationId,
-        }
+        },
       );
     } catch (notifError) {
       console.error("Error sending gift notification:", notifError);
@@ -4129,7 +4129,7 @@ const getEventGifts = async (req, res) => {
     // Verify event ownership
     const eventCheck = await pool.query(
       "SELECT creator_id FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
     if (
       eventCheck.rows.length === 0 ||
@@ -4151,7 +4151,7 @@ const getEventGifts = async (req, res) => {
       JOIN members m ON tg.recipient_id = m.id
       WHERE tg.event_id = $1
       ORDER BY tg.created_at DESC`,
-      [eventId]
+      [eventId],
     );
 
     res.json({
@@ -4191,7 +4191,7 @@ const revokeGift = async (req, res) => {
        FROM ticket_gifts tg
        JOIN events e ON tg.event_id = e.id
        WHERE tg.id = $1`,
-      [giftId]
+      [giftId],
     );
     if (giftResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -4223,7 +4223,7 @@ const revokeGift = async (req, res) => {
       SET status = 'revoked', revoked_at = NOW(), revoked_reason = $2
       WHERE id IN (SELECT id FROM gift_tree) AND status = 'active'
       RETURNING id, recipient_id`,
-      [giftId, reason || "Revoked by event creator"]
+      [giftId, reason || "Revoked by event creator"],
     );
 
     await client.query("COMMIT");
@@ -4288,7 +4288,7 @@ const getMyGifts = async (req, res) => {
       JOIN communities c ON e.creator_id = c.id
       WHERE tg.recipient_id = $1
       ORDER BY tg.created_at DESC`,
-      [userId]
+      [userId],
     );
 
     res.json({
@@ -4328,7 +4328,7 @@ const reshareGift = async (req, res) => {
        JOIN ticket_types tt ON tg.ticket_type_id = tt.id
        JOIN events e ON tg.event_id = e.id
        WHERE tg.id = $1 AND tg.recipient_id = $2`,
-      [giftId, userId]
+      [giftId, userId],
     );
     if (parentResult.rows.length === 0) {
       await client.query("ROLLBACK");
@@ -4368,7 +4368,7 @@ const reshareGift = async (req, res) => {
         recipientId,
         quantity,
         message,
-      ]
+      ],
     );
 
     // Update parent gift
@@ -4376,7 +4376,7 @@ const reshareGift = async (req, res) => {
       `UPDATE ticket_gifts 
        SET remaining_quantity = remaining_quantity - $1, shared_quantity = shared_quantity + $1
        WHERE id = $2`,
-      [quantity, giftId]
+      [quantity, giftId],
     );
 
     await client.query("COMMIT");
@@ -4429,7 +4429,7 @@ const requestInvite = async (req, res) => {
     // Check event exists and is invite_only (either event-level or has invite_only ticket types)
     const eventResult = await pool.query(
       "SELECT id, title, access_type, creator_id FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
     if (eventResult.rows.length === 0) {
       return res.status(404).json({ error: "Event not found" });
@@ -4441,7 +4441,7 @@ const requestInvite = async (req, res) => {
       `SELECT id FROM ticket_types 
        WHERE event_id = $1 AND visibility = 'invite_only' AND is_active = true 
        LIMIT 1`,
-      [eventId]
+      [eventId],
     );
     const hasInviteOnlyTickets = inviteOnlyTicketsResult.rows.length > 0;
 
@@ -4455,7 +4455,7 @@ const requestInvite = async (req, res) => {
     // Check if already requested
     const existingResult = await pool.query(
       "SELECT id, status FROM invite_requests WHERE event_id = $1 AND member_id = $2",
-      [eventId, userId]
+      [eventId, userId],
     );
     if (existingResult.rows.length > 0) {
       return res.status(400).json({
@@ -4468,14 +4468,14 @@ const requestInvite = async (req, res) => {
     const result = await pool.query(
       `INSERT INTO invite_requests (event_id, member_id, message)
        VALUES ($1, $2, $3) RETURNING *`,
-      [eventId, userId, message]
+      [eventId, userId, message],
     );
 
     // Notify community
     try {
       const memberResult = await pool.query(
         "SELECT name FROM members WHERE id = $1",
-        [userId]
+        [userId],
       );
       const memberName = memberResult.rows[0]?.name || "Someone";
 
@@ -4522,7 +4522,7 @@ const getInviteRequests = async (req, res) => {
     // Verify ownership
     const eventCheck = await pool.query(
       "SELECT creator_id FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
     if (
       eventCheck.rows.length === 0 ||
@@ -4537,7 +4537,7 @@ const getInviteRequests = async (req, res) => {
        JOIN members m ON ir.member_id = m.id
        WHERE ir.event_id = $1
        ORDER BY ir.created_at DESC`,
-      [eventId]
+      [eventId],
     );
 
     res.json({
@@ -4571,7 +4571,7 @@ const respondToInviteRequest = async (req, res) => {
        FROM invite_requests ir
        JOIN events e ON ir.event_id = e.id
        WHERE ir.id = $1`,
-      [requestId]
+      [requestId],
     );
     if (requestResult.rows.length === 0) {
       return res.status(404).json({ error: "Request not found" });
@@ -4591,7 +4591,7 @@ const respondToInviteRequest = async (req, res) => {
       `UPDATE invite_requests 
        SET status = $1, responded_at = NOW(), responded_by = $2
        WHERE id = $3`,
-      [approved ? "approved" : "declined", userId, requestId]
+      [approved ? "approved" : "declined", userId, requestId],
     );
 
     // Notify member
@@ -4641,7 +4641,7 @@ const confirmGiftRSVP = async (req, res) => {
 
     // Verify the gift belongs to this member
     console.log(
-      `[confirmGiftRSVP] Looking up gift: giftId=${giftId} (type: ${typeof giftId}), userId=${userId}`
+      `[confirmGiftRSVP] Looking up gift: giftId=${giftId} (type: ${typeof giftId}), userId=${userId}`,
     );
 
     const giftResult = await pool.query(
@@ -4651,22 +4651,22 @@ const confirmGiftRSVP = async (req, res) => {
        JOIN events e ON tg.event_id = e.id
        JOIN ticket_types tt ON tg.ticket_type_id = tt.id
        WHERE tg.id = $1 AND tg.recipient_id = $2`,
-      [giftId, userId]
+      [giftId, userId],
     );
 
     console.log(
-      `[confirmGiftRSVP] Gift query returned: ${giftResult.rows.length} rows`
+      `[confirmGiftRSVP] Gift query returned: ${giftResult.rows.length} rows`,
     );
 
     if (giftResult.rows.length === 0) {
       // Debug: check if gift exists at all
       const giftOnly = await pool.query(
         "SELECT id, recipient_id FROM ticket_gifts WHERE id = $1",
-        [giftId]
+        [giftId],
       );
       console.log(
         `[confirmGiftRSVP] Gift ${giftId} exists:`,
-        giftOnly.rows[0] || "NOT FOUND"
+        giftOnly.rows[0] || "NOT FOUND",
       );
       return res.status(404).json({ error: "Gift not found" });
     }
@@ -4685,7 +4685,7 @@ const confirmGiftRSVP = async (req, res) => {
       `UPDATE event_registrations 
        SET registration_status = $1, updated_at = NOW()
        WHERE event_id = $2 AND member_id = $3`,
-      [newStatus, gift.event_id, userId]
+      [newStatus, gift.event_id, userId],
     );
 
     // Update message metadata to persist the status
@@ -4695,13 +4695,13 @@ const confirmGiftRSVP = async (req, res) => {
        SET metadata = jsonb_set(metadata, '{status}', to_jsonb($1::text))
        WHERE message_type = 'ticket' 
        AND metadata->>'giftId' = $2`,
-      [newStatus, String(gift.id)]
+      [newStatus, String(gift.id)],
     );
 
     // Get member name for notification
     const memberResult = await pool.query(
       "SELECT name FROM members WHERE id = $1",
-      [userId]
+      [userId],
     );
     const memberName = memberResult.rows[0]?.name || "A member";
 
@@ -4746,18 +4746,17 @@ const confirmGiftRSVP = async (req, res) => {
 const getCommunityPublicEvents = async (req, res) => {
   try {
     const communityId = req.params.id;
-    const { limit = 20, offset = 0, type = "upcoming" } = req.query; // type: 'upcoming' or 'past'
+    const { limit = 20, offset = 0, type = "all" } = req.query; // type: 'all', 'upcoming', or 'past'
     const limitParsed = Math.min(parseInt(limit), 50);
     const offsetParsed = Math.max(parseInt(offset), 0);
 
     let dateFilter = "";
-    let orderClause = "";
+    let orderClause = "ORDER BY COALESCE(e.start_datetime, e.event_date) DESC";
 
     if (type === "past") {
       dateFilter = `AND COALESCE(e.start_datetime, e.event_date) < NOW()`;
       orderClause = `ORDER BY COALESCE(e.start_datetime, e.event_date) DESC`;
-    } else {
-      // Upcoming
+    } else if (type === "upcoming") {
       dateFilter = `AND COALESCE(e.start_datetime, e.event_date) >= NOW() AND e.is_cancelled = false`;
       orderClause = `ORDER BY COALESCE(e.start_datetime, e.event_date) ASC`;
     }
@@ -4780,16 +4779,30 @@ const getCommunityPublicEvents = async (req, res) => {
         e.is_cancelled,
         (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees
       FROM events e
-      WHERE e.community_id = $1 AND e.is_published = true ${dateFilter}
+      WHERE e.creator_id = $1 ${dateFilter}
       ${orderClause}
       LIMIT $2 OFFSET $3
     `;
+
+    console.log("[getCommunityPublicEvents] Query params:", {
+      communityId,
+      limitParsed,
+      offsetParsed,
+      type,
+      dateFilter,
+    });
+    console.log("[getCommunityPublicEvents] Full query:", query);
 
     const result = await pool.query(query, [
       communityId,
       limitParsed,
       offsetParsed,
     ]);
+
+    console.log("[getCommunityPublicEvents] Query result:", {
+      rowCount: result.rowCount,
+      rows: result.rows,
+    });
 
     // Fetch ticket price ranges for each event
     const eventsWithDetails = await Promise.all(
@@ -4799,14 +4812,14 @@ const getCommunityPublicEvents = async (req, res) => {
           `SELECT id, base_price, name FROM ticket_types 
            WHERE event_id = $1 AND is_active = true 
            ORDER BY base_price ASC`,
-          [event.id]
+          [event.id],
         );
 
         return {
           ...event,
           ticket_types: ticketsResult.rows,
         };
-      })
+      }),
     );
 
     res.json({
@@ -4844,7 +4857,7 @@ const confirmAttendance = async (req, res) => {
     // Check if event exists and is not cancelled
     const eventCheck = await pool.query(
       "SELECT id, is_cancelled FROM events WHERE id = $1",
-      [eventId]
+      [eventId],
     );
 
     if (eventCheck.rows.length === 0) {
@@ -4860,7 +4873,7 @@ const confirmAttendance = async (req, res) => {
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
       "SELECT id, attendance_status FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
-      [eventId, userId]
+      [eventId, userId],
     );
 
     if (registrationCheck.rows.length === 0) {
@@ -4881,7 +4894,7 @@ const confirmAttendance = async (req, res) => {
       `UPDATE event_registrations 
        SET attendance_status = $1, attendance_confirmed_at = NOW(), updated_at = NOW()
        WHERE event_id = $2 AND member_id = $3`,
-      [attendanceStatus, eventId, userId]
+      [attendanceStatus, eventId, userId],
     );
 
     res.json({
@@ -4988,7 +5001,7 @@ const reserveTickets = async (req, res) => {
       `SELECT session_id FROM ticket_reservations 
        WHERE member_id = $1 AND event_id = $2 AND expires_at > NOW()
        LIMIT 1`,
-      [userId, eventId]
+      [userId, eventId],
     );
 
     if (existingReservation.rows.length > 0) {
@@ -5011,7 +5024,7 @@ const reserveTickets = async (req, res) => {
         `SELECT * FROM ticket_types 
          WHERE id = $1 AND event_id = $2 AND is_active = true 
          FOR UPDATE`,
-        [item.ticketTypeId, eventId]
+        [item.ticketTypeId, eventId],
       );
 
       if (ticketResult.rows.length === 0) {
@@ -5030,7 +5043,7 @@ const reserveTickets = async (req, res) => {
           throw new Error(
             available <= 0
               ? `Sold out: ${ticket.name}`
-              : `Only ${available} tickets left for ${ticket.name}`
+              : `Only ${available} tickets left for ${ticket.name}`,
           );
         }
       }
@@ -5038,7 +5051,7 @@ const reserveTickets = async (req, res) => {
       // Check max_per_order
       if (ticket.max_per_order && item.quantity > ticket.max_per_order) {
         throw new Error(
-          `Maximum ${ticket.max_per_order} tickets allowed per order for ${ticket.name}`
+          `Maximum ${ticket.max_per_order} tickets allowed per order for ${ticket.name}`,
         );
       }
 
@@ -5054,20 +5067,20 @@ const reserveTickets = async (req, res) => {
           item.quantity,
           sessionId,
           expiresAt,
-        ]
+        ],
       );
 
       // Increment reserved_count
       await client.query(
         `UPDATE ticket_types SET reserved_count = COALESCE(reserved_count, 0) + $1 WHERE id = $2`,
-        [item.quantity, item.ticketTypeId]
+        [item.quantity, item.ticketTypeId],
       );
     }
 
     await client.query("COMMIT");
 
     console.log(
-      `[reserveTickets] Created reservation ${sessionId} for user ${userId}, event ${eventId}`
+      `[reserveTickets] Created reservation ${sessionId} for user ${userId}, event ${eventId}`,
     );
 
     res.json({
@@ -5111,7 +5124,7 @@ const releaseReservation = async (req, res) => {
       `SELECT id, ticket_type_id, quantity 
        FROM ticket_reservations 
        WHERE session_id = $1 AND event_id = $2`,
-      [sessionId, eventId]
+      [sessionId, eventId],
     );
 
     if (reservations.rows.length === 0) {
@@ -5126,20 +5139,20 @@ const releaseReservation = async (req, res) => {
         `UPDATE ticket_types 
          SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1) 
          WHERE id = $2`,
-        [reservation.quantity, reservation.ticket_type_id]
+        [reservation.quantity, reservation.ticket_type_id],
       );
     }
 
     // Delete the reservations
     await client.query(
       `DELETE FROM ticket_reservations WHERE session_id = $1 AND event_id = $2`,
-      [sessionId, eventId]
+      [sessionId, eventId],
     );
 
     await client.query("COMMIT");
 
     console.log(
-      `[releaseReservation] Released ${reservations.rows.length} reservations for session ${sessionId}`
+      `[releaseReservation] Released ${reservations.rows.length} reservations for session ${sessionId}`,
     );
 
     res.json({

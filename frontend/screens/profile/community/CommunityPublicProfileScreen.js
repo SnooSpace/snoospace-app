@@ -1,26 +1,31 @@
-﻿import React, { useCallback, useEffect, useState, useRef } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
-  Image,
   StyleSheet,
+  Image,
   TouchableOpacity,
-  FlatList,
-  Dimensions,
-  ActivityIndicator,
   ScrollView,
+  FlatList,
   Modal,
-  Alert,
+  Dimensions,
   Animated,
-  Platform,
   RefreshControl,
+  Platform,
+  Alert,
+  StatusBar,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import {
+  Settings,
+  MoreVertical,
+  X,
+  MapPin,
+  Calendar,
+  Users,
   ChevronRight,
   Pencil,
   ArrowLeft,
@@ -31,13 +36,14 @@ import {
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import GradientSafeArea from "../../../components/GradientSafeArea";
 import HapticsService from "../../../services/HapticsService";
-import { FONTS } from "../../../constants/theme";
+
 import {
   getPublicCommunity,
   getCommunityPosts,
   followCommunity,
   unfollowCommunity,
 } from "../../../api/communities";
+import { getCommunityPublicEvents } from "../../../api/events";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,6 +59,7 @@ import {
 } from "../../../utils/AvatarGenerator";
 import {
   COLORS,
+  FONTS,
   SPACING,
   BORDER_RADIUS,
   SHADOWS,
@@ -87,13 +94,13 @@ const ITEM_SIZE = (screenWidth - GAP * 2) / 3;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   backBtn: {
     width: 36,
@@ -281,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5EA",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
     marginTop: 8,
     position: "relative",
   },
@@ -343,19 +350,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
 });
 
 export default function CommunityPublicProfileScreen({ route, navigation }) {
@@ -393,6 +387,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   // Tabs state
   const [activeTab, setActiveTab] = useState("posts");
+  const [communityEvents, setCommunityEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [tabLayouts, setTabLayouts] = useState({});
   const tabUnderlineX = useRef(new Animated.Value(0)).current;
   const tabUnderlineScale = useRef(new Animated.Value(0)).current;
@@ -438,6 +434,37 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       setIsFollowing(!!p?.is_following);
     } catch (e) {
       setError(e?.message || "Failed to load profile");
+    }
+  }, [communityId]);
+
+  const loadEvents = useCallback(async () => {
+    console.log(
+      "[CommunityPublicProfile] loadEvents called with communityId:",
+      communityId,
+    );
+    try {
+      setEventsLoading(true);
+      const res = await getCommunityPublicEvents(communityId);
+      console.log(
+        "[CommunityPublicProfile] getCommunityPublicEvents response:",
+        {
+          hasEvents: !!res?.events,
+          eventsLength: res?.events?.length,
+          eventsData: res?.events,
+          fullResponse: res,
+        },
+      );
+      const allEvents = Array.isArray(res?.events) ? res.events : [];
+      console.log(
+        "[CommunityPublicProfile] Setting communityEvents to:",
+        allEvents,
+      );
+      setCommunityEvents(allEvents);
+    } catch (err) {
+      console.log("[CommunityPublicProfile] Failed to load events:", err);
+      setCommunityEvents([]);
+    } finally {
+      setEventsLoading(false);
     }
   }, [communityId]);
 
@@ -537,7 +564,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     let mounted = true;
     (async () => {
       setLoading(true);
-      await Promise.all([loadProfile(), loadPosts(true)]);
+      await Promise.all([loadProfile(), loadPosts(true), loadEvents()]);
       if (mounted) setLoading(false);
     })();
     return () => {
@@ -971,6 +998,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               HapticsService.triggerImpactLight();
               loadProfile();
               loadPosts(true);
+              loadEvents();
             }}
             colors={[PRIMARY_COLOR]}
             tintColor={PRIMARY_COLOR}
@@ -1290,7 +1318,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
-          {["posts", "community"].map((tab) => (
+          {["posts", "community", "events"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={styles.tabItem}
@@ -1304,7 +1332,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 style={[
                   styles.tabText,
                   activeTab === tab && styles.tabTextActive,
-                  activeTab === tab && { fontFamily: FONTS.semiBold },
                 ]}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -1416,6 +1443,379 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     This community hasn't posted any polls, prompts, or
                     challenges yet.
                   </Text>
+                </View>
+              );
+            })()}
+
+          {/* Events Tab */}
+          {activeTab === "events" &&
+            (() => {
+              if (communityEvents.length === 0) {
+                return (
+                  <View style={styles.emptyPostsContainer}>
+                    <Text
+                      style={[styles.emptyPostsText, { fontWeight: "bold" }]}
+                    >
+                      No events yet
+                    </Text>
+                    <Text style={styles.emptyPostsSubtext}>
+                      This community hasn't hosted any events yet.
+                    </Text>
+                  </View>
+                );
+              }
+
+              const formatEventDate = (dateString) => {
+                const date = new Date(dateString);
+                const day = date.getDate();
+                const months = [
+                  "Jan",
+                  "Feb",
+                  "Mar",
+                  "Apr",
+                  "May",
+                  "Jun",
+                  "Jul",
+                  "Aug",
+                  "Sep",
+                  "Oct",
+                  "Nov",
+                  "Dec",
+                ];
+                return `${day} ${months[date.getMonth()]}`;
+              };
+              const formatEventTime = (dateString) => {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString("en-IN", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                });
+              };
+              const getLowestPrice = (item) => {
+                if (item.ticket_types && item.ticket_types.length > 0) {
+                  const prices = item.ticket_types
+                    .map((t) => parseFloat(t.base_price) || 0)
+                    .filter((p) => p > 0);
+                  if (prices.length > 0) return Math.min(...prices);
+                }
+                if (item.min_price && parseFloat(item.min_price) > 0)
+                  return parseFloat(item.min_price);
+                if (item.base_price && parseFloat(item.base_price) > 0)
+                  return parseFloat(item.base_price);
+                return null;
+              };
+              const monthNames = [
+                "JAN",
+                "FEB",
+                "MAR",
+                "APR",
+                "MAY",
+                "JUN",
+                "JUL",
+                "AUG",
+                "SEP",
+                "OCT",
+                "NOV",
+                "DEC",
+              ];
+
+              return (
+                <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                  {communityEvents.map((item) => {
+                    const displayImage =
+                      item.banner_carousel?.[0]?.image_url ||
+                      item.banner_url ||
+                      item.image_url;
+                    const lowestPrice = getLowestPrice(item);
+                    const dateObj = new Date(
+                      item.event_date || item.start_datetime,
+                    );
+                    const month = monthNames[dateObj.getMonth()];
+                    const day = dateObj.getDate();
+                    const isPast = dateObj < new Date();
+                    const isCancelled = item.is_cancelled;
+                    const locationDisplay =
+                      item.event_type === "virtual"
+                        ? "Virtual Event"
+                        : item.location_name || item.venue_name || "In-person";
+
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          navigation.navigate("EventDetails", {
+                            eventId: item.id,
+                            eventData: item,
+                          })
+                        }
+                        style={{
+                          backgroundColor: COLORS.surface,
+                          borderRadius: 20,
+                          marginBottom: 24,
+                          overflow: "hidden",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.06,
+                          shadowRadius: 6,
+                          elevation: 4,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: "100%",
+                            height: 200,
+                            position: "relative",
+                          }}
+                        >
+                          {displayImage ? (
+                            <Image
+                              source={{ uri: displayImage }}
+                              style={{ width: "100%", height: "100%" }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <LinearGradient
+                              colors={getGradientForName(item.title || "Event")}
+                              style={{ width: "100%", height: "100%" }}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                            />
+                          )}
+                          {isPast && (
+                            <View
+                              style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: "rgba(0,0,0,0.08)",
+                              }}
+                            />
+                          )}
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 12,
+                              left: 12,
+                              backgroundColor: "rgba(255,255,255,0.95)",
+                              paddingHorizontal: 8,
+                              paddingVertical: 6,
+                              borderRadius: 10,
+                              alignItems: "center",
+                              minWidth: 44,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                fontFamily: FONTS.semiBold,
+                                color: PRIMARY_COLOR,
+                                marginBottom: 2,
+                              }}
+                            >
+                              {month}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontFamily: FONTS.primary,
+                                color: TEXT_COLOR,
+                              }}
+                            >
+                              {day}
+                            </Text>
+                          </View>
+                          {isCancelled && (
+                            <View
+                              style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: "rgba(0,0,0,0.5)",
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontFamily: FONTS.primary,
+                                  color: "#FFFFFF",
+                                  letterSpacing: 1,
+                                }}
+                              >
+                                CANCELLED
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ padding: 16 }}>
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontFamily: FONTS.semiBold,
+                              color: TEXT_COLOR,
+                              marginBottom: 10,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {item.title}
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={14}
+                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontFamily: FONTS.regular,
+                                color: isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR,
+                              }}
+                            >
+                              {formatEventDate(
+                                item.event_date || item.start_datetime,
+                              )}{" "}
+                              •{" "}
+                              {formatEventTime(
+                                item.event_date || item.start_datetime,
+                              )}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Ionicons
+                              name={
+                                item.event_type === "virtual"
+                                  ? "videocam-outline"
+                                  : "location-outline"
+                              }
+                              size={14}
+                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontFamily: FONTS.regular,
+                                color: isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {locationDisplay}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              marginTop: 12,
+                              paddingTop: 12,
+                              borderTopWidth: 1,
+                              borderTopColor: "#F3F4F6",
+                            }}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#E5E7EB",
+                                    zIndex: 3,
+                                  }}
+                                />
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#D1D5DB",
+                                    marginLeft: -8,
+                                    zIndex: 2,
+                                  }}
+                                />
+                                <View
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    borderWidth: 2,
+                                    borderColor: "#FFFFFF",
+                                    backgroundColor: "#9CA3AF",
+                                    marginLeft: -8,
+                                    zIndex: 1,
+                                  }}
+                                />
+                              </View>
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  fontFamily: FONTS.medium,
+                                  color: "#36454F",
+                                  marginLeft: 6,
+                                }}
+                              >
+                                +
+                                {item.attendee_count ||
+                                  item.registration_count ||
+                                  0}
+                              </Text>
+                            </View>
+                            <View>
+                              {lowestPrice ? (
+                                <Text
+                                  style={{
+                                    fontSize: 16,
+                                    fontFamily: FONTS.semiBold,
+                                    color: "#36454F",
+                                  }}
+                                >
+                                  ₹{lowestPrice}
+                                </Text>
+                              ) : (
+                                <Text
+                                  style={{
+                                    fontSize: 16,
+                                    fontFamily: FONTS.semiBold,
+                                    color: "#5fab56",
+                                  }}
+                                >
+                                  Free
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               );
             })()}

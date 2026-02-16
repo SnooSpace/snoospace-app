@@ -72,7 +72,7 @@ export async function discoverEvents(options = {}) {
   return apiGet(
     `/events/discover?limit=${limit}&offset=${offset}`,
     15000,
-    token
+    token,
   );
 }
 
@@ -91,10 +91,10 @@ export async function searchEvents(query, options = {}) {
   const upcoming = upcomingOnly ? "true" : "false";
   return apiGet(
     `/events/search?q=${encodeURIComponent(
-      query
+      query,
     )}&limit=${limit}&offset=${offset}&upcoming_only=${upcoming}`,
     15000,
-    token
+    token,
   );
 }
 
@@ -211,7 +211,7 @@ export async function requestEventInvite(eventId, message = null) {
     `/events/${eventId}/request-invite`,
     { message },
     15000,
-    token
+    token,
   );
 }
 
@@ -228,7 +228,7 @@ export async function requestEventInvite(eventId, message = null) {
  * @returns {Promise<Object>} List of events
  */
 export async function getCommunityPublicEvents(communityId, options = {}) {
-  const { limit = 20, offset = 0, type = "upcoming" } = options;
+  const { limit = 20, offset = 0, type = "all" } = options;
   const token = await (await import("./auth")).getAuthToken();
   const params = new URLSearchParams({
     limit: String(limit),
@@ -238,7 +238,7 @@ export async function getCommunityPublicEvents(communityId, options = {}) {
   return apiGet(
     `/communities/${communityId}/events/public?${params.toString()}`,
     15000,
-    token
+    token,
   );
 }
 
@@ -254,7 +254,7 @@ export async function confirmAttendance(eventId, attended) {
     `/events/${eventId}/confirm-attendance`,
     { attended },
     15000,
-    token
+    token,
   );
 }
 
@@ -281,7 +281,7 @@ export async function reserveTickets(eventId, tickets) {
     `/events/${eventId}/reserve-tickets`,
     { tickets },
     15000,
-    token
+    token,
   );
 }
 
@@ -298,6 +298,6 @@ export async function releaseReservation(eventId, sessionId) {
     `/events/${eventId}/release-reservation`,
     { sessionId },
     15000,
-    token
+    token,
   );
 }
