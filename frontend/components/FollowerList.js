@@ -9,15 +9,25 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
+import { COLORS, FONTS } from "../constants/theme";
 import PropTypes from "prop-types";
 import EventBus from "../utils/EventBus";
 import SkeletonUserCard from "./SkeletonUserCard";
 
 const PAGE_SIZE = 30;
-const DEFAULT_PRIMARY = "#6A0DAD";
+const DEFAULT_PRIMARY = COLORS.primary;
+
+// Helper to create rgba from hex
+const hexToRgba = (hex, alpha) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 /**
  * Shared followers/following list component used by both member and community flows.
@@ -34,6 +44,7 @@ export default function FollowerList({
   primaryColor = DEFAULT_PRIMARY,
   placeholderImage = "https://via.placeholder.com/64",
 }) {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -221,7 +232,7 @@ export default function FollowerList({
               style={[
                 styles.followBtn,
                 item.isFollowing
-                  ? styles.followingBtn
+                  ? styles.followingBtn(primaryColor)
                   : styles.followBtnPrimary(primaryColor),
               ]}
               onPress={() =>
@@ -236,7 +247,7 @@ export default function FollowerList({
                 style={[
                   styles.followText,
                   item.isFollowing
-                    ? styles.followingText
+                    ? styles.followingText(primaryColor)
                     : styles.followTextPrimary,
                 ]}
               >
@@ -267,13 +278,13 @@ export default function FollowerList({
   }, [emptyMessage, loading]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity
           onPress={() => navigation?.goBack?.()}
           style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
+          <ArrowLeft size={24} color="#1D1D1F" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{title}</Text>
         <View style={styles.headerSpacer} />
@@ -311,7 +322,7 @@ export default function FollowerList({
           ListEmptyComponent={listEmptyComponent}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -333,14 +344,17 @@ FollowerList.propTypes = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   header: {
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingBottom: 8,
+    // borderBottomWidth: 1, // Removed to "remove" header visual
+    // borderBottomColor: "#E5E5EA",
   },
   backBtn: {
     width: 40,
@@ -352,7 +366,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Black", // Updated font
     color: "#1D1D1F",
   },
   headerSpacer: {
@@ -383,12 +397,13 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     color: "#1D1D1F",
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold", // Updated font
   },
   username: {
     fontSize: 14,
     color: "#8E8E93",
     marginTop: 2,
+    fontFamily: "Manrope-Medium", // Updated font
   },
   followBtn: {
     paddingHorizontal: 12,
@@ -401,24 +416,30 @@ const styles = StyleSheet.create({
     backgroundColor: primaryColor,
     borderColor: primaryColor,
   }),
-  followingBtn: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#E5E5EA",
+  followingBtn: (primaryColor) => {
+    // Dynamic tinted background for following state
+    const bg = hexToRgba(primaryColor, 0.12);
+    const border = hexToRgba(primaryColor, 0.2);
+    return {
+      backgroundColor: bg,
+      borderColor: border,
+    };
   },
   followText: {
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   followTextPrimary: {
     color: "#FFFFFF",
+    fontFamily: FONTS.semiBold,
   },
-  followingText: {
-    color: "#1D1D1F",
-  },
+  followingText: (primaryColor) => ({
+    color: primaryColor,
+    fontFamily: FONTS.medium,
+  }),
   loadingContainer: {
     flex: 1,
-    // alignItems: "center", // Removed to allow full width list
-    // justifyContent: "center", // Removed to allow list to start from top
   },
   emptyContainer: {
     flex: 1,

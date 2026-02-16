@@ -42,6 +42,7 @@ import {
   SPACING,
   BORDER_RADIUS,
   SHADOWS,
+  FONTS,
 } from "../../../constants/theme";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -418,8 +419,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <ArrowLeft size={24} color="#1D1D1F" />
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
+        {profile?.username && (
+          <Text style={styles.headerUsername}>@{profile.username}</Text>
+        )}
       </View>
 
       {loading ? (
@@ -468,62 +472,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     {profile?.full_name || "Member"}
                   </Text>
                   {Array.isArray(profile?.pronouns) &&
-                  profile.pronouns.length > 0 ? (
+                  profile.pronouns.filter((p) => p !== "Prefer not to say")
+                    .length > 0 ? (
                     <View style={styles.pronounsRowCentered}>
                       <View
                         key={`p-0`}
                         style={[styles.chip, styles.pronounChipSmall]}
                       >
                         <Text style={styles.chipText}>
-                          {String(profile.pronouns[0]).replace(
-                            /^[{\"]+|[}\"]+$/g,
-                            "",
-                          )}
+                          {profile.pronouns
+                            .filter((p) => p !== "Prefer not to say")
+                            .map((p) =>
+                              String(p).replace(/^[{\"]+|[}\"]+$/g, ""),
+                            )
+                            .join(" / ")}
                         </Text>
                       </View>
-                      {profile.pronouns.length > 1 && !showAllPronouns ? (
-                        <TouchableOpacity
-                          onPress={() => setShowAllPronouns(true)}
-                          style={[styles.chip, styles.pronounChipSmall]}
-                        >
-                          <Text style={styles.chipText}>
-                            +{profile.pronouns.length - 1}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      {profile.pronouns.length > 1 && showAllPronouns ? (
-                        <TouchableOpacity
-                          onPress={() => setShowAllPronouns(false)}
-                          style={[
-                            styles.chip,
-                            styles.pronounChipSmall,
-                            styles.chipRed,
-                          ]}
-                        >
-                          <Text style={[styles.chipText, styles.chipTextRed]}>
-                            -
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
                     </View>
                   ) : null}
                 </View>
-                {Array.isArray(profile?.pronouns) &&
-                profile.pronouns.length > 1 &&
-                showAllPronouns ? (
-                  <View style={styles.expandedPronounsRow}>
-                    {profile.pronouns.slice(1).map((p, idx) => (
-                      <View
-                        key={`p-expanded-${idx}`}
-                        style={[styles.chip, styles.pronounChipSmall]}
-                      >
-                        <Text style={styles.chipText}>
-                          {String(p).replace(/^[{\"]+|[}\"]+$/g, "")}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
                 {!!profile?.bio && renderBio(profile.bio)}
 
                 <View style={styles.statsContainer}>
@@ -830,17 +797,35 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  headerLeft: {
+    // keeping for consistency if needed, but unused in new layout
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+  },
+  headerUsername: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#3B82F6",
+    marginTop: 10, // Separate line
+    fontWeight: "600",
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignSelf: "flex-start",
   },
   profileHeader: {
     alignItems: "center",
@@ -864,15 +849,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
   },
   profileImage: {
-    width: 120,
-    height: 120,
+    width: 125,
+    height: 125,
     borderRadius: 60,
     backgroundColor: "#F2F2F7",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   profileName: {
+    fontFamily: FONTS.primary,
     fontSize: 24,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: "#0F172A",
     textAlign: "center",
   },
   displayName: {
@@ -915,8 +902,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
   },
   bioLeft: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
-    color: PRIMARY_COLOR,
+    color: "#1f2937",
     marginBottom: 20,
     textAlign: "left",
     alignSelf: "flex-start",
@@ -944,19 +932,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chip: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999, // Pill shape
+    marginRight: 8,
+    marginBottom: 8,
     backgroundColor: "#F2F2F7",
   },
   chipGridItem: {
-    width: (screenWidth - 40 - 8 * 3) / 4,
+    // width removed to prevent truncation
     alignItems: "center",
   },
   chipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: PRIMARY_COLOR,
+    color: "#374151",
   },
   chipBlue: {
     backgroundColor: "#E1F0FF",
@@ -977,8 +967,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     width: "100%",
     marginBottom: 20,
-    paddingHorizontal: 24,
-    marginTop: 14,
   },
   countsRowCenter: {
     flexDirection: "row",
@@ -995,9 +983,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statNumber: {
+    fontFamily: FONTS.primary,
     fontSize: 20,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
+    color: "#0F172A",
     marginBottom: 5,
   },
   countNumLg: {
@@ -1007,9 +995,9 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   statLabel: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
+    color: "#6B7280",
   },
   countLabel: {
     fontSize: 14,

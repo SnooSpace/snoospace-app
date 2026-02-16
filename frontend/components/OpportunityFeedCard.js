@@ -221,7 +221,7 @@ const OpportunityFeedCard = ({
             style={styles.authorAvatar}
           />
           <Text style={styles.authorUsername} numberOfLines={1}>
-            {username}
+            {opportunity.creator_name || "Anonymous"}
           </Text>
           <Text style={styles.separator}>•</Text>
           <Text style={styles.timestamp}>
@@ -510,10 +510,10 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   authorUsername: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    maxWidth: 120,
+    fontSize: 16,
+    color: "#1D1D1F",
+    fontFamily: "BasicCommercial-Bold",
+    maxWidth: 160,
   },
   separator: {
     fontSize: 13,

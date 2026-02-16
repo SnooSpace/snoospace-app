@@ -17,10 +17,11 @@ import EventBus from "../../utils/EventBus";
 
 // Color mapping by user type
 const COLORS = {
-  member: "#6A0DAD",
-  community: "#5f27cd",
+  member: "#2962FF", // Updated to Blue
+  community: "#2962FF",
   sponsor: "#5f27cd",
   venue: "#5f27cd",
+  // member: "#6A0DAD", // Old Purple
 };
 
 // API function mapping

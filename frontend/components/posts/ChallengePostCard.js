@@ -586,7 +586,7 @@ const ChallengePostCard = ({
             style={styles.authorAvatar}
           />
           <Text style={styles.authorName} numberOfLines={1}>
-            @{post.author_username || post.author_name}
+            {post.author_name || post.author_username}
           </Text>
           <Text style={styles.separator}>•</Text>
           <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>

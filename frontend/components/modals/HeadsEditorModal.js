@@ -1028,9 +1028,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   linkButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     color: TEXT_COLOR,
-    fontFamily: FONTS.medium,
+    fontFamily: "BasicCommercial-Bold",
+    marginLeft: 6,
   },
   footerRow: {
     flexDirection: "row",
@@ -1143,9 +1144,8 @@ const styles = StyleSheet.create({
   },
   linkTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
-    fontFamily: FONTS.primary,
   },
   linkSearchInput: {
     borderWidth: 1,
@@ -1192,14 +1192,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   linkResultName: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
     color: TEXT_COLOR,
+    fontFamily: "BasicCommercial-Bold",
     marginBottom: 2,
   },
   linkResultUsername: {
-    fontSize: 14,
+    fontSize: 13,
     color: LIGHT_TEXT,
+    fontFamily: "Manrope-Medium",
   },
   linkSeparator: {
     height: 1,

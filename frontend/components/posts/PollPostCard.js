@@ -442,7 +442,7 @@ const PollPostCard = ({
             style={styles.profileImage}
           />
           <Text style={styles.authorName}>
-            @{post.author_username || post.author_name}
+            {post.author_name || post.author_username}
           </Text>
           <Text style={styles.separator}>•</Text>
           <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
@@ -665,9 +665,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   authorName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#314151",
+    fontSize: 16,
+    color: "#1D1D1F",
+    fontFamily: "BasicCommercial-Bold",
   },
   separator: {
     fontSize: 13,
