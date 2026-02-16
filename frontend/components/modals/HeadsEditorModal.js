@@ -108,6 +108,16 @@ export default function HeadsEditorModal({
 }) {
   const { pickAndCrop } = useCrop();
   const [croppingIndex, setCroppingIndex] = useState(-1);
+
+  // Custom Alert State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    type: null, // "import" | "options"
+    title: "",
+    message: "",
+    data: null, // Context data (e.g., member info, index)
+  });
+
   const [heads, setHeads] = useState(() => initialHeads.map((h) => ({ ...h })));
   const [saving, setSaving] = useState(false);
   const [linkingIndex, setLinkingIndex] = useState(-1);
@@ -284,22 +294,15 @@ export default function HeadsEditorModal({
 
       // Prompt to auto-import profile pic if the linked member has one
       if (member.profile_photo_url) {
-        const memberName =
-          member.full_name || member.name || member.username || "this member";
-        Alert.alert(
-          "Import Profile Photo",
-          `Use ${memberName}'s profile photo as this head's avatar?`,
-          [
-            { text: "No", style: "cancel" },
-            {
-              text: "Yes",
-              onPress: () => {
-                updateField(idx, "profile_pic_url", member.profile_photo_url);
-                HapticsService.triggerNotificationSuccess();
-              },
-            },
-          ],
-        );
+        setAlertConfig({
+          visible: true,
+          type: "import",
+          title: "Import Profile Photo",
+          message: `Use ${
+            member.full_name || member.name || member.username || "this member"
+          }'s profile photo as this head's avatar?`,
+          data: { index: idx, photoUrl: member.profile_photo_url },
+        });
       }
     },
     [linkingIndex, updateField, closeLinkModal],
@@ -334,42 +337,30 @@ export default function HeadsEditorModal({
   const pickAvatar = useCallback(
     (idx, hasPhoto) => {
       if (hasPhoto) {
-        Alert.alert("Profile Photo", "What would you like to do?", [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove Photo",
-            style: "destructive",
-            onPress: () => removeAvatar(idx),
-          },
-          {
-            text: "Change Photo",
-            onPress: () => doCropAndUpload(idx),
-          },
-        ]);
+        setAlertConfig({
+          visible: true,
+          type: "options",
+          title: "Profile Photo",
+          message: "What would you like to do?",
+          data: { index: idx },
+        });
       } else {
         doCropAndUpload(idx);
       }
     },
-    [doCropAndUpload, removeAvatar],
+    [doCropAndUpload],
   );
 
-  const confirmUnlink = useCallback(
-    (idx) => {
-      Alert.alert(
-        "Unlink Profile",
+  const confirmUnlink = useCallback((idx) => {
+    setAlertConfig({
+      visible: true,
+      type: "unlink",
+      title: "Unlink Profile",
+      message:
         "Are you sure you want to remove the link to this member profile?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Unlink",
-            style: "destructive",
-            onPress: () => clearLink(idx),
-          },
-        ],
-      );
-    },
-    [clearLink],
-  );
+      data: { index: idx },
+    });
+  }, []);
 
   const validate = (list) => {
     if (!list || list.length === 0) return "Add at least one head";
@@ -735,6 +726,119 @@ export default function HeadsEditorModal({
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={alertConfig.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setAlertConfig((prev) => ({ ...prev, visible: false }))
+        }
+        statusBarTranslucent={true}
+      >
+        <TouchableWithoutFeedback
+          onPress={() =>
+            setAlertConfig((prev) => ({ ...prev, visible: false }))
+          }
+        >
+          <View style={styles.alertOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.alertContainer}>
+                {alertConfig.type === "options" && (
+                  <TouchableOpacity
+                    style={styles.alertCloseBtn}
+                    onPress={() =>
+                      setAlertConfig((prev) => ({ ...prev, visible: false }))
+                    }
+                  >
+                    <X size={24} color={TEXT_COLOR} />
+                  </TouchableOpacity>
+                )}
+
+                <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+                <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+
+                {alertConfig.type === "import" && (
+                  <View style={styles.alertActionsRow}>
+                    <TouchableOpacity
+                      style={styles.alertBtn}
+                      onPress={() =>
+                        setAlertConfig((prev) => ({ ...prev, visible: false }))
+                      }
+                    >
+                      <Text style={styles.alertBtnTextCancel}>NO</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.alertBtn}
+                      onPress={() => {
+                        const { index, photoUrl } = alertConfig.data;
+                        updateField(index, "profile_pic_url", photoUrl);
+                        HapticsService.triggerNotificationSuccess();
+                        setAlertConfig((prev) => ({ ...prev, visible: false }));
+                      }}
+                    >
+                      <Text style={styles.alertBtnTextPrimary}>YES</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {alertConfig.type === "unlink" && (
+                  <View style={styles.alertActionsRow}>
+                    <TouchableOpacity
+                      style={styles.alertBtn}
+                      onPress={() =>
+                        setAlertConfig((prev) => ({ ...prev, visible: false }))
+                      }
+                    >
+                      <Text style={styles.alertBtnTextCancel}>CANCEL</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.alertBtn}
+                      onPress={() => {
+                        const { index } = alertConfig.data;
+                        clearLink(index);
+                        setAlertConfig((prev) => ({ ...prev, visible: false }));
+                      }}
+                    >
+                      <Text style={styles.alertBtnTextDestructive}>UNLINK</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {alertConfig.type === "options" && (
+                  <View style={styles.alertActionsStack}>
+                    <TouchableOpacity
+                      style={styles.alertStackBtn}
+                      onPress={() => {
+                        const { index } = alertConfig.data;
+                        setAlertConfig((prev) => ({ ...prev, visible: false }));
+                        setTimeout(() => doCropAndUpload(index), 200);
+                      }}
+                    >
+                      <Text style={styles.alertStackBtnTextBlue}>
+                        CHANGE PHOTO
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.alertStackBtn}
+                      onPress={() => {
+                        const { index } = alertConfig.data;
+                        removeAvatar(index);
+                        setAlertConfig((prev) => ({ ...prev, visible: false }));
+                      }}
+                    >
+                      <Text style={styles.alertStackBtnTextRed}>
+                        REMOVE PHOTO
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </>
   );
 }
@@ -1065,41 +1169,132 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkResults: {
-    marginTop: 12,
-    maxHeight: 300,
+    maxHeight: height * 0.4,
   },
   linkResultItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
     paddingVertical: 12,
   },
   linkResultAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: "#F2F2F7",
   },
   linkResultAvatarPlaceholder: {
-    backgroundColor: "#F2F2F7",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   linkResultMeta: {
     flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
   },
   linkResultName: {
     fontSize: 16,
     fontWeight: "600",
     color: TEXT_COLOR,
-    fontFamily: FONTS.primary,
+    marginBottom: 2,
   },
   linkResultUsername: {
     fontSize: 14,
     color: LIGHT_TEXT,
-    fontFamily: FONTS.medium,
   },
   linkSeparator: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: "#F2F2F7",
+  },
+
+  // Alert Modal Styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.l,
+  },
+  alertContainer: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    ...SHADOWS.md,
+    position: "relative",
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary, // BasicCommercial
+    color: "#000",
+    textAlign: "center",
+    marginBottom: 8,
+    fontWeight: "700",
+  },
+  alertMessage: {
+    fontSize: 15,
+    fontFamily: FONTS.medium, // Manrope
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  alertActionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+    paddingHorizontal: 12,
+  },
+  alertBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  alertBtnTextCancel: {
+    fontSize: 14,
+    color: COLORS.primary, // Using primary color for consistency with reference
+    letterSpacing: 0.5,
+    fontFamily: FONTS.semiBold,
+  },
+  alertBtnTextPrimary: {
+    fontSize: 14,
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+    fontFamily: FONTS.semiBold,
+  },
+  alertBtnTextDestructive: {
+    fontSize: 14,
+    color: COLORS.error,
+    letterSpacing: 0.5,
+    fontFamily: FONTS.semiBold,
+  },
+  alertActionsStack: {
+    width: "100%",
+    gap: 16,
+    alignItems: "center",
+  },
+  alertStackBtn: {
+    paddingVertical: 8,
+  },
+  alertStackBtnTextBlue: {
+    fontSize: 14,
+    color: "#007AFF", // Standard blue for action
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    fontFamily: FONTS.semiBold,
+  },
+  alertStackBtnTextRed: {
+    fontSize: 14,
+    color: "#d32f2f",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    fontFamily: FONTS.semiBold,
+  },
+  alertCloseBtn: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    padding: 4,
   },
 });
