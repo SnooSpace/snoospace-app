@@ -44,7 +44,7 @@ import {
 import EventBus from "../../../utils/EventBus";
 import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
-import { apiPost, apiDelete } from "../../../api/client";
+import { apiPost, apiDelete, apiGet } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
 import {
   getGradientForName,
@@ -305,6 +305,20 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     marginTop: 10,
   },
+  gridItem: {
+    backgroundColor: "#F2F2F7",
+    position: "relative",
+  },
+  gridImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  gridPlaceholder: {
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   emptyPostsContainer: {
     paddingVertical: 40,
     alignItems: "center",
@@ -384,14 +398,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     if (layout) {
       Animated.parallel([
         Animated.spring(tabUnderlineX, {
-          toValue: layout.x + layout.width * 0.2,
-          useNativeDriver: true,
+          toValue: layout.x,
+          useNativeDriver: false,
           tension: 50,
           friction: 8,
         }),
         Animated.spring(tabUnderlineScale, {
-          toValue: layout.width * 0.6,
-          useNativeDriver: true,
+          toValue: layout.width,
+          useNativeDriver: false,
           tension: 50,
           friction: 8,
         }),
@@ -435,6 +449,27 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         const rawPosts = reset
           ? data?.posts || data || []
           : [...posts, ...(data?.posts || data || [])];
+
+        // DEBUG: Log raw post data to understand structure
+        if (rawPosts.length > 0) {
+          console.log(
+            "[CommunityPublicProfile] DEBUG - First 3 posts raw data:",
+            rawPosts.slice(0, 3).map((p) => ({
+              id: p.id,
+              post_type: p.post_type,
+              type: p.type,
+              has_image_urls: !!p.image_urls,
+              image_urls_type: typeof p.image_urls,
+              image_urls_length: Array.isArray(p.image_urls)
+                ? p.image_urls.length
+                : "not array",
+              image_urls_value: p.image_urls,
+              has_video_url: !!p.video_url,
+              video_url: p.video_url,
+            })),
+          );
+        }
+
         // Normalize is_liked field for all posts - ensure it's explicitly true or false
         const normalizedPosts = rawPosts.map((post) => ({
           ...post,
@@ -446,22 +481,35 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         const mergedPosts =
           await LikeStateManager.mergeLikeStates(normalizedPosts);
 
-        console.log(
-          "[CommunityPublicProfile] loadPosts - Setting posts, first post:",
-          mergedPosts[0]
-            ? {
-                id: mergedPosts[0].id,
-                is_liked: mergedPosts[0].is_liked,
-                like_count: mergedPosts[0].like_count,
-              }
-            : "NO POSTS",
+        // DEBUG: Log filter results
+        const dbgInteractive = [
+          "poll",
+          "prompt",
+          "qna",
+          "challenge",
+          "opportunity",
+        ];
+        const dbgMedia = mergedPosts.filter(
+          (p) => !dbgInteractive.includes(p.post_type || p.type),
         );
+        console.log("[CommunityPublicProfile] DEBUG - Filter results:", {
+          totalPosts: mergedPosts.length,
+          mediaPostsCount: dbgMedia.length,
+          interactiveCount: mergedPosts.length - dbgMedia.length,
+          firstPostFields: mergedPosts[0]
+            ? Object.keys(mergedPosts[0]).join(",")
+            : "none",
+          firstPostType:
+            mergedPosts[0]?.post_type || mergedPosts[0]?.type || "undefined",
+        });
+
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
         const nextOffset = (reset ? 0 : offset) + received;
         setOffset(nextOffset);
         setHasMore(received >= 21);
       } catch (e) {
+        console.error("[CommunityPublicProfile] loadPosts error:", e);
         setError(e?.message || "Failed to load posts");
       } finally {
         setLoadingMore(false);
@@ -699,11 +747,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           styles.gridItem,
           {
             width: ITEM_SIZE,
-            height: ITEM_SIZE * 1.35, // Portrait aspect ratio
-            marginBottom: 0,
-            marginRight: 0, // Handled by gap
-            borderRadius: 3, // Subtle radius
-            overflow: "hidden", // Ensure image clips to radius
+            height: ITEM_SIZE * 1.35,
+            borderRadius: 3,
+            overflow: "hidden",
           },
         ]}
       >
@@ -1180,7 +1226,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               styles.activeTabIndicator,
               {
                 transform: [{ translateX: tabUnderlineX }],
-                width: tabUnderlineScale,
+                width: tabUnderlineScale, // This should be working if state is correct
               },
             ]}
           />
@@ -1190,23 +1236,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           {/* Posts Tab - Media Only (Images/Videos) */}
           {activeTab === "posts" &&
             (() => {
+              const INTERACTIVE_TYPES = [
+                "poll",
+                "prompt",
+                "qna",
+                "challenge",
+                "opportunity",
+              ];
               const mediaPosts = posts.filter((p) => {
-                // Exclude interactive post types from Posts tab
                 const postType = p.post_type || p.type;
-                const isInteractive = [
-                  "poll",
-                  "prompt",
-                  "qna",
-                  "challenge",
-                  "opportunity",
-                ].includes(postType);
-
-                // Only show media posts that are NOT interactive types
-                const hasImages = p.image_urls && p.image_urls.length > 0;
-                const hasVideo = !!p.video_url;
-                const hasMedia = hasImages || hasVideo;
-
-                return hasMedia && !isInteractive;
+                return !INTERACTIVE_TYPES.includes(postType);
               });
 
               return mediaPosts.length > 0 ? (
