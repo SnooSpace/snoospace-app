@@ -26,7 +26,7 @@ import {
   ChevronRight,
   Star,
 } from "lucide-react-native";
-import { launchImageLibraryAsync, MediaTypeOptions } from "expo-image-picker";
+import { useCrop } from "../MediaCrop";
 import { LinearGradient } from "expo-linear-gradient";
 import { uploadImage } from "../../api/cloudinary";
 import { apiGet } from "../../api/client";
@@ -106,6 +106,8 @@ export default function HeadsEditorModal({
   onSave,
   maxHeads = 3,
 }) {
+  const { pickAndCrop } = useCrop();
+  const [croppingIndex, setCroppingIndex] = useState(-1);
   const [heads, setHeads] = useState(() => initialHeads.map((h) => ({ ...h })));
   const [saving, setSaving] = useState(false);
   const [linkingIndex, setLinkingIndex] = useState(-1);
@@ -269,40 +271,86 @@ export default function HeadsEditorModal({
   const handleSelectMember = useCallback(
     (member) => {
       if (linkingIndex === -1) return;
-      updateField(linkingIndex, "member_id", member.id);
+      const idx = linkingIndex;
+      updateField(idx, "member_id", member.id);
       updateField(
-        linkingIndex,
+        idx,
         "member_username",
         member.username || member.full_name || member.name || "member",
       );
-      updateField(
-        linkingIndex,
-        "member_photo_url",
-        member.profile_photo_url || null,
-      );
+      updateField(idx, "member_photo_url", member.profile_photo_url || null);
       closeLinkModal();
       HapticsService.triggerSelection();
+
+      // Prompt to auto-import profile pic if the linked member has one
+      if (member.profile_photo_url) {
+        const memberName =
+          member.full_name || member.name || member.username || "this member";
+        Alert.alert(
+          "Import Profile Photo",
+          `Use ${memberName}'s profile photo as this head's avatar?`,
+          [
+            { text: "No", style: "cancel" },
+            {
+              text: "Yes",
+              onPress: () => {
+                updateField(idx, "profile_pic_url", member.profile_photo_url);
+                HapticsService.triggerNotificationSuccess();
+              },
+            },
+          ],
+        );
+      }
     },
     [linkingIndex, updateField, closeLinkModal],
   );
 
-  const pickAvatar = useCallback(
+  const doCropAndUpload = useCallback(
     async (idx) => {
       try {
-        const picker = await launchImageLibraryAsync({
-          mediaTypes: MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.9,
-        });
-        if (picker.canceled || !picker.assets || !picker.assets[0]) return;
-        const url = await uploadImage(picker.assets[0].uri);
+        setCroppingIndex(idx);
+        const result = await pickAndCrop("avatar");
+        setCroppingIndex(-1);
+        if (!result) return;
+        const url = await uploadImage(result.uri);
         updateField(idx, "profile_pic_url", url);
+        HapticsService.triggerNotificationSuccess();
       } catch (e) {
+        setCroppingIndex(-1);
         Alert.alert("Upload failed", e?.message || "Could not upload");
       }
     },
+    [updateField, pickAndCrop],
+  );
+
+  const removeAvatar = useCallback(
+    (idx) => {
+      updateField(idx, "profile_pic_url", null);
+      HapticsService.triggerImpactMedium();
+    },
     [updateField],
+  );
+
+  const pickAvatar = useCallback(
+    (idx, hasPhoto) => {
+      if (hasPhoto) {
+        Alert.alert("Profile Photo", "What would you like to do?", [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove Photo",
+            style: "destructive",
+            onPress: () => removeAvatar(idx),
+          },
+          {
+            text: "Change Photo",
+            onPress: () => doCropAndUpload(idx),
+          },
+        ]);
+      } else {
+        doCropAndUpload(idx);
+      }
+    },
+    [doCropAndUpload, removeAvatar],
   );
 
   const confirmUnlink = useCallback(
@@ -419,12 +467,14 @@ export default function HeadsEditorModal({
           <View style={styles.avatarContainer}>
             <TouchableOpacity
               style={styles.avatarWrapper}
-              onPress={() => pickAvatar(index)}
+              onPress={() => pickAvatar(index, !!item.profile_pic_url)}
               activeOpacity={0.9}
             >
               {item.profile_pic_url ? (
                 <Image
-                  source={{ uri: item.profile_pic_url }}
+                  source={{
+                    uri: item.profile_pic_url,
+                  }}
                   style={styles.avatarImg}
                 />
               ) : (
@@ -524,7 +574,7 @@ export default function HeadsEditorModal({
   return (
     <>
       <Modal
-        visible={visible}
+        visible={visible && croppingIndex === -1}
         transparent
         animationType="fade"
         onRequestClose={onCancel}

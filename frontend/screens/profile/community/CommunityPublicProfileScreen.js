@@ -25,6 +25,7 @@ import {
   Pencil,
   ArrowLeft,
   Play,
+  Star,
   Image as LucideImage,
 } from "lucide-react-native";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
@@ -247,6 +248,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: PRIMARY_COLOR,
     fontWeight: "600",
+  },
+  primaryStarGradient: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 2,
   },
   headSub: {
     fontSize: 13,
@@ -1204,10 +1213,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       onPress={() => handleHeadPress(head)}
                       disabled={!canNavigate}
                     >
-                      {head.profile_pic_url || head.member_photo_url ? (
+                      {head.profile_pic_url ? (
                         <Image
                           source={{
-                            uri: head.profile_pic_url || head.member_photo_url,
+                            uri: head.profile_pic_url,
                           }}
                           style={styles.headAvatar}
                         />
@@ -1235,7 +1244,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.headName}>{head.name}</Text>
                         {head.is_primary && (
-                          <Text style={styles.primaryTag}>Primary</Text>
+                          <LinearGradient
+                            colors={["#FFF1F2", "#FFE4E6"]}
+                            style={styles.primaryStarGradient}
+                          >
+                            <Star size={14} color="#E11D48" fill="#E11D48" />
+                          </LinearGradient>
                         )}
                         {head.email && (
                           <Text style={styles.headSub}>{head.email}</Text>
