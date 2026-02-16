@@ -19,7 +19,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X, Video } from "lucide-react-native";
+import { Camera, Info, X, Video, Trophy } from "lucide-react-native";
 import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
@@ -426,7 +426,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           loading={isSubmitting}
           style={[
             {
-              minWidth: 80,
+              width: 80,
               paddingHorizontal: 0,
               paddingVertical: 0,
               borderRadius: 20,
@@ -626,12 +626,12 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             }}
             style={styles.toolbarButton}
           >
-            <Ionicons
-              name="trophy-outline"
-              size={28}
+            <Trophy
+              size={32}
               color={
                 showEntityTagger ? "#FF6B35" : COLORS.editorial.textSecondary
               }
+              strokeWidth={2}
             />
           </TouchableOpacity>
 
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: COLORS.textDark,
+    color: "#1F2937",
   },
   keyboardAvoidingView: {
     flex: 1,

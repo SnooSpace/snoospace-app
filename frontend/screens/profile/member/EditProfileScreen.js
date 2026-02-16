@@ -448,7 +448,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
       <KeyboardAwareScrollView
         ref={scrollViewRef}
-        style={styles.content}
+        style={[styles.content, { backgroundColor: BG_COLOR }]}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -902,7 +902,7 @@ export default function EditProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG_COLOR,
+    backgroundColor: "#FFFFFF",
   },
   keyboardView: {
     flex: 1,
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.05)",
-    backgroundColor: BG_COLOR,
+    backgroundColor: "#FFFFFF",
     position: "relative",
     minHeight: 60,
   },

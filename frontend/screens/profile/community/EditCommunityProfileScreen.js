@@ -20,12 +20,16 @@ import {
   Camera,
   User,
   NotebookText,
-  MapPin,
+  MapPinned,
   Mail,
   Phone,
   Tag,
   Award,
   ChevronRight,
+  ChevronDown,
+  X,
+  Plus,
+  MoreHorizontal,
 } from "lucide-react-native";
 
 import { getAuthToken } from "../../../api/auth";
@@ -39,9 +43,14 @@ import {
 import { useCrop } from "../../../components/MediaCrop";
 import { uploadImage } from "../../../api/cloudinary";
 import { getSponsorTypes } from "../../../api/client";
-import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
+import {
+  COMMUNITY_CATEGORIES_CONFIG,
+  getCategoryStyle,
+  getSponsorTypeStyle,
+  SPONSOR_TYPES_CONFIG,
+} from "./EditCommunityProfileConstants";
 
 import {
   COLORS,
@@ -142,6 +151,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         ? [profile.category]
         : [];
   const [categories, setCategories] = useState(initialCategories);
+  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE");
   const [sponsorTypes, setSponsorTypes] = useState(
     profile?.sponsor_types || [],
   );
@@ -154,8 +164,9 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
-
-  const [saving, setSaving] = useState(false);
+  const [locationActionsModalVisible, setLocationActionsModalVisible] =
+    useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -199,7 +210,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      if (!hasChanges || saving || allowLeaveRef.current) {
+      if (!hasChanges || isSaving || allowLeaveRef.current) {
         return;
       }
       e.preventDefault();
@@ -220,7 +231,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       );
     });
     return unsubscribe;
-  }, [navigation, hasChanges, saving]);
+  }, [navigation, hasChanges, isSaving]);
 
   const checkForChanges = () => {
     const sourceProfile = profileRef.current || {};
@@ -356,7 +367,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
 
     try {
-      setSaving(true);
+      setIsSaving(true);
       const token = await getAuthToken();
 
       const normalizedCategories = Array.from(
@@ -369,7 +380,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
       if (normalizedCategories.length === 0) {
         Alert.alert("Error", "Please select at least one category.");
-        setSaving(false);
+        setIsSaving(false);
         return;
       }
 
@@ -378,7 +389,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           "Invalid phone",
           "Primary phone number must be exactly 10 digits.",
         );
-        setSaving(false);
+        setIsSaving(false);
         return;
       }
 
@@ -407,7 +418,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     } catch (error) {
       Alert.alert("Error", error?.message || "Failed to update profile.");
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -443,13 +454,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         <TouchableOpacity
           onPress={handleSave}
-          disabled={!hasChanges || saving}
+          disabled={!hasChanges || isSaving}
           style={[
             styles.saveButton,
-            (!hasChanges || saving) && styles.saveButtonDisabled,
+            (!hasChanges || isSaving) && styles.saveButtonDisabled,
           ]}
         >
-          {saving ? (
+          {isSaving ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.saveButtonText}>Save</Text>
@@ -459,7 +470,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
       <KeyboardAwareScrollView
         ref={scrollViewRef}
-        style={styles.content}
+        style={[styles.content, { backgroundColor: BG_COLOR }]}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -483,9 +494,9 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             )}
             <View style={[styles.cameraButton, styles.bannerCamera]}>
               {uploadingBanner ? (
-                <ActivityIndicator size="small" color="#FFF" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Camera size={14} color="#FFF" />
+                <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
               )}
             </View>
           </TouchableOpacity>
@@ -498,9 +509,9 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <Image source={{ uri: logoUrl }} style={styles.logoImage} />
             <View style={[styles.cameraButton, styles.logoCamera]}>
               {uploadingPhoto ? (
-                <ActivityIndicator size="small" color="#FFF" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Camera size={14} color="#FFF" />
+                <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
               )}
             </View>
           </TouchableOpacity>
@@ -569,25 +580,153 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Categories */}
+        {/* Categories (My Vibes Style) */}
         <View style={styles.card}>
           {renderSectionHeader("CATEGORIES", Tag)}
           <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
-            <ChipSelector
-              selected={categories}
-              onSelectionChange={(selected) => {
-                HapticsService.triggerSelection();
-                const sanitized = Array.from(new Set(selected || [])).slice(
-                  0,
-                  3,
-                );
-                setCategories(sanitized);
-              }}
-              presets={CATEGORIES}
-              allowCustom={true}
-              maxSelections={3}
-              placeholder="Add category"
-            />
+            {/* Selected Categories */}
+            {categories.length > 0 && (
+              <View style={styles.selectedVibesSection}>
+                <View style={styles.vibesContainer}>
+                  {categories.map((cat) => {
+                    const style = getCategoryStyle(cat);
+                    const Icon = style.icon;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setCategories(categories.filter((c) => c !== cat));
+                          HapticsService.triggerSelection();
+                        }}
+                        style={[
+                          styles.vibeChip,
+                          { backgroundColor: style.bg, paddingRight: 8 },
+                        ]}
+                      >
+                        <View style={styles.vibeContent}>
+                          <Icon
+                            size={14}
+                            color={style.text}
+                            strokeWidth={2.5}
+                          />
+                          <Text
+                            style={[styles.vibeText, { color: style.text }]}
+                          >
+                            {cat}
+                          </Text>
+                        </View>
+                        <View style={styles.removeIconContainer}>
+                          <X size={12} color={style.text} strokeWidth={3} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={styles.divider} />
+              </View>
+            )}
+
+            {/* Category Groups */}
+            <View style={styles.categoriesContainer}>
+              {Object.keys(COMMUNITY_CATEGORIES_CONFIG)
+                .filter((key) => key !== "DEFAULT")
+                .map((key) => {
+                  const categoryConfig = COMMUNITY_CATEGORIES_CONFIG[key];
+                  const isExpanded = expandedCategory === key;
+                  const Icon = categoryConfig.icon;
+
+                  // Filter predefined categories (basic list + matches)
+                  const categoryItems = CATEGORIES.filter((c) => {
+                    const style = getCategoryStyle(c);
+                    // Match if style matches current config block, excluding already selected
+                    return (
+                      style.label === categoryConfig.label &&
+                      !categories.includes(c)
+                    );
+                  });
+
+                  return (
+                    <View key={key} style={styles.categoryRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setExpandedCategory(isExpanded ? null : key);
+                        }}
+                        style={[
+                          styles.categoryHeader,
+                          isExpanded && styles.categoryHeaderExpanded,
+                          {
+                            backgroundColor: isExpanded
+                              ? categoryConfig.bg
+                              : "transparent",
+                          },
+                        ]}
+                      >
+                        <View style={styles.categoryHeaderLeft}>
+                          <View
+                            style={[
+                              styles.categoryIcon,
+                              { backgroundColor: categoryConfig.bg },
+                            ]}
+                          >
+                            <Icon size={14} color={categoryConfig.text} />
+                          </View>
+                          <Text
+                            style={[
+                              styles.categoryTitle,
+                              isExpanded && {
+                                color: categoryConfig.text,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {categoryConfig.label}
+                          </Text>
+                        </View>
+                        {isExpanded ? (
+                          <ChevronDown size={16} color={TEXT_SECONDARY} />
+                        ) : (
+                          <ChevronRight size={16} color={TEXT_SECONDARY} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={styles.categoryContent}>
+                          <View style={styles.vibesContainer}>
+                            {categoryItems.map((item) => (
+                              <TouchableOpacity
+                                key={item}
+                                onPress={() => {
+                                  if (categories.length >= 3) {
+                                    Alert.alert(
+                                      "Limit Reached",
+                                      "You can select up to 3 categories.",
+                                    );
+                                    return;
+                                  }
+                                  setCategories([...categories, item]);
+                                  HapticsService.triggerSelection();
+                                }}
+                                style={styles.optionChip}
+                              >
+                                <Text style={styles.optionText}>{item}</Text>
+                                <Plus size={14} color={TEXT_SECONDARY} />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+            </View>
           </View>
         </View>
 
@@ -598,20 +737,68 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <Text style={styles.helperText}>Select Min 3</Text>
           </View>
           <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
-            <ChipSelector
-              selected={sponsorTypes}
-              onSelectionChange={(selected) => {
-                if (selected.includes("Open to All")) {
-                  setSponsorTypes(["Open to All"]);
-                } else {
-                  setSponsorTypes(selected.filter((s) => s !== "Open to All"));
-                }
-              }}
-              presets={["Open to All", ...availableSponsorTypes]}
-              allowCustom={false}
-              maxSelections={20}
-              placeholder="Add sponsor type"
-            />
+            <View style={styles.vibesContainer}>
+              {["Open to All", ...availableSponsorTypes].map((type) => {
+                const isSelected = sponsorTypes.includes(type);
+                const style = getSponsorTypeStyle(type);
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      let newTypes;
+                      if (type === "Open to All") {
+                        // If selecting Open, clear others
+                        newTypes = isSelected ? [] : ["Open to All"];
+                      } else {
+                        // If selecting others, remove Open
+                        newTypes = isSelected
+                          ? sponsorTypes.filter((t) => t !== type)
+                          : [
+                              ...sponsorTypes.filter(
+                                (t) => t !== "Open to All",
+                              ),
+                              type,
+                            ];
+                      }
+                      setSponsorTypes(newTypes);
+                      HapticsService.triggerSelection();
+                    }}
+                    style={[
+                      isSelected ? styles.vibeChip : styles.optionChip,
+                      isSelected && {
+                        backgroundColor: style.bg,
+                        paddingRight: 8,
+                        borderColor: "transparent",
+                      },
+                    ]}
+                  >
+                    {isSelected ? (
+                      <>
+                        <View style={styles.vibeContent}>
+                          <Text
+                            style={[
+                              styles.vibeText,
+                              { color: style.text, marginLeft: 0 },
+                            ]}
+                          >
+                            {type}
+                          </Text>
+                        </View>
+                        <View style={styles.removeIconContainer}>
+                          <X size={12} color={style.text} strokeWidth={3} />
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.optionText}>{type}</Text>
+                        <Plus size={14} color={TEXT_SECONDARY} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -657,35 +844,34 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         {/* Location */}
         <View style={styles.card}>
-          {renderSectionHeader("LOCATION", MapPin)}
-          <TouchableOpacity
-            style={styles.locationRow}
-            onPress={() => setLocationPickerVisible(true)}
-          >
-            <View style={styles.locationInfo}>
-              <View style={styles.locationIconBg}>
-                <MapPin
-                  size={20}
-                  color={ACCENT_COLOR}
-                  fill={COLORS.primaryLight}
-                />
-              </View>
+          {renderSectionHeader("LOCATION", MapPinned)}
+          <View style={styles.locationRow}>
+            <TouchableOpacity
+              style={styles.locationInfo}
+              onPress={() => setLocationPickerVisible(true)}
+            >
               <View>
-                <Text style={styles.locationTitle}>
+                <Text style={styles.locationTitle} numberOfLines={1}>
                   {location
-                    ? location.name || location.city || "Selected Location"
+                    ? location.address
+                      ? location.address.split(",")[0]
+                      : "Location Set"
                     : "Add Location"}
                 </Text>
-                <Text style={styles.locationSubtitle}>
-                  {location
-                    ? location.address ||
-                      [location.city, location.state].filter(Boolean).join(", ")
-                    : "Tap to set location"}
-                </Text>
+                {location && (
+                  <Text style={styles.locationSubtitle} numberOfLines={2}>
+                    {location.address || "Tap to set location"}
+                  </Text>
+                )}
               </View>
-            </View>
-            <Text style={styles.changeText}>Change</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setLocationActionsModalVisible(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MoreHorizontal size={24} color="#22C55E" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -718,6 +904,61 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           onCancel={() => setLocationPickerVisible(false)}
         />
       </Modal>
+
+      {/* Location Actions Modal */}
+      <Modal
+        visible={locationActionsModalVisible}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={() => setLocationActionsModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setLocationActionsModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setLocationActionsModalVisible(false)}
+            >
+              <X size={24} color={TEXT_PRIMARY} />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>Edit Location</Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => {
+                  setLocationActionsModalVisible(false);
+                  setLocationPickerVisible(true);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Change Location</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDestructive]}
+                onPress={() => {
+                  setLocationActionsModalVisible(false);
+                  setLocation(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    styles.modalButtonTextDestructive,
+                  ]}
+                >
+                  Remove Location
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -725,7 +966,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG_COLOR,
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
@@ -734,7 +975,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.05)",
-    backgroundColor: BG_COLOR,
+    backgroundColor: "#FFFFFF",
     position: "relative",
     minHeight: 60,
   },
@@ -809,7 +1050,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 4,
+    borderWidth: 2,
     borderColor: "#FFFFFF",
     backgroundColor: "#E5E7EB",
     justifyContent: "center",
@@ -827,22 +1068,22 @@ const styles = StyleSheet.create({
   },
   cameraButton: {
     position: "absolute",
-    bottom: 4,
-    right: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: ACCENT_COLOR,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
   },
   bannerCamera: {
     bottom: 12,
     right: 12,
   },
   logoCamera: {
-    bottom: 0,
-    right: 0,
+    bottom: 2,
+    right: 2,
   },
 
   // Card
@@ -994,5 +1235,172 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 12,
     color: TEXT_PRIMARY,
+  },
+
+  // Chip Styling (My Vibes Match)
+  selectedVibesSection: {
+    marginBottom: 12,
+  },
+  vibesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  vibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderRadius: 20,
+    // Minimum touch area
+    minHeight: 32,
+  },
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  vibeText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+  },
+  removeIconContainer: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    gap: 6,
+    marginBottom: 4,
+  },
+  optionText: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: TEXT_PRIMARY,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 12,
+  },
+  categoriesContainer: {
+    marginTop: 4,
+  },
+  categoryRow: {
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  categoryHeaderExpanded: {
+    // Background color applied dynamically
+  },
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  categoryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  categoryTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: TEXT_PRIMARY,
+  },
+  categoryContent: {
+    padding: 16,
+    paddingTop: 8,
+    gap: 12,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalCloseButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: FONT_HEADER,
+    color: TEXT_PRIMARY,
+    marginBottom: 32,
+    marginTop: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: TEXT_SECONDARY,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  modalButtons: {
+    width: "100%",
+    gap: 12,
+  },
+  modalButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonDestructive: {
+    backgroundColor: "#FEF2F2",
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    color: TEXT_PRIMARY,
+  },
+  modalButtonTextDestructive: {
+    color: "#EF4444",
   },
 });
