@@ -522,8 +522,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   timestamp: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
+    fontSize: 14,
     color: "#5e8d9b",
   },
   title: {

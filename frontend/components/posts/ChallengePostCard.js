@@ -912,9 +912,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   authorName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#5e8d9b",
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 16,
+    color: "#1D1D1F",
   },
   separator: {
     color: COLORS.textTertiary,
@@ -922,7 +922,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   timestamp: {
-    fontSize: 13,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
     color: COLORS.textTertiary,
   },
   editedLabel: {
