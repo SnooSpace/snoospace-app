@@ -5,16 +5,29 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Image,
   Modal,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import {
+  ArrowLeft,
+  Camera,
+  User,
+  NotebookText,
+  MapPin,
+  Mail,
+  Phone,
+  Tag,
+  Award,
+  ChevronRight,
+} from "lucide-react-native";
+
 import { getAuthToken } from "../../../api/auth";
 import {
   updateCommunityProfile,
@@ -30,15 +43,32 @@ import ChipSelector from "../../../components/ChipSelector";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 
-import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
+import {
+  COLORS,
+  FONTS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import HapticsService from "../../../services/HapticsService";
 
-const PRIMARY_COLOR = COLORS.primary;
-const TEXT_COLOR = COLORS.textPrimary;
-const LIGHT_TEXT_COLOR = COLORS.textSecondary;
+// Typography constants
+const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold";
+const FONT_LABEL = FONTS.medium;
+const INPUT_BG = "#F3F4F6";
+const TEXT_PRIMARY = COLORS.textPrimary;
+const TEXT_SECONDARY = COLORS.textSecondary;
+const ACCENT_COLOR = COLORS.primary;
+const BG_COLOR = COLORS.screenBackground || "#F9FAFB";
 
-// Fallback sponsor types in case API fails
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const FALLBACK_SPONSOR_TYPES = [
   "Protein brands",
   "Energy Drinks",
@@ -68,19 +98,13 @@ const CATEGORIES = [
 
 export default function EditCommunityProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
-  useEffect(() => {
-    console.log("[EditCommunityProfile] route profile", {
-      phone: profile?.phone,
-      primary_phone: profile?.primary_phone,
-      secondary_phone: profile?.secondary_phone,
-      secondaryPhone: profile?.secondaryPhone,
-    });
-  }, [profile]);
 
+  // State initialization
   const [name, setName] = useState(profile?.name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
+
   const getPrimaryFromProfile = (p) =>
     p?.phone ?? p?.primary_phone ?? p?.primaryPhone ?? p?.phone_primary ?? "";
   const getSecondaryFromProfile = (p) =>
@@ -94,11 +118,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     String(value || "")
       .replace(/\D/g, "")
       .slice(0, 10);
+
   const initialPrimaryPhone = sanitizePhoneValue(
-    getPrimaryFromProfile(profile)
+    getPrimaryFromProfile(profile),
   );
   const initialSecondaryPhone = sanitizePhoneValue(
-    getSecondaryFromProfile(profile)
+    getSecondaryFromProfile(profile),
   );
 
   const profileRef = useRef({
@@ -109,38 +134,54 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const [primaryPhone, setPrimaryPhone] = useState(initialPrimaryPhone);
   const [secondaryPhone, setSecondaryPhone] = useState(initialSecondaryPhone);
+
   const initialCategories =
     Array.isArray(profile?.categories) && profile.categories.length
       ? profile.categories
       : profile?.category
-      ? [profile.category]
-      : [];
+        ? [profile.category]
+        : [];
   const [categories, setCategories] = useState(initialCategories);
   const [sponsorTypes, setSponsorTypes] = useState(
-    profile?.sponsor_types || []
+    profile?.sponsor_types || [],
   );
   const [location, setLocation] = useState(profile?.location || null);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
+    FALLBACK_SPONSOR_TYPES,
+  );
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+
   const [logoUrl, setLogoUrl] = useState(
     profile?.logo_url ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        profile?.name || "Community"
-      )}&background=5f27cd&color=FFFFFF&size=120&bold=true`
+        profile?.name || "Community",
+      )}&background=5f27cd&color=FFFFFF&size=120&bold=true`,
   );
   const [bannerUrl, setBannerUrl] = useState(profile?.banner_url || null);
+
   const allowLeaveRef = useRef(false);
-  const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
-    FALLBACK_SPONSOR_TYPES
-  );
-  const [sponsorTypesLoading, setSponsorTypesLoading] = useState(true);
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    const loadSponsorTypes = async () => {
+      try {
+        const types = await getSponsorTypes();
+        setAvailableSponsorTypes(types.map((t) => t.name));
+      } catch (error) {
+        console.error("Failed to load sponsor types:", error);
+      }
+    };
+    loadSponsorTypes();
+  }, []);
 
   useEffect(() => {
     checkForChanges();
@@ -155,22 +196,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     email,
     location,
   ]);
-
-  // Fetch sponsor types from API
-  useEffect(() => {
-    const loadSponsorTypes = async () => {
-      try {
-        const types = await getSponsorTypes();
-        setAvailableSponsorTypes(types.map((t) => t.name));
-      } catch (error) {
-        console.error("Failed to load sponsor types:", error);
-        // Keep using fallback types
-      } finally {
-        setSponsorTypesLoading(false);
-      }
-    };
-    loadSponsorTypes();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -191,7 +216,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               navigation.dispatch(e.data.action);
             },
           },
-        ]
+        ],
       );
     });
     return unsubscribe;
@@ -199,97 +224,34 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const checkForChanges = () => {
     const sourceProfile = profileRef.current || {};
-    const originalName = sourceProfile?.name || "";
-    const originalBio = sourceProfile?.bio || "";
-    const originalUsername = sourceProfile?.username || "";
-    const originalPrimaryPhone = sanitizePhoneValue(
-      getPrimaryFromProfile(sourceProfile)
-    );
-    const originalSecondaryPhone = sanitizePhoneValue(
-      getSecondaryFromProfile(sourceProfile)
-    );
-    const originalEmail = sourceProfile?.email || "";
+    const normalizeArray = (arr) => (arr ? [...arr].sort() : []);
+
+    // Normalization logic matching original file
     const originalCategories =
       Array.isArray(sourceProfile?.categories) &&
       sourceProfile.categories.length
         ? sourceProfile.categories
         : sourceProfile?.category
-        ? [sourceProfile.category]
-        : [];
-    const originalSponsorTypes = (sourceProfile?.sponsor_types || []).sort();
-    const originalLocation = sourceProfile?.location || null;
-
-    const normalizeArray = (arr) => (arr ? [...arr].sort() : []);
-    const currentSponsorTypes = normalizeArray(sponsorTypes);
-    const currentCategories = normalizeArray(categories);
-    const originalCategoriesNormalized = normalizeArray(originalCategories);
+          ? [sourceProfile.category]
+          : [];
 
     const changed =
-      name !== originalName ||
-      bio !== originalBio ||
-      username !== originalUsername ||
-      primaryPhone !== originalPrimaryPhone ||
-      secondaryPhone !== originalSecondaryPhone ||
-      email !== originalEmail ||
-      JSON.stringify(currentCategories) !==
-        JSON.stringify(originalCategoriesNormalized) ||
-      JSON.stringify(currentSponsorTypes) !==
-        JSON.stringify(originalSponsorTypes) ||
-      JSON.stringify(location) !== JSON.stringify(originalLocation);
+      name !== (sourceProfile?.name || "") ||
+      bio !== (sourceProfile?.bio || "") ||
+      username !== (sourceProfile?.username || "") ||
+      primaryPhone !==
+        sanitizePhoneValue(getPrimaryFromProfile(sourceProfile)) ||
+      secondaryPhone !==
+        sanitizePhoneValue(getSecondaryFromProfile(sourceProfile)) ||
+      email !== (sourceProfile?.email || "") ||
+      JSON.stringify(normalizeArray(categories)) !==
+        JSON.stringify(normalizeArray(originalCategories)) ||
+      JSON.stringify(normalizeArray(sponsorTypes)) !==
+        JSON.stringify(normalizeArray(sourceProfile?.sponsor_types || [])) ||
+      JSON.stringify(location) !==
+        JSON.stringify(sourceProfile?.location || null);
 
     setHasChanges(!!changed);
-  };
-
-  const hydratePhonesFromProfile = useCallback((latestProfile) => {
-    if (!latestProfile) return;
-    const nextPrimary = sanitizePhoneValue(
-      getPrimaryFromProfile(latestProfile)
-    );
-    const nextSecondary = sanitizePhoneValue(
-      getSecondaryFromProfile(latestProfile)
-    );
-    console.log("[EditCommunityProfile] hydratePhonesFromProfile", {
-      latestProfilePhone: latestProfile?.phone,
-      latestSecondary:
-        latestProfile?.secondary_phone ?? latestProfile?.secondaryPhone,
-      nextPrimary,
-      nextSecondary,
-    });
-    profileRef.current = {
-      ...(profileRef.current || {}),
-      ...latestProfile,
-      phone: nextPrimary,
-      secondary_phone: nextSecondary,
-    };
-    setPrimaryPhone(nextPrimary);
-    setSecondaryPhone(nextSecondary);
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    const refreshProfile = async () => {
-      try {
-        const response = await getCommunityProfile();
-        const profileData = response?.profile || response || null;
-        if (profileData && isMounted) {
-          hydratePhonesFromProfile(profileData);
-        }
-      } catch (error) {
-        console.warn("Failed to refresh community profile", error?.message);
-      }
-    };
-    refreshProfile();
-    return () => {
-      isMounted = false;
-    };
-  }, [hydratePhonesFromProfile]);
-
-  const handlePrimaryPhoneChange = (value) => {
-    setPrimaryPhone(sanitizePhoneValue(value));
-  };
-
-  const handleSecondaryPhoneChange = (value) => {
-    setSecondaryPhone(sanitizePhoneValue(value));
   };
 
   const checkUsernameAvailability = useCallback(async (value) => {
@@ -311,7 +273,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         "/username/check",
         { username: value },
         10000,
-        token
+        token,
       );
       setUsernameAvailable(result?.available === true);
     } catch (error) {
@@ -327,7 +289,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     if (sanitized.length >= 3) {
       const timeoutId = setTimeout(
         () => checkUsernameAvailability(sanitized),
-        500
+        500,
       );
       return () => clearTimeout(timeoutId);
     } else {
@@ -335,14 +297,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
   };
 
-  // Use Instagram-style crop hook
   const { pickAndCrop } = useCrop();
 
   const handleChangeLogo = async () => {
     try {
-      // Use Instagram-style crop for 1:1 avatar
       const result = await pickAndCrop("avatar");
-      if (!result) return; // User cancelled
+      if (!result) return;
 
       setUploadingPhoto(true);
       const secureUrl = await uploadImage(result.uri);
@@ -353,10 +313,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         "/communities/profile/logo",
         { logo_url: secureUrl },
         15000,
-        token
+        token,
       );
       setLogoUrl(secureUrl);
-      Alert.alert("Updated", "Logo updated");
+      HapticsService.triggerNotificationSuccess();
     } catch (e) {
       Alert.alert("Update failed", e?.message || "Could not update logo");
     } finally {
@@ -366,19 +326,15 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const handleChangeBanner = async () => {
     try {
-      // Use Instagram-style crop for 3:1 banner
       const result = await pickAndCrop("banner");
-      if (!result) return; // User cancelled
+      if (!result) return;
 
       setUploadingBanner(true);
       const secureUrl = await uploadImage(result.uri);
       const token = await getAuthToken();
-
-      // Update banner via profile update
       await updateCommunityProfile({ banner_url: secureUrl }, token);
-
       setBannerUrl(secureUrl);
-      Alert.alert("Updated", "Banner updated");
+      HapticsService.triggerNotificationSuccess();
     } catch (e) {
       Alert.alert("Update failed", e?.message || "Could not update banner");
     } finally {
@@ -389,13 +345,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const handleSave = async () => {
     if (!hasChanges) return;
 
-    // Validate sponsor types
     const isOpenToAll =
       sponsorTypes.length === 1 && sponsorTypes[0] === "Open to All";
     if (!isOpenToAll && sponsorTypes.length < 3) {
       Alert.alert(
         "Error",
-        "Please select at least 3 sponsor types or 'Open to All'"
+        "Please select at least 3 sponsor types or 'Open to All'",
       );
       return;
     }
@@ -408,8 +363,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         new Set(
           (categories || [])
             .map((c) => (typeof c === "string" ? c.trim() : ""))
-            .filter((c) => c)
-        )
+            .filter((c) => c),
+        ),
       ).slice(0, 3);
 
       if (normalizedCategories.length === 0) {
@@ -418,22 +373,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         return;
       }
 
-      const normalizedPrimary = sanitizePhoneValue(primaryPhone);
-      const normalizedSecondary = sanitizePhoneValue(secondaryPhone) || null;
-
-      if (normalizedPrimary.length !== 10) {
+      if (primaryPhone.length !== 10) {
         Alert.alert(
           "Invalid phone",
-          "Primary phone number must be exactly 10 digits."
-        );
-        setSaving(false);
-        return;
-      }
-
-      if (normalizedSecondary && normalizedSecondary.length !== 10) {
-        Alert.alert(
-          "Invalid phone",
-          "Secondary phone number must be exactly 10 digits when provided."
+          "Primary phone number must be exactly 10 digits.",
         );
         setSaving(false);
         return;
@@ -442,339 +385,222 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       const updates = {
         name: name.trim(),
         bio: bio.trim(),
-        phone: normalizedPrimary,
-        primary_phone: normalizedPrimary,
-        primaryPhone: normalizedPrimary,
-        phone_primary: normalizedPrimary,
-        secondary_phone: normalizedSecondary,
-        secondaryPhone: normalizedSecondary,
-        secondary_phone_number: normalizedSecondary,
-        secondaryPhoneNumber: normalizedSecondary,
-        phone_secondary: normalizedSecondary,
+        phone: primaryPhone,
+        primary_phone: primaryPhone,
+        secondary_phone: secondaryPhone || null,
         category: normalizedCategories[0],
         categories: normalizedCategories,
-        sponsor_types: sponsorTypes.length > 0 ? sponsorTypes : [],
+        sponsor_types: sponsorTypes,
         location: location,
       };
 
       await updateCommunityProfile(updates, token);
-      console.log("[EditCommunityProfile] saved phones", updates);
-
-      profileRef.current = {
-        ...(profileRef.current || {}),
-        phone: normalizedPrimary,
-        primary_phone: normalizedPrimary,
-        primaryPhone: normalizedPrimary,
-        phone_primary: normalizedPrimary,
-        secondary_phone: normalizedSecondary,
-        secondaryPhone: normalizedSecondary,
-        secondary_phone_number: normalizedSecondary,
-        secondaryPhoneNumber: normalizedSecondary,
-        phone_secondary: normalizedSecondary,
-      };
-      setPrimaryPhone(normalizedPrimary);
-      setSecondaryPhone(normalizedSecondary || "");
 
       if (username !== (profileRef.current?.username || profile?.username)) {
         await changeUsername(username, token);
       }
 
-      Alert.alert("Success", "Profile updated successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            HapticsService.triggerNotificationSuccess();
-            allowLeaveRef.current = true;
-            setHasChanges(false);
-            navigation.navigate("Profile", { refreshProfile: true });
-          },
-        },
-      ]);
+      HapticsService.triggerNotificationSuccess();
+      allowLeaveRef.current = true;
+      setHasChanges(false);
+      navigation.navigate("Profile", { refreshProfile: true });
     } catch (error) {
-      console.error("Error saving profile:", error);
-      Alert.alert(
-        "Error",
-        error?.message || "Failed to update profile. Please try again."
-      );
+      Alert.alert("Error", error?.message || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEmailChangeComplete = (newEmail) => {
-    setEmail(newEmail);
-    setEmailChangeModalVisible(false);
-  };
-
-  const handleLocationSelected = (selectedLocation) => {
-    setLocation(selectedLocation);
-    setShowLocationPicker(false);
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
-          <GradientButton
-            title="Save"
-            onPress={handleSave}
-            disabled={!hasChanges || saving}
-            loading={saving}
-            style={[
-              { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
-              (!hasChanges || saving) && {
-                shadowOpacity: 0,
-                elevation: 0,
-                shadowColor: "transparent",
-              },
-            ]}
+  const renderSectionHeader = (title, IconComponent) => (
+    <View style={styles.cardHeader}>
+      {IconComponent && (
+        <View style={styles.cardIcon}>
+          <IconComponent
+            size={18}
+            color={TEXT_PRIMARY}
+            strokeWidth={1.5}
+            style={{ opacity: 0.7 }}
           />
         </View>
+      )}
+      <Text style={styles.cardTitle}>{title}</Text>
+    </View>
+  );
 
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 80 }}
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      {/* Header Matches EditProfileScreen exactly */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.headerButtonLeft}
+          hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
         >
-          {/* Logo Section */}
-          <View style={[styles.section, styles.photoSection]}>
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
-            <TouchableOpacity
-              onPress={handleChangeLogo}
-              style={[styles.changeButton, styles.photoButton]}
-              disabled={uploadingPhoto}
-            >
-              {uploadingPhoto ? (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-              ) : (
-                <Text style={styles.changeButtonText}>Change Logo</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <ArrowLeft size={26} color={TEXT_SECONDARY} />
+        </TouchableOpacity>
 
-          {/* Name Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Community Name</Text>
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={!hasChanges || saving}
+          style={[
+            styles.saveButton,
+            (!hasChanges || saving) && styles.saveButtonDisabled,
+          ]}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>Save</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <KeyboardAwareScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={15}
+      >
+        {/* Visuals Card */}
+        <View style={styles.visualsContainer}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleChangeBanner}
+            style={styles.bannerWrapper}
+          >
+            {bannerUrl ? (
+              <Image source={{ uri: bannerUrl }} style={styles.bannerImage} />
+            ) : (
+              <View style={styles.bannerPlaceholder}>
+                <Text style={styles.bannerPlaceholderText}>
+                  Tap to add cover
+                </Text>
+              </View>
+            )}
+            <View style={[styles.cameraButton, styles.bannerCamera]}>
+              {uploadingBanner ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Camera size={14} color="#FFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleChangeLogo}
+            style={styles.logoWrapper}
+          >
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+            <View style={[styles.cameraButton, styles.logoCamera]}>
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Camera size={14} color="#FFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* The Basics */}
+        <View style={styles.card}>
+          {renderSectionHeader("THE BASICS", User)}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>COMMUNITY NAME</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="Your community name"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              style={styles.input}
               value={name}
               onChangeText={setName}
-              maxLength={100}
+              placeholder="Community Name"
+              placeholderTextColor={TEXT_SECONDARY}
+              maxLength={50}
             />
           </View>
-
-          {/* Banner Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Banner</Text>
-            <Text style={styles.sectionSubtitle}>
-              Add a banner to make your profile stand out (1280 x 800
-              recommended)
-            </Text>
-            {bannerUrl ? (
-              <View style={styles.bannerPreviewContainer}>
-                <Image
-                  source={{ uri: bannerUrl }}
-                  style={styles.bannerPreview}
-                />
-                <View style={styles.bannerButtons}>
-                  <TouchableOpacity
-                    style={styles.changeButton}
-                    onPress={handleChangeBanner}
-                    disabled={uploadingBanner}
-                  >
-                    {uploadingBanner ? (
-                      <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                    ) : (
-                      <Text style={styles.changeButtonText}>Change</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.addBannerButton}
-                onPress={handleChangeBanner}
-                disabled={uploadingBanner}
-              >
-                {uploadingBanner ? (
-                  <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="image-outline"
-                      size={24}
-                      color={PRIMARY_COLOR}
-                    />
-                    <Text style={styles.addBannerText}>Add Banner</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Bio Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bio</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Tell us about your community"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={bio}
-              onChangeText={setBio}
-              multiline
-              maxLength={500}
-            />
-            <Text style={styles.charCount}>{bio.length}/500</Text>
-          </View>
-
-          {/* Username Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Username</Text>
-            <View style={styles.usernameContainer}>
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>USERNAME</Text>
+            <View style={[styles.input, styles.rowInput]}>
+              <Text style={styles.prefix}>@</Text>
               <TextInput
-                style={[styles.textInput, styles.usernameInput]}
-                placeholder="username"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
+                style={styles.flexInput}
                 value={username}
                 onChangeText={handleUsernameChange}
                 autoCapitalize="none"
-                maxLength={30}
+                placeholder="username"
+                placeholderTextColor={TEXT_SECONDARY}
               />
               {usernameChecking && (
-                <ActivityIndicator
-                  size="small"
-                  color={PRIMARY_COLOR}
-                  style={styles.checkIndicator}
-                />
+                <ActivityIndicator size="small" color={ACCENT_COLOR} />
               )}
-              {usernameAvailable === true && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color="#00C851"
-                  style={styles.checkIndicator}
-                />
+              {!usernameChecking && usernameAvailable === true && (
+                <View style={styles.indicator}>
+                  <Text style={{ color: "green" }}>✓</Text>
+                </View>
               )}
-              {usernameAvailable === false &&
-                username !==
-                  (profileRef.current?.username || profile?.username) && (
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color="#FF4444"
-                    style={styles.checkIndicator}
-                  />
+              {!usernameChecking &&
+                usernameAvailable === false &&
+                username !== profile?.username && (
+                  <Text style={{ color: "red" }}>✕</Text>
                 )}
             </View>
-            {usernameAvailable === false &&
-              username !==
-                (profileRef.current?.username || profile?.username) && (
-                <Text style={styles.errorText}>
-                  Username is already taken or invalid
-                </Text>
-              )}
-          </View>
-
-          {/* Email Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Email</Text>
-            <View style={styles.emailContainer}>
-              <TextInput
-                style={[styles.textInput, styles.emailInput]}
-                placeholder="email@example.com"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                value={email}
-                editable={false}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              <TouchableOpacity
-                style={styles.changeButton}
-                onPress={() => setEmailChangeModalVisible(true)}
-              >
-                <Text style={styles.changeButtonText}>Change</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Phone Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Phone Numbers</Text>
-            <Text style={[styles.inputLabel, styles.inputLabelFirst]}>
-              Primary Phone
+            <Text style={styles.helperText}>
+              This will be your unique handle.
             </Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Primary phone number"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={primaryPhone}
-              onChangeText={handlePrimaryPhoneChange}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
-            <View style={styles.secondaryPhoneHeader}>
-              <Text style={styles.inputLabel}>Secondary Phone</Text>
-              <Text style={styles.optionalTag}>Optional</Text>
-            </View>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Secondary phone number"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-              value={secondaryPhone}
-              onChangeText={handleSecondaryPhoneChange}
-              keyboardType="phone-pad"
-              maxLength={10}
-            />
           </View>
+        </View>
 
-          {/* Category Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Categories</Text>
-            <Text style={styles.sectionSubtitle}>
-              Select up to 3 categories that best describe your community
-            </Text>
+        {/* About */}
+        <View style={styles.card}>
+          {renderSectionHeader("ABOUT", NotebookText)}
+          <View style={styles.inputGroupLast}>
+            <TextInput
+              style={styles.bioInput}
+              value={bio}
+              onChangeText={setBio}
+              multiline
+              placeholder="Describe your community..."
+              placeholderTextColor={TEXT_SECONDARY}
+              maxLength={500}
+            />
+            <Text style={styles.charCount}>{bio.length} / 500</Text>
+          </View>
+        </View>
+
+        {/* Categories */}
+        <View style={styles.card}>
+          {renderSectionHeader("CATEGORIES", Tag)}
+          <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
             <ChipSelector
               selected={categories}
               onSelectionChange={(selected) => {
                 HapticsService.triggerSelection();
-                const sanitized = Array.from(
-                  new Set(
-                    (selected || [])
-                      .map((c) => (typeof c === "string" ? c.trim() : ""))
-                      .filter((c) => c)
-                  )
-                ).slice(0, 3);
+                const sanitized = Array.from(new Set(selected || [])).slice(
+                  0,
+                  3,
+                );
                 setCategories(sanitized);
               }}
               presets={CATEGORIES}
               allowCustom={true}
               maxSelections={3}
-              placeholder="Select categories"
+              placeholder="Add category"
             />
           </View>
+        </View>
 
-          {/* Sponsor Types Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sponsor Types</Text>
-            <Text style={styles.sectionSubtitle}>
-              Select at least 3 sponsor types, or choose "Open to All"
-            </Text>
+        {/* Sponsor Types */}
+        <View style={styles.card}>
+          {renderSectionHeader("SPONSOR TYPES", Award)}
+          <View style={styles.subheaderRow}>
+            <Text style={styles.helperText}>Select Min 3</Text>
+          </View>
+          <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
             <ChipSelector
               selected={sponsorTypes}
               onSelectionChange={(selected) => {
-                // Handle "Open to All" special case
                 if (selected.includes("Open to All")) {
                   setSponsorTypes(["Open to All"]);
                 } else {
@@ -784,64 +610,114 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
               presets={["Open to All", ...availableSponsorTypes]}
               allowCustom={false}
               maxSelections={20}
-              placeholder="Select sponsor types"
+              placeholder="Add sponsor type"
+            />
+          </View>
+        </View>
+
+        {/* Contact Details */}
+        <View style={styles.card}>
+          {renderSectionHeader("CONTACT DETAILS", Phone)}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>EMAIL</Text>
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => setEmailChangeModalVisible(true)}
+            >
+              <Text style={{ color: TEXT_PRIMARY }}>{email}</Text>
+            </TouchableOpacity>
+            <Text style={styles.helperText}>Only visible to you</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>PRIMARY PHONE</Text>
+            <TextInput
+              style={styles.input}
+              value={primaryPhone}
+              onChangeText={(val) => setPrimaryPhone(sanitizePhoneValue(val))}
+              keyboardType="phone-pad"
+              placeholder="+1 (555) 000-0000"
+              placeholderTextColor={TEXT_SECONDARY}
             />
           </View>
 
-          {/* Location Section */}
-          <View style={[styles.section, { borderBottomWidth: 0 }]}>
-            <Text style={styles.sectionTitle}>Location</Text>
-            {location ? (
-              <View style={styles.locationInfoContainer}>
-                <Ionicons
-                  name="location-outline"
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>SECONDARY PHONE</Text>
+            <TextInput
+              style={styles.input}
+              value={secondaryPhone}
+              onChangeText={(val) => setSecondaryPhone(sanitizePhoneValue(val))}
+              keyboardType="phone-pad"
+              placeholder="Optional"
+              placeholderTextColor={TEXT_SECONDARY}
+            />
+          </View>
+        </View>
+
+        {/* Location */}
+        <View style={styles.card}>
+          {renderSectionHeader("LOCATION", MapPin)}
+          <TouchableOpacity
+            style={styles.locationRow}
+            onPress={() => setLocationPickerVisible(true)}
+          >
+            <View style={styles.locationInfo}>
+              <View style={styles.locationIconBg}>
+                <MapPin
                   size={20}
-                  color={LIGHT_TEXT_COLOR}
+                  color={ACCENT_COLOR}
+                  fill={COLORS.primaryLight}
                 />
-                <Text style={styles.locationInfoText}>
-                  {location.address ||
-                    [location.city, location.state].filter(Boolean).join(", ")}
+              </View>
+              <View>
+                <Text style={styles.locationTitle}>
+                  {location
+                    ? location.name || location.city || "Selected Location"
+                    : "Add Location"}
+                </Text>
+                <Text style={styles.locationSubtitle}>
+                  {location
+                    ? location.address ||
+                      [location.city, location.state].filter(Boolean).join(", ")
+                    : "Tap to set location"}
                 </Text>
               </View>
-            ) : (
-              <Text style={styles.noLocationText}>No location selected</Text>
-            )}
+            </View>
+            <Text style={styles.changeText}>Change</Text>
+          </TouchableOpacity>
+        </View>
 
-            <TouchableOpacity
-              style={styles.changeLocationButton}
-              onPress={() => setShowLocationPicker(true)}
-            >
-              <Text style={styles.changeLocationButtonText}>
-                Change Location
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={{ height: 40 }} />
+      </KeyboardAwareScrollView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}
         currentEmail={email}
         onClose={() => setEmailChangeModalVisible(false)}
-        onComplete={handleEmailChangeComplete}
+        onComplete={(newEmail) => {
+          setEmail(newEmail);
+          setEmailChangeModalVisible(false);
+        }}
         startEmailChange={startEmailChange}
         verifyEmailChange={verifyEmailChange}
       />
 
-      {showLocationPicker && (
-        <Modal
-          visible={showLocationPicker}
-          animationType="slide"
-          onRequestClose={() => setShowLocationPicker(false)}
-        >
-          <LocationPicker
-            businessName={profile?.name}
-            initialLocation={location}
-            onLocationSelected={handleLocationSelected}
-            onCancel={() => setShowLocationPicker(false)}
-          />
-        </Modal>
-      )}
+      <Modal
+        visible={locationPickerVisible}
+        animationType="slide"
+        onRequestClose={() => setLocationPickerVisible(false)}
+      >
+        <LocationPicker
+          businessName={profile?.name}
+          initialLocation={location}
+          onLocationSelected={(loc) => {
+            setLocation(loc);
+            setLocationPickerVisible(false);
+          }}
+          onCancel={() => setLocationPickerVisible(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -849,207 +725,274 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  keyboardView: {
-    flex: 1,
+    backgroundColor: BG_COLOR,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    justifyContent: "center",
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  backButton: {
-    padding: 5,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    backgroundColor: BG_COLOR,
+    position: "relative",
+    minHeight: 60,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    zIndex: -1,
+    fontSize: 17,
+    fontFamily: FONT_HEADER,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.3,
   },
-  // saveButton styles removed
+  headerButtonLeft: {
+    position: "absolute",
+    left: 8,
+    padding: 12,
+    zIndex: 1,
+  },
+  saveButton: {
+    position: "absolute",
+    right: 20,
+    backgroundColor: ACCENT_COLOR,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: BORDER_RADIUS.pill,
+    minWidth: 70,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#E5E7EB",
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+  },
   content: {
     flex: 1,
   },
-  section: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
+  contentContainer: {
+    padding: 20,
+    gap: 24,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 12,
+
+  // Visuals
+  visualsContainer: {
+    marginBottom: 8,
+    alignItems: "center",
   },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 12,
+  bannerWrapper: {
+    width: "100%",
+    aspectRatio: 2.8,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#E5E7EB",
+    marginBottom: -40, // overlap with logo
+  },
+  bannerImage: {
+    width: "100%",
+    height: "100%",
+  },
+  bannerPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D1D5DB",
+  },
+  bannerPlaceholderText: {
+    fontFamily: FONTS.medium,
+    color: "#6B7280",
+  },
+  logoWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    backgroundColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 50,
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bannerCamera: {
+    bottom: 12,
+    right: 12,
+  },
+  logoCamera: {
+    bottom: 0,
+    right: 0,
+  },
+
+  // Card
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    ...SHADOWS.sm,
+    shadowOpacity: 0.05,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  cardIcon: {
+    marginRight: 10,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardTitle: {
+    fontSize: 13,
+    fontFamily: FONT_HEADER,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  subheaderRow: {
+    position: "absolute",
+    right: 16,
+    top: 16,
+  },
+
+  // Inputs
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputGroupLast: {
+    marginBottom: 0,
   },
   inputLabel: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 6,
+    fontSize: 11,
+    fontFamily: FONT_LABEL,
+    color: TEXT_SECONDARY,
+    marginBottom: 8,
+    marginLeft: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  inputLabelFirst: {
-    marginTop: 4,
+  input: {
+    backgroundColor: INPUT_BG,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
   },
-  secondaryPhoneHeader: {
+  bioInput: {
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    padding: 16,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    minHeight: 120,
+    textAlignVertical: "top",
+  },
+  rowInput: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  prefix: {
+    color: TEXT_SECONDARY,
+    marginRight: 4,
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+  },
+  flexInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    padding: 0,
+  },
+  helperText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  charCount: {
+    textAlign: "right",
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 6,
+    marginRight: 4,
+  },
+  indicator: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  // Location
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 16,
-  },
-  optionalTag: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: "#FFFFFF",
-  },
-  charCount: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  usernameContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  usernameInput: {
-    flex: 1,
-    marginRight: 8,
-  },
-  checkIndicator: {
-    marginLeft: 8,
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#FF4444",
-    marginTop: 4,
-  },
-  emailContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  emailInput: {
-    flex: 1,
-    marginRight: 8,
-    backgroundColor: "#F2F2F7",
-  },
-  changeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-  },
-  changeButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  photoButton: {
-    alignSelf: "center",
-  },
-  logoImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    marginBottom: 12,
-    backgroundColor: "#E5E5EA",
-  },
-  photoSection: {
-    alignItems: "center",
-  },
-  locationInfoContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#F8F9FA",
-    padding: 16,
+    backgroundColor: INPUT_BG,
+    padding: 12,
     borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
   },
-  locationInfoText: {
-    flex: 1,
-    fontSize: 14,
-    color: TEXT_COLOR,
-    marginLeft: 8,
-    lineHeight: 20,
-  },
-  noLocationText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    fontStyle: "italic",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  changeLocationButton: {
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#FFFFFF",
-  },
-  changeLocationButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  // Banner styles
-  bannerPreviewContainer: {
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  bannerPreview: {
-    width: "100%",
-    aspectRatio: 8 / 5,
-    borderRadius: 8,
-  },
-  bannerButtons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 12,
-    gap: 12,
-  },
-  addBannerButton: {
+  locationInfo: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    aspectRatio: 8 / 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#F8F9FA",
+    flex: 1,
   },
-  addBannerText: {
-    color: PRIMARY_COLOR,
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
+  locationIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  locationTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: TEXT_PRIMARY,
+  },
+  locationSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    maxWidth: 200,
+  },
+  changeText: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: TEXT_PRIMARY,
   },
 });
