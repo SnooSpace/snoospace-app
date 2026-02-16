@@ -232,8 +232,14 @@ export default function FollowerList({
               style={[
                 styles.followBtn,
                 item.isFollowing
-                  ? styles.followingBtn(primaryColor)
-                  : styles.followBtnPrimary(primaryColor),
+                  ? {
+                      backgroundColor: hexToRgba(primaryColor, 0.12),
+                      borderColor: hexToRgba(primaryColor, 0.2),
+                    }
+                  : {
+                      backgroundColor: primaryColor,
+                      borderColor: primaryColor,
+                    },
               ]}
               onPress={() =>
                 handleToggleFollow(
@@ -247,8 +253,8 @@ export default function FollowerList({
                 style={[
                   styles.followText,
                   item.isFollowing
-                    ? styles.followingText(primaryColor)
-                    : styles.followTextPrimary,
+                    ? { color: primaryColor }
+                    : { color: "#FFFFFF" },
                 ]}
               >
                 {item.isFollowing ? "Following" : "Follow"}
@@ -366,7 +372,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     fontSize: 16,
-    fontFamily: "BasicCommercial-Black", // Updated font
+    fontFamily: "BasicCommercial-Bold", // Updated to Bold
     color: "#1D1D1F",
   },
   headerSpacer: {
@@ -412,32 +418,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E5EA",
   },
-  followBtnPrimary: (primaryColor) => ({
-    backgroundColor: primaryColor,
-    borderColor: primaryColor,
-  }),
-  followingBtn: (primaryColor) => {
-    // Dynamic tinted background for following state
-    const bg = hexToRgba(primaryColor, 0.12);
-    const border = hexToRgba(primaryColor, 0.2);
-    return {
-      backgroundColor: bg,
-      borderColor: border,
-    };
-  },
   followText: {
     fontSize: 12,
-    fontWeight: "600",
-    fontFamily: FONTS.semiBold,
-  },
-  followTextPrimary: {
-    color: "#FFFFFF",
-    fontFamily: FONTS.semiBold,
-  },
-  followingText: (primaryColor) => ({
-    color: primaryColor,
+    fontWeight: "500",
     fontFamily: FONTS.medium,
-  }),
+  },
   loadingContainer: {
     flex: 1,
   },

@@ -30,10 +30,17 @@ import { followCommunity, unfollowCommunity } from "../../api/communities";
 import EventBus from "../../utils/EventBus";
 import { getActiveAccount } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
-import { COLORS, BORDER_RADIUS } from "../../constants/theme";
+import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
 import { DiscoverFeedV2 } from "../../components/discover";
 import SuggestedCommunityCard from "../../components/SuggestedCommunityCard";
 
+// Helper to create rgba from hex
+const hexToRgba = (hex, alpha) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 const DEBOUNCE_MS = 300;
 
 export default function SearchScreen({ navigation }) {
@@ -96,7 +103,7 @@ export default function SearchScreen({ navigation }) {
         await AsyncStorage.setItem(key, JSON.stringify(items));
       } catch {}
     },
-    [userId]
+    [userId],
   );
 
   // Load discover feed for grid view
@@ -127,7 +134,7 @@ export default function SearchScreen({ navigation }) {
         setDiscoverLoading(false);
       }
     },
-    [discoverOffset, discoverLoading]
+    [discoverOffset, discoverLoading],
   );
 
   // Load community suggestions (cached)
@@ -202,7 +209,7 @@ export default function SearchScreen({ navigation }) {
         let filteredResults = globalData.results || [];
         if (activeFilter !== "all") {
           filteredResults = filteredResults.filter(
-            (r) => r.type === activeFilter
+            (r) => r.type === activeFilter,
           );
         }
 
@@ -232,7 +239,7 @@ export default function SearchScreen({ navigation }) {
         setLoading(false);
       }
     },
-    [query, offset, results, eventResults, canSearch, activeFilter]
+    [query, offset, results, eventResults, canSearch, activeFilter],
   );
 
   useEffect(() => {
@@ -266,7 +273,7 @@ export default function SearchScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadUserId();
-    }, [loadUserId])
+    }, [loadUserId]),
   );
 
   // Load discover feed and suggestions on mount
@@ -488,7 +495,7 @@ export default function SearchScreen({ navigation }) {
     const entityType = item.type || "member";
     const displayName = normalizeDisplayName(
       item.full_name || item.name,
-      entityType
+      entityType,
     );
     const photoUrl = item.profile_photo_url || item.logo_url;
     const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
@@ -504,7 +511,7 @@ export default function SearchScreen({ navigation }) {
           ) : entityType === "community" ? (
             <LinearGradient
               colors={getGradientForName(
-                item.name || item.full_name || "Community"
+                item.name || item.full_name || "Community",
               )}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -537,20 +544,20 @@ export default function SearchScreen({ navigation }) {
                     entityType === "community"
                       ? styles.typeBadgeCommunity
                       : entityType === "sponsor"
-                      ? styles.typeBadgeSponsor
-                      : entityType === "venue"
-                      ? styles.typeBadgeVenue
-                      : styles.typeBadgeMember,
+                        ? styles.typeBadgeSponsor
+                        : entityType === "venue"
+                          ? styles.typeBadgeVenue
+                          : styles.typeBadgeMember,
                   ]}
                 >
                   <Text style={styles.typeBadgeText}>
                     {entityType === "community"
                       ? "C"
                       : entityType === "sponsor"
-                      ? "S"
-                      : entityType === "venue"
-                      ? "V"
-                      : "M"}
+                        ? "S"
+                        : entityType === "venue"
+                          ? "V"
+                          : "M"}
                   </Text>
                 </View>
               )}
@@ -591,7 +598,7 @@ export default function SearchScreen({ navigation }) {
     const entityType = item.type || "member";
     const displayName = normalizeDisplayName(
       item.full_name || item.name,
-      entityType
+      entityType,
     );
     const photoUrl = item.profile_photo_url || item.logo_url;
     const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
@@ -610,7 +617,7 @@ export default function SearchScreen({ navigation }) {
           ) : entityType === "community" ? (
             <LinearGradient
               colors={getGradientForName(
-                item.name || item.full_name || "Community"
+                item.name || item.full_name || "Community",
               )}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -641,7 +648,7 @@ export default function SearchScreen({ navigation }) {
         <TouchableOpacity
           onPress={() => {
             const next = recents.filter(
-              (r) => r.id !== item.id || r.type !== entityType
+              (r) => r.id !== item.id || r.type !== entityType,
             );
             setRecents(next);
             saveRecents(next);
@@ -752,17 +759,17 @@ export default function SearchScreen({ navigation }) {
                   {filter === "all"
                     ? "All"
                     : filter === "member"
-                    ? "Members"
-                    : filter === "community"
-                    ? "Communities"
-                    : filter === "sponsor"
-                    ? "Sponsors"
-                    : filter === "venue"
-                    ? "Venues"
-                    : "Events"}
+                      ? "Members"
+                      : filter === "community"
+                        ? "Communities"
+                        : filter === "sponsor"
+                          ? "Sponsors"
+                          : filter === "venue"
+                            ? "Venues"
+                            : "Events"}
                 </Text>
               </TouchableOpacity>
-            )
+            ),
           )}
         </ScrollView>
       )}
@@ -882,12 +889,12 @@ export default function SearchScreen({ navigation }) {
                       onJoin={(c) => {
                         // Remove from suggestions after joining
                         setSuggestions((prev) =>
-                          prev.filter((s) => s.id !== c.id)
+                          prev.filter((s) => s.id !== c.id),
                         );
                         if (suggestionsCache.current) {
                           suggestionsCache.current =
                             suggestionsCache.current.filter(
-                              (s) => s.id !== c.id
+                              (s) => s.id !== c.id,
                             );
                         }
                       }}
@@ -964,8 +971,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
   },
   meta: { flex: 1 },
-  name: { fontSize: 16, color: "#1D1D1F", fontWeight: "600" },
-  username: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+  name: {
+    fontSize: 16,
+    color: "#1D1D1F",
+    fontFamily: "BasicCommercial-Bold",
+  },
+  username: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginTop: 2,
+    fontFamily: "Manrope-Medium",
+  },
   bio: { fontSize: 12, color: "#8E8E93", marginTop: 2 },
   followBtn: {
     paddingHorizontal: 12,
@@ -974,11 +990,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E5EA",
   },
-  followBtnPrimary: { backgroundColor: "#6A0DAD", borderColor: "#6A0DAD" },
-  followingBtn: { backgroundColor: "#FFFFFF", borderColor: "#E5E5EA" },
-  followText: { fontSize: 12, fontWeight: "600" },
+  followBtnPrimary: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  followingBtn: {
+    backgroundColor: hexToRgba(COLORS.primary, 0.12),
+    borderColor: hexToRgba(COLORS.primary, 0.2),
+  },
+  followText: {
+    fontSize: 12,
+    fontWeight: "500",
+    fontFamily: FONTS.medium,
+  },
   followTextPrimary: { color: "#FFFFFF" },
-  followingText: { color: "#1D1D1F" },
+  followingText: { color: COLORS.primary },
   // Filter tabs
   filterContent: {
     paddingHorizontal: 20,
@@ -997,7 +1023,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterTabActive: {
-    backgroundColor: "#6A0DAD",
+    backgroundColor: COLORS.primary,
   },
   filterTabText: {
     fontSize: 13,
@@ -1118,7 +1144,7 @@ const styles = StyleSheet.create({
   },
   suggestionsTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: "#1D1D1F",
   },
   seeAllLink: {

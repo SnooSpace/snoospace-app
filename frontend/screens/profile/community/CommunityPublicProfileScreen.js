@@ -1440,8 +1440,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     No community posts yet
                   </Text>
                   <Text style={styles.emptyPostsSubtext}>
-                    This community hasn't posted any polls, prompts, or
-                    challenges yet.
+                    No polls, prompts or challenges shared yet.
                   </Text>
                 </View>
               );

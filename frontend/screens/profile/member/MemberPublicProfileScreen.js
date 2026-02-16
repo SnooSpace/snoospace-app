@@ -944,8 +944,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chipText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "600",
     color: "#374151",
   },
   chipBlue: {

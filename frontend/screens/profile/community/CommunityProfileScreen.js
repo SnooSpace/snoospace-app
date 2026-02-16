@@ -1579,8 +1579,7 @@ export default function CommunityProfileScreen({ navigation }) {
                     No community posts yet
                   </Text>
                   <Text style={styles.emptyPostsSubtext}>
-                    Create polls, prompts, Q&As, or challenges to engage with
-                    your community
+                    Engage your community with polls, challenges and more.
                   </Text>
                 </View>
               );
