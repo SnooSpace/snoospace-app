@@ -734,11 +734,65 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   };
 
   const renderGridItem = ({ item, index }) => {
-    const firstImageUrl = Array.isArray(item?.image_urls)
-      ? item.image_urls
-          .flat()
-          .find((u) => typeof u === "string" && u.startsWith("http"))
-      : undefined;
+    let firstImageUrl = null;
+    if (item?.image_urls) {
+      if (Array.isArray(item.image_urls)) {
+        const flatUrls = item.image_urls.flat();
+        firstImageUrl = flatUrls.find(
+          (u) => typeof u === "string" && u.startsWith("http"),
+        );
+      } else if (
+        typeof item.image_urls === "string" &&
+        item.image_urls.startsWith("http")
+      ) {
+        firstImageUrl = item.image_urls;
+      }
+    }
+
+    // Detect video by: explicit video_url OR URL extension
+    const isVideo =
+      !!item.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+    let mediaUrl = null;
+    if (item.video_thumbnail) {
+      try {
+        if (
+          typeof item.video_thumbnail === "string" &&
+          item.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(item.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+        } else {
+          mediaUrl = item.video_thumbnail;
+        }
+      } catch (e) {
+        mediaUrl = item.video_thumbnail;
+      }
+    }
+    const videoSourceUrl = firstImageUrl || item.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      // Convert Cloudinary video URL to thumbnail with transformation params
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
+    if (!mediaUrl) {
+      mediaUrl = firstImageUrl;
+    }
+
     return (
       <TouchableOpacity
         activeOpacity={0.9}
@@ -753,10 +807,32 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           },
         ]}
       >
-        {firstImageUrl ? (
-          <Image source={{ uri: firstImageUrl }} style={styles.gridImage} />
+        {mediaUrl ? (
+          <>
+            <Image
+              source={{ uri: mediaUrl }}
+              style={styles.gridImage}
+              resizeMode="cover"
+            />
+            {isVideo && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <Play size={16} color="#FFF" fill="#FFF" />
+              </View>
+            )}
+          </>
         ) : (
-          <View style={[styles.gridImage, styles.gridPlaceholder]} />
+          <View style={[styles.gridImage, styles.gridPlaceholder]}>
+            <LucideImage size={30} color="#999" />
+          </View>
         )}
       </TouchableOpacity>
     );
@@ -1334,7 +1410,18 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
-          posts={posts}
+          posts={posts.filter((p) => {
+            // Only show media posts in modal (exclude Community tab content)
+            const postType = p.post_type || p.type;
+            const isInteractive = [
+              "poll",
+              "prompt",
+              "qna",
+              "challenge",
+              "opportunity",
+            ].includes(postType);
+            return !isInteractive;
+          })}
           initialPostId={selectedPost?.id}
           onClose={closePostModal}
           currentUserId={currentUserId}
