@@ -17,22 +17,28 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { X, Send, Heart, CornerUpLeft } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { searchMembers } from "../api/search";
 import EventBus from "../utils/EventBus";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
+import MentionInput from "./MentionInput";
+
+import { COLORS as GLOBAL_COLORS, FONTS } from "../constants/theme";
 
 const COLORS = {
+  ...GLOBAL_COLORS,
   dark: "#FFFFFF",
   darkGray: "#F5F5F5",
-  text: "#000000",
-  textSecondary: "#737373",
-  border: "#EBEBEB",
-  primary: "#6A0DAD",
-  error: "#FF4444",
+  text: GLOBAL_COLORS.textPrimary,
+  textSecondary: GLOBAL_COLORS.textSecondary,
+  border: GLOBAL_COLORS.border,
+  primary: GLOBAL_COLORS.primary,
+  error: GLOBAL_COLORS.error,
 };
 
 // Simple indent for replies (no connectors)
@@ -56,10 +62,6 @@ const CommentsModal = ({
   const [postAuthorId, setPostAuthorId] = useState(null);
   const [postAuthorType, setPostAuthorType] = useState(null);
   const [taggedEntities, setTaggedEntities] = useState([]);
-  const [showTagSearch, setShowTagSearch] = useState(false);
-  const [tagSearchQuery, setTagSearchQuery] = useState("");
-  const [tagSearchResults, setTagSearchResults] = useState([]);
-  const [tagSearchLoading, setTagSearchLoading] = useState(false);
   const [atPosition, setAtPosition] = useState(-1);
   const [replyingTo, setReplyingTo] = useState(null); // {id, name} of parent comment
   const [collapsedThreads, setCollapsedThreads] = useState({}); // {commentId: boolean}
@@ -68,6 +70,21 @@ const CommentsModal = ({
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
   const inputRef = useRef(null);
+  const replyAnim = useRef(new Animated.Value(0)).current;
+
+  // Animate reply indicator when replyingTo changes
+  useEffect(() => {
+    if (replyingTo) {
+      Animated.timing(replyAnim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Reset immediately when null (handled by cancelReply for exit anim)
+      replyAnim.setValue(0);
+    }
+  }, [replyingTo]);
 
   useEffect(() => {
     if (visible && postId) {
@@ -135,7 +152,7 @@ const CommentsModal = ({
         "/auth/get-user-profile",
         { email },
         10000,
-        token
+        token,
       );
       if (profileResponse?.profile) {
         setUserProfile(profileResponse.profile);
@@ -287,84 +304,12 @@ const CommentsModal = ({
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const handleCommentInputChange = (text) => {
     setCommentInput(text);
-
-    const lastAtIndex = text.lastIndexOf("@");
-    if (lastAtIndex !== -1) {
-      const afterAt = text.substring(lastAtIndex + 1);
-      const spaceIndex = afterAt.indexOf(" ");
-
-      if (spaceIndex === -1 || spaceIndex > 0) {
-        setAtPosition(lastAtIndex);
-        const query = afterAt.split(" ")[0];
-        setTagSearchQuery(query);
-        if (query.length >= 1) {
-          searchForTagging(query);
-        } else {
-          setShowTagSearch(false);
-        }
-      } else {
-        setShowTagSearch(false);
-        setAtPosition(-1);
-      }
-    } else {
-      setShowTagSearch(false);
-      setAtPosition(-1);
-    }
-  };
-
-  const searchForTagging = async (query) => {
-    if (query.length < 1) {
-      setShowTagSearch(false);
-      return;
-    }
-
-    setTagSearchLoading(true);
-    setShowTagSearch(true);
-    try {
-      const response = await searchMembers(query, { limit: 10, offset: 0 });
-      setTagSearchResults(response.results || []);
-    } catch (error) {
-      console.error("Error searching for tagging:", error);
-      setTagSearchResults([]);
-    } finally {
-      setTagSearchLoading(false);
-    }
-  };
-
-  const selectTaggedUser = (user) => {
-    if (atPosition === -1) return;
-
-    const beforeAt = commentInput.substring(0, atPosition);
-    const afterAt = commentInput.substring(atPosition + 1);
-    const spaceIndex = afterAt.indexOf(" ");
-    const afterTag = spaceIndex === -1 ? "" : afterAt.substring(spaceIndex);
-
-    const newText = `${beforeAt}@${user.username}${afterTag}`;
-    setCommentInput(newText);
-
-    const existing = taggedEntities.find(
-      (t) => t.id === user.id && t.type === "member"
-    );
-    if (!existing) {
-      setTaggedEntities([
-        ...taggedEntities,
-        {
-          id: user.id,
-          type: "member",
-          username: user.username,
-        },
-      ]);
-    }
-
-    setShowTagSearch(false);
-    setAtPosition(-1);
-    setTagSearchQuery("");
   };
 
   const handlePostComment = async () => {
@@ -381,7 +326,7 @@ const CommentsModal = ({
             taggedEntities.length > 0 ? taggedEntities : undefined,
         },
         15000,
-        token
+        token,
       );
 
       if (result?.comment) {
@@ -396,7 +341,7 @@ const CommentsModal = ({
               "/auth/get-user-profile",
               { email },
               10000,
-              token
+              token,
             );
             if (profileResponse?.profile) {
               currentProfile = profileResponse.profile;
@@ -422,8 +367,6 @@ const CommentsModal = ({
         setComments((prev) => [...prev, enrichedComment]);
         setCommentInput("");
         setTaggedEntities([]);
-        setShowTagSearch(false);
-        setAtPosition(-1);
 
         // Calculate total count including all nested replies (3 levels)
         const getTotalCount = (arr) => {
@@ -483,7 +426,7 @@ const CommentsModal = ({
             taggedEntities.length > 0 ? taggedEntities : undefined,
         },
         15000,
-        token
+        token,
       );
 
       if (result?.comment) {
@@ -506,8 +449,6 @@ const CommentsModal = ({
         await loadComments();
         setCommentInput("");
         setTaggedEntities([]);
-        setShowTagSearch(false);
-        setAtPosition(-1);
         setReplyingTo(null);
 
         // Update count with the pre-calculated value
@@ -527,10 +468,16 @@ const CommentsModal = ({
     }
   };
 
-  // Cancel replying mode
+  // Cancel replying mode with animation
   const cancelReply = () => {
-    setReplyingTo(null);
-    setCommentInput("");
+    Animated.timing(replyAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setReplyingTo(null);
+      setCommentInput("");
+    });
   };
 
   // Toggle thread collapse - undefined/true means collapsed, false means expanded
@@ -577,8 +524,8 @@ const CommentsModal = ({
               isLiked: newIsLiked,
               like_count: newLikeCount,
             }
-          : comment
-      )
+          : comment,
+      ),
     );
 
     try {
@@ -604,8 +551,8 @@ const CommentsModal = ({
                 isLiked,
                 like_count: normalizedCurrentCount,
               }
-            : comment
-        )
+            : comment,
+        ),
       );
       Alert.alert("Error", error?.message || "Failed to update like");
     }
@@ -669,7 +616,7 @@ const CommentsModal = ({
       item.commenter_photo_url && item.commenter_photo_url.trim() !== ""
         ? item.commenter_photo_url
         : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            item.commenter_name || "User"
+            item.commenter_name || "User",
           )}&background=${placeholderBg}&color=FFFFFF`;
 
     return (
@@ -773,11 +720,7 @@ const CommentsModal = ({
                 inputRef.current?.focus();
               }}
             >
-              <Ionicons
-                name="arrow-undo-outline"
-                size={14}
-                color={COLORS.textSecondary}
-              />
+              <CornerUpLeft size={14} color="#6B7280" strokeWidth={2} />
               <Text style={styles.replyButtonText}>Reply</Text>
             </TouchableOpacity>
 
@@ -806,10 +749,11 @@ const CommentsModal = ({
           style={styles.commentLikeButton}
           onPress={() => handleCommentLike(item.id, isLiked, likeCount)}
         >
-          <Ionicons
-            name={isLiked ? "heart" : "heart-outline"}
+          <Heart
             size={18}
-            color={isLiked ? COLORS.error : COLORS.textSecondary}
+            color={isLiked ? COLORS.error : "#9CA3AF"}
+            fill={isLiked ? COLORS.error : "transparent"}
+            strokeWidth={2}
           />
           {likeCount > 0 && (
             <Text style={styles.commentLikeCount}>{likeCount}</Text>
@@ -825,7 +769,7 @@ const CommentsModal = ({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={COLORS.text} />
+            <X size={24} color="#111827" strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -843,9 +787,7 @@ const CommentsModal = ({
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No comments yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Be the first to comment!
-                </Text>
+                <Text style={styles.emptySubtext}>Be the first to comment</Text>
               </View>
             }
             keyboardShouldPersistTaps="handled"
@@ -857,19 +799,39 @@ const CommentsModal = ({
       <KeyboardAwareToolbar style={styles.toolbarContainer}>
         <View style={styles.inputContainer}>
           {/* Replying indicator */}
+          {/* Replying indicator */}
           {replyingTo && (
-            <View style={styles.replyingIndicator}>
-              <Text style={styles.replyingText}>
-                Replying to{" "}
-                <Text style={styles.replyingName}>@{replyingTo.name}</Text>
-              </Text>
+            <Animated.View
+              style={[
+                styles.replyingIndicator,
+                {
+                  opacity: replyAnim,
+                  transform: [
+                    {
+                      translateY: replyAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [10, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.replyingContent}>
+                <CornerUpLeft size={14} color="#9CA3AF" strokeWidth={2} />
+                <Text style={styles.replyingText}>
+                  Replying to{" "}
+                  <Text style={styles.replyingName}>@{replyingTo.name}</Text>
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={cancelReply}
                 style={styles.cancelReplyButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={16} color={COLORS.textSecondary} />
+                <X size={14} color="#9CA3AF" strokeWidth={2} />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           )}
           <View style={styles.inputRow}>
             <Image
@@ -881,94 +843,65 @@ const CommentsModal = ({
                     /^https?:\/\//.test(userProfile.logo_url))
                     ? userProfile.profile_photo_url || userProfile.logo_url
                     : userProfile?.name
-                    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        userProfile.name
-                      )}&background=${
-                        userProfile?.logo_url ? "5f27cd" : "6A0DAD"
-                      }&color=FFFFFF&size=32`
-                    : `https://ui-avatars.com/api/?name=User&background=6A0DAD&color=FFFFFF&size=32`,
+                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          userProfile.name,
+                        )}&background=${
+                          userProfile?.logo_url ? "5f27cd" : "6A0DAD"
+                        }&color=FFFFFF&size=32`
+                      : `https://ui-avatars.com/api/?name=User&background=6A0DAD&color=FFFFFF&size=32`,
               }}
               style={styles.inputAvatar}
             />
-            <View style={{ flex: 1, position: "relative" }}>
-              <TextInput
-                ref={inputRef}
+            <View style={{ flex: 1 }}>
+              <MentionInput
                 value={commentInput}
                 onChangeText={handleCommentInputChange}
+                onTaggedEntitiesChange={setTaggedEntities}
                 placeholder={
                   replyingTo
                     ? `Reply to @${replyingTo.name}...`
                     : "Add a comment..."
                 }
-                placeholderTextColor={COLORS.textSecondary}
-                style={styles.input}
-                multiline
-                editable={!posting}
+                placeholderTextColor="#9CA3AF"
+                inputStyle={{
+                  ...styles.input,
+                  maxHeight: 120, // Allow some expansion
+                  paddingTop: 10,
+                }}
+                inputContainerStyle={{
+                  borderWidth: 0,
+                  paddingHorizontal: 0,
+                  paddingVertical: 0,
+                }}
+                dropdownStyle={{
+                  top: "auto",
+                  bottom: "100%",
+                  marginTop: 0,
+                  marginBottom: 8,
+                }}
               />
-              {showTagSearch && (
-                <View style={styles.tagSearchContainer}>
-                  {tagSearchLoading ? (
-                    <View style={styles.tagSearchItem}>
-                      <ActivityIndicator size="small" color={COLORS.primary} />
-                    </View>
-                  ) : tagSearchResults.length > 0 ? (
-                    <FlatList
-                      data={tagSearchResults}
-                      keyExtractor={(item) => String(item.id)}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={styles.tagSearchItem}
-                          onPress={() => selectTaggedUser(item)}
-                        >
-                          <Image
-                            source={{
-                              uri:
-                                item.profile_photo_url ||
-                                "https://via.placeholder.com/30",
-                            }}
-                            style={styles.tagSearchAvatar}
-                          />
-                          <View style={styles.tagSearchInfo}>
-                            <Text
-                              style={styles.tagSearchName}
-                              numberOfLines={1}
-                            >
-                              {item.full_name || item.name || "User"}
-                            </Text>
-                            <Text
-                              style={styles.tagSearchUsername}
-                              numberOfLines={1}
-                            >
-                              @{item.username || "user"}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      )}
-                      style={styles.tagSearchList}
-                      keyboardShouldPersistTaps="handled"
-                    />
-                  ) : (
-                    <View style={styles.tagSearchItem}>
-                      <Text style={styles.tagSearchEmpty}>No users found</Text>
-                    </View>
-                  )}
-                </View>
-              )}
             </View>
             <TouchableOpacity
               onPress={replyingTo ? handleReplyComment : handlePostComment}
               disabled={!commentInput.trim() || posting}
-              style={styles.sendButton}
+              style={[
+                styles.sendButton,
+                (!commentInput.trim() || posting) && styles.sendButtonDisabled,
+              ]}
             >
-              <Ionicons
-                name="send"
-                size={20}
-                color={
-                  commentInput.trim() && !posting
-                    ? COLORS.primary
-                    : COLORS.textSecondary
-                }
-              />
+              {posting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="send" // Fallback
+                    size={20}
+                    color="#FFFFFF"
+                    style={{ display: "none" }}
+                  />
+                  <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1044,9 +977,10 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headerTitle: {
+    fontFamily: FONTS.semiBold,
     fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.text,
+    color: "#111827",
+    letterSpacing: -0.2,
   },
   closeButton: {
     padding: 4,
@@ -1090,18 +1024,22 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   commenterName: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text,
+    color: "#111827",
+    lineHeight: 20,
     marginRight: 8,
   },
   commentTime: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: "#9CA3AF",
+    lineHeight: 14,
   },
   commentText: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
-    color: COLORS.text,
+    color: "#374151",
     lineHeight: 20,
     marginBottom: 4,
   },
@@ -1117,14 +1055,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     alignSelf: "flex-start",
-    flexDirection: "row",
+    flexDirection: "column", // Stack vertically
     alignItems: "center",
-    gap: 4,
+    gap: 2, // Tighter gap for vertical stack
     marginLeft: 8,
+    minWidth: 40, // Ensure touch target
   },
   commentLikeCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#9CA3AF",
+    lineHeight: 14,
+    textAlign: "center",
   },
   emptyContainer: {
     flex: 1,
@@ -1133,14 +1075,16 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
   },
   emptyText: {
+    fontFamily: FONTS.medium,
     fontSize: 16,
-    color: COLORS.text,
-    fontWeight: "600",
-    marginBottom: 8,
+    color: "#111827",
+    marginBottom: 6,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 19,
   },
   toolbarContainer: {
     backgroundColor: COLORS.dark,
@@ -1165,72 +1109,37 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.darkGray,
+    backgroundColor: "#F5F5F5", // Hardcoded fallback or use theme if available
     borderRadius: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    color: COLORS.text,
-    fontSize: 14,
-    maxHeight: 100,
+    color: "#111827",
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    letterSpacing: -0.1,
+    maxHeight: 120,
   },
   sendButton: {
-    padding: 8,
-  },
-  tagSearchContainer: {
-    position: "absolute",
-    bottom: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.dark,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    maxHeight: 200,
-    marginBottom: 4,
-    zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  tagSearchList: {
-    maxHeight: 200,
-  },
-  tagSearchItem: {
-    flexDirection: "row",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#3565F2", // ChatScreen PRIMARY_COLOR
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    justifyContent: "center",
+    // Floating shadow for button
+    shadowColor: "#3565F2",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+    marginLeft: 8,
   },
-  tagSearchAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-  tagSearchInfo: {
-    flex: 1,
-  },
-  tagSearchName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  tagSearchUsername: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  tagSearchEmpty: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    paddingVertical: 10,
+  sendButtonDisabled: {
+    backgroundColor: "#9CA3AF", // LIGHT_TEXT_COLOR fallback
+    shadowOpacity: 0,
+    elevation: 0,
   },
   taggedUsername: {
     color: COLORS.primary,
@@ -1249,9 +1158,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   replyButtonText: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: "500",
+    color: "#6B7280",
+    lineHeight: 16,
   },
   showRepliesButton: {
     flexDirection: "row",
@@ -1267,19 +1177,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: COLORS.darkGray,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    height: 36,
+  },
+  replyingContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   replyingText: {
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: "#6B7280",
   },
   replyingName: {
-    fontWeight: "600",
-    color: COLORS.primary,
+    fontFamily: FONTS.medium,
+    color: "#2563EB", // Brand Blue
   },
   cancelReplyButton: {
     padding: 4,

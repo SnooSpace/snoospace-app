@@ -1,28 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/theme';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/theme";
+import MentionInput from "./MentionInput";
+import MentionTextRenderer from "./MentionTextRenderer";
 
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const TEXT_COLOR = "#1C1C1E";
+const LIGHT_TEXT_COLOR = "#8E8E93";
 
 /**
  * RichTextEditor - Basic text editor with formatting and character count
  * Supports: bold, italic, underline, bullets (minimal features for now)
  */
-const RichTextEditor = ({ value, onChange, minLength = 50, maxLength = 2000, placeholder }) => {
+const RichTextEditor = ({
+  value,
+  onChange,
+  onTaggedEntitiesChange,
+  minLength = 50,
+  maxLength = 2000,
+  placeholder,
+}) => {
   const [charCount, setCharCount] = useState(value?.length || 0);
   const [showPreview, setShowPreview] = useState(false);
+  const [taggedEntities, setTaggedEntities] = useState([]);
 
   const handleTextChange = (text) => {
     setCharCount(text.length);
     onChange(text);
+  };
+
+  const handleTaggedEntitiesChange = (entities) => {
+    setTaggedEntities(entities);
+    if (onTaggedEntitiesChange) {
+      onTaggedEntitiesChange(entities);
+    }
   };
 
   const isValid = charCount >= minLength;
@@ -47,7 +64,7 @@ const RichTextEditor = ({ value, onChange, minLength = 50, maxLength = 2000, pla
           onPress={() => setShowPreview(!showPreview)}
         >
           <Ionicons
-            name={showPreview ? 'create-outline' : 'eye-outline'}
+            name={showPreview ? "create-outline" : "eye-outline"}
             size={20}
             color={showPreview ? COLORS.primary : LIGHT_TEXT_COLOR}
           />
@@ -56,19 +73,29 @@ const RichTextEditor = ({ value, onChange, minLength = 50, maxLength = 2000, pla
 
       {/* Text Input */}
       {!showPreview ? (
-        <TextInput
-          style={styles.textInput}
-          value={value}
-          onChangeText={handleTextChange}
-          placeholder={placeholder || "Tell people what makes this event special..."}
-          placeholderTextColor={LIGHT_TEXT_COLOR}
-          multiline
-          textAlignVertical="top"
-          maxLength={maxLength}
-        />
+        <View style={styles.inputContainer}>
+          <MentionInput
+            value={value}
+            onChangeText={handleTextChange}
+            onTaggedEntitiesChange={handleTaggedEntitiesChange}
+            placeholder={
+              placeholder || "Tell people what makes this event special..."
+            }
+            placeholderTextColor={LIGHT_TEXT_COLOR}
+            multiline
+            maxLength={maxLength}
+            inputStyle={styles.mentionInput}
+            inputContainerStyle={styles.mentionInputContainer}
+          />
+        </View>
       ) : (
         <View style={styles.preview}>
-          <Text style={styles.previewText}>{value || 'No description yet...'}</Text>
+          <MentionTextRenderer
+            text={value || "No description yet..."}
+            taggedEntities={taggedEntities}
+            textStyle={styles.previewText}
+            mentionStyle={styles.mentionText}
+          />
         </View>
       )}
 
@@ -94,14 +121,14 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_COLOR,
   },
   charCount: {
@@ -109,43 +136,56 @@ const styles = StyleSheet.create({
     color: LIGHT_TEXT_COLOR,
   },
   charCountInvalid: {
-    color: '#FF3B30',
+    color: "#FF3B30",
   },
   toolbar: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
+    flexDirection: "row",
+    backgroundColor: "#F5F5F5",
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: 8,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
   },
   toolButton: {
     padding: 8,
     marginRight: 8,
     borderRadius: 6,
   },
-  textInput: {
+  // Replaced textInput with specific styles for MentionInput
+  inputContainer: {
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
-    padding: 15,
+    overflow: "hidden",
+  },
+  mentionInputContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    minHeight: 150,
+  },
+  mentionInput: {
     fontSize: 14,
     color: TEXT_COLOR,
-    backgroundColor: '#FFFFFF',
-    minHeight: 150,
+    textAlignVertical: "top",
+    paddingTop: 0,
+  },
+  mentionText: {
+    color: COLORS.primary,
+    fontWeight: "600",
   },
   preview: {
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#E5E5EA',
+    borderColor: "#E5E5EA",
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
     padding: 15,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
     minHeight: 150,
   },
   previewText: {
@@ -155,19 +195,19 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 12,
-    color: '#FF3B30',
+    color: "#FF3B30",
     marginTop: 8,
   },
   checkmark: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 8,
   },
   validText: {
     fontSize: 12,
-    color: '#34C759',
+    color: "#34C759",
     marginLeft: 6,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

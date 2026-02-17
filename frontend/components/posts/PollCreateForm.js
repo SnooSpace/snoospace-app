@@ -33,7 +33,10 @@ const MIN_OPTIONS = 2;
 
 const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const [question, setQuestion] = useState("");
-  const [options, setOptions] = useState(["", ""]);
+  const [options, setOptions] = useState([
+    { id: "1", text: "" },
+    { id: "2", text: "" },
+  ]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
@@ -44,7 +47,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const updateData = (updates) => {
     const newData = {
       question: updates.question !== undefined ? updates.question : question,
-      options: updates.options !== undefined ? updates.options : options,
+      options:
+        updates.options !== undefined
+          ? updates.options.map((o) => o.text)
+          : options.map((o) => o.text),
       allow_multiple:
         updates.allowMultiple !== undefined
           ? updates.allowMultiple
@@ -64,9 +70,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
     updateData({ question: text });
   };
 
-  const handleOptionChange = (index, text) => {
-    const newOptions = [...options];
-    newOptions[index] = text;
+  const handleOptionChange = (id, text) => {
+    const newOptions = options.map((opt) =>
+      opt.id === id ? { ...opt, text } : opt,
+    );
     setOptions(newOptions);
     updateData({ options: newOptions });
   };
@@ -74,16 +81,17 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const addOption = () => {
     if (options.length < MAX_OPTIONS) {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      const newOptions = [...options, ""];
+      const newOption = { id: Date.now().toString(), text: "" };
+      const newOptions = [...options, newOption];
       setOptions(newOptions);
       updateData({ options: newOptions });
     }
   };
 
-  const removeOption = (index) => {
+  const removeOption = (id) => {
     if (options.length > MIN_OPTIONS) {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      const newOptions = options.filter((_, i) => i !== index);
+      const newOptions = options.filter((opt) => opt.id !== id);
       setOptions(newOptions);
       updateData({ options: newOptions });
     }
@@ -139,7 +147,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
           const isFocused = focusedOptionIndex === index;
           return (
             <View
-              key={index}
+              key={option.id}
               style={[styles.optionCard, isFocused && styles.optionCardFocused]}
             >
               <View style={styles.optionNumber}>
@@ -150,8 +158,8 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
                 style={styles.optionInput}
                 placeholder={`Option ${index + 1}`}
                 placeholderTextColor={COLORS.textMuted}
-                value={option}
-                onChangeText={(text) => handleOptionChange(index, text)}
+                value={option.text}
+                onChangeText={(text) => handleOptionChange(option.id, text)}
                 onFocus={() => setFocusedOptionIndex(index)}
                 onBlur={() => setFocusedOptionIndex(null)}
                 maxLength={80}
@@ -163,7 +171,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
               {options.length > MIN_OPTIONS && (
                 <TouchableOpacity
                   style={styles.deleteButton}
-                  onPress={() => removeOption(index)}
+                  onPress={() => removeOption(option.id)}
                   disabled={disabled}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >

@@ -42,6 +42,7 @@ import {
   SHADOWS,
   SPACING,
   BORDER_RADIUS,
+  EDITORIAL_TYPOGRAPHY,
 } from "../../constants/theme";
 import CountdownTimer from "../CountdownTimer";
 import {
@@ -1262,9 +1263,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   engagementCount: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#5e8d9b",
+    ...EDITORIAL_TYPOGRAPHY.engagementCount,
     marginLeft: 6,
   },
   likedCount: {

@@ -2440,6 +2440,9 @@ const styles = StyleSheet.create({
     width: "100%",
     height: BANNER_HEIGHT,
     backgroundColor: "#EFEFF4",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: "hidden",
   },
   bannerImage: {
     width: "100%",

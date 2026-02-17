@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { globalSearch } from "../api/search";
+import MentionSearchDropdown from "./MentionSearchDropdown";
 
 const COLORS = {
   primary: "#5f27cd",
@@ -30,6 +31,7 @@ const MentionInput = ({
   style,
   inputStyle,
   inputContainerStyle,
+  dropdownStyle,
   maxLength = 2000,
   onTaggedEntitiesChange,
 }) => {
@@ -241,56 +243,6 @@ const MentionInput = ({
     }
   };
 
-  const renderSearchResult = ({ item }) => {
-    if (!item || !item.id) return null;
-
-    const isCommunity = item.type === "community";
-    const profilePhotoUrl = item?.profile_photo_url;
-    const fullName =
-      item?.full_name || item?.name || (isCommunity ? "Community" : "Member");
-    const username = item?.username || "user";
-
-    return (
-      <TouchableOpacity
-        style={styles.searchResultItem}
-        onPress={() => selectEntity(item)}
-      >
-        {profilePhotoUrl ? (
-          <Image
-            source={{ uri: profilePhotoUrl }}
-            style={styles.searchResultAvatar}
-          />
-        ) : (
-          <View
-            style={[
-              styles.searchResultAvatar,
-              styles.searchResultAvatarPlaceholder,
-            ]}
-          >
-            <Ionicons
-              name={isCommunity ? "people" : "person"}
-              size={18}
-              color={COLORS.textLight}
-            />
-          </View>
-        )}
-        <View style={styles.searchResultInfo}>
-          <Text style={styles.searchResultName} numberOfLines={1}>
-            {fullName}
-          </Text>
-          <Text style={styles.searchResultUsername} numberOfLines={1}>
-            @{username}
-          </Text>
-        </View>
-        {isCommunity && (
-          <View style={styles.communityBadge}>
-            <Text style={styles.communityBadgeText}>Community</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
   const renderTag = (entity, index) => {
     const username = entity.username || entity.name;
     return (
@@ -328,39 +280,13 @@ const MentionInput = ({
         )}
       </View>
 
-      {showSearch && (
-        <View style={styles.searchContainer}>
-          {isSearching ? (
-            <View style={styles.searchLoading}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-            </View>
-          ) : searchResults.length > 0 ? (
-            <ScrollView
-              style={styles.searchResults}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled
-            >
-              {searchResults
-                .filter((item) => item != null && item.id)
-                .map((item, index) => (
-                  <View
-                    key={
-                      item?.id
-                        ? `${item.id}-${item.type || "member"}`
-                        : `search-result-${index}`
-                    }
-                  >
-                    {renderSearchResult({ item })}
-                  </View>
-                ))}
-            </ScrollView>
-          ) : searchQuery.length >= 2 ? (
-            <View style={styles.searchEmpty}>
-              <Text style={styles.searchEmptyText}>No results found</Text>
-            </View>
-          ) : null}
-        </View>
-      )}
+      <MentionSearchDropdown
+        visible={showSearch}
+        results={searchResults}
+        loading={isSearching}
+        onSelect={selectEntity}
+        style={dropdownStyle}
+      />
     </View>
   );
 };
@@ -373,7 +299,6 @@ const styles = StyleSheet.create({
     // Removed default border and background to allow for "borderless" look
   },
   input: {
-    minHeight: 100,
     paddingHorizontal: 0, // Let parent handle padding
     paddingVertical: 10,
     fontSize: 16,
@@ -402,82 +327,6 @@ const styles = StyleSheet.create({
   },
   tagRemove: {
     padding: 2,
-  },
-  searchContainer: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    marginTop: 4,
-    maxHeight: 200,
-    zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  searchResults: {
-    maxHeight: 200,
-  },
-  searchResultItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  searchResultAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 12,
-  },
-  searchResultAvatarPlaceholder: {
-    backgroundColor: "#F2F2F7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchResultInfo: {
-    flex: 1,
-  },
-  searchResultName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textDark,
-  },
-  searchResultUsername: {
-    fontSize: 13,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
-  searchLoading: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-  searchEmpty: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-  searchEmptyText: {
-    fontSize: 14,
-    color: COLORS.textLight,
-  },
-  communityBadge: {
-    backgroundColor: "#F0F0F0",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  communityBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#666",
   },
 });
 
