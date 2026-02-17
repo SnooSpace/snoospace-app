@@ -12,6 +12,7 @@ import {
   Animated,
   Easing,
   Modal,
+  Keyboard,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -48,7 +49,41 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
   const imageUploaderRef = useRef(null);
+  const scrollViewRef = useRef(null);
+  // ...
+
+  // Auto-scroll when entity tagger opens
+  useEffect(() => {
+    if (showEntityTagger) {
+      // Scroll once immediately after layout update
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+      // Scroll again after keyboard animation might have finished
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 500);
+    }
+  }, [showEntityTagger]);
+
+  // Handle keyboard show to ensure visibility
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        if (showEntityTagger) {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }
+      },
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, [showEntityTagger]);
 
   // Animation for Share button
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -477,10 +512,13 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          scrollEnabled={parentScrollEnabled}
         >
           {/* Identity Row */}
           {currentUser && (
@@ -563,6 +601,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               <EntityTagSelector
                 onEntitiesChange={setEntityTags}
                 initialEntities={entityTags}
+                onInteractionStart={() => setParentScrollEnabled(false)}
+                onInteractionEnd={() => setParentScrollEnabled(true)}
               />
             </View>
           )}
@@ -570,9 +610,9 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           {/* Challenge tag banner (shown when a challenge is tagged) */}
           {entityTags.some((e) => e.type === "challenge") && (
             <View style={styles.challengeBanner}>
-              <Ionicons name="trophy" size={18} color="#FF6B35" />
+              <Trophy size={16} color="#FF6B35" strokeWidth={2.5} />
               <Text style={styles.challengeBannerText}>
-                Tagged: {entityTags.find((e) => e.type === "challenge")?.name}
+                {entityTags.find((e) => e.type === "challenge")?.name}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -580,9 +620,10 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                     entityTags.filter((e) => e.type !== "challenge"),
                   );
                 }}
+                style={styles.closeButtonContainer}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close-circle" size={20} color="#999" />
+                <X size={12} color="#1F2937" strokeWidth={3} />
               </TouchableOpacity>
             </View>
           )}
@@ -692,7 +733,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 0,
-    paddingBottom: 100,
+    paddingBottom: 200, // Increased for visibility
   },
   identityRow: {
     flexDirection: "row",
@@ -815,19 +856,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFF3ED",
     marginHorizontal: 20,
+    alignSelf: "flex-start", // Left-aligned pill
     marginTop: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFD4BC",
+    height: 36,
+    borderRadius: 18,
     gap: 8,
   },
   challengeBannerText: {
-    flex: 1,
     fontSize: 14,
-    fontWeight: "600",
-    color: "#FF6B35",
+    fontFamily: "Manrope-Medium",
+    color: "#1F2937",
+    marginRight: 4,
+  },
+  closeButtonContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 

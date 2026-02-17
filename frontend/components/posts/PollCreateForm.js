@@ -1,20 +1,33 @@
 /**
  * PollCreateForm
- * Form for creating poll posts
+ * Form for creating poll posts with a premium, card-based design.
  */
 
-import React, { useState, Platform } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
+  Switch,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
+import { Trash2, Plus, Calendar, Clock } from "lucide-react-native";
+import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
+
+// Enable LayoutAnimation
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const MAX_OPTIONS = 6;
 const MIN_OPTIONS = 2;
@@ -26,6 +39,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState(null);
 
   // Notify parent of data changes
   const updateData = (updates) => {
@@ -60,6 +74,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
 
   const addOption = () => {
     if (options.length < MAX_OPTIONS) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       const newOptions = [...options, ""];
       setOptions(newOptions);
       updateData({ options: newOptions });
@@ -68,6 +83,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
 
   const removeOption = (index) => {
     if (options.length > MIN_OPTIONS) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       const newOptions = options.filter((_, i) => i !== index);
       setOptions(newOptions);
       updateData({ options: newOptions });
@@ -86,224 +102,130 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
     }
   };
 
-  const setDeadlinePreset = (days) => {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    date.setHours(23, 59, 59, 999); // End of day
-    setExpiresAt(date);
-    updateData({ expiresAt: date.toISOString() });
-  };
-
   const handleDateChange = (event, selectedDate) => {
-    // Always close the picker after an interaction
     setShowDatePicker(false);
-
-    // Save the selected date if provided
     if (selectedDate) {
-      // Set to end of the selected day to match preset behavior
       const date = new Date(selectedDate);
       date.setHours(23, 59, 59, 999);
-
       setExpiresAt(date);
       updateData({ expiresAt: date.toISOString() });
     }
   };
 
-  const clearDeadline = () => {
-    setShowDatePicker(false); // Close picker first
-    setExpiresAt(null);
-    updateData({ expiresAt: null });
-  };
-
   return (
     <View style={styles.container}>
-      {/* Question Input */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Poll Question</Text>
+      {/* Question Card */}
+      <View style={styles.card}>
+        <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
         <TextInput
           style={styles.questionInput}
-          placeholder="Ask your community something..."
-          placeholderTextColor={COLORS.textSecondary}
+          placeholder="What should we do this weekend?"
+          placeholderTextColor={COLORS.textMuted}
           value={question}
           onChangeText={handleQuestionChange}
           maxLength={200}
           multiline
           editable={!disabled}
+          selectionColor={COLORS.primary}
         />
         <Text style={styles.charCount}>{question.length}/200</Text>
       </View>
 
-      {/* Options */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Options</Text>
-        {options.map((option, index) => (
-          <View key={index} style={styles.optionRow}>
-            <View style={styles.optionNumber}>
-              <Text style={styles.optionNumberText}>{index + 1}</Text>
+      {/* Options Section */}
+      <View style={styles.optionsContainer}>
+        {options.map((option, index) => {
+          const isFocused = focusedOptionIndex === index;
+          return (
+            <View
+              key={index}
+              style={[styles.optionCard, isFocused && styles.optionCardFocused]}
+            >
+              <View style={styles.optionNumber}>
+                <Text style={styles.optionNumberText}>{index + 1}</Text>
+              </View>
+
+              <TextInput
+                style={styles.optionInput}
+                placeholder={`Option ${index + 1}`}
+                placeholderTextColor={COLORS.textMuted}
+                value={option}
+                onChangeText={(text) => handleOptionChange(index, text)}
+                onFocus={() => setFocusedOptionIndex(index)}
+                onBlur={() => setFocusedOptionIndex(null)}
+                maxLength={80}
+                editable={!disabled}
+                selectionColor={COLORS.primary}
+              />
+
+              {/* Show delete only if > min options, and ideally on focus or always visible but subtle */}
+              {options.length > MIN_OPTIONS && (
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => removeOption(index)}
+                  disabled={disabled}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Trash2
+                    size={20}
+                    color={isFocused ? "#FF3B30" : "#D1D5DB"}
+                    strokeWidth={2}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
-            <TextInput
-              style={styles.optionInput}
-              placeholder={`Option ${index + 1}`}
-              placeholderTextColor={COLORS.textSecondary}
-              value={option}
-              onChangeText={(text) => handleOptionChange(index, text)}
-              maxLength={80}
-              editable={!disabled}
-            />
-            {options.length > MIN_OPTIONS && (
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removeOption(index)}
-                disabled={disabled}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={22}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+          );
+        })}
 
         {options.length < MAX_OPTIONS && (
           <TouchableOpacity
             style={styles.addOptionButton}
             onPress={addOption}
             disabled={disabled}
+            activeOpacity={0.7}
           >
-            <Ionicons
-              name="add-circle-outline"
-              size={20}
-              color={COLORS.primary}
-            />
-            <Text style={styles.addOptionText}>Add option</Text>
+            <Text style={styles.addOptionText}>+ Add option</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Settings */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Settings</Text>
+      {/* Settings Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Poll Settings</Text>
+        </View>
 
-        <TouchableOpacity
-          style={styles.settingRow}
-          onPress={() => toggleSetting("multiple")}
-          disabled={disabled}
-        >
+        <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Allow multiple selections</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={styles.settingLabel}>Allow multiple selections</Text>
+            <Text style={styles.settingSubLabel}>
               Voters can choose more than one option
             </Text>
           </View>
-          <View
-            style={[styles.checkbox, allowMultiple && styles.checkboxChecked]}
-          >
-            {allowMultiple && (
-              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-            )}
-          </View>
-        </TouchableOpacity>
+          <Switch
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
+            onValueChange={() => toggleSetting("multiple")}
+            value={allowMultiple}
+            disabled={disabled}
+          />
+        </View>
 
-        <TouchableOpacity
-          style={styles.settingRow}
-          onPress={() => toggleSetting("showResults")}
-          disabled={disabled}
-        >
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Show results before voting</Text>
-            <Text style={styles.settingDescription}>
-              Users can see current results without voting
+            <Text style={styles.settingLabel}>Show results before voting</Text>
+            <Text style={styles.settingSubLabel}>
+              Users can see results without voting
             </Text>
           </View>
-          <View
-            style={[
-              styles.checkbox,
-              showResultsBeforeVote && styles.checkboxChecked,
-            ]}
-          >
-            {showResultsBeforeVote && (
-              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Deadline */}
-        <View style={styles.deadlineSection}>
-          <Text style={styles.settingTitle}>Poll Deadline (Optional)</Text>
-          <Text style={styles.settingDescription}>
-            Set when voting should close
-          </Text>
-
-          {!expiresAt ? (
-            <View style={styles.presetButtons}>
-              <TouchableOpacity
-                style={styles.presetButton}
-                onPress={() => setDeadlinePreset(1)}
-                disabled={disabled}
-              >
-                <Text style={styles.presetButtonText}>1 Day</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.presetButton}
-                onPress={() => setDeadlinePreset(3)}
-                disabled={disabled}
-              >
-                <Text style={styles.presetButtonText}>3 Days</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.presetButton}
-                onPress={() => setDeadlinePreset(7)}
-                disabled={disabled}
-              >
-                <Text style={styles.presetButtonText}>1 Week</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.presetButton}
-                onPress={() => setShowDatePicker(true)}
-                disabled={disabled}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.presetButtonText}>Custom</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.deadlineDisplay}>
-              <View style={styles.deadlineInfo}>
-                <Ionicons
-                  name="time-outline"
-                  size={18}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.deadlineText}>
-                  {expiresAt.toLocaleDateString()} at{" "}
-                  {expiresAt.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={clearDeadline} disabled={disabled}>
-                <Text style={styles.clearButton}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={expiresAt || new Date()}
-              mode="date"
-              is24Hour={false}
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+          <Switch
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
+            onValueChange={() => toggleSetting("showResults")}
+            value={showResultsBeforeVote}
+            disabled={disabled}
+          />
         </View>
       </View>
     </View>
@@ -312,161 +234,134 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: SPACING.m,
+    paddingBottom: 40,
   },
-  section: {
-    marginBottom: SPACING.l,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.04)",
+    shadowOpacity: 1, // Using opacity 1 with very light color
+    shadowRadius: 20,
+    elevation: 2,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
+  subtleLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
-    marginBottom: SPACING.s,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    opacity: 0.6,
+    letterSpacing: 0.8,
+    marginBottom: 12,
   },
   questionInput: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textPrimary,
-    minHeight: 80,
+    minHeight: 60,
     textAlignVertical: "top",
+    padding: 0,
   },
   charCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textMuted,
     textAlign: "right",
-    marginTop: SPACING.xs,
+    marginTop: 8,
   },
-  optionRow: {
+  optionsContainer: {
+    marginBottom: 28,
+  },
+  optionCard: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.s,
+    backgroundColor: "#F8F9FB",
+    borderRadius: 16,
+    height: 52,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  optionCardFocused: {
+    backgroundColor: "#FFFFFF",
+    borderColor: COLORS.primary,
+    ...SHADOWS.sm,
   },
   optionNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.screenBackground,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(41, 98, 255, 0.1)", // Light brand blue
     alignItems: "center",
     justifyContent: "center",
-    marginRight: SPACING.s,
+    marginRight: 12,
   },
   optionNumberText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.primary,
   },
   optionInput: {
     flex: 1,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
+    fontFamily: "Manrope-Medium",
     fontSize: 15,
     color: COLORS.textPrimary,
+    height: "100%",
   },
-  removeButton: {
-    padding: SPACING.s,
-    marginLeft: SPACING.xs,
+  deleteButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   addOptionButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: SPACING.m,
-    marginTop: SPACING.xs,
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#D0D5DD",
+    borderStyle: "dashed",
+    marginTop: 4,
   },
   addOptionText: {
+    fontFamily: "Manrope-Medium",
     fontSize: 14,
-    color: COLORS.primary,
-    marginLeft: SPACING.s,
-    fontWeight: "500",
+    color: COLORS.textSecondary,
+  },
+  cardHeader: {
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold", // Using the brand font
+    color: COLORS.textPrimary,
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: SPACING.m,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: "#F3F4F6",
+    marginBottom: 8,
   },
   settingInfo: {
     flex: 1,
+    paddingRight: 16,
   },
-  settingTitle: {
+  settingLabel: {
     fontSize: 15,
-    fontWeight: "500",
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
+    marginBottom: 2,
   },
-  settingDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  deadlineSection: {
-    paddingTop: SPACING.m,
-    marginTop: SPACING.m,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  presetButtons: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.s,
-    marginTop: SPACING.m,
-  },
-  presetButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: SPACING.s,
-    paddingHorizontal: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  presetButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.primary,
-  },
-  deadlineDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: SPACING.m,
-    padding: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-  },
-  deadlineInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.s,
-  },
-  deadlineText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
-  },
-  clearButton: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.error,
+  settingSubLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
   },
 });
 

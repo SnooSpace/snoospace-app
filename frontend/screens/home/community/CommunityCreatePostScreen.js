@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -12,13 +11,13 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  LayoutAnimation,
+  UIManager,
+  Keyboard,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X } from "lucide-react-native";
+import { Camera, Info, X, Video, Trophy } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import CelebrationModal from "../../../components/CelebrationModal";
 import HapticsService from "../../../services/HapticsService";
@@ -26,6 +25,7 @@ import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
 
 import ImageUploader from "../../../components/ImageUploader";
 import MentionInput from "../../../components/MentionInput";
+import EntityTagSelector from "../../../components/EntityTagSelector";
 import PostTypeSelector from "../../../components/posts/PostTypeSelector";
 import PollCreateForm from "../../../components/posts/PollCreateForm";
 import PromptCreateForm from "../../../components/posts/PromptCreateForm";
@@ -33,24 +33,29 @@ import QnACreateForm from "../../../components/posts/QnACreateForm";
 import ChallengeCreateForm from "../../../components/posts/ChallengeCreateForm";
 import { apiPost } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
-import {
-  uploadMultipleImages,
-  uploadMultipleMedia,
-} from "../../../api/cloudinary";
+import { uploadMultipleMedia } from "../../../api/cloudinary";
 import { getCommunityProfile } from "../../../api/communities";
 import EventBus from "../../../utils/EventBus";
-import { COLORS, SHADOWS } from "../../../constants/theme";
+import { COLORS, FONTS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
 
-// Local constants removed in favor of theme constants
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function CommunityCreatePostScreen({ navigation }) {
-  const [postType, setPostType] = useState("media"); // media, poll, prompt
+  const [postType, setPostType] = useState("media"); // media, poll, prompt, qna, challenge
+
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]); // Track aspect ratios for images
   const [mediaTypes, setMediaTypes] = useState([]); // Track media types (image | video)
   const [taggedEntities, setTaggedEntities] = useState([]);
+  const [entityTags, setEntityTags] = useState([]); // From EntityTagSelector
   const [pollData, setPollData] = useState({
     question: "",
     options: ["", ""],
@@ -87,10 +92,44 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [profileError, setProfileError] = useState("");
 
   const [showCelebration, setShowCelebration] = useState(false);
-  const [createdPostData, setCreatedPostData] = useState(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const [showEntityTagger, setShowEntityTagger] = useState(false);
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
   const insets = useSafeAreaInsets();
   const imageUploaderRef = useRef(null);
+  const scrollViewRef = useRef(null);
+  // ...
+
+  // Auto-scroll when entity tagger opens
+  useEffect(() => {
+    if (showEntityTagger) {
+      // Scroll once immediately after layout update
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+      // Scroll again after keyboard animation might have finished
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 500);
+    }
+  }, [showEntityTagger]);
+
+  // Handle keyboard show to ensure visibility
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        if (showEntityTagger) {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }
+      },
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, [showEntityTagger]);
 
   useEffect(() => {
     let isMounted = true;
@@ -189,27 +228,38 @@ export default function CommunityCreatePostScreen({ navigation }) {
         finalImageUrls = finalImageUrls.filter(Boolean);
       }
 
-      const taggedPayload = taggedEntities
-        .map((entity) => ({
+      const mergedTags = [
+        ...taggedEntities.map((entity) => ({
           id: entity.id,
           type:
             entity.type || entity.entityType || entity.entity_type || "member",
-        }))
-        .filter((entry) => entry.id && entry.type);
+        })),
+        ...entityTags.map((entity) => ({
+          id: entity.id,
+          type:
+            entity.type || entity.entityType || entity.entity_type || "member",
+        })),
+      ];
+
+      const taggedPayload = mergedTags.filter(
+        (entry) => entry.id && entry.type,
+      );
 
       const commonPayload = {
-        post_type: postType,
-        caption: (postType === "media" ? caption : null) || null,
+        post_type: postType === "text" ? "media" : postType, // "text" is just media without images in backend usually, or treat as media
+        caption:
+          (postType === "media" || postType === "text" ? caption : null) ||
+          null,
       };
 
       let typePayload = {};
 
-      if (postType === "media") {
+      if (postType === "media" || postType === "text") {
         // ... Log media specific payload ...
+        const captionLength = caption?.trim()?.length || 0;
         console.log("[CreatePost] Sending media post data:", {
-          captionLength: caption?.trim()?.length || 0,
+          captionLength,
           imageCount: finalImageUrls.length,
-          aspectRatiosCount: aspectRatios.length,
         });
 
         // Convert aspect ratios
@@ -429,11 +479,27 @@ export default function CommunityCreatePostScreen({ navigation }) {
         tint="light"
         style={[styles.header, { paddingTop: insets.top + 10 }]}
       >
-        <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-          <X size={24} color={COLORS.textPrimary} strokeWidth={2.5} />
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={styles.closeButton}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        >
+          <X
+            size={26}
+            color={COLORS.editorial.textSecondary}
+            strokeWidth={2.5}
+          />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>New Post</Text>
+        <View
+          style={[
+            styles.headerTitleContainer,
+            { top: insets.top + 10, bottom: 12, justifyContent: "center" },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.headerTitle}>New Post</Text>
+        </View>
 
         <GradientButton
           title="Post"
@@ -444,13 +510,39 @@ export default function CommunityCreatePostScreen({ navigation }) {
           disabled={!canSubmit || isPosting}
           loading={isPosting}
           style={[
-            { minWidth: 80, paddingHorizontal: 16, paddingVertical: 8 },
+            {
+              width: 80, // Fixed width to match CreatePostScreen.js
+              paddingHorizontal: 0,
+              paddingVertical: 0,
+              borderRadius: 100, // Keep the bill shape as per earlier redesign req
+              height: 36,
+              justifyContent: "center",
+            },
             (!canSubmit || isPosting) && {
               shadowOpacity: 0,
               elevation: 0,
               shadowColor: "transparent",
+              backgroundColor: "#E5E7EB", // Soft grey
             },
           ]}
+          gradientStyle={{
+            paddingHorizontal: 0, // Removed padding to center text in fixed width
+            paddingVertical: 0,
+            borderRadius: 100,
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+          }}
+          colors={
+            !canSubmit || isPosting
+              ? ["#E5E7EB", "#E5E7EB"]
+              : ["#007AFF", "#007AFF"] // Solid Blue (iOS style) or Brand Blue
+          }
+          textStyle={{
+            fontFamily: "Manrope-Medium",
+            color: !canSubmit || isPosting ? "#9CA3AF" : "#FFFFFF",
+            fontSize: 14,
+          }}
         />
       </BlurView>
 
@@ -460,28 +552,14 @@ export default function CommunityCreatePostScreen({ navigation }) {
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+          nestedScrollEnabled={true}
+          scrollEnabled={parentScrollEnabled}
         >
-          {/* Post Type Selector */}
-          <PostTypeSelector
-            selectedType={postType}
-            onSelectType={setPostType}
-            disabled={isPosting}
-          />
-
-          {errorMsg ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
-              <TouchableOpacity onPress={handlePost} disabled={isPosting}>
-                <Text style={styles.retryText}>
-                  {isPosting ? "Posting..." : "Retry"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
           {/* Author Info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
@@ -506,84 +584,166 @@ export default function CommunityCreatePostScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Media Post Form */}
-          {postType === "media" && (
-            <>
+          {/* Post Type Selector (Segmented) */}
+          <PostTypeSelector
+            selectedType={postType}
+            onSelectType={(type) => {
+              LayoutAnimation.configureNext(
+                LayoutAnimation.Presets.easeInEaseOut,
+              );
+              setPostType(type);
+            }}
+            disabled={isPosting}
+          />
+
+          {errorMsg ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{errorMsg}</Text>
+              <TouchableOpacity onPress={handlePost} disabled={isPosting}>
+                <Text style={styles.retryText}>
+                  {isPosting ? "Posting..." : "Retry"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Adaptive Composer Section */}
+          <View style={styles.composerContainer}>
+            {/* Text & Media Composer */}
+            {postType === "media" && (
               <View style={styles.composerSection}>
                 <MentionInput
                   value={caption}
                   onChangeText={setCaption}
                   onTaggedEntitiesChange={setTaggedEntities}
-                  placeholder="What's happening? Use @ to mention..."
-                  placeholderTextColor="#A0A0A0"
+                  placeholder={
+                    "Share something with your network...\nUse @ to mention"
+                  }
+                  placeholderTextColor="#9CA3AF"
                   maxLength={2000}
-                  style={styles.mainInput}
-                  inputContainerStyle={{
-                    borderWidth: 1,
-                    borderColor: "#E5E5EA",
-                    borderRadius: 10,
-                    backgroundColor: "#FFFFFF",
-                    paddingHorizontal: 12,
-                  }}
+                  inputStyle={styles.mainInput}
                   autoFocus={true}
+                  multiline={true}
                 />
 
                 {caption.length > 0 && (
                   <Text style={styles.counterText}>{caption.length}/2000</Text>
                 )}
               </View>
+            )}
 
-              <View
-                style={[
-                  styles.mediaTrayContainer,
-                  images.length === 0 && {
-                    marginTop: 0,
-                    height: 0,
-                    opacity: 0,
-                    overflow: "hidden",
-                  },
-                ]}
-                pointerEvents={images.length === 0 ? "none" : "auto"}
-              >
-                <ImageUploader
-                  ref={imageUploaderRef}
-                  onImagesChange={handleImageSelect}
-                  onAspectRatiosChange={handleAspectRatiosChange}
-                  onMediaTypesChange={handleMediaTypesChange}
-                  maxImages={5}
-                  horizontal={true}
-                  initialImages={images}
-                  allowVideos={true}
+            {/* Media Specific Controls */}
+            {postType === "media" && (
+              <View style={styles.mediaSection}>
+                {/* Media Uploader */}
+                <View
+                  style={[
+                    styles.mediaTrayContainer,
+                    images.length === 0 && {
+                      marginTop: 0,
+                      height: 0,
+                      opacity: 0,
+                      overflow: "hidden",
+                    },
+                  ]}
+                  pointerEvents={images.length === 0 ? "none" : "auto"}
+                >
+                  <ImageUploader
+                    ref={imageUploaderRef}
+                    maxImages={10}
+                    onImagesChange={handleImageSelect}
+                    onAspectRatiosChange={handleAspectRatiosChange}
+                    onMediaTypesChange={handleMediaTypesChange}
+                    initialImages={images}
+                    horizontal={true}
+                    allowVideos={true}
+                  />
+                </View>
+
+                {/* Entity Tag Selector (Trophy) */}
+                {showEntityTagger && (
+                  <View style={styles.entityTaggerContainer}>
+                    <EntityTagSelector
+                      onEntitiesChange={setEntityTags}
+                      initialEntities={entityTags}
+                      onInteractionStart={() => setParentScrollEnabled(false)}
+                      onInteractionEnd={() => setParentScrollEnabled(true)}
+                    />
+                  </View>
+                )}
+
+                {/* Challenge tag banner (shown when a challenge is tagged) */}
+                {entityTags.some((e) => e.type === "challenge") && (
+                  <View style={styles.challengeBanner}>
+                    <Trophy size={16} color="#FF6B35" />
+                    <Text style={styles.challengeBannerText}>
+                      {entityTags.find((e) => e.type === "challenge")?.name}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEntityTags(
+                          entityTags.filter((e) => e.type !== "challenge"),
+                        );
+                      }}
+                      style={styles.closeButtonContainer}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <X size={12} color="#1F2937" strokeWidth={3} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Poll Post Form */}
+            {postType === "poll" && (
+              <View style={styles.formContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>POLL DETAILS</Text>
+                </View>
+                <PollCreateForm
+                  onDataChange={setPollData}
+                  disabled={isPosting}
                 />
               </View>
-            </>
-          )}
+            )}
 
-          {/* Poll Post Form */}
-          {postType === "poll" && (
-            <PollCreateForm onDataChange={setPollData} disabled={isPosting} />
-          )}
+            {/* Prompt Post Form */}
+            {postType === "prompt" && (
+              <View style={styles.formContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>PROMPT DETAILS</Text>
+                </View>
+                <PromptCreateForm
+                  onDataChange={setPromptData}
+                  disabled={isPosting}
+                />
+              </View>
+            )}
 
-          {/* Prompt Post Form */}
-          {postType === "prompt" && (
-            <PromptCreateForm
-              onDataChange={setPromptData}
-              disabled={isPosting}
-            />
-          )}
+            {/* Q&A Post Form */}
+            {postType === "qna" && (
+              <View style={styles.formContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Q&A DETAILS</Text>
+                </View>
+                <QnACreateForm onSubmit={setQnaData} isSubmitting={isPosting} />
+              </View>
+            )}
 
-          {/* Q&A Post Form */}
-          {postType === "qna" && (
-            <QnACreateForm onSubmit={setQnaData} isSubmitting={isPosting} />
-          )}
-
-          {/* Challenge Post Form */}
-          {postType === "challenge" && (
-            <ChallengeCreateForm
-              onSubmit={setChallengeData}
-              isSubmitting={isPosting}
-            />
-          )}
+            {/* Challenge Post Form */}
+            {postType === "challenge" && (
+              <View style={styles.formContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>CHALLENGE DETAILS</Text>
+                </View>
+                <ChallengeCreateForm
+                  onSubmit={setChallengeData}
+                  isSubmitting={isPosting}
+                />
+              </View>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -595,8 +755,43 @@ export default function CommunityCreatePostScreen({ navigation }) {
                 HapticsService.triggerImpactLight();
                 imageUploaderRef.current?.openCamera();
               }}
+              style={styles.toolbarButton}
             >
-              <Camera size={28} color="#8E8E93" strokeWidth={2} />
+              <Camera
+                size={32}
+                color={COLORS.editorial.textSecondary}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                imageUploaderRef.current?.pickVideo();
+              }}
+              style={styles.toolbarButton}
+            >
+              <Video
+                size={32}
+                color={COLORS.editorial.textSecondary}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setShowEntityTagger(!showEntityTagger);
+              }}
+              style={styles.toolbarButton}
+            >
+              <Trophy
+                size={32}
+                color={
+                  showEntityTagger ? "#FF6B35" : COLORS.editorial.textSecondary
+                }
+                strokeWidth={2}
+              />
             </TouchableOpacity>
 
             <View style={{ flex: 1 }} />
@@ -636,17 +831,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
     zIndex: 100,
+    // borderBottomWidth: 1, // Removed heavy divider
+    // borderBottomColor: "rgba(0,0,0,0.05)",
   },
   closeButton: {
     padding: 8,
   },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: -1, // Behind buttons
+  },
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: COLORS.textPrimary,
+    color: "#1F2937",
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    paddingTop: 0,
+    paddingBottom: 40, // Reduced from 200 to reduce unused space
   },
   authorInfo: {
     flexDirection: "row",
@@ -655,41 +860,45 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   authorAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F8F5FF",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E5E7EB",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   authorAvatarImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   authorDetails: {
-    flex: 1,
+    justifyContent: "center",
   },
   authorName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "#111827",
   },
   authorType: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "#6B7280",
   },
   composerSection: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingHorizontal: 24, // Breathing room
+    paddingTop: 8,
   },
   mainInput: {
+    fontFamily: FONTS.regular,
     fontSize: 18,
     lineHeight: 26,
-    color: COLORS.textPrimary,
-    minHeight: 120,
+    color: "#111827",
+    minHeight: 150,
     textAlignVertical: "top",
+    paddingTop: 0,
+    backgroundColor: "transparent",
   },
   counterText: {
     fontSize: 11,
@@ -699,8 +908,27 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   mediaTrayContainer: {
+    marginTop: 16,
+    paddingHorizontal: 0,
+  },
+  formContainer: {
     marginTop: 20,
-    paddingLeft: 20,
+    paddingHorizontal: 20,
+  },
+  composerContainer: {
+    marginTop: 20,
+  },
+  sectionHeader: {
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+    letterSpacing: 1,
   },
   toolbarContent: {
     flexDirection: "row",
@@ -708,6 +936,74 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 12,
     gap: 32,
+  },
+  toolbarButton: {
+    padding: 0,
+  },
+  mediaSection: {
+    paddingHorizontal: 20,
+    marginTop: 12,
+  },
+  entityTaggerContainer: {
+    marginTop: 12,
+  },
+  challengeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3ED",
+    marginHorizontal: 20,
+    alignSelf: "flex-start", // Left-aligned pill
+    marginTop: 12,
+    paddingHorizontal: 14,
+    height: 36,
+    borderRadius: 18,
+    gap: 8,
+  },
+  challengeBannerText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: "#1F2937",
+    marginRight: 4,
+  },
+  closeButtonContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subSegmentContainer: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  subSegment: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: 8,
+  },
+  subSegmentActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: "rgba(41, 98, 255, 0.05)",
+  },
+  subSegmentText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  subSegmentTextActive: {
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
+  mediaHelperText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 8,
+    fontStyle: "italic",
+    textAlign: "center",
   },
   errorBanner: {
     backgroundColor: "#FFE5E5",

@@ -9,19 +9,17 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Trophy } from "lucide-react-native";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
+import { COLORS, FONTS } from "../constants/theme";
 
-const COLORS = {
-  primary: "#5E17EB",
-  textDark: "#282C35",
-  textLight: "#808080",
-  background: "#FFFFFF",
-  white: "#fff",
-  border: "#E5E5E5",
-  challenge: "#FF6B35",
+// Local overrides if needed, but mostly using theme
+const LOCAL_COLORS = {
+  challenge: "#FF6B35", // Deep orange
   challengeLight: "#FFF3ED",
 };
 
@@ -38,8 +36,12 @@ const EntityTagSelector = ({
   onEntitiesChange,
   initialEntities = [],
   style,
+  onInteractionStart,
+  onInteractionEnd,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  // ... (lines 40-209 unchanged)
+
   const [searchResults, setSearchResults] = useState([]);
   const [selectedEntities, setSelectedEntities] = useState(initialEntities);
   const [isSearching, setIsSearching] = useState(false);
@@ -190,101 +192,135 @@ const EntityTagSelector = ({
       : challenges;
 
   // ─── Render ───────────────────────────────────────────────────
-  const renderCommunityResults = () => (
-    <ScrollView
-      style={styles.resultsContainer}
-      keyboardShouldPersistTaps="handled"
-    >
-      {isSearching ? (
-        <ActivityIndicator
-          size="small"
-          color={COLORS.challenge}
-          style={{ paddingVertical: 16 }}
-        />
-      ) : searchResults.length === 0 && searchQuery.length > 0 ? (
-        <Text style={styles.noResults}>No communities found</Text>
-      ) : (
-        searchResults.map((community) => (
-          <TouchableOpacity
-            key={community.id}
-            style={styles.resultItem}
-            onPress={() => selectCommunity(community)}
-          >
-            {community.logo_url ? (
-              <Image
-                source={{ uri: community.logo_url }}
-                style={styles.resultAvatar}
-              />
-            ) : (
-              <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
-                <Ionicons name="people" size={18} color="#999" />
-              </View>
-            )}
-            <View style={styles.resultInfo}>
-              <Text style={styles.resultName}>{community.name}</Text>
-              {community.username && (
-                <Text style={styles.resultHandle}>@{community.username}</Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#CCC" />
-          </TouchableOpacity>
-        ))
-      )}
-    </ScrollView>
-  );
-
-  const renderChallengeList = () => (
-    <ScrollView
-      style={styles.resultsContainer}
-      keyboardShouldPersistTaps="handled"
-    >
-      {isLoadingChallenges ? (
-        <ActivityIndicator
-          size="small"
-          color={COLORS.challenge}
-          style={{ paddingVertical: 16 }}
-        />
-      ) : filteredChallenges.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="trophy-outline" size={32} color="#CCC" />
-          <Text style={styles.noResults}>
-            {challenges.length === 0
-              ? "No active challenges in this community"
-              : "No matching challenges"}
-          </Text>
+  const renderCommunityResults = () => {
+    if (isSearching) {
+      return (
+        <View style={[styles.resultsContainer, { padding: 20 }]}>
+          <ActivityIndicator size="small" color={LOCAL_COLORS.challenge} />
         </View>
-      ) : (
-        filteredChallenges.map((challenge) => (
-          <TouchableOpacity
-            key={challenge.id}
-            style={styles.challengeItem}
-            onPress={() => selectChallenge(challenge)}
-          >
-            <View style={styles.challengeIcon}>
-              <Ionicons name="trophy" size={18} color={COLORS.challenge} />
-            </View>
-            <View style={styles.challengeInfo}>
-              <Text style={styles.challengeTitle} numberOfLines={1}>
-                {challenge.title ||
-                  challenge.caption?.substring(0, 50) ||
-                  "Challenge"}
-              </Text>
-              {challenge.expires_at && (
-                <Text style={styles.challengeExpiry}>
-                  Ends {new Date(challenge.expires_at).toLocaleDateString()}
-                </Text>
+      );
+    }
+
+    if (searchResults.length === 0 && searchQuery.length > 0) {
+      return (
+        <View style={styles.resultsContainer}>
+          <Text style={styles.noResults}>No communities found</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={styles.resultsContainer}
+        onTouchStart={onInteractionStart}
+        onTouchEnd={onInteractionEnd}
+        onTouchCancel={onInteractionEnd}
+      >
+        <FlatList
+          data={searchResults}
+          keyExtractor={(item) => item.id.toString()}
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item: community }) => (
+            <TouchableOpacity
+              style={styles.resultItem}
+              onPress={() => selectCommunity(community)}
+            >
+              {community.logo_url ? (
+                <Image
+                  source={{ uri: community.logo_url }}
+                  style={styles.resultAvatar}
+                />
+              ) : (
+                <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="people" size={18} color="#999" />
+                </View>
               )}
-            </View>
-            {challenge.is_joined && (
-              <View style={styles.joinedBadge}>
-                <Text style={styles.joinedText}>Joined</Text>
+              <View style={styles.resultInfo}>
+                <Text style={styles.resultName}>{community.name}</Text>
+                {community.username && (
+                  <Text style={styles.resultHandle}>@{community.username}</Text>
+                )}
               </View>
-            )}
-          </TouchableOpacity>
-        ))
-      )}
-    </ScrollView>
-  );
+              <Ionicons name="chevron-forward" size={18} color="#CCC" />
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    );
+  };
+
+  const renderChallengeList = () => {
+    if (isLoadingChallenges) {
+      return (
+        <View style={[styles.resultsContainer, { padding: 20 }]}>
+          <ActivityIndicator size="small" color={LOCAL_COLORS.challenge} />
+        </View>
+      );
+    }
+
+    if (filteredChallenges.length === 0) {
+      return (
+        <View style={styles.resultsContainer}>
+          <View style={styles.emptyState}>
+            <Ionicons name="trophy-outline" size={32} color="#CCC" />
+            <Text style={styles.noResults}>
+              {challenges.length === 0
+                ? "No active challenges in this community"
+                : "No matching challenges"}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={styles.resultsContainer}
+        onTouchStart={onInteractionStart}
+        onTouchEnd={onInteractionEnd}
+        onTouchCancel={onInteractionEnd}
+      >
+        <FlatList
+          data={filteredChallenges}
+          keyExtractor={(item) => item.id.toString()}
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item: challenge }) => (
+            <TouchableOpacity
+              style={styles.challengeItem}
+              onPress={() => selectChallenge(challenge)}
+            >
+              <View style={styles.challengeIcon}>
+                <Trophy
+                  size={20}
+                  color={LOCAL_COLORS.challenge}
+                  strokeWidth={2}
+                />
+              </View>
+              <View style={styles.challengeInfo}>
+                <Text style={styles.challengeTitle} numberOfLines={1}>
+                  {challenge.title ||
+                    challenge.caption?.substring(0, 50) ||
+                    "Challenge"}
+                </Text>
+                {challenge.expires_at && (
+                  <Text style={styles.challengeExpiry}>
+                    Ends {new Date(challenge.expires_at).toLocaleDateString()}
+                  </Text>
+                )}
+              </View>
+              {challenge.is_joined && (
+                <View style={styles.joinedBadge}>
+                  <Text style={styles.joinedText}>Joined</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    );
+  };
 
   // If already tagged, show minimal "tagged" state
   if (hasChallenge) {
@@ -300,11 +336,15 @@ const EntityTagSelector = ({
             style={styles.backButton}
             onPress={goBackToCommunities}
           >
-            <Ionicons name="arrow-back" size={18} color={COLORS.challenge} />
+            <Ionicons
+              name="arrow-back"
+              size={18}
+              color={LOCAL_COLORS.challenge}
+            />
           </TouchableOpacity>
         )}
         <View style={styles.stepBadge}>
-          <Ionicons name="trophy" size={14} color={COLORS.challenge} />
+          <Trophy size={16} color={LOCAL_COLORS.challenge} strokeWidth={2.5} />
           <Text style={styles.stepText}>
             {step === "community"
               ? "Select a community"
@@ -323,7 +363,7 @@ const EntityTagSelector = ({
               ? "Search communities..."
               : "Search challenges..."
           }
-          placeholderTextColor="#999"
+          placeholderTextColor="rgba(0,0,0,0.4)" // ~60% opacity look on dark text
           value={searchQuery}
           onChangeText={handleSearchChange}
           autoCapitalize="none"
@@ -368,9 +408,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stepText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.challenge,
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: "#333", // Dark grey
   },
   // Search
   searchContainer: {
@@ -385,6 +425,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textDark,
     padding: 0,
   },
@@ -432,14 +473,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultName: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textDark,
   },
   resultHandle: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 1,
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textDark,
+    opacity: 0.6,
+    marginTop: 2,
   },
   // Challenge items
   challengeItem: {
@@ -451,37 +494,40 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0F0F0",
   },
   challengeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.challengeLight,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: LOCAL_COLORS.challengeLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   challengeInfo: {
     flex: 1,
   },
   challengeTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textDark,
   },
   challengeExpiry: {
-    fontSize: 12,
-    color: "#999",
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textDark,
+    opacity: 0.6,
     marginTop: 2,
   },
   joinedBadge: {
     backgroundColor: "#E8F5E9",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 13,
   },
   joinedText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4CAF50",
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: "#5DB075", // Softer green
+    letterSpacing: 0.3,
   },
 });
 
