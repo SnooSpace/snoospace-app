@@ -15,8 +15,23 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  Ticket,
+  MoreHorizontal,
+  TrendingUp,
+  UserPlus,
+  Scan,
+  Plus,
+  CircleCheck,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import Svg, {
+  Path,
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Stop,
+} from "react-native-svg";
 
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
@@ -24,21 +39,26 @@ import ActionModal from "../../../components/modals/ActionModal";
 
 import { COLORS, SHADOWS, FONTS } from "../../../constants/theme";
 
-// --- Design Tokens (Dashboard Specific) ---
+// --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
-  heroRadius: 28,
-  cardRadius: 24,
   sectionSpacing: 32,
-  internalSpacing: 20,
-  shadow: {
+  cardRadius: 24,
+  background: "#F9F9F9", // Slightly warmer/cleaner background
+  surface: "#FFFFFF",
+  dominantShadow: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 32,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 8,
   },
-  background: "#FFFFFF",
-  secondaryBg: "#F8F9FB",
+  minimalShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+  },
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -81,6 +101,34 @@ const ScalableCard = ({ children, onPress, onLongPress, style }) => {
   );
 };
 
+// Revenue Sparkline (Refined)
+const RevenueSparkline = () => {
+  return (
+    <View
+      style={{ height: 60, width: "100%", marginTop: 24, overflow: "visible" }}
+    >
+      <Svg height="100%" width="100%" viewBox="0 0 300 60">
+        <Defs>
+          <SvgLinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#2962FF" stopOpacity="0.1" />
+            <Stop offset="1" stopColor="#2962FF" stopOpacity="0" />
+          </SvgLinearGradient>
+        </Defs>
+        <Path
+          d="M0 50 C 40 50, 60 20, 90 25 C 120 30, 150 40, 180 20 C 210 0, 240 10, 270 5 C 290 2, 300 0, 300 0 L 300 60 L 0 60 Z"
+          fill="url(#grad)"
+        />
+        <Path
+          d="M0 50 C 40 50, 60 20, 90 25 C 120 30, 150 40, 180 20 C 210 0, 240 10, 270 5 C 290 2, 300 0, 300 0"
+          fill="none"
+          stroke="#2962FF"
+          strokeWidth="3"
+        />
+      </Svg>
+    </View>
+  );
+};
+
 // --- Main Component ---
 export default function CommunityDashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -100,36 +148,24 @@ export default function CommunityDashboardScreen({ navigation }) {
     totalMembers: 1250,
     eventsHosted: 15,
     collaborations: 3,
+    newMembers: 42,
+    engagementRate: "8.4%",
   });
+  const [revenue, setRevenue] = useState({
+    total: "48,200",
+    thisMonth: "12,300",
+    avgPerEvent: "154",
+    ticketsSold: 312,
+    eventsCount: 4,
+  });
+
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [previousEvents, setPreviousEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming");
-  const [actionLoading, setActionLoading] = useState(null);
 
-  // Scroll Animation for Parallax
+  // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Primary Action Pulse Animation
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    // Primary action gently pulses once on load
-    const pulse = Animated.sequence([
-      Animated.delay(500),
-      Animated.spring(pulseAnim, {
-        toValue: 1.05,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-      Animated.spring(pulseAnim, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-    ]);
-    pulse.start();
-  }, []);
 
   useEffect(() => {
     loadDashboard();
@@ -158,86 +194,27 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   // --- Handlers ---
-  const handleCreatePost = () =>
-    navigation.navigate("CommunityCreatePost", { role: "community" });
   const handleCreateEvent = () => setShowCreateEventModal(true);
-  const handleInviteMembers = () => {
-    // Placeholder for invite logic
+  const handleInviteMembers = () =>
     Alert.alert("Invite Members", "Feature coming soon!");
-  };
-  const handleShareTickets = () => {
+
+  const handleScanTickets = () => {
     if (upcomingEvents.length === 0) {
-      Alert.alert("No Events", "Create an event first before sharing tickets.");
+      Alert.alert(
+        "No Events",
+        "Create an event first before scanning tickets.",
+      );
       return;
     }
-    navigation.navigate("ShareTicket", { events: upcomingEvents });
-  };
-  const handleEventLongPress = (event) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // Logic from original file adapted for modal
-    const canDelete =
-      event.is_past ||
-      event.is_cancelled ||
-      parseInt(event.current_attendees || 0, 10) === 0;
-    const canCancel = !event.is_past && !event.is_cancelled;
-
-    const actions = [];
-    actions.push({
-      text: `View Attendees (${event.current_attendees || 0})`,
-      onPress: () => navigation.navigate("EventAttendees", { event }),
-      style: "default",
-    });
-
-    if (!event.is_past && !event.is_cancelled) {
-      actions.push({
-        text: "Scan Tickets",
-        onPress: () => navigation.navigate("QRScanner", { event }),
-        icon: "qr-code-outline",
-      });
-    }
-
-    if (canCancel) {
-      actions.push({
-        text: "Cancel Event",
-        style: "destructive",
-        onPress: () => confirmCancelEvent(event),
-      });
-    }
-
-    actions.push({
-      text: canDelete ? "Delete Event" : "Delete (after event ends)",
-      style: canDelete ? "destructive" : "default",
-      onPress: () =>
-        canDelete ? confirmDeleteEvent(event) : showDeleteRestriction(event),
-    });
-
-    actions.push({
-      text: "Cancel",
-      style: "cancel",
-      onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
-    });
-
-    setModalConfig({
-      visible: true,
-      title: event.title,
-      message: "Choose an action",
-      actions: actions,
-    });
+    navigation.navigate("QRScanner", { event: upcomingEvents[0] });
   };
 
-  const confirmCancelEvent = (event) => {
-    // Implement cancel logic similar to original (omitted for brevity in redesign focus, but kept placeholder)
-    Alert.alert("Cancel Event", "Implementation stub for cancel.");
-  };
-
-  const confirmDeleteEvent = (event) => {
-    // Implement delete logic similar to original
-    Alert.alert("Delete Event", "Implementation stub for delete.");
-  };
-
-  const showDeleteRestriction = (event) => {
-    Alert.alert("Cannot Delete", "Event has attendees.");
+  // Simplified Event Actions
+  const handleEventPress = (event) => {
+    navigation.navigate("EventDetails", {
+      eventId: event.id,
+      eventData: event,
+    });
   };
 
   const handleEventCreated = () => loadDashboard();
@@ -251,254 +228,285 @@ export default function CommunityDashboardScreen({ navigation }) {
     );
   }
 
+  // Helper for Date Formatting
+  const formatEventDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const isToday = date.toDateString() === now.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    let dateLabel = date
+      .toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      .toUpperCase();
+    let isSpecial = false;
+
+    if (isToday) {
+      dateLabel = "TODAY";
+      isSpecial = true;
+    } else if (isTomorrow) {
+      dateLabel = "TOMORROW";
+      isSpecial = true;
+    }
+
+    const timeLabel = date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return { dateLabel, timeLabel, isSpecial };
+  };
+
+  // Render Item for Ticket Style Event List
+  const renderEventItem = ({ item }) => {
+    const { dateLabel, timeLabel, isSpecial } = formatEventDate(
+      item.event_date,
+    );
+
+    // Mock Sales Data if not present
+    const ticketsSold = item.current_attendees || 0;
+    const ticketCapacity = item.capacity || 50;
+
+    return (
+      <TouchableOpacity
+        style={styles.ticketCard}
+        onPress={() => handleEventPress(item)}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={{
+            uri:
+              item.banner_url ||
+              "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
+          }}
+          style={styles.ticketImage}
+        />
+        <View style={styles.ticketContent}>
+          <View style={styles.ticketTextSection}>
+            <View style={styles.ticketHeaderRow}>
+              <View
+                style={[
+                  styles.ticketDatePill,
+                  isSpecial && styles.ticketDatePillSpecial,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.ticketDateText,
+                    isSpecial && styles.ticketDateTextSpecial,
+                  ]}
+                >
+                  {dateLabel}
+                </Text>
+              </View>
+              <Text style={styles.ticketTimeText}>{timeLabel}</Text>
+            </View>
+
+            <Text style={styles.ticketTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+
+            <View style={styles.ticketFooterRow}>
+              <Ticket
+                size={14}
+                color={COLORS.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.ticketMetricText}>
+                {ticketsSold}/{ticketCapacity} sold
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.ticketMenuButton}
+            onPress={() => handleEventLongPress(item)}
+          >
+            <MoreHorizontal size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
-        )}
         scrollEventThrottle={16}
       >
-        {/* 1️⃣ Hero Section */}
-        <Animated.View style={styles.heroSection}>
-          <LinearGradient
-            colors={["#FFFFFF", "#F8F9FA"]}
-            style={styles.heroCard}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-          >
-            <View style={styles.heroContent}>
-              <View style={styles.communityInfo}>
-                <Image
-                  source={{
-                    uri: "https://images.unsplash.com/photo-1522075469751-3a3694c60e9e?w=200",
-                  }} // Placeholder
-                  style={styles.communityAvatar}
-                />
-                <View style={styles.communityText}>
-                  <Text style={styles.communityName}>SnooSpace Community</Text>
-                  <Text style={styles.communityStats}>
-                    {metrics.totalMembers.toLocaleString()} members ·{" "}
-                    {metrics.eventsHosted} events hosted
+        {/* 1️⃣ Founder Header (Flat) */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerProfileRow}>
+            <Image
+              source={{
+                uri: "https://images.unsplash.com/photo-1522075469751-3a3694c60e9e?w=200",
+              }}
+              style={styles.headerAvatar}
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerName}>SnooSpace Community</Text>
+              <Text style={styles.headerMeta}>
+                {metrics.totalMembers.toLocaleString()} members ·{" "}
+                {metrics.eventsHosted} events · {metrics.collaborations} collabs
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 2️⃣ Revenue Focus Card (Dominant) */}
+        <View style={styles.section}>
+          <View style={styles.revenueCard}>
+            <Text style={styles.revenueLabelLarge}>Total Revenue</Text>
+            <View style={styles.revenueMainRow}>
+              <Text style={styles.revenueValueLarge}>₹{revenue.total}</Text>
+              <View style={styles.growthChipsRow}>
+                <View style={styles.growthChip}>
+                  <TrendingUp size={12} color="#2E7D32" />
+                  <Text style={styles.growthChipText}>+8.4%</Text>
+                </View>
+                <View
+                  style={[styles.growthChip, { backgroundColor: "#E3F2FD" }]}
+                >
+                  <Text style={[styles.growthChipText, { color: "#1976D2" }]}>
+                    +42 members
                   </Text>
                 </View>
               </View>
+            </View>
 
-              <View style={styles.heroActions}>
-                <Animated.View
-                  style={{ transform: [{ scale: pulseAnim }], flex: 1 }}
-                >
-                  <TouchableOpacity
-                    style={styles.primaryHeroAction}
-                    onPress={handleCreatePost}
-                  >
-                    <LinearGradient
-                      colors={["#2962FF", "#0039CB"]} // Premium Blue Gradient
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.primaryActionGradient}
-                    >
-                      <Text style={styles.primaryActionText}>Create post</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </Animated.View>
+            <RevenueSparkline />
 
+            <View style={styles.revenueFooter}>
+              <Text style={styles.revenueFooterText}>
+                <Text style={{ fontFamily: FONTS.semiBold }}>
+                  {revenue.ticketsSold}
+                </Text>{" "}
+                tickets ·{" "}
+                <Text style={{ fontFamily: FONTS.semiBold }}>
+                  ₹{revenue.avgPerEvent}
+                </Text>{" "}
+                avg ·{" "}
+                <Text style={{ fontFamily: FONTS.semiBold }}>
+                  {revenue.eventsCount}
+                </Text>{" "}
+                events
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 3️⃣ Utility Row (Minimal) */}
+        <View style={styles.section}>
+          <View style={styles.utilityRow}>
+            <TouchableOpacity
+              style={styles.utilityButton}
+              onPress={handleInviteMembers}
+            >
+              <UserPlus size={18} color={COLORS.primary} />
+              <Text style={styles.utilityButtonText}>Invite Members</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.utilityButton}
+              onPress={handleScanTickets}
+            >
+              <Scan size={18} color={COLORS.textPrimary} />
+              <Text
+                style={[
+                  styles.utilityButtonText,
+                  { color: COLORS.textPrimary },
+                ]}
+              >
+                Scan Entry
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 4️⃣ Events Section (Compact List) */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Events</Text>
+            <View style={styles.headerActions}>
+              <View style={styles.tabPillContainer}>
                 <TouchableOpacity
-                  style={styles.secondaryHeroAction}
-                  onPress={handleInviteMembers}
+                  onPress={() => setActiveTab("upcoming")}
+                  style={[
+                    styles.tabPill,
+                    activeTab === "upcoming" && styles.activeTabPill,
+                  ]}
                 >
-                  <Text style={styles.secondaryActionText}>Invite members</Text>
+                  <Text
+                    style={[
+                      styles.tabPillText,
+                      activeTab === "upcoming" && styles.activeTabPillText,
+                    ]}
+                  >
+                    Upcoming
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab("previous")}
+                  style={[
+                    styles.tabPill,
+                    activeTab === "previous" && styles.activeTabPill,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabPillText,
+                      activeTab === "previous" && styles.activeTabPillText,
+                    ]}
+                  >
+                    Past
+                  </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </LinearGradient>
-        </Animated.View>
-
-        {/* 2️⃣ Action Row */}
-        <View style={styles.section}>
-          <View style={styles.actionGrid}>
-            {/* Create Post (Large) */}
-            <TouchableOpacity
-              style={styles.largeActionCard}
-              onPress={handleCreatePost}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={["#E3F2FD", "#FFFFFF"]}
-                style={styles.actionGradient}
-              >
-                <View
-                  style={[styles.iconCircle, { backgroundColor: "#E3F2FD" }]}
-                >
-                  <Ionicons name="create" size={24} color="#1565C0" />
-                </View>
-                <Text style={styles.actionTitle}>Create Post</Text>
-                <Text style={styles.actionSubtitle}>Editorial & Media</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <View style={styles.actionColumn}>
-              {/* Create Event */}
               <TouchableOpacity
-                style={styles.smallActionCard}
-                onPress={handleCreateEvent}
-              >
-                <View
-                  style={[styles.iconCircle, { backgroundColor: "#E8F5E9" }]}
-                >
-                  <Ionicons name="calendar" size={20} color="#2E7D32" />
-                </View>
-                <Text style={styles.smallActionTitle}>Create Event</Text>
-              </TouchableOpacity>
-
-              {/* Opportunities */}
-              <TouchableOpacity
-                style={styles.smallActionCard}
-                onPress={() => navigation.navigate("OpportunitiesList")}
-              >
-                <View
-                  style={[styles.iconCircle, { backgroundColor: "#F3E5F5" }]}
-                >
-                  <Ionicons name="briefcase" size={20} color="#7B1FA2" />
-                </View>
-                <Text style={styles.smallActionTitle}>Opportunities</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Share Tickets (Icon Only) */}
-            <TouchableOpacity
-              style={styles.iconOnlyActionCard}
-              onPress={handleShareTickets}
-            >
-              <Ionicons name="qr-code" size={24} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 3️⃣ Community Insights Card */}
-        <View style={styles.section}>
-          <View style={styles.insightsCard}>
-            <Text style={styles.cardHeaderTitle}>Community Insights</Text>
-            <View style={styles.insightsRow}>
-              <View style={styles.insightItem}>
-                <Text style={styles.insightNumber}>{metrics.totalMembers}</Text>
-                <Text style={styles.insightLabel}>Members</Text>
-              </View>
-              <View style={styles.insightDivider} />
-              <View style={styles.insightItem}>
-                <Text style={styles.insightNumber}>{metrics.eventsHosted}</Text>
-                <Text style={styles.insightLabel}>Events</Text>
-              </View>
-              <View style={styles.insightDivider} />
-              <View style={styles.insightItem}>
-                <Text style={styles.insightNumber}>
-                  {metrics.collaborations}
-                </Text>
-                <Text style={styles.insightLabel}>Collabs</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* 4️⃣ Editorial Events Feed */}
-        <View style={styles.section}>
-          <View style={styles.feedHeader}>
-            <Text style={styles.sectionTitle}>Events Feed</Text>
-            <View style={styles.segmentedControl}>
-              <TouchableOpacity
-                style={[
-                  styles.segment,
-                  activeTab === "upcoming" && styles.activeSegment,
-                ]}
-                onPress={() => setActiveTab("upcoming")}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    activeTab === "upcoming" && styles.activeSegmentText,
-                  ]}
-                >
-                  Upcoming
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.segment,
-                  activeTab === "previous" && styles.activeSegment,
-                ]}
-                onPress={() => setActiveTab("previous")}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    activeTab === "previous" && styles.activeSegmentText,
-                  ]}
-                >
-                  Past
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <FlatList
-            data={activeTab === "upcoming" ? upcomingEvents : previousEvents}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.eventsList}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <ScalableCard
                 onPress={() =>
-                  navigation.navigate("EventDetails", {
-                    eventId: item.id,
-                    eventData: item,
+                  navigation.navigate("CommunityEventsList", {
+                    initialTab: activeTab === "previous" ? "past" : "upcoming",
                   })
                 }
-                onLongPress={() => handleEventLongPress(item)}
-                style={styles.editorialCardContainer}
               >
-                <Image
-                  source={{
-                    uri:
-                      item.banner_url ||
-                      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400",
-                  }}
-                  style={styles.editorialImage}
-                />
-                <LinearGradient
-                  colors={["transparent", "rgba(0,0,0,0.8)"]}
-                  style={styles.editorialOverlay}
-                >
-                  <View style={styles.datePill}>
-                    <Text style={styles.datePillText}>
-                      {new Date(item.event_date).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </Text>
-                  </View>
-                  <Text style={styles.editorialTitle} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  <View style={styles.editorialFooter}>
-                    <Text style={styles.attendeeCount}>
-                      {item.current_attendees || 0} attending
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </ScalableCard>
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No {activeTab} events found.
-                </Text>
+                <Text style={styles.viewAllText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.compactListContainer}>
+            {activeTab === "upcoming" && upcomingEvents.length === 0 && (
+              <View style={styles.emptyStateCompact}>
+                <Text style={styles.emptyStateText}>No upcoming events</Text>
               </View>
-            }
-          />
+            )}
+            {activeTab === "previous" && previousEvents.length === 0 && (
+              <View style={styles.emptyStateCompact}>
+                <Text style={styles.emptyStateText}>No past events</Text>
+              </View>
+            )}
+
+            {(activeTab === "upcoming" ? upcomingEvents : previousEvents)
+              .slice(0, 5)
+              .map((item) => (
+                <React.Fragment key={item.id}>
+                  {renderEventItem({ item })}
+                  <View style={styles.itemSeparator} />
+                </React.Fragment>
+              ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.createEventButton}
+            onPress={handleCreateEvent}
+          >
+            <Plus size={20} color="#FFF" />
+            <Text style={styles.createEventButtonText}>Create Event</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Bottom Padding for Tab Bar */}
@@ -534,7 +542,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DASHBOARD_TOKENS.secondaryBg,
+    backgroundColor: DASHBOARD_TOKENS.background,
   },
   loadingContainer: {
     flex: 1,
@@ -545,317 +553,290 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
-
-  // Hero Section
-  heroSection: {
-    paddingHorizontal: 20,
-    marginBottom: DASHBOARD_TOKENS.sectionSpacing,
-  },
-  heroCard: {
-    backgroundColor: DASHBOARD_TOKENS.background,
-    borderRadius: DASHBOARD_TOKENS.heroRadius,
-    padding: 24,
-    ...DASHBOARD_TOKENS.shadow,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.03)",
-  },
-  heroContent: {
-    gap: 24,
-  },
-  communityInfo: {
-    alignItems: "center",
-  },
-  communityAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginBottom: 16,
-    backgroundColor: "#F0F0F0",
-  },
-  communityText: {
-    alignItems: "center",
-  },
-  communityName: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 22,
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  communityStats: {
-    fontFamily: FONTS.medium, // Manrope-Medium
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  heroActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  primaryHeroAction: {
-    flex: 1,
-    borderRadius: 100,
-    overflow: "hidden",
-    shadowColor: "#007AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryActionGradient: {
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryActionText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: "#FFFFFF",
-  },
-  secondaryHeroAction: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  secondaryActionText: {
-    fontFamily: FONTS.medium,
-    fontSize: 15,
-    color: COLORS.textSecondary,
-  },
-
-  // Section Styles
   section: {
     paddingHorizontal: 20,
     marginBottom: DASHBOARD_TOKENS.sectionSpacing,
   },
-  sectionTitle: {
-    fontFamily: FONTS.primary,
+
+  // Header (Flat)
+  headerSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  headerProfileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  headerAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#E1E1E1",
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerName: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 20,
     color: COLORS.textPrimary,
+    marginBottom: 2,
   },
-
-  // Action Grid
-  actionGrid: {
-    flexDirection: "row",
-    gap: 12,
-    height: 140,
-  },
-  largeActionCard: {
-    flex: 2,
-    backgroundColor: "#FFFFFF",
-    borderRadius: DASHBOARD_TOKENS.cardRadius,
-    ...DASHBOARD_TOKENS.shadow,
-    overflow: "hidden",
-  },
-  actionGradient: {
-    flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
-  },
-  actionTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 18,
-    color: "#1565C0",
-    marginTop: 8,
-  },
-  actionSubtitle: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: "#5472d3",
-    opacity: 0.8,
-  },
-  actionColumn: {
-    flex: 1.5,
-    gap: 12,
-  },
-  smallActionCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    ...DASHBOARD_TOKENS.shadow,
-  },
-  smallActionTitle: {
+  headerMeta: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: COLORS.textPrimary,
-  },
-  iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconOnlyActionCard: {
-    width: 48,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    ...DASHBOARD_TOKENS.shadow,
+    color: COLORS.textSecondary,
   },
 
-  // Insights Card
-  insightsCard: {
-    backgroundColor: DASHBOARD_TOKENS.background,
+  // Revenue Card (Dominant)
+  revenueCard: {
+    backgroundColor: DASHBOARD_TOKENS.surface,
     borderRadius: DASHBOARD_TOKENS.cardRadius,
-    padding: 22,
-    ...DASHBOARD_TOKENS.shadow,
+    padding: 24,
+    ...DASHBOARD_TOKENS.dominantShadow,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
   },
-  cardHeaderTitle: {
-    fontFamily: FONTS.primary, // BasicCommercial Bold 16
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    marginBottom: 20,
-  },
-  insightsRow: {
+  revenueHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
-  insightItem: {
-    alignItems: "center", // Center align for cleaner look
-    flex: 1,
-  },
-  insightNumber: {
-    fontFamily: FONTS.black, // Use heavier weight for numbers
-    fontSize: 24,
-    color: COLORS.textPrimary,
+  revenueLabelLarge: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
     marginBottom: 4,
   },
-  insightLabel: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  revenueValueLarge: {
+    fontFamily: FONTS.primary, // Bold
+    fontSize: 32,
+    color: COLORS.textPrimary,
+    letterSpacing: -0.5,
   },
-  insightDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#F0F0F0",
+  revenueMainRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 12,
+  },
+  growthChipsRow: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  growthChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  growthChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: "#2E7D32",
+  },
+  revenueFooter: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#F5F5F5",
+    paddingTop: 16,
+  },
+  revenueFooterText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    letterSpacing: 0.1,
   },
 
-  // Events Feed
-  feedHeader: {
+  // Utility Row
+  utilityRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  utilityButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: DASHBOARD_TOKENS.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#F0F0F0",
+    // Removed minimal shadow per request
+  },
+  utilityButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+
+  // Events Section (Compact)
+  sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  segmentedControl: {
+  sectionTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: COLORS.textPrimary,
+  },
+  headerActions: {
     flexDirection: "row",
-    backgroundColor: "#EEF0F2",
+    alignItems: "center",
+    gap: 16,
+  },
+  tabPillContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6", // Light gray container
     borderRadius: 20,
     padding: 4,
+    alignItems: "center",
   },
-  segment: {
-    paddingHorizontal: 16,
+  tabPill: {
     paddingVertical: 6,
+    paddingHorizontal: 16,
     borderRadius: 16,
   },
-  activeSegment: {
+  activeTabPill: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
     elevation: 2,
   },
-  segmentText: {
+  tabPillText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
   },
-  activeSegmentText: {
-    color: COLORS.textPrimary,
+  activeTabPillText: {
     fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
   },
-  eventsList: {
-    paddingRight: 20,
+  viewAllText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.primary,
   },
-  editorialCardContainer: {
-    width: 280,
-    height: 380, // Portrait aspect ratio
-    marginRight: 16,
-    borderRadius: 24,
-    overflow: "hidden",
+  compactListContainer: {
+    backgroundColor: "transparent",
+    gap: 10,
+  },
+  ticketCard: {
+    flexDirection: "row",
+    backgroundColor: DASHBOARD_TOKENS.surface,
+    borderRadius: 28, // Increased radius
+    padding: 20, // Generous padding
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    alignItems: "center",
+    height: 128, // Increased height
+  },
+  ticketImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 16,
     backgroundColor: "#F0F0F0",
-    ...DASHBOARD_TOKENS.shadow,
   },
-  editorialImage: {
-    width: "100%",
+  ticketContent: {
+    flex: 1,
+    marginLeft: 20, // More breathing room
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  ticketTextSection: {
+    flex: 1,
     height: "100%",
-    resizeMode: "cover",
+    justifyContent: "space-between",
+    marginRight: 8,
   },
-  editorialOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "60%",
-    padding: 20,
-    justifyContent: "flex-end",
+  ticketHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  editorialTitle: {
-    fontFamily: FONTS.primary, // Broad/Bold font
-    fontSize: 22,
-    color: "#FFFFFF",
-    marginBottom: 8,
-    lineHeight: 28,
+  ticketDatePill: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  editorialFooter: {
+  ticketDatePillSpecial: {
+    backgroundColor: "#EDE7F6",
+  },
+  ticketDateText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: COLORS.textSecondary,
+  },
+  ticketDateTextSpecial: {
+    color: COLORS.primary,
+  },
+  ticketTimeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  ticketTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+  ticketFooterRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-  attendeeCount: {
+  ticketMetricText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
-  datePill: {
-    position: "absolute",
-    top: -140, // Approximate positioning relative to gradient height, or adjust flex
-    left: 0, // Actually, better to be positioned top-left of CARD not gradient
-    // but inside gradient view we need absolute positioning relative to card?
-    // Let's fix this: Put date pill top left of CARD
-  },
-  // Redoing date pill positioning in render
-
-  // Empty State
-  emptyState: {
-    width: 300,
-    height: 200,
-    justifyContent: "center",
+  ticketMenuButton: {
+    width: 32,
+    height: 32,
     alignItems: "center",
-    backgroundColor: "#F9F9F9",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#EEEEEE",
-    borderStyle: "dashed",
+    justifyContent: "center",
+    backgroundColor: "#F7F8FA",
+    borderRadius: 12,
+  },
+  itemSeparator: {
+    height: 0, // No separator for card style
+  },
+  emptyStateCompact: {
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyStateText: {
     fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
+    fontSize: 14,
   },
-
-  // Correction for Date Pill within ScalableCard
-  datePill: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  createEventButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary, // Or black if going very founder-minimal
+    marginHorizontal: 0,
+    marginTop: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    alignSelf: "flex-start",
-    marginBottom: "auto", // Push to top if in flex container
-    // But in absolute overlay, we need top positioning in the full card context
+    gap: 8,
   },
-  datePillText: {
+  createEventButtonText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 12,
-    color: COLORS.textPrimary,
+    color: "#FFFFFF",
+    fontSize: 14,
   },
 });

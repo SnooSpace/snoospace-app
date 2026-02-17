@@ -4,11 +4,6 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { House, Search, LayoutGrid, Inbox, User } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 
 // Import Community screens
 import CommunityHomeStackNavigator from "./CommunityHomeStackNavigator";
@@ -42,36 +37,21 @@ const CommunityBottomTabNavigator = () => {
 
           if (route.name === "Profile") {
             return (
-              <View style={{ alignItems: "center", justifyContent: "center" }}>
-                <ProfileTabIcon
-                  focused={focused}
-                  color={color}
-                  userType="community"
-                />
-                {focused && (
-                  <View
-                    style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: "#007AFF",
-                      marginTop: 4,
-                      position: "absolute",
-                      bottom: -8,
-                    }}
-                  />
-                )}
-              </View>
+              <ProfileTabIcon
+                focused={focused}
+                color={color}
+                userType="community"
+              />
             );
           }
 
           return (
             <View
               style={{
+                width: 30,
+                height: 30,
                 alignItems: "center",
                 justifyContent: "center",
-                height: 40,
-                width: 40,
               }}
             >
               <IconComponent
@@ -79,17 +59,6 @@ const CommunityBottomTabNavigator = () => {
                 color={focused ? "#007AFF" : "#8E8E93"} // Premium Blue or Cool Gray
                 strokeWidth={focused ? 2.5 : 2}
               />
-              {focused && (
-                <View
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 2,
-                    backgroundColor: "#007AFF",
-                    marginTop: 6,
-                  }}
-                />
-              )}
             </View>
           );
         },
