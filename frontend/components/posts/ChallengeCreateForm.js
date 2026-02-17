@@ -1,9 +1,9 @@
 /**
  * ChallengeCreateForm
- * Form for community admins to create Challenge posts
+ * Form for community admins to create Challenge posts with premium design
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,36 +12,68 @@ import {
   StyleSheet,
   Switch,
   ScrollView,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Trophy,
+  CheckCircle2,
+  TrendingUp,
+  Users,
+  Camera,
+  Video,
+  ShieldCheck,
+  Eye,
+  Clock,
+  Pencil,
+  Plus,
+  Minus,
+} from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+} from "../../constants/theme";
+import HapticsService from "../../services/HapticsService";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const CHALLENGE_TYPES = [
   {
     id: "single",
     label: "Single Task",
     description: "One-time proof",
-    icon: "checkmark-circle",
+    icon: CheckCircle2,
   },
   {
     id: "progress",
     label: "Progress",
     description: "Track progress",
-    icon: "trending-up",
+    icon: TrendingUp,
   },
   {
     id: "community",
     label: "Community",
     description: "Group goal",
-    icon: "people",
+    icon: Users,
   },
 ];
 
 const SUBMISSION_TYPES = [
-  { id: "image", label: "Photo", icon: "camera" },
-  { id: "video", label: "Video", icon: "videocam" },
-  { id: "text", label: "Text", icon: "document-text" },
+  { id: "image", label: "Photo", icon: Camera },
+  { id: "video", label: "Video", icon: Video },
 ];
 
 const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
@@ -56,6 +88,10 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
   const [hasDeadline, setHasDeadline] = useState(false);
   const [deadline, setDeadline] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const stepperScale = useRef(new Animated.Value(1)).current;
 
   // Sync data with parent on every change
   useEffect(() => {
@@ -83,226 +119,256 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     deadline,
   ]);
 
-  const handleSubmit = () => {
-    if (!title.trim() || isSubmitting) return;
+  const animateCardPress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.98,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
-    onSubmit({
-      post_type: "challenge",
-      title: title.trim(),
-      description: description.trim(),
-      challenge_type: challengeType,
-      submission_type: submissionType,
-      target_count: targetCount,
-      max_submissions_per_user: maxSubmissionsPerUser,
-      require_approval: requireApproval,
-      deadline: hasDeadline && deadline ? deadline.toISOString() : null,
-    });
+  const handleChallengeTypeChange = (type) => {
+    HapticsService.triggerImpactLight();
+    animateCardPress();
+    setChallengeType(type);
+  };
+
+  const handleSubmissionTypeChange = (type) => {
+    HapticsService.triggerImpactLight();
+    animateCardPress();
+    setSubmissionType(type);
+  };
+
+  const animateStepper = () => {
+    Animated.sequence([
+      Animated.spring(stepperScale, {
+        toValue: 1.1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(stepperScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handleIncrement = () => {
+    if (maxSubmissionsPerUser < 10) {
+      HapticsService.triggerImpactLight();
+      animateStepper();
+      setMaxSubmissionsPerUser((prev) => prev + 1);
+    }
+  };
+
+  const handleDecrement = () => {
+    if (maxSubmissionsPerUser > 1) {
+      HapticsService.triggerImpactLight();
+      animateStepper();
+      setMaxSubmissionsPerUser((prev) => prev - 1);
+    }
+  };
+
+  const toggleDeadline = (val) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHasDeadline(val);
+    if (val && !deadline) {
+      const defaultDeadline = new Date();
+      defaultDeadline.setDate(defaultDeadline.getDate() + 7);
+      defaultDeadline.setHours(20, 0, 0, 0);
+      setDeadline(defaultDeadline);
+    }
   };
 
   const formatDeadline = (date) => {
-    if (!date) return "Set deadline";
-    const options = {
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    };
-    return date.toLocaleDateString("en-US", options);
+    });
   };
 
-  const isValid = title.trim().length >= 3;
+  const formatDeadlineTime = (date) => {
+    if (!date) return "";
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header Icon */}
-      <View style={styles.iconContainer}>
-        <MaterialCommunityIcons
-          name="trophy-outline"
-          size={40}
-          color="#FF9500"
-        />
-      </View>
+      {/* Hero Card */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroHeader}>
+          <Text style={styles.subtleLabel}>CREATE A CHALLENGE</Text>
+          <MaterialCommunityIcons name="trophy" size={22} color="#FF9500" />
+        </View>
 
-      {/* Title Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Challenge Title *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 30-Day Fitness Challenge"
-          placeholderTextColor={COLORS.textSecondary}
-          value={title}
-          onChangeText={setTitle}
-          maxLength={100}
-        />
-        <Text style={styles.charCount}>{title.length}/100</Text>
-      </View>
+        <View style={styles.titleInputContainer}>
+          <TextInput
+            style={styles.titleInput}
+            placeholder="30-Day Fitness Challenge"
+            placeholderTextColor={COLORS.textMuted}
+            value={title}
+            onChangeText={setTitle}
+            maxLength={100}
+            selectionColor="#FF9500"
+            multiline
+          />
+          <Text style={styles.charCount}>{title.length}/100</Text>
+        </View>
 
-      {/* Description Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Description (optional)</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Describe what participants need to do..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          maxLength={500}
-        />
-        <Text style={styles.charCount}>{description.length}/500</Text>
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.descriptionLabel}>Optional description</Text>
+          <TextInput
+            style={styles.descriptionInput}
+            placeholder="Tell participants what success looks like."
+            placeholderTextColor={COLORS.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={500}
+            selectionColor="#FF9500"
+          />
+          <Text style={styles.helperText}>
+            Tell participants what success looks like.
+          </Text>
+        </View>
       </View>
 
       {/* Challenge Type */}
       <View style={styles.sectionGroup}>
         <Text style={styles.sectionTitle}>Challenge Type</Text>
         <View style={styles.typeOptionsRow}>
-          {CHALLENGE_TYPES.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.typeOption,
-                challengeType === type.id && styles.typeOptionSelected,
-              ]}
-              onPress={() => setChallengeType(type.id)}
-            >
-              <Ionicons
-                name={type.icon}
-                size={20}
-                color={
-                  challengeType === type.id ? "#FF9500" : COLORS.textSecondary
-                }
-              />
-              <Text
+          {CHALLENGE_TYPES.map((type) => {
+            const isSelected = challengeType === type.id;
+            return (
+              <TouchableOpacity
+                key={type.id}
                 style={[
-                  styles.typeOptionLabel,
-                  challengeType === type.id && styles.typeOptionLabelSelected,
+                  styles.featureCard,
+                  isSelected && styles.featureCardSelected,
                 ]}
+                onPress={() => handleChallengeTypeChange(type.id)}
+                activeOpacity={0.9}
               >
-                {type.label}
-              </Text>
-              <Text style={styles.typeOptionDesc}>{type.description}</Text>
-            </TouchableOpacity>
-          ))}
+                <type.icon
+                  size={20}
+                  color={isSelected ? "#FF9500" : COLORS.textSecondary}
+                  strokeWidth={2.5}
+                />
+                <Text
+                  style={[
+                    styles.featureCardTitle,
+                    isSelected && styles.featureCardTitleSelected,
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {type.label}
+                </Text>
+                <Text style={styles.featureCardSubtitle}>
+                  {type.description}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
-
-      {/* Target Count (for progress challenges) */}
-      {challengeType === "progress" && (
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="flag-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Target Count</Text>
-              <Text style={styles.settingDescription}>
-                Number of submissions to complete
-              </Text>
-            </View>
-          </View>
-          <View style={styles.counterContainer}>
-            <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() => setTargetCount(Math.max(1, targetCount - 1))}
-            >
-              <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.counterValue}>{targetCount}</Text>
-            <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() => setTargetCount(Math.min(100, targetCount + 1))}
-            >
-              <Ionicons name="add" size={18} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       {/* Submission Type */}
       <View style={styles.sectionGroup}>
         <Text style={styles.sectionTitle}>Submission Type</Text>
         <View style={styles.submissionTypesRow}>
-          {SUBMISSION_TYPES.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.submissionTypeOption,
-                submissionType === type.id &&
-                  styles.submissionTypeOptionSelected,
-              ]}
-              onPress={() => setSubmissionType(type.id)}
-            >
-              <Ionicons
-                name={type.icon}
-                size={22}
-                color={
-                  submissionType === type.id ? "#FF9500" : COLORS.textSecondary
-                }
-              />
-              <Text
+          {SUBMISSION_TYPES.map((type) => {
+            const isSelected = submissionType === type.id;
+            return (
+              <TouchableOpacity
+                key={type.id}
                 style={[
-                  styles.submissionTypeLabel,
-                  submissionType === type.id &&
-                    styles.submissionTypeLabelSelected,
+                  styles.miniFeatureCard,
+                  isSelected && styles.miniFeatureCardSelected,
                 ]}
+                onPress={() => handleSubmissionTypeChange(type.id)}
+                activeOpacity={0.9}
               >
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <type.icon
+                  size={22}
+                  color={isSelected ? "#FF9500" : COLORS.textSecondary}
+                  strokeWidth={2.5}
+                />
+                <Text
+                  style={[
+                    styles.miniFeatureCardTitle,
+                    isSelected && styles.miniFeatureCardTitleSelected,
+                  ]}
+                >
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
-      {/* Settings */}
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Settings</Text>
+      {/* Settings Card */}
+      <View style={styles.settingsCard}>
+        <Text style={styles.cardTitle}>Settings</Text>
 
-        {/* Max Submissions Per User */}
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="repeat-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <Text style={styles.settingLabel}>Submissions per user</Text>
-          </View>
-          <View style={styles.counterContainer}>
+        {/* Submissions Per User Stepper */}
+        <View style={styles.settingSection}>
+          <Text style={styles.settingLabelCentered}>Submissions per user</Text>
+          <View style={styles.stepperContainer}>
             <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() =>
-                setMaxSubmissionsPerUser(Math.max(1, maxSubmissionsPerUser - 1))
-              }
+              style={styles.stepperButton}
+              onPress={handleDecrement}
+              activeOpacity={0.7}
             >
-              <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+              <Minus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
             </TouchableOpacity>
-            <Text style={styles.counterValue}>{maxSubmissionsPerUser}</Text>
-            <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() =>
-                setMaxSubmissionsPerUser(
-                  Math.min(10, maxSubmissionsPerUser + 1),
-                )
-              }
+
+            <Animated.Text
+              style={[
+                styles.stepperValue,
+                { transform: [{ scale: stepperScale }] },
+              ]}
             >
-              <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+              {maxSubmissionsPerUser}
+            </Animated.Text>
+
+            <TouchableOpacity
+              style={styles.stepperButton}
+              onPress={handleIncrement}
+              activeOpacity={0.7}
+            >
+              <Plus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Require Approval */}
         <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Require approval</Text>
-              <Text style={styles.settingDescription}>
+          <View style={styles.settingRowLeft}>
+            <View style={styles.iconBox}>
+              <ShieldCheck
+                size={20}
+                color={COLORS.textPrimary}
+                strokeWidth={2}
+              />
+            </View>
+            <View>
+              <Text style={styles.settingRowTitle}>Require approval</Text>
+              <Text style={styles.settingRowSubtitle}>
                 Review submissions before showing
               </Text>
             </View>
@@ -310,153 +376,96 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
           <Switch
             value={requireApproval}
             onValueChange={setRequireApproval}
-            trackColor={{ false: COLORS.border, true: "#FF950050" }}
-            thumbColor={requireApproval ? "#FF9500" : COLORS.textSecondary}
+            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
           />
         </View>
 
-        {/* Show Proofs Immediately Toggle */}
+        {/* Show Proofs Immediately */}
         <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="eye-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Show proofs immediately</Text>
-              <Text style={styles.settingDescription}>
-                When off, proofs are hidden until challenge ends (you can always
-                view)
+          <View style={styles.settingRowLeft}>
+            <View style={styles.iconBox}>
+              <Eye size={20} color={COLORS.textPrimary} strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={styles.settingRowTitle}>
+                Show proofs immediately
+              </Text>
+              <Text style={styles.settingRowSubtitle}>
+                When off, hidden until ended
               </Text>
             </View>
           </View>
           <Switch
             value={showProofsImmediately}
             onValueChange={setShowProofsImmediately}
-            trackColor={{ false: COLORS.border, true: "#FF950050" }}
-            thumbColor={
-              showProofsImmediately ? "#FF9500" : COLORS.textSecondary
-            }
+            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
           />
         </View>
 
         {/* Deadline Toggle */}
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="time-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Set deadline</Text>
-              <Text style={styles.settingDescription}>
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+          <View style={styles.settingRowLeft}>
+            <View style={styles.iconBox}>
+              <Clock size={20} color={COLORS.textPrimary} strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={styles.settingRowTitle}>Set deadline</Text>
+              <Text style={styles.settingRowSubtitle}>
                 Challenge ends at a specific time
               </Text>
             </View>
           </View>
           <Switch
             value={hasDeadline}
-            onValueChange={(val) => {
-              setHasDeadline(val);
-              if (val && !deadline) {
-                // Default to 7 days from now
-                const defaultDeadline = new Date();
-                defaultDeadline.setDate(defaultDeadline.getDate() + 7);
-                setDeadline(defaultDeadline);
-              }
-            }}
-            trackColor={{ false: COLORS.border, true: "#FF950050" }}
-            thumbColor={hasDeadline ? "#FF9500" : COLORS.textSecondary}
+            onValueChange={toggleDeadline}
+            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
           />
         </View>
 
-        {/* Date Picker (if deadline enabled) */}
+        {/* Dynamic Deadline Expansion */}
         {hasDeadline && (
-          <>
+          <View style={styles.deadlineExpand}>
             <TouchableOpacity
-              style={styles.datePickerButton}
+              style={styles.datePreviewCard}
               onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
             >
-              <Ionicons name="calendar-outline" size={18} color="#FF9500" />
-              <Text style={styles.datePickerText}>
-                {formatDeadline(deadline)}
-              </Text>
+              <View>
+                <Text style={styles.dateLabel}>Ends on</Text>
+                <Text style={styles.dateValue}>
+                  {formatDeadline(deadline)} · {formatDeadlineTime(deadline)}
+                </Text>
+              </View>
+              <Pencil size={16} color="#FF9500" strokeWidth={2.5} />
             </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={deadline || new Date()}
-                mode="date"
-                is24Hour={false}
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) {
-                    const date = new Date(selectedDate);
-                    date.setHours(23, 59, 59, 999);
-                    setDeadline(date);
-                  }
-                }}
-                minimumDate={new Date()}
-              />
-            )}
-          </>
+          </View>
         )}
       </View>
 
-      {/* Preview */}
-      <View style={styles.previewSection}>
-        <Text style={styles.previewTitle}>Preview</Text>
-        <View style={styles.previewCard}>
-          <View style={styles.previewTypeIndicator}>
-            <MaterialCommunityIcons
-              name="trophy-outline"
-              size={14}
-              color="#FF9500"
-            />
-            <Text style={styles.previewTypeLabel}>Challenge</Text>
-          </View>
-          <Text
-            style={[
-              styles.previewTitleText,
-              !title && { color: COLORS.textSecondary },
-            ]}
-          >
-            {title || "Your challenge title"}
-          </Text>
-          {description && (
-            <Text style={styles.previewDescription} numberOfLines={2}>
-              {description}
-            </Text>
-          )}
-          <View style={styles.previewBadges}>
-            <View style={styles.previewBadge}>
-              <Ionicons
-                name={
-                  SUBMISSION_TYPES.find((t) => t.id === submissionType)?.icon
-                }
-                size={12}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.previewBadgeText}>
-                {SUBMISSION_TYPES.find((t) => t.id === submissionType)?.label}
-              </Text>
-            </View>
-            <View style={styles.previewBadge}>
-              <Ionicons
-                name={CHALLENGE_TYPES.find((t) => t.id === challengeType)?.icon}
-                size={12}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.previewBadgeText}>
-                {CHALLENGE_TYPES.find((t) => t.id === challengeType)?.label}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={deadline || new Date()}
+          mode="date"
+          is24Hour={false}
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              const date = new Date(selectedDate);
+              date.setHours(20, 0, 0, 0);
+              setDeadline(date);
+            }
+          }}
+          minimumDate={new Date()}
+        />
+      )}
     </ScrollView>
   );
 };
@@ -464,235 +473,255 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: SPACING.m,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 40,
   },
-  iconContainer: {
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 32,
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.05)",
+    shadowOpacity: 1,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: SPACING.l,
-    marginTop: SPACING.m,
+    marginBottom: 8,
   },
-  inputGroup: {
-    marginBottom: SPACING.l,
+  subtleLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textSecondary,
+    opacity: 0.6,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
+  titleInputContainer: {
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  titleInput: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  input: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: "top",
+    padding: 0,
+    minHeight: 30,
   },
   charCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
     textAlign: "right",
     marginTop: 4,
   },
+  descriptionContainer: {
+    //
+  },
+  descriptionLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    opacity: 0.6,
+    marginBottom: 6,
+  },
+  descriptionInput: {
+    backgroundColor: "#F8F9FB",
+    borderRadius: 16,
+    padding: 16,
+    fontFamily: "Manrope-Medium",
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  helperText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
+    marginTop: 6,
+  },
   sectionGroup: {
-    marginBottom: SPACING.l,
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: COLORS.textPrimary,
-    marginBottom: SPACING.m,
+    marginBottom: 16,
   },
   typeOptionsRow: {
     flexDirection: "row",
+    gap: 12,
+  },
+  featureCard: {
+    flex: 1,
+    height: 96,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FB",
+    paddingHorizontal: 12,
+    paddingVertical: 16,
     justifyContent: "space-between",
   },
-  typeOption: {
-    flex: 1,
-    alignItems: "center",
-    padding: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
+  featureCardSelected: {
+    backgroundColor: "#FFF8F0", // Very light orange
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginHorizontal: 4,
-  },
-  typeOptionSelected: {
     borderColor: "#FF9500",
-    backgroundColor: "#FF950010",
   },
-  typeOptionLabel: {
-    fontSize: 12,
-    fontWeight: "600",
+  featureCardTitle: {
+    fontSize: 13,
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
-    marginTop: SPACING.xs,
+    marginTop: 6,
   },
-  typeOptionLabelSelected: {
+  featureCardTitleSelected: {
     color: "#FF9500",
   },
-  typeOptionDesc: {
+  featureCardSubtitle: {
     fontSize: 10,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginTop: 2,
   },
   submissionTypesRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: 12,
   },
-  submissionTypeOption: {
+  miniFeatureCard: {
+    flex: 1,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FB",
+    padding: 16,
+    justifyContent: "center",
     alignItems: "center",
-    padding: SPACING.m,
-    paddingHorizontal: SPACING.l,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
+    gap: 8,
+  },
+  miniFeatureCardSelected: {
+    backgroundColor: "#FFF8F0",
     borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  submissionTypeOptionSelected: {
     borderColor: "#FF9500",
-    backgroundColor: "#FF950010",
   },
-  submissionTypeLabel: {
-    fontSize: 12,
-    fontWeight: "500",
+  miniFeatureCardTitle: {
+    fontSize: 13,
+    fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
-    marginTop: 4,
   },
-  submissionTypeLabelSelected: {
+  miniFeatureCardTitleSelected: {
     color: "#FF9500",
-    fontWeight: "600",
   },
-  settingsSection: {
-    marginBottom: SPACING.l,
+  settingsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 32,
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.04)",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 20,
+  },
+  settingSection: {
+    marginBottom: 24,
+  },
+  settingLabelCentered: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F6F7F9",
+    borderRadius: 20,
+    height: 48,
+    paddingHorizontal: 8,
+  },
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  stepperValue: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+    minWidth: 40,
+    textAlign: "center",
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: SPACING.m,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 20,
   },
-  settingInfo: {
+  settingRowLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    gap: 12,
   },
-  settingTextContainer: {
-    marginLeft: SPACING.s,
-    flex: 1,
+  iconBox: {
+    width: 20,
+    alignItems: "center",
   },
-  settingLabel: {
-    fontSize: 14,
-    fontWeight: "500",
+  settingRowTitle: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
-    marginLeft: SPACING.s,
   },
-  settingDescription: {
+  settingRowSubtitle: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
   },
-  counterContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  deadlineExpand: {
+    marginTop: -8,
+    marginBottom: 8,
+    paddingLeft: 32,
   },
-  counterButton: {
-    width: 32,
-    height: 32,
+  datePreviewCard: {
+    backgroundColor: "#F8F9FB",
     borderRadius: 16,
-    backgroundColor: COLORS.screenBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  counterValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginHorizontal: SPACING.m,
-    minWidth: 20,
-    textAlign: "center",
-  },
-  datePickerButton: {
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    marginTop: SPACING.s,
-    borderWidth: 1,
-    borderColor: "#FF950030",
+    justifyContent: "space-between",
   },
-  datePickerText: {
-    flex: 1,
-    marginLeft: SPACING.s,
-    fontSize: 14,
-    color: "#FF9500",
-    fontWeight: "500",
-  },
-  previewSection: {
-    marginTop: SPACING.m,
-    marginBottom: SPACING.xl,
-  },
-  previewTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.s,
-  },
-  previewCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.l,
-    padding: SPACING.m,
-    ...SHADOWS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  previewTypeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.xs,
-  },
-  previewTypeLabel: {
+  dateLabel: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#FF9500",
-    marginLeft: 4,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF", // Light grey
+    marginBottom: 2,
+    textTransform: "uppercase",
   },
-  previewTitleText: {
-    fontSize: 16,
-    fontWeight: "600",
+  dateValue: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
-  },
-  previewDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-  },
-  previewBadges: {
-    flexDirection: "row",
-    marginTop: SPACING.s,
-  },
-  previewBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.screenBackground,
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.s,
-    marginRight: SPACING.xs,
-  },
-  previewBadgeText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    marginLeft: 4,
   },
 });
 

@@ -17,8 +17,7 @@ import {
   UIManager,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
-import { Trash2, Plus, Calendar, Clock } from "lucide-react-native";
+import { Trash2, Plus, Calendar, Clock, BarChart2 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 
 // Enable LayoutAnimation
@@ -116,7 +115,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
     <View style={styles.container}>
       {/* Question Card */}
       <View style={styles.card}>
-        <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
+        <View style={styles.heroHeader}>
+          <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
+          <BarChart2 size={22} color={COLORS.primary} strokeWidth={2.5} />
+        </View>
         <TextInput
           style={styles.questionInput}
           placeholder="What should we do this weekend?"
@@ -183,7 +185,13 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
             disabled={disabled}
             activeOpacity={0.7}
           >
-            <Text style={styles.addOptionText}>+ Add option</Text>
+            <Plus
+              size={18}
+              color={COLORS.textSecondary}
+              strokeWidth={2.5}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.addOptionText}>Add option</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -247,13 +255,19 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 2,
   },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   subtleLabel: {
     fontSize: 12,
     fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
     opacity: 0.6,
     letterSpacing: 0.8,
-    marginBottom: 12,
+    textTransform: "uppercase",
   },
   questionInput: {
     fontFamily: "Manrope-Regular",

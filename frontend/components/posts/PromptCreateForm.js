@@ -17,8 +17,7 @@ import {
   UIManager,
 } from "react-native";
 import Slider from "@react-native-community/slider";
-import { Ionicons } from "@expo/vector-icons";
-import { FileText, Image as ImageIcon } from "lucide-react-native"; // Using Lucide for cleaner icons
+import { FileText, Image as ImageIcon, Sparkles } from "lucide-react-native"; // Using Lucide for cleaner icons
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 
@@ -108,7 +107,10 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
     <View style={styles.container}>
       {/* Prompt Question Card */}
       <View style={styles.card}>
-        <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
+        <View style={styles.heroHeader}>
+          <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
+          <Sparkles size={22} color={COLORS.primary} strokeWidth={2} />
+        </View>
         <TextInput
           style={styles.promptInput}
           placeholder="What would you like your community to share?"
@@ -234,13 +236,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
   },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   subtleLabel: {
     fontSize: 12,
     fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
     opacity: 0.6,
     letterSpacing: 0.8,
-    marginBottom: 12,
     textTransform: "uppercase",
   },
   promptInput: {

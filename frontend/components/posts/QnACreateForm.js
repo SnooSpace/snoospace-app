@@ -17,8 +17,14 @@ import {
   Platform,
   UIManager,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { HatGlasses } from "lucide-react-native";
+import {
+  HatGlasses,
+  Clock,
+  Pencil,
+  Plus,
+  Minus,
+  MessageCircle,
+} from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   COLORS,
@@ -129,7 +135,15 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Hero Card */}
       <View style={styles.heroCard}>
-        <Text style={styles.subtleLabel}>START A Q&A</Text>
+        <View style={styles.heroHeader}>
+          <Text style={styles.subtleLabel}>START A Q&A</Text>
+          <MessageCircle
+            size={22}
+            color={COLORS.primary}
+            fill={COLORS.primary + "20"}
+            strokeWidth={2}
+          />
+        </View>
 
         <View style={styles.titleInputContainer}>
           <TextInput
@@ -176,7 +190,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
               onPress={handleDecrement}
               activeOpacity={0.7}
             >
-              <Ionicons name="remove" size={20} color={COLORS.textPrimary} />
+              <Minus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
             </TouchableOpacity>
 
             <Animated.Text
@@ -193,7 +207,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
               onPress={handleIncrement}
               activeOpacity={0.7}
             >
-              <Ionicons name="add" size={20} color={COLORS.textPrimary} />
+              <Plus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -228,11 +242,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
         <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
           <View style={styles.settingRowLeft}>
             <View style={styles.iconBox}>
-              <Ionicons
-                name="time-outline"
-                size={20}
-                color={COLORS.textPrimary}
-              />
+              <Clock size={20} color={COLORS.textPrimary} strokeWidth={2} />
             </View>
             <View>
               <Text style={styles.settingRowTitle}>Set deadline</Text>
@@ -264,7 +274,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
                   {formatExpiryDate(expiresAt)} · {formatExpiryTime(expiresAt)}
                 </Text>
               </View>
-              <Ionicons name="pencil" size={16} color={COLORS.primary} />
+              <Pencil size={16} color={COLORS.primary} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         )}
@@ -314,13 +324,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   subtleLabel: {
     fontSize: 12,
     fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
     opacity: 0.6,
     letterSpacing: 0.5,
-    marginBottom: 8,
     textTransform: "uppercase",
   },
   titleInputContainer: {
