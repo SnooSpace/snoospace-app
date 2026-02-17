@@ -16,13 +16,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Ticket,
   MoreHorizontal,
   TrendingUp,
   UserPlus,
-  Scan,
+  ScanQrCode,
   Plus,
   CircleCheck,
+  ChevronDown,
+  Lightbulb,
+  Calendar,
+  Ticket,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -31,6 +34,7 @@ import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
   Stop,
+  Circle,
 } from "react-native-svg";
 
 import CreateEventModal from "../../../components/modals/CreateEventModal";
@@ -110,8 +114,8 @@ const RevenueSparkline = () => {
       <Svg height="100%" width="100%" viewBox="0 0 300 60">
         <Defs>
           <SvgLinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#2962FF" stopOpacity="0.1" />
-            <Stop offset="1" stopColor="#2962FF" stopOpacity="0" />
+            <Stop offset="0" stopColor="#2563EB" stopOpacity="0.1" />
+            <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
           </SvgLinearGradient>
         </Defs>
         <Path
@@ -121,8 +125,17 @@ const RevenueSparkline = () => {
         <Path
           d="M0 50 C 40 50, 60 20, 90 25 C 120 30, 150 40, 180 20 C 210 0, 240 10, 270 5 C 290 2, 300 0, 300 0"
           fill="none"
-          stroke="#2962FF"
+          stroke="#2563EB"
           strokeWidth="3"
+        />
+        {/* Highlighted Dot */}
+        <Circle
+          cx="290"
+          cy="2"
+          r="4"
+          fill="white"
+          stroke="#2563EB"
+          strokeWidth="2"
         />
       </Svg>
     </View>
@@ -338,90 +351,186 @@ export default function CommunityDashboardScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         scrollEventThrottle={16}
       >
-        {/* 1️⃣ Founder Header (Flat) */}
-        <View style={styles.headerSection}>
-          <View style={styles.headerProfileRow}>
-            <Image
-              source={{
-                uri: "https://images.unsplash.com/photo-1522075469751-3a3694c60e9e?w=200",
-              }}
-              style={styles.headerAvatar}
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerName}>SnooSpace Community</Text>
-              <Text style={styles.headerMeta}>
-                {metrics.totalMembers.toLocaleString()} members ·{" "}
-                {metrics.eventsHosted} events · {metrics.collaborations} collabs
-              </Text>
-            </View>
-          </View>
+        {/* 0️ Dashboard Header (Top Navigation) */}
+        <View style={styles.dashboardHeader}>
+          <Text style={styles.dashboardTitle}>Dashboard</Text>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleScanTickets}
+          >
+            <ScanQrCode size={26} color={COLORS.textPrimary} />
+          </TouchableOpacity>
         </View>
 
-        {/* 2️⃣ Revenue Focus Card (Dominant) */}
+        {/* 1️⃣ Action Cards Grid (Swapped Position) */}
         <View style={styles.section}>
-          <View style={styles.revenueCard}>
-            <Text style={styles.revenueLabelLarge}>Total Revenue</Text>
-            <View style={styles.revenueMainRow}>
-              <Text style={styles.revenueValueLarge}>₹{revenue.total}</Text>
-              <View style={styles.growthChipsRow}>
-                <View style={styles.growthChip}>
-                  <TrendingUp size={12} color="#2E7D32" />
-                  <Text style={styles.growthChipText}>+8.4%</Text>
-                </View>
-                <View
-                  style={[styles.growthChip, { backgroundColor: "#E3F2FD" }]}
-                >
-                  <Text style={[styles.growthChipText, { color: "#1976D2" }]}>
-                    +42 members
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <RevenueSparkline />
-
-            <View style={styles.revenueFooter}>
-              <Text style={styles.revenueFooterText}>
-                <Text style={{ fontFamily: FONTS.semiBold }}>
-                  {revenue.ticketsSold}
-                </Text>{" "}
-                tickets ·{" "}
-                <Text style={{ fontFamily: FONTS.semiBold }}>
-                  ₹{revenue.avgPerEvent}
-                </Text>{" "}
-                avg ·{" "}
-                <Text style={{ fontFamily: FONTS.semiBold }}>
-                  {revenue.eventsCount}
-                </Text>{" "}
-                events
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 3️⃣ Utility Row (Minimal) */}
-        <View style={styles.section}>
-          <View style={styles.utilityRow}>
+          <View style={styles.actionGrid}>
+            {/* Create Event - Primary */}
             <TouchableOpacity
-              style={styles.utilityButton}
-              onPress={handleInviteMembers}
+              style={[styles.primaryActionCard, { flex: 1 }]}
+              onPress={handleCreateEvent}
+              activeOpacity={0.9}
             >
-              <UserPlus size={18} color={COLORS.primary} />
-              <Text style={styles.utilityButtonText}>Invite Members</Text>
+              <LinearGradient
+                colors={["#2563EB", "#3B82F6"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.bgIconDecorative}>
+                <Calendar size={80} color="white" style={{ opacity: 0.1 }} />
+              </View>
+              <View style={styles.actionIconContainer}>
+                <Calendar size={22} color="white" />
+              </View>
+              <Text style={styles.primaryActionTitle}>Create{"\n"}Event</Text>
+            </TouchableOpacity>
+
+            {/* Create Opportunity - Primary */}
+            <TouchableOpacity
+              style={[styles.primaryActionCard, { flex: 1 }]}
+              onPress={() => Alert.alert("Coming Soon")}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={["#1E40AF", "#2563EB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.bgIconDecorative}>
+                <Lightbulb size={80} color="white" style={{ opacity: 0.1 }} />
+              </View>
+              <View style={styles.actionIconContainer}>
+                <Lightbulb size={22} color="white" />
+              </View>
+              <Text style={styles.primaryActionTitle}>
+                Create{"\n"}Opportunity
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Secondary Actions Row */}
+          <View style={[styles.actionGrid, { marginTop: 12 }]}>
+            <TouchableOpacity
+              style={styles.secondaryActionCard}
+              onPress={() => Alert.alert("Share Tickets")}
+            >
+              <View style={styles.secondaryIconBg}>
+                <Ticket size={20} color="#1E3A8A" />
+              </View>
+              <Text style={styles.secondaryActionText}>Share Tickets</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.utilityButton}
-              onPress={handleScanTickets}
+              style={styles.secondaryActionCard}
+              onPress={handleInviteMembers}
             >
-              <Scan size={18} color={COLORS.textPrimary} />
-              <Text
-                style={[
-                  styles.utilityButtonText,
-                  { color: COLORS.textPrimary },
-                ]}
-              >
-                Scan Entry
+              <View style={styles.secondaryIconBg}>
+                <UserPlus size={20} color="#1E3A8A" />
+              </View>
+              <Text style={styles.secondaryActionText}>Invite Members</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 2️⃣ Growth & Engagement Row (Swapped Position) */}
+        <View style={[styles.section, { marginBottom: 16 }]}>
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            {/* New Members Card */}
+            <View style={styles.statCard}>
+              <View style={styles.statDecoration} />
+              <View style={styles.statHeader}>
+                <View style={styles.iconCircle}>
+                  <UserPlus size={20} color="#2563EB" />
+                </View>
+                <View
+                  style={[styles.badgePill, { backgroundColor: "#E3F2FD" }]}
+                >
+                  <Text style={[styles.badgeText, { color: "#1E40AF" }]}>
+                    +12%
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.statValue}>+124</Text>
+              <Text style={styles.statLabel}>New Members</Text>
+            </View>
+
+            {/* Engagement Rate Card */}
+            <View style={styles.statCard}>
+              <View style={styles.statDecoration} />
+              <View style={styles.statHeader}>
+                <View style={styles.iconCircle}>
+                  <TrendingUp size={20} color="#2563EB" />
+                </View>
+                <View
+                  style={[styles.badgePill, { backgroundColor: "#F3F4F6" }]}
+                >
+                  <Text
+                    style={[styles.badgeText, { color: COLORS.textSecondary }]}
+                  >
+                    Top 5%
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.statValue}>High</Text>
+              <Text style={styles.statLabel}>Engagement Rate</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 3️⃣ Revenue Focus Card (Dominant) */}
+        <View style={styles.section}>
+          <View style={styles.revenueCard}>
+            {/* Header */}
+            <View style={styles.revenueHeader}>
+              <Text style={styles.revenueLabelLarge}>Total Revenue</Text>
+              <TouchableOpacity style={styles.revenueTimePill}>
+                <Text style={styles.revenueTimePillText}>Last 30 days</Text>
+                <ChevronDown size={14} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Main Value */}
+            <Text style={styles.revenueValueLarge}>₹{revenue.total}</Text>
+
+            {/* 3-Column Stats Grid */}
+            <View style={styles.revenueGrid}>
+              <View style={styles.revenueGridItem}>
+                <Text style={styles.revenueGridValue}>
+                  {revenue.ticketsSold}
+                </Text>
+                <Text style={styles.revenueGridLabel}>TICKETS SOLD</Text>
+              </View>
+              <View style={styles.verticalDivider} />
+              <View style={styles.revenueGridItem}>
+                <Text style={styles.revenueGridValue}>
+                  ₹{revenue.avgPerEvent}
+                </Text>
+                <Text style={styles.revenueGridLabel}>AVG PRICE</Text>
+              </View>
+              <View style={styles.verticalDivider} />
+              <View style={styles.revenueGridItem}>
+                <Text style={styles.revenueGridValue}>
+                  {revenue.eventsCount}
+                </Text>
+                <Text style={styles.revenueGridLabel}>ACTIVE EVENTS</Text>
+              </View>
+            </View>
+
+            {/* Graph Area */}
+            <View style={styles.graphContainer}>
+              <RevenueSparkline />
+              {/* Tooltip Mock */}
+              <View style={styles.graphTooltip}>
+                <Text style={styles.graphTooltipText}>₹12k</Text>
+              </View>
+            </View>
+
+            {/* Footer Link */}
+            <TouchableOpacity style={styles.reportFooter}>
+              <Text style={styles.reportFooterText}>
+                View full revenue report →
               </Text>
             </TouchableOpacity>
           </View>
@@ -499,14 +608,6 @@ export default function CommunityDashboardScreen({ navigation }) {
                 </React.Fragment>
               ))}
           </View>
-
-          <TouchableOpacity
-            style={styles.createEventButton}
-            onPress={handleCreateEvent}
-          >
-            <Plus size={20} color="#FFF" />
-            <Text style={styles.createEventButtonText}>Create Event</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Bottom Padding for Tab Bar */}
@@ -540,6 +641,30 @@ export default function CommunityDashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  dashboardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    marginBottom: 10,
+  },
+  dashboardTitle: {
+    fontFamily: FONTS.black,
+    fontSize: 34,
+    color: COLORS.textPrimary,
+    letterSpacing: -1,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
   container: {
     flex: 1,
     backgroundColor: DASHBOARD_TOKENS.background,
@@ -607,73 +732,203 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginBottom: 4,
+    marginRight: 4,
   },
+
+  // Stat Cards (Growth & Engagement)
+  statCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    overflow: "hidden", // Ensure decoration stays inside
+    position: "relative",
+  },
+  statDecoration: {
+    position: "absolute",
+    top: -45,
+    right: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(123, 31, 162, 0.04)", // Subtle purple tint
+    zIndex: -1,
+  },
+  statHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    alignItems: "flex-start",
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3E5F5", // Light purple bg
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+  },
+  statValue: {
+    fontFamily: FONTS.primary, // Bold
+    fontSize: 28,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+
   revenueValueLarge: {
     fontFamily: FONTS.primary, // Bold
     fontSize: 32,
     color: COLORS.textPrimary,
     letterSpacing: -0.5,
   },
-  revenueMainRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 12,
-  },
-  growthChipsRow: {
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-  },
-  growthChip: {
+  revenueTimePill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     gap: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  growthChipText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 10,
-    color: "#2E7D32",
-  },
-  revenueFooter: {
-    marginTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#F5F5F5",
-    paddingTop: 16,
-  },
-  revenueFooterText: {
+  revenueTimePillText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: 12,
+    color: COLORS.textPrimary,
+  },
+  revenueGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  revenueGridItem: {
+    alignItems: "flex-start",
+  },
+  revenueGridValue: {
+    fontFamily: FONTS.primary, // Bold
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  revenueGridLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
     color: COLORS.textMuted,
-    letterSpacing: 0.1,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#EEEEEE",
+  },
+  graphContainer: {
+    marginTop: 10,
+    position: "relative",
+  },
+  graphTooltip: {
+    position: "absolute",
+    top: -10,
+    right: 30, // Adjust based on graph peak
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  graphTooltipText: {
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    color: "white",
+  },
+  reportFooter: {
+    marginTop: 20,
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  reportFooterText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#2563EB",
   },
 
-  // Utility Row
-  utilityRow: {
+  // Action Cards
+  actionGrid: {
     flexDirection: "row",
     gap: 12,
   },
-  utilityButton: {
+  primaryActionCard: {
+    height: 140,
+    borderRadius: 24,
+    padding: 20,
+    justifyContent: "space-between",
+    overflow: "hidden", // For gradient/decorations
+    ...SHADOWS.md, // Soft shadow
+  },
+  primaryActionTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginTop: 8,
+  },
+  actionIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bgIconDecorative: {
+    position: "absolute",
+    top: -10,
+    right: -10,
+    opacity: 0.8,
+  },
+  secondaryActionCard: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    backgroundColor: DASHBOARD_TOKENS.surface,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#F0F0F0",
-    // Removed minimal shadow per request
+    gap: 10, // Reduced gap
+    height: 68,
+    backgroundColor: "rgba(37, 99, 235, 0.06)", // Soft tinted blue
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.12)",
+    borderRadius: 16,
+    paddingHorizontal: 12, // Reduced padding to prevent text cutoff
   },
-  utilityButtonText: {
+  secondaryIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryActionText: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: COLORS.primary,
+    fontSize: 16, // Reduced font size
+    color: "#1E3A8A", // Dark blue text
+    flex: 1, // Allow text to wrap if absolutely necessary, though font reduction should fix it
   },
 
   // Events Section (Compact)
