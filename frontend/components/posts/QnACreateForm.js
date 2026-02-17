@@ -1,9 +1,9 @@
 /**
  * QnACreateForm
- * Form for community admins to create Q&A posts
+ * Form for community admins to create Q&A posts with premium design
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,10 +12,30 @@ import {
   StyleSheet,
   Switch,
   ScrollView,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { HatGlasses } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+} from "../../constants/theme";
+import HapticsService from "../../services/HapticsService";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const QnACreateForm = ({ onSubmit, isSubmitting }) => {
   const [title, setTitle] = useState("");
@@ -25,6 +45,9 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Animation values
+  const stepperScale = useRef(new Animated.Value(1)).current;
 
   // Sync data with parent on every change
   useEffect(() => {
@@ -44,118 +67,150 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
     expiresAt,
   ]);
 
-  const handleSubmit = () => {
-    if (!title.trim() || isSubmitting) return;
+  const animateStepper = () => {
+    Animated.sequence([
+      Animated.spring(stepperScale, {
+        toValue: 1.1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(stepperScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
-    onSubmit({
-      post_type: "qna",
-      title: title.trim(),
-      description: description.trim(),
-      allow_anonymous: allowAnonymous,
-      max_questions_per_user: maxQuestionsPerUser,
-      expires_at: hasExpiry && expiresAt ? expiresAt.toISOString() : null,
+  const handleIncrement = () => {
+    if (maxQuestionsPerUser < 10) {
+      HapticsService.triggerImpactLight();
+      animateStepper();
+      setMaxQuestionsPerUser((prev) => prev + 1);
+    }
+  };
+
+  const handleDecrement = () => {
+    if (maxQuestionsPerUser > 1) {
+      HapticsService.triggerImpactLight();
+      animateStepper();
+      setMaxQuestionsPerUser((prev) => prev - 1);
+    }
+  };
+
+  const toggleExpiry = (val) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHasExpiry(val);
+    if (val && !expiresAt) {
+      const defaultExpiry = new Date();
+      defaultExpiry.setDate(defaultExpiry.getDate() + 1);
+      defaultExpiry.setHours(20, 0, 0, 0); // Default to 8 PM next day
+      setExpiresAt(defaultExpiry);
+    }
+  };
+
+  const formatExpiryDate = (date) => {
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   };
 
-  const formatExpiry = (date) => {
-    if (!date) return "Set deadline";
-    const options = {
-      month: "short",
-      day: "numeric",
+  const formatExpiryTime = (date) => {
+    if (!date) return "";
+    return date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
-    };
-    return date.toLocaleDateString("en-US", options);
+    });
   };
-
-  const isValid = title.trim().length >= 3;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header Icon */}
-      <View style={styles.iconContainer}>
-        <MaterialCommunityIcons
-          name="frequently-asked-questions"
-          size={40}
-          color="#5856D6"
-        />
+      {/* Hero Card */}
+      <View style={styles.heroCard}>
+        <Text style={styles.subtleLabel}>START A Q&A</Text>
+
+        <View style={styles.titleInputContainer}>
+          <TextInput
+            style={styles.titleInput}
+            placeholder="Ask me anything about our event"
+            placeholderTextColor={COLORS.textMuted}
+            value={title}
+            onChangeText={setTitle}
+            maxLength={100}
+            selectionColor={COLORS.primary}
+            multiline
+          />
+          <Text style={styles.charCount}>{title.length}/100</Text>
+        </View>
+
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.descriptionLabel}>Optional description</Text>
+          <TextInput
+            style={styles.descriptionInput}
+            placeholder="Add more details..."
+            placeholderTextColor={COLORS.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            maxLength={300}
+            selectionColor={COLORS.primary}
+          />
+          <Text style={[styles.charCount, { marginTop: 4 }]}>
+            {description.length}/300
+          </Text>
+        </View>
       </View>
 
-      {/* Title Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Title *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., Ask me anything about our event"
-          placeholderTextColor={COLORS.textSecondary}
-          value={title}
-          onChangeText={setTitle}
-          maxLength={100}
-        />
-        <Text style={styles.charCount}>{title.length}/100</Text>
-      </View>
+      {/* Settings Card */}
+      <View style={styles.settingsCard}>
+        <Text style={styles.cardTitle}>Q&A Settings</Text>
 
-      {/* Description Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Description (optional)</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Share what this Q&A is about..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          maxLength={300}
-        />
-        <Text style={styles.charCount}>{description.length}/300</Text>
-      </View>
-
-      {/* Settings */}
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Settings</Text>
-
-        {/* Max Questions Per User */}
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="help-circle-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <Text style={styles.settingLabel}>Questions per user</Text>
-          </View>
-          <View style={styles.counterContainer}>
+        {/* Questions Per User Stepper */}
+        <View style={styles.settingSection}>
+          <Text style={styles.settingLabelCentered}>Questions per user</Text>
+          <View style={styles.stepperContainer}>
             <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() =>
-                setMaxQuestionsPerUser(Math.max(1, maxQuestionsPerUser - 1))
-              }
+              style={styles.stepperButton}
+              onPress={handleDecrement}
+              activeOpacity={0.7}
             >
-              <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+              <Ionicons name="remove" size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.counterValue}>{maxQuestionsPerUser}</Text>
-            <TouchableOpacity
-              style={styles.counterButton}
-              onPress={() =>
-                setMaxQuestionsPerUser(Math.min(5, maxQuestionsPerUser + 1))
-              }
+
+            <Animated.Text
+              style={[
+                styles.stepperValue,
+                { transform: [{ scale: stepperScale }] },
+              ]}
             >
-              <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+              {maxQuestionsPerUser}
+            </Animated.Text>
+
+            <TouchableOpacity
+              style={styles.stepperButton}
+              onPress={handleIncrement}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Allow Anonymous */}
         <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="eye-off-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Allow anonymous</Text>
-              <Text style={styles.settingDescription}>
+          <View style={styles.settingRowLeft}>
+            <View style={styles.iconBox}>
+              <HatGlasses
+                size={20}
+                color={COLORS.textPrimary}
+                strokeWidth={2}
+              />
+            </View>
+            <View>
+              <Text style={styles.settingRowTitle}>Allow anonymous</Text>
+              <Text style={styles.settingRowSubtitle}>
                 Users can ask without showing name
               </Text>
             </View>
@@ -163,98 +218,79 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
           <Switch
             value={allowAnonymous}
             onValueChange={setAllowAnonymous}
-            trackColor={{ false: COLORS.border, true: "#5856D650" }}
-            thumbColor={allowAnonymous ? "#5856D6" : COLORS.textSecondary}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
           />
         </View>
 
-        {/* Expiry Toggle */}
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Ionicons
-              name="time-outline"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Set deadline</Text>
-              <Text style={styles.settingDescription}>
+        {/* Set Deadline */}
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+          <View style={styles.settingRowLeft}>
+            <View style={styles.iconBox}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={COLORS.textPrimary}
+              />
+            </View>
+            <View>
+              <Text style={styles.settingRowTitle}>Set deadline</Text>
+              <Text style={styles.settingRowSubtitle}>
                 Q&A ends at a specific time
               </Text>
             </View>
           </View>
           <Switch
             value={hasExpiry}
-            onValueChange={(val) => {
-              setHasExpiry(val);
-              if (val && !expiresAt) {
-                // Default to 24 hours from now
-                const defaultExpiry = new Date();
-                defaultExpiry.setDate(defaultExpiry.getDate() + 1);
-                setExpiresAt(defaultExpiry);
-              }
-            }}
-            trackColor={{ false: COLORS.border, true: "#5856D650" }}
-            thumbColor={hasExpiry ? "#5856D6" : COLORS.textSecondary}
+            onValueChange={toggleExpiry}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
           />
         </View>
 
-        {/* Date Picker (if expiry enabled) */}
+        {/* Dynamic Deadline Expansion */}
         {hasExpiry && (
-          <>
+          <View style={styles.deadlineExpand}>
             <TouchableOpacity
-              style={styles.datePickerButton}
+              style={styles.datePreviewCard}
               onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
             >
-              <Ionicons name="calendar-outline" size={18} color="#5856D6" />
-              <Text style={styles.datePickerText}>
-                {formatExpiry(expiresAt)}
-              </Text>
+              <View>
+                <Text style={styles.dateLabel}>Ends on</Text>
+                <Text style={styles.dateValue}>
+                  {formatExpiryDate(expiresAt)} · {formatExpiryTime(expiresAt)}
+                </Text>
+              </View>
+              <Ionicons name="pencil" size={16} color={COLORS.primary} />
             </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={expiresAt || new Date()}
-                mode="date"
-                is24Hour={false}
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) {
-                    const date = new Date(selectedDate);
-                    date.setHours(23, 59, 59, 999);
-                    setExpiresAt(date);
-                  }
-                }}
-                minimumDate={new Date()}
-              />
-            )}
-          </>
+          </View>
         )}
       </View>
 
-      {/* Submit Button (handled by parent, but show preview) */}
-      <View style={styles.previewSection}>
-        <Text style={styles.previewTitle}>Preview</Text>
-        <View style={styles.previewCard}>
-          <View style={styles.previewTypeIndicator}>
-            <MaterialCommunityIcons
-              name="frequently-asked-questions"
-              size={14}
-              color="#5856D6"
-            />
-            <Text style={styles.previewTypeLabel}>Q&A</Text>
-          </View>
-          <Text style={styles.previewTitleText}>
-            {title || "Your Q&A title"}
-          </Text>
-          {description && (
-            <Text style={styles.previewDescription} numberOfLines={2}>
-              {description}
-            </Text>
-          )}
-        </View>
-      </View>
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={expiresAt || new Date()}
+          mode="date" // Ideally we'd have a combined picker or two steps
+          is24Hour={false}
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              const date = new Date(selectedDate);
+              // Preserve the default 8 PM time if only date changed, strictly speaking
+              // DateTimePicker logic might vary. For now, we set date.
+              // If we want time picking too, we'd need another step or mode="datetime" on iOS
+              date.setHours(20, 0, 0, 0);
+              setExpiresAt(date);
+            }
+          }}
+          minimumDate={new Date()}
+        />
+      )}
     </ScrollView>
   );
 };
@@ -262,155 +298,175 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: SPACING.m,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 40,
   },
-  iconContainer: {
-    alignItems: "center",
-    marginBottom: SPACING.l,
-    marginTop: SPACING.m,
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 32,
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.05)",
+    shadowOpacity: 1,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
-  inputGroup: {
-    marginBottom: SPACING.l,
+  subtleLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textSecondary,
+    opacity: 0.6,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textTransform: "uppercase",
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
+  titleInputContainer: {
+    marginBottom: 24,
+  },
+  titleInput: {
+    fontFamily: "Manrope-Regular", // Keeping standard weight, 18px
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  input: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: "top",
+    padding: 0,
+    minHeight: 30,
   },
   charCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
     textAlign: "right",
     marginTop: 4,
   },
-  settingsSection: {
-    marginBottom: SPACING.l,
+  descriptionContainer: {
+    //
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+  descriptionLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    opacity: 0.6,
+    marginBottom: 6,
+  },
+  descriptionInput: {
+    backgroundColor: "#F8F9FB",
+    borderRadius: 16,
+    padding: 16,
+    fontFamily: "Manrope-Medium",
+    fontSize: 15,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.m,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  settingsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 40,
+    ...SHADOWS.sm, // Using theme shadow but could override for softer look
+    shadowColor: "rgba(0,0,0,0.04)",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 20,
+  },
+  settingSection: {
+    marginBottom: 24,
+  },
+  settingLabelCentered: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F6F7F9",
+    borderRadius: 20,
+    height: 48,
+    paddingHorizontal: 8,
+  },
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  stepperValue: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+    minWidth: 40,
+    textAlign: "center",
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: SPACING.m,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 20,
   },
-  settingInfo: {
+  settingRowLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    gap: 12,
   },
-  settingTextContainer: {
-    marginLeft: SPACING.s,
-    flex: 1,
+  iconBox: {
+    width: 20,
+    alignItems: "center",
   },
-  settingLabel: {
-    fontSize: 14,
-    fontWeight: "500",
+  settingRowTitle: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium", // "Manrope 15" from spec
     color: COLORS.textPrimary,
-    marginLeft: SPACING.s,
   },
-  settingDescription: {
+  settingRowSubtitle: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280", // #6B7280
   },
-  counterContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  deadlineExpand: {
+    marginTop: -8, // Pull closer to toggle
+    marginBottom: 8,
+    paddingLeft: 32, // Indent to align with text
   },
-  counterButton: {
-    width: 32,
-    height: 32,
+  datePreviewCard: {
+    backgroundColor: "#F8F9FB",
     borderRadius: 16,
-    backgroundColor: COLORS.screenBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  counterValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginHorizontal: SPACING.m,
-    minWidth: 20,
-    textAlign: "center",
-  },
-  datePickerButton: {
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    marginTop: SPACING.s,
-    borderWidth: 1,
-    borderColor: "#5856D630",
+    justifyContent: "space-between",
   },
-  datePickerText: {
-    flex: 1,
-    marginLeft: SPACING.s,
-    fontSize: 14,
-    color: "#5856D6",
-    fontWeight: "500",
-  },
-  previewSection: {
-    marginTop: SPACING.m,
-    marginBottom: SPACING.xl,
-  },
-  previewTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.s,
-  },
-  previewCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.l,
-    padding: SPACING.m,
-    ...SHADOWS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  previewTypeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.xs,
-  },
-  previewTypeLabel: {
+  dateLabel: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#5856D6",
-    marginLeft: 4,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
+    marginBottom: 2,
+    textTransform: "uppercase",
   },
-  previewTitleText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: (title) => (title ? COLORS.textPrimary : COLORS.textSecondary),
-  },
-  previewDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 4,
+  dateValue: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
   },
 });
 
