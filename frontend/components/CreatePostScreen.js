@@ -28,6 +28,7 @@ import EntityTagSelector from "./EntityTagSelector";
 import { getAuthToken } from "../api/auth";
 import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
+import SuccessCard from "./feedback/SuccessCard";
 import HapticsService from "../services/HapticsService";
 import GradientButton from "./GradientButton";
 import { COLORS, SHADOWS, FONTS } from "../constants/theme";
@@ -50,6 +51,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
+  const [showSuccessCard, setShowSuccessCard] = useState(false); // Success Card State
+  const [successCardData, setSuccessCardData] = useState(null);
   const imageUploaderRef = useRef(null);
   const scrollViewRef = useRef(null);
   // ...
@@ -165,6 +168,95 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     setMediaTypes(newMediaTypes);
   };
 
+  const navigateHome = async () => {
+    // Navigate to the correct Home screen based on user role
+    try {
+      // Determine the target screen based on user type
+      // Priority: 1. route params, 2. currentUser state, 3. AsyncStorage (fallback)
+      let userType = route.params?.role || currentUser?.type;
+
+      if (!userType) {
+        // Fallback: try to get from AsyncStorage if not available in state/params
+        try {
+          const storedUserType = await AsyncStorage.getItem("user_type"); // If we store this
+          // Or try to fetch profile again quickly if needed, but for now default to member
+          // Actually, let's try to infer from the previous screen or just default to member
+          // But wait, if we are community, we MUST know it.
+
+          // Let's check if we can get it from auth_email and profile fetch if absolutely needed
+          // But we already tried loading it in useEffect.
+
+          // If we are here, it means load failed or is too slow.
+          // Let's check if we have a stored profile in AsyncStorage
+          const storedProfile = await AsyncStorage.getItem("user_profile");
+          if (storedProfile) {
+            const parsed = JSON.parse(storedProfile);
+            userType = parsed.user_type || parsed.role;
+          }
+        } catch (e) {
+          console.log("Error fetching fallback user type:", e);
+        }
+      }
+
+      // Default to member if still unknown
+      userType = userType || "member";
+
+      let targetScreen = "MemberHome";
+      let params = { screen: "Home" };
+
+      switch (userType) {
+        case "community":
+          targetScreen = "CommunityHome";
+          params = { screen: "Home" };
+          break;
+        case "sponsor":
+          targetScreen = "SponsorHome";
+          params = undefined; // Sponsor uses custom tabs, default is Home
+          break;
+        case "venue":
+          targetScreen = "VenueHome";
+          params = undefined; // Venue uses custom tabs, default is Home
+          break;
+        case "member":
+        default:
+          targetScreen = "MemberHome";
+          params = { screen: "Home" };
+          break;
+      }
+
+      console.log(
+        `[CreatePostScreen] Navigating to ${targetScreen} for user type ${userType}`,
+      );
+
+      // Navigate to the target screen
+      // We use the root navigator (AppNavigator) which CreatePostScreen is part of
+      if (params) {
+        navigation.navigate(targetScreen, params);
+      } else {
+        navigation.navigate(targetScreen);
+      }
+    } catch (error) {
+      console.log("[CreatePostScreen] Navigation failed:", error);
+    }
+  };
+
+  const handleViewPost = () => {
+    setShowSuccessCard(false);
+    navigation.goBack(); // Close modal first
+    setTimeout(() => {
+      navigateHome();
+    }, 100);
+  };
+
+  const handleCreateAnother = () => {
+    setShowSuccessCard(false);
+    setCaption("");
+    setImages([]);
+    setTaggedEntities([]);
+    setEntityTags([]);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
   const handleSubmit = async () => {
     if (images.length === 0) {
       Alert.alert("No Images", "Please add at least one image to your post");
@@ -252,96 +344,14 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       // Emit event to refresh feed
       EventBus.emit("post-created");
 
-      // 5. Success: navigate to Home tab
-      HapticsService.triggerNotificationSuccess();
-      const challengeTag = entityTags.find((e) => e.type === "challenge");
-      const successMessage = challengeTag
-        ? `Post created and submitted to "${challengeTag.name}"! ${!challengeTag.is_joined ? "You were auto-joined to the challenge." : ""}`
-        : "Post created successfully!";
-      Alert.alert("Success", successMessage, [
-        {
-          text: "OK",
-          onPress: () => {
-            // Navigate to Home tab for all roles
-            // First, close the CreatePost screen
-            navigation.goBack();
-
-            // Then navigate to the correct Home screen based on user role
-            setTimeout(async () => {
-              try {
-                // Determine the target screen based on user type
-                // Priority: 1. route params, 2. currentUser state, 3. AsyncStorage (fallback)
-                let userType = route.params?.role || currentUser?.type;
-
-                if (!userType) {
-                  // Fallback: try to get from AsyncStorage if not available in state/params
-                  try {
-                    const storedUserType =
-                      await AsyncStorage.getItem("user_type"); // If we store this
-                    // Or try to fetch profile again quickly if needed, but for now default to member
-                    // Actually, let's try to infer from the previous screen or just default to member
-                    // But wait, if we are community, we MUST know it.
-
-                    // Let's check if we can get it from auth_email and profile fetch if absolutely needed
-                    // But we already tried loading it in useEffect.
-
-                    // If we are here, it means load failed or is too slow.
-                    // Let's check if we have a stored profile in AsyncStorage
-                    const storedProfile =
-                      await AsyncStorage.getItem("user_profile");
-                    if (storedProfile) {
-                      const parsed = JSON.parse(storedProfile);
-                      userType = parsed.user_type || parsed.role;
-                    }
-                  } catch (e) {
-                    console.log("Error fetching fallback user type:", e);
-                  }
-                }
-
-                // Default to member if still unknown
-                userType = userType || "member";
-
-                let targetScreen = "MemberHome";
-                let params = { screen: "Home" };
-
-                switch (userType) {
-                  case "community":
-                    targetScreen = "CommunityHome";
-                    params = { screen: "Home" };
-                    break;
-                  case "sponsor":
-                    targetScreen = "SponsorHome";
-                    params = undefined; // Sponsor uses custom tabs, default is Home
-                    break;
-                  case "venue":
-                    targetScreen = "VenueHome";
-                    params = undefined; // Venue uses custom tabs, default is Home
-                    break;
-                  case "member":
-                  default:
-                    targetScreen = "MemberHome";
-                    params = { screen: "Home" };
-                    break;
-                }
-
-                console.log(
-                  `[CreatePostScreen] Navigating to ${targetScreen} for user type ${userType}`,
-                );
-
-                // Navigate to the target screen
-                // We use the root navigator (AppNavigator) which CreatePostScreen is part of
-                if (params) {
-                  navigation.navigate(targetScreen, params);
-                } else {
-                  navigation.navigate(targetScreen);
-                }
-              } catch (error) {
-                console.log("[CreatePostScreen] Navigation failed:", error);
-              }
-            }, 100);
-          },
-        },
-      ]);
+      // 5. Success: Show confirmation card
+      setSuccessCardData({
+        thumbnail: imageUrls[0],
+        hasVideo: mediaTypes[0] === "video",
+        // If we tagged a challenge, maybe pass that info?
+        challengeTag: entityTags.find((e) => e.type === "challenge"),
+      });
+      setShowSuccessCard(true);
     } catch (error) {
       console.error("Error creating post:", error);
       Alert.alert(

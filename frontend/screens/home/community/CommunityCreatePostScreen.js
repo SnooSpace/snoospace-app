@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Camera, Info, X, Video, Trophy } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
-import CelebrationModal from "../../../components/CelebrationModal";
+import SuccessCard from "../../../components/feedback/SuccessCard";
 import HapticsService from "../../../services/HapticsService";
 import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
 
@@ -49,6 +49,7 @@ if (
 
 export default function CommunityCreatePostScreen({ navigation }) {
   const [postType, setPostType] = useState("media"); // media, poll, prompt, qna, challenge
+  const [successCardData, setSuccessCardData] = useState(null); // Track data for SuccessCard
 
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
@@ -348,7 +349,29 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
       EventBus.emit("post-created");
 
-      // PEAK MOMENT: Trigger celebration instead of immediate navigation
+      // Prepare data for SuccessCard
+      let successData = {};
+      switch (postType) {
+        case "media":
+          successData = {
+            thumbnail: finalImageUrls[0],
+            hasVideo: finalMediaTypes[0] === "video",
+          };
+          break;
+        case "poll":
+          successData = { ...pollData };
+          break;
+        case "prompt":
+          successData = { ...promptData };
+          break;
+        case "qna":
+          successData = { ...qnaData };
+          break;
+        case "challenge":
+          successData = { ...challengeData };
+          break;
+      }
+      setSuccessCardData(successData);
       setShowCelebration(true);
     } catch (error) {
       console.error("Error creating post:", error);
@@ -363,15 +386,28 @@ export default function CommunityCreatePostScreen({ navigation }) {
     }
   };
 
-  const handleCelebrationClose = () => {
+  const handleCreateAnother = () => {
     setShowCelebration(false);
     setCaption("");
     setImages([]);
-    setAspectRatios([]); // Reset aspect ratios
-    setMediaTypes([]); // Reset media types
+    setAspectRatios([]);
+    setMediaTypes([]);
     setTaggedEntities([]);
+    // Optionally reset other forms or keep them for ease of re-creation if desireable,
+    // but usually "Create another" implies fresh start or maybe keeping settings.
+    // Let's reset the main content but maybe keep some settings?
+    // For now, simple reset is safer.
 
-    // DELAYED END: Navigate after potential interaction
+    // Also scroll to top
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const handleViewPost = () => {
+    setShowCelebration(false);
+    setCaption("");
+    setImages([]);
+
+    // Navigate home/feed to see it
     HapticsService.triggerImpactLight();
     navigation.navigate("CommunityHome", {
       screen: "Home",
@@ -468,10 +504,12 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <CelebrationModal
+      <SuccessCard
         visible={showCelebration}
-        onClose={handleCelebrationClose}
-        type="post"
+        type={postType}
+        data={successCardData}
+        onPrimaryAction={handleViewPost}
+        onSecondaryAction={handleCreateAnother}
       />
 
       <BlurView

@@ -42,29 +42,54 @@ const CommunityBottomTabNavigator = () => {
 
           if (route.name === "Profile") {
             return (
-              <ProfileTabIcon
-                focused={focused}
-                color={color}
-                userType="community"
-              />
+              <View style={{ alignItems: "center", justifyContent: "center" }}>
+                <ProfileTabIcon
+                  focused={focused}
+                  color={color}
+                  userType="community"
+                />
+                {focused && (
+                  <View
+                    style={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: "#007AFF",
+                      marginTop: 4,
+                      position: "absolute",
+                      bottom: -8,
+                    }}
+                  />
+                )}
+              </View>
             );
           }
 
           return (
             <View
               style={{
-                width: 30,
-                height: 30,
                 alignItems: "center",
                 justifyContent: "center",
+                height: 40,
+                width: 40,
               }}
             >
               <IconComponent
                 size={26}
-                color={focused ? "#3565F2" : "#999999"}
-                fill={focused ? "rgba(53, 101, 242, 0.15)" : "transparent"}
-                strokeWidth={focused ? 2.5 : 2.2}
+                color={focused ? "#007AFF" : "#8E8E93"} // Premium Blue or Cool Gray
+                strokeWidth={focused ? 2.5 : 2}
               />
+              {focused && (
+                <View
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: "#007AFF",
+                    marginTop: 6,
+                  }}
+                />
+              )}
             </View>
           );
         },
@@ -79,36 +104,19 @@ const CommunityBottomTabNavigator = () => {
           elevation: 0,
           shadowOpacity: 0,
           height: Platform.OS === "ios" ? 95 : 80,
-          paddingTop: 12, // Add top padding for breathing room
+          paddingTop: 12,
           paddingBottom: Platform.OS === "ios" ? 20 : 10,
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
             <View style={StyleSheet.absoluteFill}>
-              {/* 
-                iOS Glass Implementation:
-                - tint="systemChromeMaterialLight": Matches native iOS navigation bars (the "standard" blur).
-                - intensity={100}: Ensures complete smoothing of content behind.
-              */}
               <BlurView
                 tint="systemChromeMaterialLight"
-                intensity={100}
+                intensity={80} // Slightly more translucent
                 style={StyleSheet.absoluteFill}
-              />
-              {/* Subtle Top Divider: 0.5px hairline for crisp separation */}
-              <View
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: StyleSheet.hairlineWidth, // ~0.33px on retina, 0.5px on standard
-                  backgroundColor: "rgba(0, 0, 0, 0.2)", // Standard iOS separator opacity
-                }}
               />
             </View>
           ) : (
-            // Android Fallback: Solid white with subtle divider
             <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
               <View
                 style={{

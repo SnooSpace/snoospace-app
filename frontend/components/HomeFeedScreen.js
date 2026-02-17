@@ -42,6 +42,7 @@ import OpportunityFeedCard from "./OpportunityFeedCard";
 import CommentsModal from "./CommentsModal";
 import ShareModal from "./ShareModal";
 import AttendanceConfirmationModal from "./AttendanceConfirmationModal";
+import DeletePostModal from "./DeletePostModal";
 import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
 import { useMessagePolling } from "../hooks/useMessagePolling";
@@ -249,6 +250,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [pendingAttendanceEvent, setPendingAttendanceEvent] = useState(null);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+
+  // Delete modal state
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
 
   // Refs for scroll handling
   const flatListRef = useRef(null);
@@ -847,6 +852,31 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
+  const handleRequestDelete = (postId) => {
+    setPostToDelete(postId);
+    setDeleteModalVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (postToDelete) {
+      // Optimistically remove from UI
+      handleDelete(postToDelete);
+
+      try {
+        const token = await getAuthToken();
+        if (token) {
+          await apiDelete(`/posts/${postToDelete}`, null, 15000, token);
+        }
+      } catch (error) {
+        console.error("Error deleting post:", error);
+        Alert.alert("Error", "Failed to delete post");
+        // Optionally revert local deletion here if needed, but for now we keep it optimistic
+      }
+    }
+    setDeleteModalVisible(false);
+    setPostToDelete(null);
+  };
+
   const handleDelete = (postId) => {
     // Immediately remove from local state for instant UI update
     setPosts((prev) => prev.filter((post) => post.id !== postId));
@@ -920,6 +950,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onShare={handleSharePress}
         onFollow={handleFollow}
         onDelete={handleDelete}
+        onRequestDelete={handleRequestDelete}
         onPostUpdate={handlePostUpdate}
         showFollowButton={true}
         currentUserId={currentUserId}
@@ -1185,6 +1216,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         eventTitle={pendingAttendanceEvent?.title}
         onConfirmAttendance={handleConfirmAttendance}
         loading={attendanceLoading}
+      />
+
+      {/* Delete Post Modal */}
+      <DeletePostModal
+        visible={deleteModalVisible}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          setPostToDelete(null);
+        }}
+        onDelete={handleConfirmDelete}
       />
     </SafeAreaView>
   );
