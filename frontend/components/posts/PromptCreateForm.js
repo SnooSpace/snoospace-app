@@ -1,9 +1,9 @@
 /**
  * PromptCreateForm
- * Form for creating prompt posts
+ * Form for creating prompt posts with a premium, card-based design.
  */
 
-import React, { useState, Platform } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,14 +11,28 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
+import { FileText, Image as ImageIcon } from "lucide-react-native"; // Using Lucide for cleaner icons
+import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
+import HapticsService from "../../services/HapticsService";
+
+// Enable LayoutAnimation
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const SUBMISSION_TYPES = [
-  { id: "text", label: "Text", icon: "document-text-outline" },
-  { id: "image", label: "Image", icon: "image-outline" },
+  { id: "text", label: "Text", icon: FileText },
+  { id: "image", label: "Image", icon: ImageIcon },
 ];
 
 const PromptCreateForm = ({ onDataChange, disabled = false }) => {
@@ -26,6 +40,9 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
   const [submissionType, setSubmissionType] = useState("text");
   const [maxLength, setMaxLength] = useState(500);
   const [requireApproval, setRequireApproval] = useState(true);
+
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Notify parent of data changes
   const updateData = (updates) => {
@@ -52,139 +69,150 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
   };
 
   const handleSubmissionTypeChange = (type) => {
+    HapticsService.triggerImpactLight();
+    // Micro-animation
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.98,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     setSubmissionType(type);
     updateData({ submissionType: type });
   };
 
-  const handleMaxLengthChange = (text) => {
-    const num = parseInt(text) || 0;
-    const clamped = Math.min(Math.max(num, 50), 2000);
-    setMaxLength(clamped);
-    updateData({ maxLength: clamped });
+  const handleMaxLengthChange = (val) => {
+    // Snap to increments of 50 for cleaner numbers
+    const snapped = Math.round(val / 50) * 50;
+    if (snapped !== maxLength) {
+      setMaxLength(snapped);
+      updateData({ maxLength: snapped });
+      // Optional: very light haptic on change, but slider might fire often
+    }
   };
 
   const handleRequireApprovalChange = (value) => {
     setRequireApproval(value);
     updateData({ requireApproval: value });
+    HapticsService.triggerImpactLight();
   };
 
   return (
     <View style={styles.container}>
-      {/* Prompt Text Input */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Prompt</Text>
-        <Text style={styles.sublabel}>
-          What would you like your community to share?
-        </Text>
+      {/* Prompt Question Card */}
+      <View style={styles.card}>
+        <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
         <TextInput
           style={styles.promptInput}
-          placeholder="e.g., Share your favorite memory from this year..."
-          placeholderTextColor={COLORS.textSecondary}
+          placeholder="What would you like your community to share?"
+          placeholderTextColor={COLORS.textMuted}
           value={promptText}
           onChangeText={handlePromptTextChange}
           maxLength={300}
           multiline
           editable={!disabled}
+          selectionColor={COLORS.primary}
         />
+        <Text style={styles.helperText}>
+          e.g., Share your favorite memory from this year.
+        </Text>
         <Text style={styles.charCount}>{promptText.length}/300</Text>
       </View>
 
-      {/* Submission Type */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Response Type</Text>
-        <View style={styles.typeSelector}>
-          {SUBMISSION_TYPES.map((type) => (
+      {/* Response Type Section */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Response Type</Text>
+      </View>
+
+      <View style={styles.typeContainer}>
+        {SUBMISSION_TYPES.map((type) => {
+          const isSelected = submissionType === type.id;
+          const IconComponent = type.icon;
+
+          return (
             <TouchableOpacity
               key={type.id}
-              style={[
-                styles.typeOption,
-                submissionType === type.id && styles.typeOptionSelected,
-              ]}
+              style={[styles.typeCard, isSelected && styles.typeCardSelected]}
               onPress={() => handleSubmissionTypeChange(type.id)}
               disabled={disabled}
+              activeOpacity={0.8}
             >
-              <Ionicons
-                name={type.icon}
-                size={20}
-                color={
-                  submissionType === type.id
-                    ? COLORS.primary
-                    : COLORS.textSecondary
-                }
-              />
+              <View style={styles.iconWrapper}>
+                <IconComponent
+                  size={24}
+                  color={isSelected ? COLORS.primary : "#9CA3AF"}
+                  strokeWidth={2}
+                />
+              </View>
               <Text
                 style={[
-                  styles.typeOptionText,
-                  submissionType === type.id && styles.typeOptionTextSelected,
+                  styles.typeLabel,
+                  isSelected && styles.typeLabelSelected,
                 ]}
               >
                 {type.label}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          );
+        })}
       </View>
 
-      {/* Max Length (for text only) */}
+      {/* Max Characters (Slider) - Only for Text */}
       {submissionType === "text" && (
-        <View style={styles.section}>
-          <Text style={styles.label}>Max Characters</Text>
-          <View style={styles.lengthSelector}>
-            {[100, 250, 500, 1000].map((len) => (
-              <TouchableOpacity
-                key={len}
-                style={[
-                  styles.lengthOption,
-                  maxLength === len && styles.lengthOptionSelected,
-                ]}
-                onPress={() => {
-                  setMaxLength(len);
-                  updateData({ maxLength: len });
-                }}
-                disabled={disabled}
-              >
-                <Text
-                  style={[
-                    styles.lengthOptionText,
-                    maxLength === len && styles.lengthOptionTextSelected,
-                  ]}
-                >
-                  {len}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        <View style={styles.sliderSection}>
+          <View style={styles.sliderHeader}>
+            <Text style={styles.sectionTitle}>Max Characters</Text>
+            <Text style={styles.sliderValue}>{maxLength}</Text>
+          </View>
+
+          <View style={styles.sliderContainer}>
+            <Text style={styles.sliderLabelLeft}>100</Text>
+            <Slider
+              style={{ flex: 1, height: 40 }} // Ensure height is set for touch area
+              minimumValue={100}
+              maximumValue={2000}
+              step={50}
+              value={maxLength}
+              onValueChange={handleMaxLengthChange}
+              minimumTrackTintColor={COLORS.primary}
+              maximumTrackTintColor="#E5E7EB"
+              thumbTintColor={COLORS.primary} // Android
+              // iOS thumb image/tint works differently, standardized via props
+            />
+            <Text style={styles.sliderLabelRight}>2000</Text>
           </View>
         </View>
       )}
 
-      {/* Settings */}
-      <View style={styles.section}>
-        <Text style={styles.label}>Moderation</Text>
+      {/* Moderation Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Moderation</Text>
+        </View>
 
-        <View style={styles.settingRow}>
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Require approval</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={styles.settingLabel}>Require approval</Text>
+            <Text style={styles.settingSubLabel}>
               Review submissions before they're published
             </Text>
           </View>
           <Switch
-            value={requireApproval}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
             onValueChange={handleRequireApprovalChange}
-            trackColor={{ false: COLORS.border, true: COLORS.primary }}
-            thumbColor="#FFFFFF"
+            value={requireApproval}
             disabled={disabled}
           />
         </View>
-
-        {!requireApproval && (
-          <View style={styles.warningBox}>
-            <Ionicons name="warning-outline" size={16} color="#F9A825" />
-            <Text style={styles.warningText}>
-              Submissions will be visible immediately without review
-            </Text>
-          </View>
-        )}
       </View>
     </View>
   );
@@ -192,174 +220,159 @@ const PromptCreateForm = ({ onDataChange, disabled = false }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: SPACING.m,
+    paddingBottom: 40,
   },
-  section: {
-    marginBottom: SPACING.l,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    marginBottom: 28,
+    ...SHADOWS.sm,
+    shadowColor: "rgba(0,0,0,0.04)", // Very subtle shadow
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
+  subtleLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Bold",
     color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    opacity: 0.6,
+    letterSpacing: 0.8,
+    marginBottom: 12,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  sublabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.s,
   },
   promptInput: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    padding: SPACING.m,
-    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    fontSize: 18,
+    lineHeight: 26,
     color: COLORS.textPrimary,
-    minHeight: 100,
+    minHeight: 80,
     textAlignVertical: "top",
+    marginBottom: 12,
+    padding: 0, // Remove default padding for clean look
+  },
+  helperText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280",
+    marginBottom: 8,
   },
   charCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textMuted, // Using defined textMuted or similar hex
     textAlign: "right",
-    marginTop: SPACING.xs,
+    opacity: 0.8,
   },
-  typeSelector: {
+  sectionHeader: {
+    marginBottom: 16,
+    paddingHorizontal: 4, // Slight indent alignment
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
+    color: COLORS.textPrimary,
+  },
+  typeContainer: {
     flexDirection: "row",
-    gap: SPACING.s,
+    gap: 16,
+    marginBottom: 32,
   },
-  typeOption: {
+  typeCard: {
     flex: 1,
+    height: 64, // Mini card height
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    borderWidth: 2,
+    backgroundColor: "#F8F9FB",
+    borderRadius: 16, // Smoother radius
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
     borderColor: "transparent",
-    gap: SPACING.s,
   },
-  typeOptionSelected: {
+  typeCardSelected: {
+    backgroundColor: "#EEF4FF", // Very light blue tint
     borderColor: COLORS.primary,
-    backgroundColor: "#E3F2FD",
   },
-  typeOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
+  typeLabel: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
   },
-  typeOptionTextSelected: {
+  typeLabelSelected: {
     color: COLORS.primary,
+    fontFamily: "Manrope-SemiBold",
   },
-  lengthSelector: {
+  sliderSection: {
+    marginBottom: 32,
+    paddingHorizontal: 4,
+  },
+  sliderHeader: {
     flexDirection: "row",
-    gap: SPACING.s,
-  },
-  lengthOption: {
-    flex: 1,
+    justifyContent: "space-between",
     alignItems: "center",
-    padding: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    borderWidth: 2,
-    borderColor: "transparent",
+    marginBottom: 16,
   },
-  lengthOptionSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#E3F2FD",
-  },
-  lengthOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
-  },
-  lengthOptionTextSelected: {
+  sliderValue: {
+    fontSize: 15,
+    fontFamily: "Manrope-Bold",
     color: COLORS.primary,
+  },
+  sliderContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F6F7F9", // Soft container backing optional, or keep simple
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  sliderLabelLeft: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
+    marginRight: 10,
+    width: 30,
+    textAlign: "center",
+  },
+  sliderLabelRight: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
+    marginLeft: 10,
+    width: 35,
+    textAlign: "center",
+  },
+  cardHeader: {
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
+    color: COLORS.textPrimary,
   },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: SPACING.m,
+    justifyContent: "space-between",
+    paddingVertical: 4, // Tighter inside card
   },
   settingInfo: {
     flex: 1,
+    paddingRight: 16,
   },
-  settingTitle: {
+  settingLabel: {
     fontSize: 15,
-    fontWeight: "500",
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
+    marginBottom: 4,
   },
-  settingDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  warningBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF8E1",
-    borderRadius: BORDER_RADIUS.s,
-    padding: SPACING.s,
-    gap: SPACING.s,
-  },
-  warningText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#F57C00",
-  },
-  deadlineSection: {
-    paddingTop: SPACING.m,
-    marginTop: SPACING.m,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  presetButtons: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.s,
-    marginTop: SPACING.m,
-  },
-  presetButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: SPACING.s,
-    paddingHorizontal: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  presetButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.primary,
-  },
-  deadlineDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: SPACING.m,
-    padding: SPACING.m,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
-  },
-  deadlineInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.s,
-  },
-  deadlineText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
-  },
-  clearButton: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.error,
+  settingSubLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
   },
 });
 
