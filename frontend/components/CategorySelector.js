@@ -8,6 +8,15 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  Tags,
+  XCircle,
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  X,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, BORDER_RADIUS } from "../constants/theme";
 import { getDiscoverCategories } from "../api/categories";
@@ -90,7 +99,7 @@ export default function CategorySelector({
       <View style={styles.container}>
         <Text style={styles.label}>Categories</Text>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+          <AlertCircle size={20} color="#EF4444" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       </View>
@@ -129,7 +138,7 @@ export default function CategorySelector({
                 <Text style={styles.selectedChipText}>
                   {getCategoryName(categoryId)}
                 </Text>
-                <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+                <XCircle size={18} color="#FFFFFF" />
               </LinearGradient>
             </TouchableOpacity>
           ))}
@@ -147,17 +156,17 @@ export default function CategorySelector({
           }
         }}
       >
-        <Ionicons name="pricetags-outline" size={20} color={COLORS.primary} />
+        <Tags size={20} color={COLORS.primary} />
         <Text style={styles.selectorButtonText}>
           {selectedCategories.length === 0
             ? "Select categories"
             : "Change categories"}
         </Text>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={20}
-          color={LIGHT_TEXT_COLOR}
-        />
+        {expanded ? (
+          <ChevronUp size={20} color={LIGHT_TEXT_COLOR} />
+        ) : (
+          <ChevronDown size={20} color={LIGHT_TEXT_COLOR} />
+        )}
       </TouchableOpacity>
 
       {/* Expanded Category List */}
@@ -198,11 +207,7 @@ export default function CategorySelector({
                     {category.name}
                   </Text>
                   {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={22}
-                      color={COLORS.primary}
-                    />
+                    <CheckCircle2 size={22} color={COLORS.primary} />
                   )}
                 </TouchableOpacity>
               );

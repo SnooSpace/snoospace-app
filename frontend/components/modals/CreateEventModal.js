@@ -18,6 +18,26 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  Calendar1 as Calendar,
+  Clock,
+  Ticket,
+  Flag,
+  Users,
+  Video,
+  Layers,
+  Globe,
+  Lock,
+  Search,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  PlusCircle,
+  XCircle,
+  ArrowRight,
+  Info,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
 import CustomDatePicker from "../ui/CustomDatePicker";
@@ -143,8 +163,8 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
   // Form States
   const [title, setTitle] = useState("");
-  const [eventDate, setEventDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [eventDate, setEventDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [gatesOpenTime, setGatesOpenTime] = useState(null);
   const [hasGates, setHasGates] = useState(false);
   const [eventType, setEventType] = useState("in-person");
@@ -172,6 +192,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
   const [hasEndTime, setHasEndTime] = useState(false);
+  const [hasTime, setHasTime] = useState(false); // true once user explicitly picks a time
   const [draftExists, setDraftExists] = useState(false);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
@@ -182,9 +203,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const resetForm = () => {
     setCurrentStep(1);
     setTitle("");
-    setEventDate(new Date());
-    setEndDate(new Date());
+    setEventDate(null);
+    setEndDate(null);
     setHasEndTime(false);
+    setHasTime(false);
     setGatesOpenTime(null);
     setHasGates(false);
     setEventType("in-person");
@@ -453,19 +475,22 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   onPress={() => setShowDatePicker(true)}
                 >
                   <View style={styles.dateCardIconInfo}>
-                    <Ionicons
-                      name="calendar"
-                      size={16}
-                      color={MODAL_TOKENS.primary}
-                    />
+                    <Calendar size={16} color={MODAL_TOKENS.primary} />
                   </View>
                   <View>
                     <Text style={styles.dateCardLabel}>Date</Text>
-                    <Text style={styles.dateCardValue}>
-                      {eventDate.toLocaleDateString(undefined, {
-                        day: "numeric",
-                        month: "short",
-                      })}
+                    <Text
+                      style={[
+                        styles.dateCardValue,
+                        !eventDate && { color: MODAL_TOKENS.textMuted },
+                      ]}
+                    >
+                      {eventDate
+                        ? eventDate.toLocaleDateString(undefined, {
+                            day: "numeric",
+                            month: "short",
+                          })
+                        : "Pick date"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -476,19 +501,24 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   onPress={() => setShowTimePicker(true)}
                 >
                   <View style={styles.dateCardIconInfo}>
-                    <Ionicons
-                      name="time"
-                      size={16}
-                      color={MODAL_TOKENS.primary}
-                    />
+                    <Clock size={16} color={MODAL_TOKENS.primary} />
                   </View>
                   <View>
                     <Text style={styles.dateCardLabel}>Start Time</Text>
-                    <Text style={styles.dateCardValue}>
-                      {eventDate.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                    <Text
+                      style={[
+                        styles.dateCardValue,
+                        (!eventDate || !hasTime) && {
+                          color: MODAL_TOKENS.textMuted,
+                        },
+                      ]}
+                    >
+                      {eventDate && hasTime
+                        ? eventDate.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Pick time"}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -505,15 +535,22 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                         { backgroundColor: "#F3E5F5" },
                       ]}
                     >
-                      <Ionicons name="flag" size={16} color="#9C27B0" />
+                      <Flag size={16} color="#9C27B0" />
                     </View>
                     <View>
                       <Text style={styles.dateCardLabel}>End Time</Text>
-                      <Text style={styles.dateCardValue}>
-                        {endDate.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <Text
+                        style={[
+                          styles.dateCardValue,
+                          !endDate && { color: MODAL_TOKENS.textMuted },
+                        ]}
+                      >
+                        {endDate
+                          ? endDate.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Pick time"}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -523,14 +560,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                           LayoutAnimation.Presets.easeInEaseOut,
                         );
                         setHasEndTime(false);
-                        setEndDate(new Date(eventDate));
+                        setEndDate(eventDate ? new Date(eventDate) : null);
                       }}
                     >
-                      <Ionicons
-                        name="close-circle"
-                        size={18}
-                        color={MODAL_TOKENS.textMuted}
-                      />
+                      <XCircle size={18} color={MODAL_TOKENS.textMuted} />
                     </TouchableOpacity>
                   </TouchableOpacity>
                 ) : (
@@ -538,11 +571,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                     style={styles.ghostCard}
                     onPress={() => setShowEndTimePicker(true)}
                   >
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={24}
-                      color={MODAL_TOKENS.textSecondary}
-                    />
+                    <PlusCircle size={24} color={MODAL_TOKENS.textSecondary} />
                     <Text style={styles.ghostCardText}>Add End Time</Text>
                   </TouchableOpacity>
                 )}
@@ -553,31 +582,37 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               <CustomDatePicker
                 visible={showDatePicker}
                 onClose={() => setShowDatePicker(false)}
-                date={eventDate}
+                date={eventDate || new Date()}
+                minDate={new Date()} // Disable past dates
+                maxDate={
+                  new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+                } // 1 year limit
                 onChange={(newDate) => {
                   setEventDate(newDate);
                   // Adjust end date if it becomes before start date
-                  if (hasEndTime && endDate < newDate) {
+                  if (hasEndTime && endDate && endDate < newDate) {
                     const newEnd = new Date(newDate);
                     newEnd.setHours(endDate.getHours(), endDate.getMinutes());
                     setEndDate(newEnd);
                   }
-                  setShowDatePicker(false);
                 }}
               />
 
               <CustomTimePicker
                 visible={showTimePicker}
                 onClose={() => setShowTimePicker(false)}
-                time={eventDate}
+                time={eventDate || new Date()}
+                minTime={
+                  !eventDate ||
+                  eventDate.toDateString() === new Date().toDateString()
+                    ? new Date(Date.now() + 15 * 60 * 1000) // Current time + 15m if today
+                    : null
+                }
                 onChange={(newTime) => {
                   setEventDate(newTime);
+                  setHasTime(true); // Mark that user has explicitly set a time
                   // Ensure end time is not before start time if on same day
-                  if (hasEndTime && endDate < newTime) {
-                    // For simplicity, just update end date to match if it contradicts?
-                    // Or just let it be. The existing logic was:
-                    // if (hasEndTime && endDate < combined) setEndDate(combined);
-                    // I'll replicate that logic.
+                  if (hasEndTime && endDate && endDate < newTime) {
                     setEndDate(newTime);
                   }
                 }}
@@ -586,27 +621,17 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               <CustomTimePicker
                 visible={showEndTimePicker}
                 onClose={() => setShowEndTimePicker(false)}
-                time={endDate}
+                time={endDate || eventDate || new Date()}
+                minTime={eventDate || null} // End time must be after start time
                 onChange={(newTime) => {
-                  setEndDate(newTime);
                   setHasEndTime(true);
-
-                  // Optional: Validate if end time is before start time?
-                  // Existing logic didn't seem to force it other than initial setup.
-                  // But existing logic for EndTimePicker was:
-                  // nextEndDate.setHours... if (nextEndDate < eventDate) nextEndDate.setDate(nextEndDate.getDate() + 1);
-
-                  if (newTime < eventDate) {
-                    // If user selects a time earlier than start time, assume next day?
-                    // The existing logic did exactly that.
-                    // But my CustomTimePicker returns a date object based on the input 'time' prop (endDate).
-                    // If endDate is same day as eventDate, and user picks earlier time, newTime < eventDate.
-                    // So I should check this.
+                  // If selected end time is before start time, push to next day
+                  if (eventDate && newTime < eventDate) {
                     const corrected = new Date(newTime);
-                    if (corrected < eventDate) {
-                      corrected.setDate(corrected.getDate() + 1);
-                      setEndDate(corrected);
-                    }
+                    corrected.setDate(corrected.getDate() + 1);
+                    setEndDate(corrected);
+                  } else {
+                    setEndDate(newTime);
                   }
                 }}
               />
@@ -673,13 +698,30 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                           gap: 6,
                         }}
                       >
-                        <Ionicons
-                          name={item.icon}
-                          size={16}
-                          color={
-                            isSelected ? "rgba(255,255,255,0.9)" : "#6B7280"
-                          }
-                        />
+                        {item.id === "in-person" && (
+                          <Users
+                            size={16}
+                            color={
+                              isSelected ? "rgba(255,255,255,0.9)" : "#6B7280"
+                            }
+                          />
+                        )}
+                        {item.id === "virtual" && (
+                          <Video
+                            size={16}
+                            color={
+                              isSelected ? "rgba(255,255,255,0.9)" : "#6B7280"
+                            }
+                          />
+                        )}
+                        {item.id === "hybrid" && (
+                          <Layers
+                            size={16}
+                            color={
+                              isSelected ? "rgba(255,255,255,0.9)" : "#6B7280"
+                            }
+                          />
+                        )}
                         <Text
                           style={[
                             styles.segmentedText,
@@ -734,13 +776,21 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                         />
                       )}
                       <View style={{ zIndex: 1, alignItems: "center", gap: 6 }}>
-                        <Ionicons
-                          name={opt.icon}
-                          size={24}
-                          color={
-                            isSelected ? "#FFF" : MODAL_TOKENS.textSecondary
-                          }
-                        />
+                        {opt.value === "public" ? (
+                          <Globe
+                            size={24}
+                            color={
+                              isSelected ? "#FFF" : MODAL_TOKENS.textSecondary
+                            }
+                          />
+                        ) : (
+                          <Lock
+                            size={24}
+                            color={
+                              isSelected ? "#FFF" : MODAL_TOKENS.textSecondary
+                            }
+                          />
+                        )}
                         <Text
                           style={
                             isSelected
@@ -773,9 +823,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       invitePublicVisibility && styles.checkboxChecked,
                     ]}
                   >
-                    {invitePublicVisibility && (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    )}
+                    {invitePublicVisibility && <Check size={14} color="#fff" />}
                   </View>
                   <Text style={styles.checkboxLabel}>
                     Show in discover feed (location hidden)
@@ -789,11 +837,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               <View style={styles.sectionBlock}>
                 <Text style={styles.label}>Location</Text>
                 <View style={styles.locationCard}>
-                  <Ionicons
-                    name="search"
-                    size={20}
-                    color={MODAL_TOKENS.primary}
-                  />
+                  <Search size={20} color={MODAL_TOKENS.primary} />
                   <TextInput
                     style={styles.locationInput}
                     value={locationUrl}
@@ -844,7 +888,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Ionicons name="ticket" size={24} color="#FFFFFF" />
+                      <Ticket size={24} color="#FFFFFF" />
                     </LinearGradient>
                     <View style={styles.ticketBlockContent}>
                       <Text style={styles.ticketBlockTitle}>
@@ -870,11 +914,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       end={{ x: 1, y: 0 }}
                     >
                       <Text style={styles.addTicketText}>Add Ticket Type</Text>
-                      <Ionicons
-                        name="arrow-forward"
-                        size={16}
-                        color="#FFFFFF"
-                      />
+                      <ArrowRight size={16} color="#FFFFFF" />
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>
@@ -929,11 +969,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                           gap: 8,
                         }}
                       >
-                        <Ionicons
-                          name="ticket-outline"
-                          size={16}
-                          color={MODAL_TOKENS.textSecondary}
-                        />
+                        <Ticket size={16} color={MODAL_TOKENS.textSecondary} />
                         <Text
                           style={{
                             fontFamily: MODAL_TOKENS.fonts.medium,
@@ -971,7 +1007,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       <Text style={styles.addTicketText}>
                         Add Another Ticket Type
                       </Text>
-                      <Ionicons name="add" size={16} color="#FFFFFF" />
+                      <Plus size={16} color="#FFFFFF" />
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>

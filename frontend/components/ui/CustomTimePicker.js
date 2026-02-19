@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   Platform,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Dimensions,
   Animated,
   TouchableWithoutFeedback,
 } from "react-native";
+import { Clock } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 
 // Brand System Colors - Strictly Enforced
 const BRAND = {
@@ -41,10 +41,11 @@ const MINUTES = Array.from({ length: 60 }, (_, i) =>
 );
 const PERIODS = ["AM", "PM"];
 
-const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
+const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   const [selectedHour, setSelectedHour] = useState(12);
   const [selectedMinute, setSelectedMinute] = useState("00");
   const [selectedPeriod, setSelectedPeriod] = useState("AM");
+  const [showError, setShowError] = useState(false);
 
   const hoursRef = useRef(null);
   const minutesRef = useRef(null);
@@ -69,8 +70,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
         if (hoursRef.current) {
           const hourIndex = HOURS.indexOf(h);
           if (hourIndex !== -1) {
-            hoursRef.current.scrollTo({
-              y: hourIndex * ITEM_HEIGHT,
+            hoursRef.current.scrollToIndex({
+              index: hourIndex,
               animated: false,
             });
           }
@@ -78,8 +79,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
         if (minutesRef.current) {
           const minuteIndex = MINUTES.indexOf(m.toString().padStart(2, "0"));
           if (minuteIndex !== -1) {
-            minutesRef.current.scrollTo({
-              y: minuteIndex * ITEM_HEIGHT,
+            minutesRef.current.scrollToIndex({
+              index: minuteIndex,
               animated: false,
             });
           }
@@ -87,8 +88,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
         if (periodRef.current) {
           const periodIndex = PERIODS.indexOf(p);
           if (periodIndex !== -1) {
-            periodRef.current.scrollTo({
-              y: periodIndex * ITEM_HEIGHT,
+            periodRef.current.scrollToIndex({
+              index: periodIndex,
               animated: false,
             });
           }
@@ -106,9 +107,24 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
 
       newTime.setHours(h);
       newTime.setMinutes(parseInt(selectedMinute, 10));
+
+      // Validation
+      if (minTime && newTime < minTime) {
+        setShowError(true);
+        return;
+      }
+
       onChange(newTime);
     }
     onClose();
+  };
+
+  const handleAutoCorrect = () => {
+    if (onChange && minTime) {
+      onChange(minTime);
+      setShowError(false);
+      onClose();
+    }
   };
 
   const renderItem = ({ item, index, type, selectedValue }) => {
@@ -129,10 +145,6 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
     offset: ITEM_HEIGHT * index,
     index,
   });
-
-  // Calculate generic initial scroll index helper
-  // This is a simplified version. For a robust production app,
-  // you might want to wait for onLayout or use `initialScrollIndex`.
 
   return (
     <Modal
@@ -160,11 +172,22 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
 
             {/* Hours */}
             <View style={styles.column}>
-              <ScrollView
+              <FlatList
                 ref={hoursRef}
+                data={HOURS}
+                keyExtractor={(item) => `h-${item}`}
+                renderItem={({ item, index }) =>
+                  renderItem({
+                    item,
+                    index,
+                    type: "hour",
+                    selectedValue: selectedHour,
+                  })
+                }
                 snapToInterval={ITEM_HEIGHT}
                 decelerationRate="fast"
                 showsVerticalScrollIndicator={false}
+                style={{ width: "100%" }}
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
@@ -175,25 +198,28 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
                   const val = HOURS[index];
                   if (val !== undefined) setSelectedHour(val);
                 }}
-              >
-                {HOURS.map((item, index) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "hour",
-                    selectedValue: selectedHour,
-                  }),
-                )}
-              </ScrollView>
+                getItemLayout={getItemLayout}
+              />
             </View>
 
             {/* Minutes */}
             <View style={styles.column}>
-              <ScrollView
+              <FlatList
                 ref={minutesRef}
+                data={MINUTES}
+                keyExtractor={(item) => `m-${item}`}
+                renderItem={({ item, index }) =>
+                  renderItem({
+                    item,
+                    index,
+                    type: "minute",
+                    selectedValue: selectedMinute,
+                  })
+                }
                 snapToInterval={ITEM_HEIGHT}
                 decelerationRate="fast"
                 showsVerticalScrollIndicator={false}
+                style={{ width: "100%" }}
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
@@ -204,25 +230,28 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
                   const val = MINUTES[index];
                   if (val !== undefined) setSelectedMinute(val);
                 }}
-              >
-                {MINUTES.map((item, index) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "minute",
-                    selectedValue: selectedMinute,
-                  }),
-                )}
-              </ScrollView>
+                getItemLayout={getItemLayout}
+              />
             </View>
 
             {/* Period */}
             <View style={styles.column}>
-              <ScrollView
+              <FlatList
                 ref={periodRef}
+                data={PERIODS}
+                keyExtractor={(item) => `p-${item}`}
+                renderItem={({ item, index }) =>
+                  renderItem({
+                    item,
+                    index,
+                    type: "period",
+                    selectedValue: selectedPeriod,
+                  })
+                }
                 snapToInterval={ITEM_HEIGHT}
                 decelerationRate="fast"
                 showsVerticalScrollIndicator={false}
+                style={{ width: "100%" }}
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
@@ -233,16 +262,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
                   const val = PERIODS[index];
                   if (val !== undefined) setSelectedPeriod(val);
                 }}
-              >
-                {PERIODS.map((item, index) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "period",
-                    selectedValue: selectedPeriod,
-                  }),
-                )}
-              </ScrollView>
+                getItemLayout={getItemLayout}
+              />
             </View>
           </View>
 
@@ -260,6 +281,46 @@ const CustomTimePicker = ({ visible, onClose, time, onChange }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Custom Error Modal Overlay */}
+        {showError && (
+          <View style={styles.errorOverlay}>
+            <View style={styles.errorContainer}>
+              <View style={styles.errorIconContainer}>
+                <Clock size={32} color={BRAND.primary} />
+              </View>
+              <Text style={styles.errorTitle}>Invalid Time</Text>
+              <Text style={styles.errorText}>
+                The selected time is in the past. We've adjusted it for you.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.errorConfirmButton}
+                onPress={handleAutoCorrect}
+              >
+                <LinearGradient
+                  colors={BRAND.primaryGradient}
+                  style={styles.gradientButton}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.errorConfirmButtonText}>
+                    Use Earliest Available Time
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.errorCancelButton}
+                onPress={() => setShowError(false)}
+              >
+                <Text style={styles.errorCancelButtonText}>
+                  Select Another Time
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -353,6 +414,74 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semibold,
     fontSize: 16,
     color: "#FFFFFF",
+  },
+  // Error Modal Styles
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+    padding: 24,
+  },
+  errorContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  errorIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: BRAND.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontFamily: FONTS.semibold,
+    fontSize: 20,
+    color: BRAND.textPrimary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorText: {
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: BRAND.textMuted,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  errorConfirmButton: {
+    width: "100%",
+    marginBottom: 12,
+  },
+  gradientButton: {
+    height: 48,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorConfirmButtonText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 15,
+    color: "#FFFFFF",
+  },
+  errorCancelButton: {
+    paddingVertical: 12,
+  },
+  errorCancelButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: BRAND.textMuted,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Modal,
   View,
@@ -8,7 +8,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 
@@ -52,8 +52,33 @@ const CustomDatePicker = ({
   onChange,
   minDate,
   maxDate,
+  disabledDates = [],
 }) => {
   const [currentMonth, setCurrentMonth] = useState(date || new Date());
+  // Internal pending selection; committed on Confirm
+  const [pickedDate, setPickedDate] = useState(date || null);
+
+  // When the modal opens, sync pickedDate to the current prop value
+  useEffect(() => {
+    if (visible) {
+      setPickedDate(date || null);
+      setCurrentMonth(date || new Date());
+    }
+  }, [visible]);
+
+  // Default constraints
+  const effectiveMinDate = useMemo(() => {
+    const d = minDate ? new Date(minDate) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [minDate]);
+
+  const effectiveMaxDate = useMemo(() => {
+    const d = maxDate ? new Date(maxDate) : new Date();
+    if (!maxDate) d.setFullYear(d.getFullYear() + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [maxDate]);
 
   // Helper to get days in month
   const getDaysInMonth = (month, year) => {
@@ -83,13 +108,54 @@ const CustomDatePicker = ({
     return days;
   }, [currentMonth]);
 
+  const isDateDisabled = (day) => {
+    if (!day) return true;
+    const d = new Date(day);
+    d.setHours(0, 0, 0, 0);
+
+    if (d < effectiveMinDate) return true;
+    if (d > effectiveMaxDate) return true;
+
+    if (disabledDates.some((disabled) => isSameDay(d, new Date(disabled)))) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const canGoPrev = useMemo(() => {
+    const prevMonth = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth() - 1,
+      1,
+    );
+    // maximize prevMonth to end of that month for loose comparison
+    const endOfPrevMonth = new Date(
+      prevMonth.getFullYear(),
+      prevMonth.getMonth() + 1,
+      0,
+    );
+    return endOfPrevMonth >= effectiveMinDate;
+  }, [currentMonth, effectiveMinDate]);
+
+  const canGoNext = useMemo(() => {
+    const nextMonth = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth() + 1,
+      1,
+    );
+    return nextMonth <= effectiveMaxDate;
+  }, [currentMonth, effectiveMaxDate]);
+
   const handlePrevMonth = () => {
+    if (!canGoPrev) return;
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   };
 
   const handleNextMonth = () => {
+    if (!canGoNext) return;
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
@@ -110,14 +176,19 @@ const CustomDatePicker = ({
   };
 
   const handleSelectDate = (day) => {
-    if (day) {
-      if (onChange) {
-        // Keep existing time, only change date
-        const newDate = new Date(date || new Date());
-        newDate.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
-        onChange(newDate);
-      }
+    if (day && !isDateDisabled(day)) {
+      // Store locally; parent is only updated on Confirm
+      const newDate = new Date(date || new Date());
+      newDate.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
+      setPickedDate(newDate);
     }
+  };
+
+  const handleConfirm = () => {
+    if (pickedDate && onChange) {
+      onChange(pickedDate);
+    }
+    onClose();
   };
 
   return (
@@ -144,13 +215,10 @@ const CustomDatePicker = ({
             <View style={styles.calendarControls}>
               <TouchableOpacity
                 onPress={handlePrevMonth}
-                style={styles.chevron}
+                style={[styles.chevron, !canGoPrev && { opacity: 0.3 }]}
+                disabled={!canGoPrev}
               >
-                <Ionicons
-                  name="chevron-back"
-                  size={20}
-                  color={BRAND.textPrimary}
-                />
+                <ChevronLeft size={20} color={BRAND.textPrimary} />
               </TouchableOpacity>
               <Text style={styles.monthTitle}>
                 {MONTH_NAMES[currentMonth.getMonth()]}{" "}
@@ -158,13 +226,10 @@ const CustomDatePicker = ({
               </Text>
               <TouchableOpacity
                 onPress={handleNextMonth}
-                style={styles.chevron}
+                style={[styles.chevron, !canGoNext && { opacity: 0.3 }]}
+                disabled={!canGoNext}
               >
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={BRAND.textPrimary}
-                />
+                <ChevronRight size={20} color={BRAND.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -180,8 +245,9 @@ const CustomDatePicker = ({
             {/* Days Grid */}
             <View style={styles.daysGrid}>
               {calendarDays.map((day, index) => {
-                const isSelected = isSameDay(day, date);
+                const isSelected = isSameDay(day, pickedDate);
                 const isCurrentDay = isToday(day);
+                const isDisabled = isDateDisabled(day);
 
                 if (!day) {
                   return <View key={`empty-${index}`} style={styles.dayCell} />;
@@ -190,8 +256,9 @@ const CustomDatePicker = ({
                 return (
                   <TouchableOpacity
                     key={day.toISOString()}
-                    style={styles.dayCell}
+                    style={[styles.dayCell, isDisabled && { opacity: 0.4 }]}
                     onPress={() => handleSelectDate(day)}
+                    disabled={isDisabled}
                   >
                     {isSelected ? (
                       <LinearGradient
@@ -211,7 +278,14 @@ const CustomDatePicker = ({
                           isCurrentDay && styles.todayBorder,
                         ]}
                       >
-                        <Text style={styles.dayText}>{day.getDate()}</Text>
+                        <Text
+                          style={[
+                            styles.dayText,
+                            isDisabled && { color: BRAND.textMuted },
+                          ]}
+                        >
+                          {day.getDate()}
+                        </Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -222,10 +296,13 @@ const CustomDatePicker = ({
             {/* Confirm Button */}
             <TouchableOpacity
               style={styles.confirmButtonContainer}
-              onPress={onClose}
+              onPress={handleConfirm}
+              disabled={!pickedDate}
             >
               <LinearGradient
-                colors={BRAND.primaryGradient}
+                colors={
+                  pickedDate ? BRAND.primaryGradient : ["#C4C4C4", "#C4C4C4"]
+                }
                 style={styles.confirmButton}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
