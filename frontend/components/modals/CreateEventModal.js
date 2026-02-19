@@ -595,6 +595,28 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                     newEnd.setHours(endDate.getHours(), endDate.getMinutes());
                     setEndDate(newEnd);
                   }
+                  // If user already picked a time, and new date is today,
+                  // check if that time is now in the past — auto-open time picker
+                  if (hasTime) {
+                    const isToday =
+                      newDate.toDateString() === new Date().toDateString();
+                    if (isToday) {
+                      const minTime = new Date(Date.now() + 15 * 60 * 1000);
+                      // Reconstruct what the full datetime would be with current time selection
+                      const existingTime = eventDate; // eventDate still holds the old time parts
+                      const candidate = new Date(newDate);
+                      if (existingTime) {
+                        candidate.setHours(
+                          existingTime.getHours(),
+                          existingTime.getMinutes(),
+                        );
+                      }
+                      if (candidate < minTime) {
+                        // Time is now invalid — open time picker so user sees the Invalid Time modal
+                        setTimeout(() => setShowTimePicker(true), 300);
+                      }
+                    }
+                  }
                 }}
               />
 

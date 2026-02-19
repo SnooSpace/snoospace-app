@@ -94,7 +94,16 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
             });
           }
         }
-      }, 100);
+
+        // Auto-show error if the existing time is already invalid on open
+        // (e.g., user changed the date back to today with a past time)
+        if (minTime && time < minTime) {
+          setShowError(true);
+        }
+      }, 300); // slightly longer delay so the modal is visible first
+    } else if (visible) {
+      // Reset error state when picker opens fresh
+      setShowError(false);
     }
   }, [visible, time]);
 
