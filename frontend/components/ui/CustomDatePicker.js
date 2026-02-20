@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Modal,
   View,
@@ -10,12 +10,12 @@ import {
 } from "react-native";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 
-// Brand System Colors - Strictly Enforced
+// ─── Brand Tokens ────────────────────────────────────────────────────────────
 const BRAND = {
   primary: "#3565F2",
   primaryGradient: ["#3565F2", "#2F56D6"],
+  rangeHighlight: "#EAF0FF",
   surface: "#F5F8FF",
   border: "#E6ECF8",
   textPrimary: "#111827",
@@ -45,28 +45,59 @@ const MONTH_NAMES = [
   "December",
 ];
 
+/**
+ * CustomDatePicker — Intent-based single/range date picker.
+ *
+ * Props:
+ *   visible: boolean
+ *   onClose: () => void
+ *   startDate?: Date            — currently selected start (or single) date
+ *   endDate?: Date | null       — currently selected end date (null for single)
+ *   onConfirm: ({ startDate: Date, endDate: Date | null }) => void
+ *   minDate?: Date              — defaults to today
+ *   maxDate?: Date              — defaults to today + 1 year
+ *   disabledDates?: Date[]
+ *
+ * Selection model (intent-based, no forced range mode):
+ *   CASE 1 — Nothing selected → tap sets startDate (single mode)
+ *   CASE 2 — Single selected:
+ *     • tap same date → no-op
+ *     • tap later date → becomes endDate (range mode), if no disabled dates in between
+ *     • tap earlier date → resets startDate (stays single)
+ *   CASE 3 — Range selected → any tap resets to new single startDate
+ */
 const CustomDatePicker = ({
   visible,
   onClose,
-  date,
-  onChange,
+  startDate: propStartDate,
+  endDate: propEndDate,
+  onConfirm,
   minDate,
   maxDate,
   disabledDates = [],
 }) => {
-  const [currentMonth, setCurrentMonth] = useState(date || new Date());
-  // Internal pending selection; committed on Confirm
-  const [pickedDate, setPickedDate] = useState(date || null);
+  // ─── Internal State ──────────────────────────────────────────────────────
+  const [currentMonth, setCurrentMonth] = useState(propStartDate || new Date());
+  const [internalStart, setInternalStart] = useState(propStartDate || null);
+  const [internalEnd, setInternalEnd] = useState(propEndDate || null);
+  // "none" | "single" | "range"
+  const [selectionMode, setSelectionMode] = useState(
+    propStartDate ? (propEndDate ? "range" : "single") : "none",
+  );
 
-  // When the modal opens, sync pickedDate to the current prop value
+  // ─── Sync from props on open ─────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      setPickedDate(date || null);
-      setCurrentMonth(date || new Date());
+      const s = propStartDate || null;
+      const e = propEndDate || null;
+      setInternalStart(s);
+      setInternalEnd(e);
+      setSelectionMode(s ? (e ? "range" : "single") : "none");
+      setCurrentMonth(s || new Date());
     }
-  }, [visible]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Default constraints
+  // ─── Constraint Bounds ───────────────────────────────────────────────────
   const effectiveMinDate = useMemo(() => {
     const d = minDate ? new Date(minDate) : new Date();
     d.setHours(0, 0, 0, 0);
@@ -80,71 +111,95 @@ const CustomDatePicker = ({
     return d;
   }, [maxDate]);
 
-  // Helper to get days in month
-  const getDaysInMonth = (month, year) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
+  // ─── Pure Helpers ────────────────────────────────────────────────────────
 
-  // Helper to get day offset (0-6)
-  const getFirstDayOfMonth = (month, year) => {
-    return new Date(year, month, 1).getDay();
-  };
+  /** Normalize to midnight, timezone-safe, non-mutating */
+  const normalize = useCallback((d) => {
+    const n = new Date(d);
+    n.setHours(0, 0, 0, 0);
+    return n;
+  }, []);
 
+  const isSameDay = useCallback((d1, d2) => {
+    if (!d1 || !d2) return false;
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  }, []);
+
+  const isToday = useCallback((d) => isSameDay(d, new Date()), [isSameDay]);
+
+  const isDateDisabled = useCallback(
+    (day) => {
+      if (!day) return true;
+      const d = normalize(day);
+      if (d < effectiveMinDate) return true;
+      if (d > effectiveMaxDate) return true;
+      if (disabledDates.some((dd) => isSameDay(d, normalize(new Date(dd)))))
+        return true;
+      return false;
+    },
+    [effectiveMinDate, effectiveMaxDate, disabledDates, normalize, isSameDay],
+  );
+
+  /** True if any date strictly between start and end is disabled */
+  const doesRangeContainDisabledDate = useCallback(
+    (start, end) => {
+      const cursor = new Date(normalize(start));
+      cursor.setDate(cursor.getDate() + 1); // exclude start
+      const endNorm = normalize(end);
+      while (cursor < endNorm) {
+        if (isDateDisabled(cursor)) return true;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return false;
+    },
+    [normalize, isDateDisabled],
+  );
+
+  /** True if day is strictly between internalStart and internalEnd */
+  const isDateInRange = useCallback(
+    (day) => {
+      if (!internalStart || !internalEnd || !day) return false;
+      const d = normalize(day);
+      const s = normalize(internalStart);
+      const e = normalize(internalEnd);
+      return d > s && d < e;
+    },
+    [internalStart, internalEnd, normalize],
+  );
+
+  // ─── Calendar Grid ───────────────────────────────────────────────────────
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    const daysInMonth = getDaysInMonth(month, year);
-    const startDay = getFirstDayOfMonth(month, year);
-
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDay = new Date(year, month, 1).getDay();
     const days = [];
-    // Padding for empty days
-    for (let i = 0; i < startDay; i++) {
-      days.push(null);
-    }
-    // Actual days
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
-    }
+    for (let i = 0; i < startDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
     return days;
   }, [currentMonth]);
 
-  const isDateDisabled = (day) => {
-    if (!day) return true;
-    const d = new Date(day);
-    d.setHours(0, 0, 0, 0);
-
-    if (d < effectiveMinDate) return true;
-    if (d > effectiveMaxDate) return true;
-
-    if (disabledDates.some((disabled) => isSameDay(d, new Date(disabled)))) {
-      return true;
-    }
-
-    return false;
-  };
-
+  // ─── Month Navigation Guards ─────────────────────────────────────────────
   const canGoPrev = useMemo(() => {
-    const prevMonth = new Date(
-      currentMonth.getFullYear(),
-      currentMonth.getMonth() - 1,
-      1,
-    );
-    // maximize prevMonth to end of that month for loose comparison
     const endOfPrevMonth = new Date(
-      prevMonth.getFullYear(),
-      prevMonth.getMonth() + 1,
+      currentMonth.getFullYear(),
+      currentMonth.getMonth(),
       0,
     );
     return endOfPrevMonth >= effectiveMinDate;
   }, [currentMonth, effectiveMinDate]);
 
   const canGoNext = useMemo(() => {
-    const nextMonth = new Date(
+    const firstOfNextMonth = new Date(
       currentMonth.getFullYear(),
       currentMonth.getMonth() + 1,
       1,
     );
-    return nextMonth <= effectiveMaxDate;
+    return firstOfNextMonth <= effectiveMaxDate;
   }, [currentMonth, effectiveMaxDate]);
 
   const handlePrevMonth = () => {
@@ -161,36 +216,118 @@ const CustomDatePicker = ({
     );
   };
 
-  const isSameDay = (d1, d2) => {
-    if (!d1 || !d2) return false;
-    return (
-      d1.getDate() === d2.getDate() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getFullYear() === d2.getFullYear()
-    );
-  };
+  // ─── Intent-Based Selection Algorithm ───────────────────────────────────
+  const handleSelectDate = useCallback(
+    (day) => {
+      if (!day || isDateDisabled(day)) return;
+      const tapped = normalize(day);
 
-  const isToday = (d) => {
-    const today = new Date();
-    return isSameDay(d, today);
-  };
+      // CASE 3: Range already set → reset to new single
+      if (selectionMode === "range") {
+        setInternalStart(tapped);
+        setInternalEnd(null);
+        setSelectionMode("single");
+        return;
+      }
 
-  const handleSelectDate = (day) => {
-    if (day && !isDateDisabled(day)) {
-      // Store locally; parent is only updated on Confirm
-      const newDate = new Date(date || new Date());
-      newDate.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
-      setPickedDate(newDate);
-    }
-  };
+      // CASE 1: Nothing selected → set single
+      if (selectionMode === "none" || !internalStart) {
+        setInternalStart(tapped);
+        setInternalEnd(null);
+        setSelectionMode("single");
+        return;
+      }
 
+      // CASE 2: Single selected
+      const start = normalize(internalStart);
+
+      if (isSameDay(tapped, start)) {
+        // Same date tapped → no-op, stay single
+        return;
+      }
+
+      if (tapped < start) {
+        // Earlier date → reset start, stay single
+        setInternalStart(tapped);
+        setInternalEnd(null);
+        setSelectionMode("single");
+        return;
+      }
+
+      // tapped > start → attempt range
+      if (doesRangeContainDisabledDate(start, tapped)) {
+        // Silent rejection — disabled date inside range
+        return;
+      }
+
+      setInternalEnd(tapped);
+      setSelectionMode("range");
+    },
+    [
+      selectionMode,
+      internalStart,
+      isDateDisabled,
+      normalize,
+      isSameDay,
+      doesRangeContainDisabledDate,
+    ],
+  );
+
+  // ─── Confirmation ────────────────────────────────────────────────────────
   const handleConfirm = () => {
-    if (pickedDate && onChange) {
-      onChange(pickedDate);
+    if (selectionMode !== "none" && internalStart && onConfirm) {
+      onConfirm({
+        startDate: internalStart,
+        endDate: selectionMode === "range" ? internalEnd : null,
+      });
     }
     onClose();
   };
 
+  const confirmDisabled = selectionMode === "none";
+
+  // ─── Dynamic Title & Button Label ────────────────────────────────────────
+  const headerTitle =
+    selectionMode === "range" ? "Confirm date range" : "Select date";
+  const buttonLabel =
+    selectionMode === "range" ? "Confirm Range" : "Confirm Date";
+
+  // ─── Per-Day State ───────────────────────────────────────────────────────
+  const getDayState = useCallback(
+    (day) => {
+      if (!day) return {};
+      const isDisabled = isDateDisabled(day);
+      const isCurrentDay = isToday(day);
+      const isStart = !!internalStart && isSameDay(day, internalStart);
+      const isEnd = !!internalEnd && isSameDay(day, internalEnd);
+      const inRange = !isDisabled && isDateInRange(day);
+      const isSingleDayRange =
+        selectionMode === "range" &&
+        !!internalStart &&
+        !!internalEnd &&
+        isSameDay(internalStart, internalEnd);
+
+      return {
+        isCurrentDay,
+        isDisabled,
+        isStart,
+        isEnd,
+        isInRange: inRange,
+        isSingleDayRange,
+      };
+    },
+    [
+      selectionMode,
+      internalStart,
+      internalEnd,
+      isDateDisabled,
+      isToday,
+      isSameDay,
+      isDateInRange,
+    ],
+  );
+
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <Modal
       visible={visible}
@@ -208,10 +345,10 @@ const CustomDatePicker = ({
           <View style={styles.modalContainer}>
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Select Date</Text>
+              <Text style={styles.title}>{headerTitle}</Text>
             </View>
 
-            {/* Calendar Controls */}
+            {/* Month Navigation */}
             <View style={styles.calendarControls}>
               <TouchableOpacity
                 onPress={handlePrevMonth}
@@ -233,11 +370,11 @@ const CustomDatePicker = ({
               </TouchableOpacity>
             </View>
 
-            {/* Days Header */}
+            {/* Day-of-week header */}
             <View style={styles.weekRow}>
-              {DAYS_OF_WEEK.map((day) => (
-                <Text key={day} style={styles.weekDayText}>
-                  {day}
+              {DAYS_OF_WEEK.map((d) => (
+                <Text key={d} style={styles.weekDayText}>
+                  {d}
                 </Text>
               ))}
             </View>
@@ -245,13 +382,25 @@ const CustomDatePicker = ({
             {/* Days Grid */}
             <View style={styles.daysGrid}>
               {calendarDays.map((day, index) => {
-                const isSelected = isSameDay(day, pickedDate);
-                const isCurrentDay = isToday(day);
-                const isDisabled = isDateDisabled(day);
-
                 if (!day) {
                   return <View key={`empty-${index}`} style={styles.dayCell} />;
                 }
+
+                const {
+                  isCurrentDay,
+                  isDisabled,
+                  isStart,
+                  isEnd,
+                  isInRange,
+                  isSingleDayRange,
+                } = getDayState(day);
+
+                const isEndpoint = isStart || isEnd;
+
+                // Two independent half-strips for range highlighting
+                const showLeftHalf = !isSingleDayRange && (isInRange || isEnd);
+                const showRightHalf =
+                  !isSingleDayRange && (isInRange || isStart);
 
                 return (
                   <TouchableOpacity
@@ -260,7 +409,20 @@ const CustomDatePicker = ({
                     onPress={() => handleSelectDate(day)}
                     disabled={isDisabled}
                   >
-                    {isSelected ? (
+                    {/* Range strip halves (behind circle) */}
+                    {showLeftHalf && (
+                      <View
+                        style={[StyleSheet.absoluteFill, styles.rangeHalfLeft]}
+                      />
+                    )}
+                    {showRightHalf && (
+                      <View
+                        style={[StyleSheet.absoluteFill, styles.rangeHalfRight]}
+                      />
+                    )}
+
+                    {/* Circle */}
+                    {isEndpoint ? (
                       <LinearGradient
                         colors={BRAND.primaryGradient}
                         style={styles.selectedDay}
@@ -282,6 +444,7 @@ const CustomDatePicker = ({
                           style={[
                             styles.dayText,
                             isDisabled && { color: BRAND.textMuted },
+                            isInRange && styles.inRangeText,
                           ]}
                         >
                           {day.getDate()}
@@ -297,17 +460,19 @@ const CustomDatePicker = ({
             <TouchableOpacity
               style={styles.confirmButtonContainer}
               onPress={handleConfirm}
-              disabled={!pickedDate}
+              disabled={confirmDisabled}
             >
               <LinearGradient
                 colors={
-                  pickedDate ? BRAND.primaryGradient : ["#C4C4C4", "#C4C4C4"]
+                  confirmDisabled
+                    ? ["#C4C4C4", "#C4C4C4"]
+                    : BRAND.primaryGradient
                 }
                 style={styles.confirmButton}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.confirmButtonText}>Confirm Date</Text>
+                <Text style={styles.confirmButtonText}>{buttonLabel}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -337,7 +502,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
   },
   title: {
     fontFamily: FONTS.semibold,
@@ -373,17 +538,37 @@ const styles = StyleSheet.create({
   daysGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    // justifyContent: 'space-around',
-    // Using space-around might mess up alignment if row is not full.
-    // Better to have fixed width or just percentage.
   },
   dayCell: {
-    width: "14.28%", // 100% / 7
+    width: "14.28%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 2,
+    overflow: "hidden",
   },
+
+  // ── Range half-strip styles ──────────────────────────────────────────────
+  rangeHalfLeft: {
+    backgroundColor: BRAND.rangeHighlight,
+    top: "10%",
+    bottom: "10%",
+    left: 0,
+    right: "50%",
+    borderTopLeftRadius: 4,
+    borderBottomLeftRadius: 4,
+  },
+  rangeHalfRight: {
+    backgroundColor: BRAND.rangeHighlight,
+    top: "10%",
+    bottom: "10%",
+    left: "50%",
+    right: 0,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+  },
+
+  // ── Day circle styles ────────────────────────────────────────────────────
   dayCircle: {
     width: 36,
     height: 36,
@@ -407,13 +592,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: BRAND.textPrimary,
   },
+  inRangeText: {
+    fontFamily: FONTS.medium,
+    color: BRAND.primary,
+  },
   selectedDayText: {
     fontFamily: FONTS.medium,
     fontSize: 15,
     color: "#FFFFFF",
   },
+
+  // ── Confirm button ───────────────────────────────────────────────────────
   confirmButtonContainer: {
-    marginTop: 24,
+    marginTop: 20,
   },
   confirmButton: {
     height: 48,

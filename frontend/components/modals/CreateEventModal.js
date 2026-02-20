@@ -192,7 +192,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
   const [hasEndTime, setHasEndTime] = useState(false);
-  const [hasTime, setHasTime] = useState(false); // true once user explicitly picks a time
+  const [hasTime, setHasTime] = useState(false); // true once user explicitly picks a start time
   const [draftExists, setDraftExists] = useState(false);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
@@ -469,7 +469,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             <View style={styles.sectionBlock}>
               <Text style={styles.label}>Date & Time</Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
-                {/* Start Date Card */}
+                {/* Unified Date Card — shows "21 Feb" or "21 Feb – 23 Feb" */}
                 <TouchableOpacity
                   style={styles.dateCard}
                   onPress={() => setShowDatePicker(true)}
@@ -484,13 +484,23 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                         styles.dateCardValue,
                         !eventDate && { color: MODAL_TOKENS.textMuted },
                       ]}
+                      numberOfLines={1}
                     >
-                      {eventDate
-                        ? eventDate.toLocaleDateString(undefined, {
+                      {(() => {
+                        if (!eventDate) return "Pick date";
+                        const fmt = (d) =>
+                          d.toLocaleDateString(undefined, {
                             day: "numeric",
                             month: "short",
-                          })
-                        : "Pick date"}
+                          });
+                        // endDate is a range end only when it's a different calendar day
+                        const isRange =
+                          endDate &&
+                          endDate.toDateString() !== eventDate.toDateString();
+                        return isRange
+                          ? `${fmt(eventDate)} – ${fmt(endDate)}`
+                          : fmt(eventDate);
+                      })()}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -523,96 +533,105 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   </View>
                 </TouchableOpacity>
 
-                {/* End Time / Ghost Card */}
-                {hasEndTime ? (
-                  <TouchableOpacity
-                    style={styles.dateCard}
-                    onPress={() => setShowEndTimePicker(true)}
+                {/* End Time Card — always visible */}
+                <TouchableOpacity
+                  style={styles.dateCard}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <View
+                    style={[
+                      styles.dateCardIconInfo,
+                      hasEndTime && { backgroundColor: "#EEF2FF" },
+                    ]}
                   >
-                    <View
+                    <Flag
+                      size={16}
+                      color={
+                        hasEndTime
+                          ? MODAL_TOKENS.primary
+                          : MODAL_TOKENS.textSecondary
+                      }
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.dateCardLabel}>End Time</Text>
+                    <Text
                       style={[
-                        styles.dateCardIconInfo,
-                        { backgroundColor: "#F3E5F5" },
+                        styles.dateCardValue,
+                        !hasEndTime && { color: MODAL_TOKENS.textMuted },
                       ]}
                     >
-                      <Flag size={16} color="#9C27B0" />
-                    </View>
-                    <View>
-                      <Text style={styles.dateCardLabel}>End Time</Text>
-                      <Text
-                        style={[
-                          styles.dateCardValue,
-                          !endDate && { color: MODAL_TOKENS.textMuted },
-                        ]}
-                      >
-                        {endDate
-                          ? endDate.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "Pick time"}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={{ position: "absolute", top: 4, right: 4 }}
-                      onPress={() => {
-                        LayoutAnimation.configureNext(
-                          LayoutAnimation.Presets.easeInEaseOut,
-                        );
-                        setHasEndTime(false);
-                        setEndDate(eventDate ? new Date(eventDate) : null);
-                      }}
-                    >
-                      <XCircle size={18} color={MODAL_TOKENS.textMuted} />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.ghostCard}
-                    onPress={() => setShowEndTimePicker(true)}
-                  >
-                    <PlusCircle size={24} color={MODAL_TOKENS.textSecondary} />
-                    <Text style={styles.ghostCardText}>Add End Time</Text>
-                  </TouchableOpacity>
-                )}
+                      {hasEndTime && endDate
+                        ? endDate.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Pick time"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
 
-              {/* Pickers (Invisible/Modal based) */}
-              {/* Custom Parsed Pickers */}
+              {/* Date Picker — intent-based, single or range */}
               <CustomDatePicker
                 visible={showDatePicker}
                 onClose={() => setShowDatePicker(false)}
-                date={eventDate || new Date()}
-                minDate={new Date()} // Disable past dates
+                startDate={eventDate}
+                endDate={
+                  endDate &&
+                  eventDate &&
+                  endDate.toDateString() !== eventDate.toDateString()
+                    ? endDate
+                    : null
+                }
+                minDate={new Date()}
                 maxDate={
                   new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-                } // 1 year limit
-                onChange={(newDate) => {
-                  setEventDate(newDate);
-                  // Adjust end date if it becomes before start date
-                  if (hasEndTime && endDate && endDate < newDate) {
-                    const newEnd = new Date(newDate);
-                    newEnd.setHours(endDate.getHours(), endDate.getMinutes());
-                    setEndDate(newEnd);
+                }
+                onConfirm={({ startDate: newStart, endDate: newEnd }) => {
+                  // Apply new start date, preserve existing start time
+                  const newEventDate = new Date(newStart);
+                  if (hasTime && eventDate) {
+                    newEventDate.setHours(
+                      eventDate.getHours(),
+                      eventDate.getMinutes(),
+                      0,
+                      0,
+                    );
                   }
-                  // If user already picked a time, and new date is today,
-                  // check if that time is now in the past — auto-open time picker
+                  setEventDate(newEventDate);
+
+                  if (newEnd) {
+                    // Range confirmed — apply end date, preserve existing end time
+                    const newEndDate = new Date(newEnd);
+                    if (hasEndTime && endDate) {
+                      newEndDate.setHours(
+                        endDate.getHours(),
+                        endDate.getMinutes(),
+                        0,
+                        0,
+                      );
+                    }
+                    setEndDate(newEndDate);
+                  } else {
+                    // Single day — clear any previous range end
+                    setEndDate(null);
+                  }
+
+                  // If start is today and existing time is now in the past, nudge time picker
                   if (hasTime) {
                     const isToday =
-                      newDate.toDateString() === new Date().toDateString();
+                      newStart.toDateString() === new Date().toDateString();
                     if (isToday) {
                       const minTime = new Date(Date.now() + 15 * 60 * 1000);
-                      // Reconstruct what the full datetime would be with current time selection
-                      const existingTime = eventDate; // eventDate still holds the old time parts
-                      const candidate = new Date(newDate);
-                      if (existingTime) {
+                      const candidate = new Date(newStart);
+                      if (eventDate) {
                         candidate.setHours(
-                          existingTime.getHours(),
-                          existingTime.getMinutes(),
+                          eventDate.getHours(),
+                          eventDate.getMinutes(),
                         );
                       }
                       if (candidate < minTime) {
-                        // Time is now invalid — open time picker so user sees the Invalid Time modal
                         setTimeout(() => setShowTimePicker(true), 300);
                       }
                     }
@@ -632,10 +651,27 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 }
                 onChange={(newTime) => {
                   setEventDate(newTime);
-                  setHasTime(true); // Mark that user has explicitly set a time
-                  // Ensure end time is not before start time if on same day
-                  if (hasEndTime && endDate && endDate < newTime) {
-                    setEndDate(newTime);
+                  setHasTime(true);
+
+                  // ── Auto-adjust end time if it would be < start + 15 min ──
+                  if (hasEndTime && endDate) {
+                    const minEndTime = new Date(
+                      newTime.getTime() + 15 * 60 * 1000,
+                    );
+                    if (endDate < minEndTime) {
+                      // Auto-set end to start + 1 hour on the correct end date
+                      const autoEnd = new Date(endDate);
+                      const oneHourLater = new Date(
+                        newTime.getTime() + 60 * 60 * 1000,
+                      );
+                      autoEnd.setHours(
+                        oneHourLater.getHours(),
+                        oneHourLater.getMinutes(),
+                        0,
+                        0,
+                      );
+                      setEndDate(autoEnd);
+                    }
                   }
                 }}
               />
@@ -644,11 +680,28 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 visible={showEndTimePicker}
                 onClose={() => setShowEndTimePicker(false)}
                 time={endDate || eventDate || new Date()}
-                minTime={eventDate || null} // End time must be after start time
+                minTime={
+                  // Only enforce end > start + 15min on same-day events
+                  eventDate &&
+                  (!endDate ||
+                    endDate.toDateString() === eventDate.toDateString())
+                    ? new Date(
+                        (eventDate?.getTime() ?? Date.now()) + 15 * 60 * 1000,
+                      )
+                    : null
+                }
                 onChange={(newTime) => {
                   setHasEndTime(true);
-                  // If selected end time is before start time, push to next day
-                  if (eventDate && newTime < eventDate) {
+                  // For single-day: if end time is within 15min of start, push to next day
+                  const isSameDay =
+                    eventDate &&
+                    (!endDate ||
+                      endDate.toDateString() === eventDate.toDateString());
+                  const tooEarly =
+                    isSameDay &&
+                    eventDate &&
+                    newTime < new Date(eventDate.getTime() + 15 * 60 * 1000);
+                  if (tooEarly) {
                     const corrected = new Date(newTime);
                     corrected.setDate(corrected.getDate() + 1);
                     setEndDate(corrected);

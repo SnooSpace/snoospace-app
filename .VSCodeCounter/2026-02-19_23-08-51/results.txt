@@ -1,0 +1,627 @@
+Date : 2026-02-19 23:08:51
+Directory : c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace
+Total : 503 files,  168125 codes, 9098 comments, 12503 blanks, all 189726 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| JavaScript         |        381 |    135,510 |      8,256 |     11,101 |    154,867 |
+| JSON               |         10 |     19,814 |          0 |          8 |     19,822 |
+| TypeScript JSX     |         40 |      8,404 |        187 |        546 |      9,137 |
+| Markdown           |         16 |      1,647 |          0 |        317 |      1,964 |
+| MS SQL             |         37 |      1,483 |        551 |        371 |      2,405 |
+| TypeScript         |          4 |      1,031 |        103 |        139 |      1,273 |
+| PostCSS            |          1 |        131 |          1 |          7 |        139 |
+| JSON with Comments |          2 |         44 |          0 |          3 |         47 |
+| XML                |         11 |         37 |          0 |          6 |         43 |
+| Log                |          1 |         24 |          0 |          5 |         29 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                       | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                          |        503 |    168,125 |      9,098 |     12,503 |    189,726 |
+| .agent                                                                                                                     |          3 |        217 |          0 |         65 |        282 |
+| .agent\workflows                                                                                                           |          3 |        217 |          0 |         65 |        282 |
+| .cursor                                                                                                                    |          1 |         10 |          0 |          2 |         12 |
+| .taskmaster                                                                                                                |         10 |      1,304 |          0 |        182 |      1,486 |
+| .taskmaster (Files)                                                                                                        |          1 |        261 |          0 |         26 |        287 |
+| .taskmaster\docs                                                                                                           |          2 |        237 |          0 |         86 |        323 |
+| .taskmaster\tasks                                                                                                          |          7 |        806 |          0 |         70 |        876 |
+| admin                                                                                                                      |         57 |     18,092 |        293 |        715 |     19,100 |
+| admin (Files)                                                                                                              |          8 |      8,525 |          3 |         26 |      8,554 |
+| admin\public                                                                                                               |          5 |          5 |          0 |          0 |          5 |
+| admin\src                                                                                                                  |         44 |      9,562 |        290 |        689 |     10,541 |
+| admin\src\app                                                                                                              |         16 |      6,563 |        173 |        341 |      7,077 |
+| admin\src\app (Files)                                                                                                      |          2 |        164 |          1 |         11 |        176 |
+| admin\src\app\(dashboard)                                                                                                  |         12 |      6,258 |        168 |        314 |      6,740 |
+| admin\src\app\(dashboard) (Files)                                                                                          |          2 |        335 |         14 |         25 |        374 |
+| admin\src\app\(dashboard)\analytics                                                                                        |          1 |        422 |         10 |         19 |        451 |
+| admin\src\app\(dashboard)\categories                                                                                       |          1 |        763 |         17 |         32 |        812 |
+| admin\src\app\(dashboard)\colleges                                                                                         |          1 |        890 |         23 |         40 |        953 |
+| admin\src\app\(dashboard)\events                                                                                           |          1 |        775 |         25 |         38 |        838 |
+| admin\src\app\(dashboard)\interests                                                                                        |          1 |        364 |          6 |         17 |        387 |
+| admin\src\app\(dashboard)\posts                                                                                            |          1 |        541 |         19 |         31 |        591 |
+| admin\src\app\(dashboard)\pronouns                                                                                         |          1 |        390 |         11 |         26 |        427 |
+| admin\src\app\(dashboard)\reports                                                                                          |          1 |        342 |          4 |         16 |        362 |
+| admin\src\app\(dashboard)\sponsor-types                                                                                    |          1 |        329 |          4 |         17 |        350 |
+| admin\src\app\(dashboard)\users                                                                                            |          1 |      1,107 |         35 |         53 |      1,195 |
+| admin\src\app\login                                                                                                        |          2 |        141 |          4 |         16 |        161 |
+| admin\src\components                                                                                                       |         26 |      1,975 |         15 |        213 |      2,203 |
+| admin\src\components\analytics                                                                                             |          4 |        225 |          2 |         17 |        244 |
+| admin\src\components\layout                                                                                                |          2 |        251 |          8 |         19 |        278 |
+| admin\src\components\providers                                                                                             |          2 |         87 |          2 |         15 |        104 |
+| admin\src\components\ui                                                                                                    |         18 |      1,412 |          3 |        162 |      1,577 |
+| admin\src\lib                                                                                                              |          2 |      1,024 |        102 |        135 |      1,261 |
+| backend                                                                                                                    |        115 |     29,257 |      3,421 |      3,705 |     36,383 |
+| backend (Files)                                                                                                            |          6 |      1,956 |         11 |         22 |      1,989 |
+| backend\config                                                                                                             |          3 |      1,270 |         26 |         18 |      1,314 |
+| backend\controllers                                                                                                        |         34 |     20,603 |      2,203 |      2,742 |     25,548 |
+| backend\middleware                                                                                                         |          5 |        235 |         42 |         65 |        342 |
+| backend\routes                                                                                                             |          1 |      1,224 |        110 |         61 |      1,395 |
+| backend\scripts                                                                                                            |         59 |      2,811 |        692 |        624 |      4,127 |
+| backend\services                                                                                                           |          4 |        986 |        233 |        130 |      1,349 |
+| backend\utils                                                                                                              |          3 |        172 |        104 |         43 |        319 |
+| frontend                                                                                                                   |        317 |    119,245 |      5,384 |      7,834 |    132,463 |
+| frontend (Files)                                                                                                           |          6 |      9,514 |          7 |         16 |      9,537 |
+| frontend\api                                                                                                               |         15 |      1,822 |        637 |        295 |      2,754 |
+| frontend\assets                                                                                                            |          6 |         32 |          0 |          6 |         38 |
+| frontend\components                                                                                                        |        119 |     42,380 |      1,858 |      2,922 |     47,160 |
+| frontend\components (Files)                                                                                                |         64 |     19,916 |        882 |      1,474 |     22,272 |
+| frontend\components\DiscoverGridV1                                                                                         |          2 |        376 |         21 |         29 |        426 |
+| frontend\components\LocationPicker                                                                                         |          6 |        997 |          9 |         75 |      1,081 |
+| frontend\components\MediaCrop                                                                                              |          8 |      2,425 |        484 |        271 |      3,180 |
+| frontend\components\discover                                                                                               |          4 |        557 |         47 |         40 |        644 |
+| frontend\components\editors                                                                                                |          3 |      1,772 |         15 |         85 |      1,872 |
+| frontend\components\feedback                                                                                               |          1 |        403 |         12 |         26 |        441 |
+| frontend\components\modals                                                                                                 |         15 |      7,923 |        165 |        397 |      8,485 |
+| frontend\components\posts                                                                                                  |         14 |      6,983 |        152 |        438 |      7,573 |
+| frontend\components\ui                                                                                                     |          2 |      1,028 |         71 |         87 |      1,186 |
+| frontend\constants                                                                                                         |          1 |        139 |         11 |         14 |        164 |
+| frontend\context                                                                                                           |          2 |        181 |         29 |         34 |        244 |
+| frontend\contexts                                                                                                          |          2 |        135 |         34 |         28 |        197 |
+| frontend\data                                                                                                              |          1 |        384 |         10 |         10 |        404 |
+| frontend\hooks                                                                                                             |          6 |        778 |        159 |        165 |      1,102 |
+| frontend\navigation                                                                                                        |         16 |      1,345 |         15 |         89 |      1,449 |
+| frontend\screens                                                                                                           |        117 |     59,548 |      1,684 |      3,636 |     64,868 |
+| frontend\screens (Files)                                                                                                   |          2 |        353 |          9 |         31 |        393 |
+| frontend\screens\auth                                                                                                      |          4 |      1,497 |         86 |        124 |      1,707 |
+| frontend\screens\auth (Files)                                                                                              |          2 |        603 |         34 |         46 |        683 |
+| frontend\screens\auth\signin                                                                                               |          2 |        894 |         52 |         78 |      1,024 |
+| frontend\screens\discover                                                                                                  |          6 |      3,664 |         54 |        202 |      3,920 |
+| frontend\screens\events                                                                                                    |          9 |      6,643 |        160 |        366 |      7,169 |
+| frontend\screens\home                                                                                                      |         20 |     14,669 |        247 |        758 |     15,674 |
+| frontend\screens\home (Files)                                                                                              |          5 |      4,481 |        133 |        228 |      4,842 |
+| frontend\screens\home\community                                                                                            |          9 |      7,221 |         87 |        379 |      7,687 |
+| frontend\screens\home\member                                                                                               |          2 |      1,362 |          8 |         58 |      1,428 |
+| frontend\screens\home\sponsor                                                                                              |          2 |        781 |          9 |         46 |        836 |
+| frontend\screens\home\venue                                                                                                |          2 |        824 |         10 |         47 |        881 |
+| frontend\screens\messages                                                                                                  |          2 |      1,439 |         82 |         95 |      1,616 |
+| frontend\screens\notifications                                                                                             |          1 |        766 |         25 |         37 |        828 |
+| frontend\screens\profile                                                                                                   |         17 |     12,434 |        316 |        654 |     13,404 |
+| frontend\screens\profile (Files)                                                                                           |          2 |        310 |         21 |         42 |        373 |
+| frontend\screens\profile\community                                                                                         |          7 |      6,301 |        120 |        304 |      6,725 |
+| frontend\screens\profile\member                                                                                            |          6 |      4,293 |        153 |        220 |      4,666 |
+| frontend\screens\profile\sponsor                                                                                           |          1 |        761 |         11 |         44 |        816 |
+| frontend\screens\profile\venue                                                                                             |          1 |        769 |         11 |         44 |        824 |
+| frontend\screens\search                                                                                                    |          1 |      1,078 |         30 |         52 |      1,160 |
+| frontend\screens\signup                                                                                                    |         55 |     17,005 |        675 |      1,317 |     18,997 |
+| frontend\screens\signup\community                                                                                          |         20 |      7,002 |        309 |        511 |      7,822 |
+| frontend\screens\signup\member                                                                                             |         12 |      4,357 |        172 |        324 |      4,853 |
+| frontend\screens\signup\sponsor                                                                                            |         10 |      2,404 |         89 |        209 |      2,702 |
+| frontend\screens\signup\venue                                                                                              |         13 |      3,242 |        105 |        273 |      3,620 |
+| frontend\services                                                                                                          |          4 |        373 |        106 |         76 |        555 |
+| frontend\utils                                                                                                             |         22 |      2,614 |        834 |        543 |      3,991 |
++----------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                                                   | language           | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.agent\workflows\implement-floating-keyboard-button.md                | Markdown           |         55 |          0 |         11 |         66 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.agent\workflows\keyboard-toolbar-fix.md                              | Markdown           |         88 |          0 |         27 |        115 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.agent\workflows\threaded-reply-connectors.md                         | Markdown           |         74 |          0 |         27 |        101 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.cursor\mcp.json                                                      | JSON with Comments |         10 |          0 |          2 |         12 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\docs\PRD.md                                               | Markdown           |        149 |          0 |         52 |        201 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\docs\social-posts-implementation.md                       | Markdown           |         88 |          0 |         34 |        122 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\project-structure.md                                      | Markdown           |        261 |          0 |         26 |        287 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\README.md                                           | Markdown           |         81 |          0 |         12 |         93 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\backend.md                                          | Markdown           |        208 |          0 |         13 |        221 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\backlog-posts.md                                    | Markdown           |         21 |          0 |          6 |         27 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\backlog.md                                          | Markdown           |         91 |          0 |          8 |         99 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\data-model.md                                       | Markdown           |        204 |          0 |         14 |        218 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\frontend.md                                         | Markdown           |        158 |          0 |          8 |        166 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\.taskmaster\tasks\operations.md                                       | Markdown           |         43 |          0 |          9 |         52 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\README.md                                                       | Markdown           |         23 |          0 |         14 |         37 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\components.json                                                 | JSON               |         22 |          0 |          1 |         23 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\eslint.config.mjs                                               | JavaScript         |         14 |          2 |          3 |         19 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\next.config.ts                                                  | TypeScript         |          4 |          1 |          3 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\package-lock.json                                               | JSON               |      8,374 |          0 |          1 |      8,375 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\package.json                                                    | JSON               |         48 |          0 |          1 |         49 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\postcss.config.mjs                                              | JavaScript         |          6 |          0 |          2 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\public\file.svg                                                 | XML                |          1 |          0 |          0 |          1 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\public\globe.svg                                                | XML                |          1 |          0 |          0 |          1 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\public\next.svg                                                 | XML                |          1 |          0 |          0 |          1 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\public\vercel.svg                                               | XML                |          1 |          0 |          0 |          1 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\public\window.svg                                               | XML                |          1 |          0 |          0 |          1 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\analytics\page.tsx                          | TypeScript JSX     |        422 |         10 |         19 |        451 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\categories\page.tsx                         | TypeScript JSX     |        763 |         17 |         32 |        812 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\colleges\page.tsx                           | TypeScript JSX     |        890 |         23 |         40 |        953 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\events\page.tsx                             | TypeScript JSX     |        775 |         25 |         38 |        838 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\interests\page.tsx                          | TypeScript JSX     |        364 |          6 |         17 |        387 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\layout.tsx                                  | TypeScript JSX     |         40 |          5 |          8 |         53 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\page.tsx                                    | TypeScript JSX     |        295 |          9 |         17 |        321 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\posts\page.tsx                              | TypeScript JSX     |        541 |         19 |         31 |        591 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\pronouns\page.tsx                           | TypeScript JSX     |        390 |         11 |         26 |        427 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\reports\page.tsx                            | TypeScript JSX     |        342 |          4 |         16 |        362 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\sponsor-types\page.tsx                      | TypeScript JSX     |        329 |          4 |         17 |        350 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\users\page.tsx                              | TypeScript JSX     |      1,107 |         35 |         53 |      1,195 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\globals.css                                             | PostCSS            |        131 |          1 |          7 |        139 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\layout.tsx                                              | TypeScript JSX     |         33 |          0 |          4 |         37 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\login\layout.tsx                                        | TypeScript JSX     |          4 |          0 |          2 |          6 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\login\page.tsx                                          | TypeScript JSX     |        137 |          4 |         14 |        155 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\analytics\EngagementChart.tsx                    | TypeScript JSX     |         91 |          1 |          5 |         97 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\analytics\UserDistributionChart.tsx              | TypeScript JSX     |         57 |          0 |          6 |         63 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\analytics\UserGrowthChart.tsx                    | TypeScript JSX     |         74 |          1 |          5 |         80 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\analytics\index.ts                               | TypeScript         |          3 |          0 |          1 |          4 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\layout\header.tsx                                | TypeScript JSX     |         84 |          5 |          8 |         97 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\layout\sidebar.tsx                               | TypeScript JSX     |        167 |          3 |         11 |        181 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\providers\auth-provider.tsx                      | TypeScript JSX     |         78 |          2 |         12 |         92 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\providers\theme-provider.tsx                     | TypeScript JSX     |          9 |          0 |          3 |         12 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\avatar.tsx                                    | TypeScript JSX     |         47 |          0 |          7 |         54 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\badge.tsx                                     | TypeScript JSX     |         41 |          0 |          6 |         47 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\button.tsx                                    | TypeScript JSX     |         57 |          0 |          6 |         63 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\card.tsx                                      | TypeScript JSX     |         83 |          0 |         10 |         93 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\collapsible.tsx                               | TypeScript JSX     |         28 |          0 |          6 |         34 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\dialog.tsx                                    | TypeScript JSX     |        130 |          0 |         14 |        144 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\dropdown-menu.tsx                             | TypeScript JSX     |        239 |          0 |         19 |        258 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\image-cropper.tsx                             | TypeScript JSX     |        153 |          3 |         17 |        173 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\input.tsx                                     | TypeScript JSX     |         18 |          0 |          4 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\label.tsx                                     | TypeScript JSX     |         20 |          0 |          5 |         25 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\select.tsx                                    | TypeScript JSX     |        177 |          0 |         14 |        191 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\separator.tsx                                 | TypeScript JSX     |         24 |          0 |          5 |         29 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\sheet.tsx                                     | TypeScript JSX     |        126 |          0 |         14 |        140 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\slider.tsx                                    | TypeScript JSX     |         58 |          0 |          6 |         64 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\switch.tsx                                    | TypeScript JSX     |         27 |          0 |          5 |         32 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\table.tsx                                     | TypeScript JSX     |        105 |          0 |         12 |        117 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\tabs.tsx                                      | TypeScript JSX     |         59 |          0 |          8 |         67 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\textarea.tsx                                  | TypeScript JSX     |         20 |          0 |          4 |         24 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\lib\api.ts                                                  | TypeScript         |      1,019 |        102 |        133 |      1,254 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\lib\utils.ts                                                | TypeScript         |          5 |          0 |          2 |          7 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\tsconfig.json                                                   | JSON with Comments |         34 |          0 |          1 |         35 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\config\cloudinary.js                                          | JavaScript         |         63 |         24 |          9 |         96 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\config\db.js                                                  | JavaScript         |      1,192 |          0 |          4 |      1,196 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\config\notifications.sql                                      | MS SQL             |         15 |          2 |          5 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\accountController.js                              | JavaScript         |         35 |          7 |         13 |         55 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\activityController.js                             | JavaScript         |        279 |         19 |         37 |        335 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\analyticsController.js                            | JavaScript         |        514 |         62 |         43 |        619 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\authController.js                                 | JavaScript         |        427 |         17 |         50 |        494 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\authControllerV2.js                               | JavaScript         |        451 |         78 |         75 |        604 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\cardExtensionController.js                        | JavaScript         |        281 |         42 |         52 |        375 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\catalogController.js                              | JavaScript         |         20 |          6 |          6 |         32 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\categoryController.js                             | JavaScript         |      1,918 |        253 |        298 |      2,469 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\challengeController.js                            | JavaScript         |      1,307 |        183 |        194 |      1,684 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\collegeController.js                              | JavaScript         |        462 |         81 |         62 |        605 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\commentController.js                              | JavaScript         |        775 |         50 |         73 |        898 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\communityController.js                            | JavaScript         |      1,071 |         39 |        114 |      1,224 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\discoverController.js                             | JavaScript         |        269 |         25 |         26 |        320 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\eventController.js                                | JavaScript         |      4,241 |        472 |        498 |      5,211 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\eventControllerEnhanced.js                        | JavaScript         |        172 |         18 |         29 |        219 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\followController.js                               | JavaScript         |        288 |         18 |         38 |        344 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\memberController.js                               | JavaScript         |      1,031 |         63 |        128 |      1,222 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\messageController.js                              | JavaScript         |        357 |         36 |         51 |        444 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\moderationController.js                           | JavaScript         |        370 |         61 |         57 |        488 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\notificationController.js                         | JavaScript         |        116 |          8 |         10 |        134 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\opportunityController.js                          | JavaScript         |        867 |         70 |        125 |      1,062 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\pollController.js                                 | JavaScript         |        380 |         62 |         74 |        516 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\postController.js                                 | JavaScript         |      1,800 |        134 |        179 |      2,113 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\promptController.js                               | JavaScript         |        715 |         74 |         96 |        885 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\pronounController.js                              | JavaScript         |        119 |         26 |         24 |        169 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\qnaController.js                                  | JavaScript         |        806 |        112 |        129 |      1,047 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\saveController.js                                 | JavaScript         |        162 |         24 |         25 |        211 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\searchController.js                               | JavaScript         |        322 |         25 |         36 |        383 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\shareController.js                                | JavaScript         |        217 |         33 |         35 |        285 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\sponsorController.js                              | JavaScript         |        196 |         12 |         42 |        250 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\uploadController.js                               | JavaScript         |        168 |         21 |         27 |        216 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\usernameController.js                             | JavaScript         |        109 |          9 |         28 |        146 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\venueController.js                                | JavaScript         |        184 |         11 |         39 |        234 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\viewsController.js                                | JavaScript         |        174 |         52 |         29 |        255 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\middleware\adminAuth.js                                       | JavaScript         |         42 |          8 |         15 |         65 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\middleware\auth.js                                            | JavaScript         |         84 |         17 |         22 |        123 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\middleware\authV2.js                                          | JavaScript         |         26 |          8 |         10 |         44 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\middleware\rateLimit.js                                       | JavaScript         |         40 |          0 |          9 |         49 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\middleware\validators.js                                      | JavaScript         |         43 |          9 |          9 |         61 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\package-lock.json                                             | JSON               |      1,844 |          0 |          1 |      1,845 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\package.json                                                  | JSON               |         31 |          0 |          1 |         32 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\poll_90_data.json                                             | JSON               |         18 |          0 |          0 |         18 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\routes\index.js                                               | JavaScript         |      1,224 |        110 |         61 |      1,395 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\README.md                                             | Markdown           |         89 |          0 |         45 |        134 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_aspect_ratios_migration.sql                       | MS SQL             |          2 |          6 |          4 |         12 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_crop_metadata_migration.sql                       | MS SQL             |          4 |          2 |          2 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_expires_at_column.sql                             | MS SQL             |          3 |          5 |          4 |         12 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_media_types_column.sql                            | MS SQL             |          2 |          3 |          3 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_message_types_migration.sql                       | MS SQL             |         16 |          7 |          6 |         29 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_supabase_user_id.sql                              | MS SQL             |          8 |          6 |          5 |         19 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_unique_conversation_constraint.sql                | MS SQL             |          6 |          4 |          5 |         15 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_video_thumbnail_migration.sql                     | MS SQL             |          3 |          5 |          3 |         11 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\card_timing_system_migration.sql                      | MS SQL             |         50 |         28 |         21 |         99 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\challenge_enhanced_migration.sql                      | MS SQL             |         42 |         19 |         12 |         73 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\check_duplicates.js                                   | JavaScript         |         56 |          3 |          7 |         66 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\check_results.log                                     | Log                |         24 |          0 |          5 |         29 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\cleanup_duplicate_conversations.sql                   | MS SQL             |         64 |         23 |         13 |        100 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\cleanup_duplicates_safe.sql                           | MS SQL             |         98 |         38 |         18 |        154 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\clear_votes.js                                        | JavaScript         |         38 |          2 |          5 |         45 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\community_categories_migration.sql                    | MS SQL             |         32 |         16 |          6 |         54 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\community_restructure_migration.sql                   | MS SQL             |         59 |         12 |         16 |         87 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\create_challenge_tagging_tables.js                    | JavaScript         |         84 |         13 |         13 |        110 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\create_event_media_tables.sql                         | MS SQL             |         18 |          4 |          4 |         26 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\db_state.json                                         | JSON               |         81 |          0 |          0 |         81 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\discover_categories_migration.sql                     | MS SQL             |        196 |         53 |         24 |        273 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\drop_sponsor_types_constraint.sql                     | MS SQL             |          1 |          8 |          3 |         12 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\dump_poll.js                                          | JavaScript         |         33 |          0 |          5 |         38 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\enhance_notifications_migration.sql                   | MS SQL             |         58 |         23 |         14 |         95 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\enhanced_events_migration.sql                         | MS SQL             |         88 |         39 |         32 |        159 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\event_interests_migration.sql                         | MS SQL             |         12 |          7 |          4 |         23 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_bidirectional_dupes.js                            | JavaScript         |         80 |         14 |         13 |        107 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_duplicate_conversations.sql                       | MS SQL             |        182 |          8 |          7 |        197 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_events_table.sql                                  | MS SQL             |         26 |          6 |          5 |         37 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_events_table_complete.sql                         | MS SQL             |         70 |         13 |          9 |         92 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_poll.js                                           | JavaScript         |         34 |          1 |          5 |         40 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_poll_votes_constraint.sql                         | MS SQL             |          6 |          4 |          5 |         15 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\getCommunityEvents.js                                 | JavaScript         |         42 |          1 |          7 |         50 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\migrate_location_to_url.sql                           | MS SQL             |         24 |          9 |          3 |         36 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\migrate_otp_auth.sql                                  | MS SQL             |         37 |         42 |         21 |        100 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\multi_account_migration.sql                           | MS SQL             |         22 |          9 |         11 |         42 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\nested_replies_migration.sql                          | MS SQL             |          7 |         11 |          7 |         25 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\opportunities_migration.sql                           | MS SQL             |        112 |         26 |         25 |        163 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\post_edit_tracking_migration.sql                      | MS SQL             |          7 |          6 |          5 |         18 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\post_types_migration.sql                              | MS SQL             |         91 |         43 |         29 |        163 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\profile_view_tracking.sql                             | MS SQL             |         21 |          3 |          2 |         26 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\prompt_replies_migration.sql                          | MS SQL             |         26 |         23 |         14 |         63 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\qna_anonymous_migration.sql                           | MS SQL             |          2 |          2 |          2 |          6 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\qna_enhanced_migration.sql                            | MS SQL             |         42 |         19 |         13 |         74 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\qualified_views_migration.sql                         | MS SQL             |         31 |         17 |          9 |         57 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\runEventMediaMigration.js                             | JavaScript         |         26 |          0 |          8 |         34 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\runMigration.js                                       | JavaScript         |         63 |         11 |         13 |         87 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\runNotificationMigration.js                           | JavaScript         |        155 |         22 |         24 |        201 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_card_timing_migration.js                          | JavaScript         |         30 |          6 |          9 |         45 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_challenge_enhanced_migration.js                   | JavaScript         |         83 |         12 |         12 |        107 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_fix_poll_votes_constraint.js                      | JavaScript         |         34 |          2 |          8 |         44 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_message_types_migration.js                        | JavaScript         |         34 |          4 |          8 |         46 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_post_types_migration.js                           | JavaScript         |         76 |         17 |         20 |        113 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_prompt_replies_migration.js                       | JavaScript         |         69 |          6 |         11 |         86 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_qna_enhanced_migration.js                         | JavaScript         |         47 |          8 |         12 |         67 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_qualified_views_migration.js                      | JavaScript         |         43 |         12 |         12 |         67 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\save_poll_90.js                                       | JavaScript         |         30 |          0 |          4 |         34 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\verifyNotificationMigration.js                        | JavaScript         |         92 |          9 |         12 |        113 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\server.js                                                     | JavaScript         |         24 |          5 |          7 |         36 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\services\emailService.js                                      | JavaScript         |        191 |         31 |         20 |        242 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\services\notificationService.js                               | JavaScript         |        361 |         86 |         31 |        478 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\services\pushService.js                                       | JavaScript         |        158 |         59 |         31 |        248 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\services\schedulerService.js                                  | JavaScript         |        276 |         57 |         48 |        381 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\supabase.js                                                   | JavaScript         |          6 |          0 |          3 |          9 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\testCloudinary.js                                             | JavaScript         |         33 |          6 |         10 |         49 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\utils\cardState.js                                            | JavaScript         |         98 |         42 |         26 |        166 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\utils\cloudinaryVideo.js                                      | JavaScript         |         41 |         44 |         10 |         95 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\utils\googleMapsValidation.js                                 | JavaScript         |         33 |         18 |          7 |         58 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\App.js                                                       | JavaScript         |        106 |          4 |          9 |        119 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\account.js                                               | JavaScript         |         18 |          7 |          5 |         30 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\auth.js                                                  | JavaScript         |        359 |         93 |         61 |        513 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\categories.js                                            | JavaScript         |         64 |         77 |         19 |        160 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\client.js                                                | JavaScript         |        572 |        144 |         68 |        784 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\cloudinary.js                                            | JavaScript         |        116 |         17 |         17 |        150 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\communities.js                                           | JavaScript         |         85 |          2 |         19 |        106 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\discover.js                                              | JavaScript         |         10 |         13 |          3 |         26 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\events.js                                                | JavaScript         |        139 |        141 |         24 |        304 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\members.js                                               | JavaScript         |        156 |         24 |         21 |        201 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\messages.js                                              | JavaScript         |         34 |         22 |          7 |         63 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\notifications.js                                         | JavaScript         |         18 |          0 |          7 |         25 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\opportunities.js                                         | JavaScript         |         71 |         69 |         14 |        154 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\posts.js                                                 | JavaScript         |          7 |          0 |          4 |         11 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\search.js                                                | JavaScript         |         76 |          7 |         11 |         94 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\upload.js                                                | JavaScript         |         97 |         21 |         15 |        133 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\app.json                                                     | JSON               |         41 |          0 |          1 |         42 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\Icon_Dark.svg                                         | XML                |          5 |          0 |          1 |          6 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\Icon_Light.svg                                        | XML                |          5 |          0 |          1 |          6 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\SnooSpace_Master_Logo_Dark.svg                        | XML                |          7 |          0 |          1 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\SnooSpace_Master_Logo_Light.svg                       | XML                |          7 |          0 |          1 |          8 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\SnooSpace_TEXT_LOGO.svg                               | XML                |          4 |          0 |          1 |          5 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\assets\SnooSpace_TEXT_LOGO_Dark.svg                          | XML                |          4 |          0 |          1 |          5 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\babel.config.js                                              | JavaScript         |          9 |          0 |          1 |         10 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\AttendanceConfirmationModal.js                    | JavaScript         |        168 |          4 |         10 |        182 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CategorySelector.js                               | JavaScript         |        321 |         11 |         16 |        348 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CelebrationModal.js                               | JavaScript         |        278 |          7 |         21 |        306 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ChipSelector.js                                   | JavaScript         |        392 |          6 |         18 |        416 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CommentsModal.js                                  | JavaScript         |      1,095 |         35 |         79 |      1,209 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CountdownTimer.js                                 | JavaScript         |         39 |          6 |         14 |         59 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CreatePostScreen.js                               | JavaScript         |        794 |         39 |         60 |        893 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DeletePostModal.js                                | JavaScript         |        148 |          0 |          8 |        156 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DiscoverFilterSheet.js                            | JavaScript         |        722 |         15 |         43 |        780 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DiscoverGrid.js                                   | JavaScript         |        362 |         21 |         18 |        401 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DiscoverGridV1\README.md                          | Markdown           |         14 |          0 |         11 |         25 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DiscoverGridV1\index.js                           | JavaScript         |        362 |         21 |         18 |        401 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DynamicStatusBar.js                               | JavaScript         |         22 |         11 |          5 |         38 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EditorialPostCard.js                              | JavaScript         |        767 |         44 |         60 |        871 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EmailChangeModal.js                               | JavaScript         |        434 |          2 |         23 |        459 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EntityTagSelector.js                              | JavaScript         |        477 |         25 |         33 |        535 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EventCard.js                                      | JavaScript         |        511 |         27 |         37 |        575 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EventGalleryUpload.js                             | JavaScript         |        262 |         10 |         26 |        298 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FeaturedAccountsEditor.js                         | JavaScript         |        600 |         11 |         41 |        652 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FollowButton.js                                   | JavaScript         |         96 |          2 |          8 |        106 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FollowerList.js                                   | JavaScript         |        421 |         14 |         25 |        460 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FullscreenVideoModal.js                           | JavaScript         |        491 |         17 |         37 |        545 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GiftTreeView.js                                   | JavaScript         |        447 |         12 |         26 |        485 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GlassBackButton.js                                | JavaScript         |         56 |          2 |          5 |         63 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GradientButton.js                                 | JavaScript         |         80 |          0 |          4 |         84 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GradientSafeArea.js                               | JavaScript         |         61 |         11 |          7 |         79 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\HighlightsEditor.js                               | JavaScript         |        446 |          8 |         23 |        477 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\HomeFeedScreen.js                                 | JavaScript         |      1,251 |         86 |        107 |      1,444 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\HomeGreetingHeader.js                             | JavaScript         |        101 |         23 |         14 |        138 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ImageCarouselUpload.js                            | JavaScript         |        289 |         14 |         30 |        333 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ImageUploader.js                                  | JavaScript         |      1,591 |        111 |        126 |      1,828 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\KeyboardAwareToolbar.js                           | JavaScript         |         62 |         12 |          9 |         83 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\AddressSearchBar.js                | JavaScript         |        137 |          1 |         10 |        148 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\ConfirmationScreen.js              | JavaScript         |        144 |          0 |         11 |        155 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\LocationConfirmationModal.js       | JavaScript         |         99 |          0 |          6 |        105 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\LocationPicker.js                  | JavaScript         |        376 |          7 |         29 |        412 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\MapView.js                         | JavaScript         |        147 |          0 |         12 |        159 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\LocationPicker\SearchResultsList.js               | JavaScript         |         94 |          1 |          7 |        102 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\BatchCropScreen.js                      | JavaScript         |        816 |         66 |         81 |        963 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropOverlay.js                          | JavaScript         |        223 |         22 |         12 |        257 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropPresets.js                          | JavaScript         |        197 |         85 |         27 |        309 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropScreen.js                           | JavaScript         |        536 |         50 |         44 |        630 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropUtils.js                            | JavaScript         |        152 |        115 |         36 |        303 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropView.js                             | JavaScript         |        382 |         78 |         50 |        510 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\index.js                                | JavaScript         |         23 |         27 |          8 |         58 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\useCrop.js                              | JavaScript         |         96 |         41 |         13 |        150 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MentionInput.js                                   | JavaScript         |        299 |         10 |         25 |        334 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MentionSearchDropdown.js                          | JavaScript         |        253 |          2 |         12 |        267 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MentionTextRenderer.js                            | JavaScript         |         76 |          0 |         14 |         90 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\NextEventRequestModal.js                          | JavaScript         |        275 |          0 |         15 |        290 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\NotificationBanner.js                             | JavaScript         |        197 |          4 |         16 |        217 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\OpportunityFeedCard.js                            | JavaScript         |        678 |         16 |         34 |        728 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\PostCard.js                                       | JavaScript         |         91 |          2 |          9 |        102 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\PremiumHeader.js                                  | JavaScript         |        107 |         20 |         15 |        142 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\PremiumTicketCard.js                              | JavaScript         |        485 |         21 |         21 |        527 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ProfilePostFeed.js                                | JavaScript         |        230 |         18 |         22 |        270 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ProfileTabIcon.js                                 | JavaScript         |         84 |          1 |         10 |         95 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\Progressbar.js                                    | JavaScript         |         35 |          0 |          4 |         39 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\QualifiedViewWrapper.js                           | JavaScript         |          6 |         11 |          3 |         20 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RangeSlider.js                                    | JavaScript         |        187 |          0 |         22 |        209 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RemovalRequestsModal.js                           | JavaScript         |        392 |          8 |         17 |        417 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RichTextEditor.js                                 | JavaScript         |        197 |          5 |         13 |        215 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ShareModal.js                                     | JavaScript         |        389 |          1 |         19 |        409 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SharedPostCard.js                                 | JavaScript         |        416 |         25 |         31 |        472 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SignupHeader.js                                   | JavaScript         |         65 |          8 |          6 |         79 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SkeletonCard.js                                   | JavaScript         |        116 |          0 |         13 |        129 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SkeletonPostGrid.js                               | JavaScript         |         93 |          1 |         11 |        105 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SkeletonProfileHeader.js                          | JavaScript         |        192 |          3 |         25 |        220 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SkeletonUserCard.js                               | JavaScript         |         85 |          2 |         11 |         98 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SnooSpaceLogo.js                                  | JavaScript         |         33 |          2 |          3 |         38 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\StepIndicator.js                                  | JavaScript         |        165 |          5 |          9 |        179 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\StyledText.js                                     | JavaScript         |         13 |         12 |          6 |         31 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SuggestedCommunityCard.js                         | JavaScript         |        154 |          4 |         12 |        170 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ThemeChip.js                                      | JavaScript         |         66 |          1 |          7 |         74 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ThingsToKnowEditor.js                             | JavaScript         |        594 |          7 |         29 |        630 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\TicketMessageCard.js                              | JavaScript         |        139 |          4 |         11 |        154 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\UnexpectedLogoutBanner.js                         | JavaScript         |        170 |         10 |         14 |        194 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\UnsavedChangesModal.js                            | JavaScript         |        140 |          0 |          7 |        147 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\UserCard.js                                       | JavaScript         |        165 |          1 |         12 |        178 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\VideoPlayer.js                                    | JavaScript         |        545 |         92 |         63 |        700 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\discover\CategoryCarousel.js                      | JavaScript         |        130 |          7 |          8 |        145 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\discover\DiscoverEventCard.js                     | JavaScript         |        220 |         21 |         14 |        255 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\discover\DiscoverFeedV2.js                        | JavaScript         |        204 |         18 |         17 |        239 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\discover\index.js                                 | JavaScript         |          3 |          1 |          1 |          5 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\editors\DiscountCodesEditor.js                    | JavaScript         |        558 |          4 |         28 |        590 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\editors\PricingRulesEditor.js                     | JavaScript         |        619 |          4 |         30 |        653 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\editors\TicketTypesEditor.js                      | JavaScript         |        595 |          7 |         27 |        629 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\feedback\SuccessCard.js                           | JavaScript         |        403 |         12 |         26 |        441 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\AccountPickerModal.js                      | JavaScript         |        526 |         11 |         29 |        566 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\AccountSwitcherModal.js                    | JavaScript         |        468 |         31 |         41 |        540 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\ActionModal.js                             | JavaScript         |        144 |         11 |         10 |        165 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\ActionSheet.js                             | JavaScript         |        222 |         11 |         13 |        246 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\AddAccountModal.js                         | JavaScript         |        138 |          4 |         10 |        152 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\AgeConfirmationModal.js                    | JavaScript         |        168 |          0 |         11 |        179 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\CancelSignupModal.js                       | JavaScript         |        135 |          6 |          9 |        150 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\CreateEventModal.js                        | JavaScript         |      1,878 |         37 |         87 |      2,002 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\DraftRecoveryModal.js                      | JavaScript         |        154 |          6 |          9 |        169 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\EditEventModal.js                          | JavaScript         |      1,354 |         20 |         62 |      1,436 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\HeadsEditorModal.js                        | JavaScript         |      1,242 |         10 |         50 |      1,302 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\LogoutModal.js                             | JavaScript         |        219 |          5 |          9 |        233 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\PollVotersModal.js                         | JavaScript         |        309 |          0 |         12 |        321 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\SettingsModal.js                           | JavaScript         |        235 |          4 |         14 |        253 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\ShareTicketModal.js                        | JavaScript         |        731 |          9 |         31 |        771 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\AnimatedProgressBar.js                      | JavaScript         |         36 |          5 |          8 |         49 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengeCreateForm.js                      | JavaScript         |        688 |          8 |         33 |        729 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengeEditModal.js                       | JavaScript         |        366 |          2 |         22 |        390 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengePostCard.js                        | JavaScript         |      1,222 |         26 |         64 |      1,312 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollCreateForm.js                           | JavaScript         |        363 |          6 |         22 |        391 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollEditModal.js                            | JavaScript         |        288 |          2 |         18 |        308 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollPostCard.js                             | JavaScript         |        799 |         25 |         64 |        888 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PostTypeSelector.js                         | JavaScript         |        128 |          7 |         10 |        145 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptCreateForm.js                         | JavaScript         |        354 |         11 |         22 |        387 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptEditModal.js                          | JavaScript         |        295 |          2 |         17 |        314 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptPostCard.js                           | JavaScript         |        811 |         14 |         53 |        878 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnACreateForm.js                            | JavaScript         |        453 |         11 |         25 |        489 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnAEditModal.js                             | JavaScript         |        341 |          2 |         20 |        363 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnAPostCard.js                              | JavaScript         |        839 |         31 |         60 |        930 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ui\CustomDatePicker.js                            | JavaScript         |        569 |         63 |         56 |        688 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ui\CustomTimePicker.js                            | JavaScript         |        459 |          8 |         31 |        498 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\constants\theme.js                                           | JavaScript         |        139 |         11 |         14 |        164 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\context\NotificationsContext.js                              | JavaScript         |         99 |          8 |         15 |        122 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\context\VideoContext.js                                      | JavaScript         |         82 |         21 |         19 |        122 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\contexts\AuthStateContext.js                                 | JavaScript         |         95 |         20 |         18 |        133 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\contexts\StatusBarManager.js                                 | JavaScript         |         40 |         14 |         10 |         64 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\data\mockData.js                                             | JavaScript         |        384 |         10 |         10 |        404 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useFeedPolling.js                                      | JavaScript         |        159 |         32 |         35 |        226 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useMessagePolling.js                                   | JavaScript         |        100 |         24 |         26 |        150 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useProfileCountsPolling.js                             | JavaScript         |        147 |         20 |         22 |        189 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useQualifiedView.js                                    | JavaScript         |        115 |         30 |         26 |        171 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useTokenRefresh.js                                     | JavaScript         |        130 |         26 |         24 |        180 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useVideoQualifiedView.js                               | JavaScript         |        127 |         27 |         32 |        186 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\index.js                                                     | JavaScript         |          3 |          3 |          3 |          9 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\AppNavigator.js                                   | JavaScript         |        137 |          1 |          5 |        143 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\BottomTabNavigator.js                             | JavaScript         |        250 |          7 |         14 |        271 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityBottomTabNavigator.js                    | JavaScript         |        152 |          2 |          9 |        163 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityDashboardStackNavigator.js               | JavaScript         |         45 |          0 |          3 |         48 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityHomeStackNavigator.js                    | JavaScript         |        127 |          0 |          3 |        130 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityProfileStackNavigator.js                 | JavaScript         |         43 |          0 |          3 |         46 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunitySearchStackNavigator.js                  | JavaScript         |         40 |          0 |          4 |         44 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityStackNavigator.js                        | JavaScript         |         27 |          0 |          5 |         32 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\DiscoverStackNavigator.js                         | JavaScript         |         38 |          0 |          4 |         42 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\EventsStackNavigator.js                           | JavaScript         |         14 |          0 |          4 |         18 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\HomeStackNavigator.js                             | JavaScript         |        134 |          0 |          3 |        137 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\MemberStackNavigator.js                           | JavaScript         |         25 |          0 |          5 |         30 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\ProfileStackNavigator.js                          | JavaScript         |         44 |          0 |          3 |         47 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\SearchStackNavigator.js                           | JavaScript         |         35 |          0 |          3 |         38 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\SponsorBottomTabNavigator.js                      | JavaScript         |        116 |          3 |         11 |        130 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\VenueBottomTabNavigator.js                        | JavaScript         |        118 |          2 |         10 |        130 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\package-lock.json                                            | JSON               |      9,282 |          0 |          1 |      9,283 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\package.json                                                 | JSON               |         73 |          0 |          1 |         74 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\RecoveryScreen.js                                    | JavaScript         |         79 |          6 |          6 |         91 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\SavedPostsScreen.js                                  | JavaScript         |        274 |          3 |         25 |        302 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\AuthGate.js                                     | JavaScript         |        265 |         22 |         29 |        316 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\LandingScreen.js                                | JavaScript         |        338 |         12 |         17 |        367 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\signin\LoginOtpScreen.js                        | JavaScript         |        642 |         43 |         60 |        745 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\signin\LoginScreen.js                           | JavaScript         |        252 |          9 |         18 |        279 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\ActivityInsightsScreen.js                   | JavaScript         |        521 |          6 |         32 |        559 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\DiscoverPeopleScreen.js                     | JavaScript         |        267 |          0 |         15 |        282 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\DiscoverScreen.js                           | JavaScript         |        742 |          4 |         30 |        776 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\EditDiscoverProfileScreen.js                | JavaScript         |      1,090 |         30 |         69 |      1,189 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\OpenerSelectionScreen.js                    | JavaScript         |        471 |          5 |         20 |        496 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\ProfileFeedScreen.js                        | JavaScript         |        573 |          9 |         36 |        618 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\CategoryEventsScreen.js                       | JavaScript         |        323 |          0 |         17 |        340 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\CheckoutScreen.js                             | JavaScript         |        737 |         17 |         56 |        810 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\EventAttendeesScreen.js                       | JavaScript         |        503 |         19 |         28 |        550 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\EventDetailsScreen.js                         | JavaScript         |      1,655 |         57 |         87 |      1,799 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\QRScannerScreen.js                            | JavaScript         |        659 |         10 |         30 |        699 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\ShareTicketScreen.js                          | JavaScript         |        749 |          8 |         31 |        788 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\TicketSelectionScreen.js                      | JavaScript         |        517 |         18 |         31 |        566 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\TicketViewScreen.js                           | JavaScript         |        632 |          5 |         36 |        673 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\YourEventsScreen.js                           | JavaScript         |        868 |         26 |         50 |        944 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\ChallengeSubmissionsScreen.js                   | JavaScript         |      1,292 |         20 |         48 |      1,360 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\ChallengeSubmitScreen.js                        | JavaScript         |        759 |         16 |         41 |        816 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\PromptRepliesScreen.js                          | JavaScript         |        889 |         66 |         65 |      1,020 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\PromptSubmissionsScreen.js                      | JavaScript         |        599 |         16 |         30 |        645 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\QnAQuestionsScreen.js                           | JavaScript         |        942 |         15 |         44 |      1,001 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\ApplicantDetailScreen.js              | JavaScript         |        548 |          0 |         27 |        575 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\ApplicantsListScreen.js               | JavaScript         |        408 |          0 |         22 |        430 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityCreatePostScreen.js          | JavaScript         |      1,025 |         30 |         64 |      1,119 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityDashboardScreen.js           | JavaScript         |      1,021 |         18 |         59 |      1,098 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityEventsListScreen.js          | JavaScript         |        593 |          5 |         27 |        625 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityEventsScreen.js              | JavaScript         |        435 |          8 |         27 |        470 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityRequestsScreen.js            | JavaScript         |        472 |          5 |         23 |        500 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CreateOpportunityScreen.js            | JavaScript         |      2,256 |         20 |        111 |      2,387 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\OpportunitiesListScreen.js            | JavaScript         |        463 |          1 |         19 |        483 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\member\ApplyToOpportunityScreen.js              | JavaScript         |        660 |          7 |         34 |        701 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\member\OpportunityViewScreen.js                 | JavaScript         |        702 |          1 |         24 |        727 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\sponsor\SponsorBrowseScreen.js                  | JavaScript         |        388 |          4 |         23 |        415 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\sponsor\SponsorOffersScreen.js                  | JavaScript         |        393 |          5 |         23 |        421 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\venue\VenueBookingsScreen.js                    | JavaScript         |        435 |          5 |         23 |        463 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\venue\VenueBrowseScreen.js                      | JavaScript         |        389 |          5 |         24 |        418 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\messages\ChatScreen.js                               | JavaScript         |        920 |         69 |         64 |      1,053 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\messages\ConversationsListScreen.js                  | JavaScript         |        519 |         13 |         31 |        563 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\notifications\NotificationsScreen.js                 | JavaScript         |        766 |         25 |         37 |        828 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\UniversalFollowersScreen.js                  | JavaScript         |        157 |          9 |         20 |        186 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\UniversalFollowingScreen.js                  | JavaScript         |        153 |         12 |         22 |        187 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityFollowersListScreen.js    | JavaScript         |         17 |          2 |          3 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityFollowingListScreen.js    | JavaScript         |         17 |          2 |          3 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityProfileScreen.js          | JavaScript         |      2,586 |         68 |        131 |      2,785 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityPublicEventsListScreen.js | JavaScript         |        428 |          3 |         18 |        449 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityPublicProfileScreen.js    | JavaScript         |      1,821 |         27 |         65 |      1,913 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\EditCommunityProfileConstants.js   | JavaScript         |        117 |          2 |          8 |        127 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\EditCommunityProfileScreen.js      | JavaScript         |      1,315 |         16 |         76 |      1,407 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\EditProfileConstants.js               | JavaScript         |        192 |          3 |          7 |        202 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\EditProfileScreen.js                  | JavaScript         |      1,187 |         26 |         82 |      1,295 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\FollowersListScreen.js                | JavaScript         |         17 |          2 |          3 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\FollowingListScreen.js                | JavaScript         |         17 |          2 |          3 |         22 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\MemberProfileScreen.js                | JavaScript         |      1,900 |         92 |         94 |      2,086 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\MemberPublicProfileScreen.js          | JavaScript         |        980 |         28 |         31 |      1,039 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\sponsor\SponsorProfileScreen.js              | JavaScript         |        761 |         11 |         44 |        816 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\venue\VenueProfileScreen.js                  | JavaScript         |        769 |         11 |         44 |        824 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\search\SearchScreen.js                               | JavaScript         |      1,078 |         30 |         52 |      1,160 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeClubTypeScreen.js            | JavaScript         |        214 |          9 |         13 |        236 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeHeadsScreen.js               | JavaScript         |        405 |         25 |         29 |        459 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeSearchScreen.js              | JavaScript         |        559 |         16 |         34 |        609 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeSubtypeSelectScreen.js       | JavaScript         |        276 |         12 |         13 |        301 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityBioScreen.js               | JavaScript         |        333 |         19 |         24 |        376 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityCategoryScreen.js          | JavaScript         |        568 |         29 |         47 |        644 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityEmailScreen.js             | JavaScript         |        251 |          6 |         18 |        275 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityHeadNameScreen.js          | JavaScript         |        334 |         19 |         28 |        381 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLocationQuestionScreen.js  | JavaScript         |        281 |          8 |         19 |        308 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLocationScreen.js          | JavaScript         |        607 |         34 |         43 |        684 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLogoscreen.js              | JavaScript         |        341 |         15 |         29 |        385 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityNameScreen.js              | JavaScript         |        244 |          5 |         17 |        266 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityOtpScreen.js               | JavaScript         |        432 |         22 |         41 |        495 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityPhoneNoScreen.js           | JavaScript         |        394 |         13 |         28 |        435 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunitySignupNavigator.js         | JavaScript         |         80 |          2 |          4 |         86 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunitySponsorTypeSelect.js       | JavaScript         |        411 |         25 |         33 |        469 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityTypeSelectScreen.js        | JavaScript         |        205 |          9 |         13 |        227 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityUsernameScreen.js          | JavaScript         |        428 |         18 |         39 |        485 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\IndividualLocationScreen.js         | JavaScript         |        403 |         14 |         25 |        442 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\StudentCommunityThemeScreen.js      | JavaScript         |        236 |          9 |         14 |        259 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberAgeScreen.js                     | JavaScript         |        410 |         14 |         34 |        458 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberEmailScreen.js                   | JavaScript         |        423 |         11 |         28 |        462 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberGenderScreen.js                  | JavaScript         |        259 |          7 |         22 |        288 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberInterestsScreen.js               | JavaScript         |        360 |         15 |         24 |        399 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberLocationScreen.js                | JavaScript         |        507 |         13 |         24 |        544 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberNameScreen.js                    | JavaScript         |        219 |          7 |         17 |        243 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberOtpScreen.js                     | JavaScript         |        573 |         30 |         51 |        654 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberPhoneScreen.js                   | JavaScript         |        287 |          8 |         18 |        313 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberProfilePicScreen.js              | JavaScript         |        432 |         19 |         34 |        485 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberPronounsScreen.js                | JavaScript         |        413 |         18 |         24 |        455 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberSignupNavigator.js               | JavaScript         |         34 |          8 |          4 |         46 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberUsernameScreen.js                | JavaScript         |        440 |         22 |         44 |        506 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorBioScreen.js                   | JavaScript         |        219 |         11 |         21 |        251 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorBrandNameScreen.js             | JavaScript         |        161 |          3 |         13 |        177 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorCategoryScreen.js              | JavaScript         |        429 |         22 |         42 |        493 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorEmailScreen.js                 | JavaScript         |        256 |          9 |         20 |        285 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorInterestsScreen.js             | JavaScript         |        297 |         24 |         33 |        354 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorLogoScreen.js                  | JavaScript         |        271 |          6 |         19 |        296 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorOtpScreen.js                   | JavaScript         |        261 |          3 |         20 |        284 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorPhoneNoScreen.js               | JavaScript         |        206 |          7 |         14 |        227 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorSignupNavigator.js             | JavaScript         |         30 |          0 |          4 |         34 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\sponsor\SponsorUsernameScreen.js              | JavaScript         |        274 |          4 |         23 |        301 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueAddressScreen.js                   | JavaScript         |        236 |          3 |         16 |        255 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueBioScreen.js                       | JavaScript         |        218 |          9 |         21 |        248 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueCategoryScreen.js                  | JavaScript         |        446 |         23 |         44 |        513 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueEmailScreen.js                     | JavaScript         |        267 |          9 |         19 |        295 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueHostNamePhoneScreen.js             | JavaScript         |        346 |         18 |         31 |        395 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueInterestScreen.js                  | JavaScript         |        297 |          8 |         21 |        326 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueLogoScreen.js                      | JavaScript         |        272 |          7 |         20 |        299 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueMaxCapScreen.js                    | JavaScript         |        187 |          6 |         17 |        210 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueNameScreen.js                      | JavaScript         |        155 |          3 |         14 |        172 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueOtpScreen.js                       | JavaScript         |        245 |          3 |         19 |        267 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenuePricingScreen.js                   | JavaScript         |        266 |         12 |         22 |        300 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueSignupNavigator.js                 | JavaScript         |         33 |          0 |          4 |         37 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\venue\VenueUsernameScreen.js                  | JavaScript         |        274 |          4 |         25 |        303 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\HapticsService.js                                   | JavaScript         |         64 |         21 |         14 |         99 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\LocationTracker.js                                  | JavaScript         |        120 |         10 |         16 |        146 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\ViewQueueService.js                                 | JavaScript         |        143 |         64 |         35 |        242 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\postService.js                                      | JavaScript         |         46 |         11 |         11 |         68 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\AvatarGenerator.js                                     | JavaScript         |         27 |          0 |          6 |         33 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\EventBus.js                                            | JavaScript         |         18 |          0 |          7 |         25 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\LikeStateManager.js                                    | JavaScript         |        127 |         59 |         28 |        214 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\accountFix.js                                          | JavaScript         |         29 |         12 |          9 |         50 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\accountManager.js                                      | JavaScript         |        592 |        118 |         94 |        804 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\cardTiming.js                                          | JavaScript         |         96 |         56 |         28 |        180 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\draftStorage.js                                        | JavaScript         |         64 |         32 |         15 |        111 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\emergencyClear.js                                      | JavaScript         |         22 |         10 |          8 |         40 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\encryption.js                                          | JavaScript         |         77 |         42 |         22 |        141 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\eventStateUtils.js                                     | JavaScript         |        145 |         59 |         39 |        243 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\followerListUtils.js                                   | JavaScript         |         27 |          9 |          6 |         42 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\geocoding.js                                           | JavaScript         |        108 |         19 |         22 |        149 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\googleMapsParser.js                                    | JavaScript         |        141 |         53 |         32 |        226 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\location.js                                            | JavaScript         |         43 |         14 |          8 |         65 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\locationNameCache.js                                   | JavaScript         |        136 |         61 |         36 |        233 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\openMapsNavigation.js                                  | JavaScript         |         79 |         19 |         16 |        114 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\opportunityDraftStorage.js                             | JavaScript         |         61 |         32 |         15 |        108 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\pricingUtils.js                                        | JavaScript         |         87 |         20 |         14 |        121 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\sessionManager.js                                      | JavaScript         |        368 |         82 |         81 |        531 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\signupDraftManager.js                                  | JavaScript         |        290 |        101 |         36 |        427 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\tokenValidator.js                                      | JavaScript         |         66 |         27 |         19 |        112 |
+| c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\validateGoogleMapsUrl.js                               | JavaScript         |         11 |          9 |          2 |         22 |
+| Total                                                                                                                      |                    |    168,125 |      9,098 |     12,503 |    189,726 |
++----------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
