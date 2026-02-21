@@ -98,7 +98,7 @@ export default function EditEventModal({
     if (eventData && visible) {
       setTitle(eventData.title || "");
       setEventDate(
-        eventData.event_date ? new Date(eventData.event_date) : new Date()
+        eventData.event_date ? new Date(eventData.event_date) : new Date(),
       );
       if (eventData.end_datetime) {
         setEndDate(new Date(eventData.end_datetime));
@@ -109,7 +109,7 @@ export default function EditEventModal({
       }
 
       setGatesOpenTime(
-        eventData.gates_open_time ? new Date(eventData.gates_open_time) : null
+        eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
       );
       setHasGates(!!eventData.gates_open_time);
       setEventType(eventData.event_type || "in-person");
@@ -134,7 +134,7 @@ export default function EditEventModal({
       setPricingRules(eventData.pricing_rules || []);
       // Transform categories from objects (with id, name, etc.) to array of IDs
       const categoryIds = (eventData.categories || []).map((c) =>
-        typeof c === "object" ? c.id : c
+        typeof c === "object" ? c.id : c,
       );
       setCategories(categoryIds);
       setAccessType(eventData.access_type || "public");
@@ -143,7 +143,7 @@ export default function EditEventModal({
         "[EditEventModal] Loaded from eventData - access_type:",
         eventData.access_type,
         "invite_public_visibility:",
-        eventData.invite_public_visibility
+        eventData.invite_public_visibility,
       );
       setCurrentStep(1);
 
@@ -346,11 +346,11 @@ export default function EditEventModal({
         "[EditEventModal] Saving with access_type:",
         accessType,
         "invite_public_visibility:",
-        invitePublicVisibility
+        invitePublicVisibility,
       );
       console.log(
         "[EditEventModal] Full updateData:",
-        JSON.stringify(updateData, null, 2)
+        JSON.stringify(updateData, null, 2),
       );
 
       const result = await updateEvent(eventData.id, updateData);
@@ -481,12 +481,12 @@ export default function EditEventModal({
                       combined.setFullYear(
                         selectedDate.getFullYear(),
                         selectedDate.getMonth(),
-                        selectedDate.getDate()
+                        selectedDate.getDate(),
                       );
                     } else {
                       combined.setHours(
                         selectedDate.getHours(),
-                        selectedDate.getMinutes()
+                        selectedDate.getMinutes(),
                       );
                     }
                     setEventDate(combined);
@@ -515,7 +515,7 @@ export default function EditEventModal({
                       selectedDate.getHours(),
                       selectedDate.getMinutes(),
                       0,
-                      0
+                      0,
                     );
 
                     // If the selected time is earlier than the start time,
@@ -684,14 +684,20 @@ export default function EditEventModal({
             <TicketTypesEditor
               ticketTypes={ticketTypes}
               onChange={setTicketTypes}
+              pricingRules={pricingRules}
+              eventStartDate={eventDate}
+              eventEndDate={endDate}
             />
             <DiscountCodesEditor
               discountCodes={discountCodes}
               onChange={setDiscountCodes}
+              ticketTypes={ticketTypes}
             />
             <PricingRulesEditor
               pricingRules={pricingRules}
               onChange={setPricingRules}
+              ticketTypes={ticketTypes}
+              eventStartDate={eventDate}
             />
 
             {/* Event Categories for Discover Feed */}

@@ -16,7 +16,10 @@ import {
   Easing,
   TouchableHighlight,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Calendar1 as Calendar,
@@ -68,6 +71,65 @@ import {
   formatLastSaved,
 } from "../../utils/draftStorage";
 import { getActiveAccount } from "../../api/auth";
+
+/**
+ * Intelligent compressed date range formatter.
+ * Handles Timezone safety, Leap years, Month boundaries, and DST transitions.
+ * Normalizes using setHours(0,0,0,0).
+ */
+const formatEventDateRange = (startDate, endDate) => {
+  if (!startDate) return { primaryText: "Pick date" };
+
+  const startDay = new Date(startDate);
+  startDay.setHours(0, 0, 0, 0);
+
+  const endDay = endDate ? new Date(endDate) : null;
+  if (endDay) endDay.setHours(0, 0, 0, 0);
+
+  const isRange = endDay && endDay.getTime() !== startDay.getTime();
+
+  // Use Intl.DateTimeFormat to avoid hardcoding month names and support locale natively
+  const getMonthName = (date) =>
+    new Intl.DateTimeFormat(undefined, { month: "short" }).format(date);
+
+  if (!isRange) {
+    return {
+      primaryText: `${startDay.getDate()} ${getMonthName(startDay)} ${startDay.getFullYear()}`,
+    };
+  }
+
+  // Calculate days difference safely by comparing midnights in UTC to negate DST shifts
+  const utcStart = Date.UTC(
+    startDay.getFullYear(),
+    startDay.getMonth(),
+    startDay.getDate(),
+  );
+  const utcEnd = Date.UTC(
+    endDay.getFullYear(),
+    endDay.getMonth(),
+    endDay.getDate(),
+  );
+  const days = Math.floor((utcEnd - utcStart) / (1000 * 60 * 60 * 24)) + 1;
+  const secondaryText = `${days}-day event`;
+
+  const sameYear = startDay.getFullYear() === endDay.getFullYear();
+  const sameMonth = sameYear && startDay.getMonth() === endDay.getMonth();
+
+  let primaryText = "";
+
+  if (sameYear && sameMonth) {
+    // CASE 2: 23–26 Feb 2026
+    primaryText = `${startDay.getDate()}–${endDay.getDate()} ${getMonthName(startDay)} ${startDay.getFullYear()}`;
+  } else if (sameYear) {
+    // CASE 3: 28 Feb – 2 Mar 2026
+    primaryText = `${startDay.getDate()} ${getMonthName(startDay)} – ${endDay.getDate()} ${getMonthName(endDay)} ${endDay.getFullYear()}`;
+  } else {
+    // CASE 4: 30 Dec 2026 – 2 Jan 2027
+    primaryText = `${startDay.getDate()} ${getMonthName(startDay)} ${startDay.getFullYear()} – ${endDay.getDate()} ${getMonthName(endDay)} ${endDay.getFullYear()}`;
+  }
+
+  return { primaryText, secondaryText };
+};
 
 const MODAL_TOKENS = {
   primary: "#3565F2",
@@ -122,6 +184,7 @@ const STEP_TITLES = {
 };
 
 const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 7;
   // Progress calculation
@@ -199,6 +262,19 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
   // Scroll ref for auto-scrolling when category dropdown opens
   const scrollViewRef = useRef(null);
+
+  // Editor refs for imperative modal triggers
+  const ticketEditorRef = useRef(null);
+  const discountEditorRef = useRef(null);
+  const pricingEditorRef = useRef(null);
+
+  // Bottom sheet state for ticket type selection
+  const [showAddTicketSheet, setShowAddTicketSheet] = useState(false);
+
+  // Memoized date formatting to prevent heavy recalculations every render
+  const dateDisplay = React.useMemo(() => {
+    return formatEventDateRange(eventDate, endDate);
+  }, [eventDate, endDate]);
 
   const resetForm = () => {
     setCurrentStep(1);
@@ -315,8 +391,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
         // Also load categories if they exist
         if (draft.data.categories) setCategories(draft.data.categories);
-        // Load ticket types
         if (draft.data.ticket_types) setTicketTypes(draft.data.ticket_types);
+        if (draft.data.discount_codes)
+          setDiscountCodes(draft.data.discount_codes);
+        if (draft.data.pricing_rules) setPricingRules(draft.data.pricing_rules);
 
         setCurrentStep(draft.currentStep || 1);
         setShowDraftPrompt(false);
@@ -468,10 +546,10 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             {/* Date & Time Section */}
             <View style={styles.sectionBlock}>
               <Text style={styles.label}>Date & Time</Text>
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                {/* Unified Date Card — shows "21 Feb" or "21 Feb – 23 Feb" */}
+              <View style={{ gap: 12 }}>
+                {/* Unified Date Card — Full Width */}
                 <TouchableOpacity
-                  style={styles.dateCard}
+                  style={[styles.dateCard, { width: "100%", flex: 0 }]}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <View style={styles.dateCardIconInfo}>
@@ -486,90 +564,91 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                       ]}
                       numberOfLines={1}
                     >
-                      {(() => {
-                        if (!eventDate) return "Pick date";
-                        const fmt = (d) =>
-                          d.toLocaleDateString(undefined, {
-                            day: "numeric",
-                            month: "short",
-                          });
-                        // endDate is a range end only when it's a different calendar day
-                        const isRange =
-                          endDate &&
-                          endDate.toDateString() !== eventDate.toDateString();
-                        return isRange
-                          ? `${fmt(eventDate)} – ${fmt(endDate)}`
-                          : fmt(eventDate);
-                      })()}
+                      {dateDisplay.primaryText}
                     </Text>
+                    {dateDisplay.secondaryText ? (
+                      <Text
+                        style={{
+                          fontFamily: MODAL_TOKENS.fonts.medium,
+                          fontSize: 12,
+                          color: MODAL_TOKENS.primary,
+                          marginTop: 4,
+                        }}
+                      >
+                        {dateDisplay.secondaryText}
+                      </Text>
+                    ) : null}
                   </View>
                 </TouchableOpacity>
 
-                {/* Start Time Card */}
-                <TouchableOpacity
-                  style={styles.dateCard}
-                  onPress={() => setShowTimePicker(true)}
-                >
-                  <View style={styles.dateCardIconInfo}>
-                    <Clock size={16} color={MODAL_TOKENS.primary} />
-                  </View>
-                  <View>
-                    <Text style={styles.dateCardLabel}>Start Time</Text>
-                    <Text
-                      style={[
-                        styles.dateCardValue,
-                        (!eventDate || !hasTime) && {
-                          color: MODAL_TOKENS.textMuted,
-                        },
-                      ]}
-                    >
-                      {eventDate && hasTime
-                        ? eventDate.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Pick time"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* End Time Card — always visible */}
-                <TouchableOpacity
-                  style={styles.dateCard}
-                  onPress={() => setShowEndTimePicker(true)}
-                >
-                  <View
-                    style={[
-                      styles.dateCardIconInfo,
-                      hasEndTime && { backgroundColor: "#EEF2FF" },
-                    ]}
+                {/* Time Cards Row */}
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  {/* Start Time Card */}
+                  <TouchableOpacity
+                    style={styles.dateCard}
+                    onPress={() => setShowTimePicker(true)}
                   >
-                    <Flag
-                      size={16}
-                      color={
-                        hasEndTime
-                          ? MODAL_TOKENS.primary
-                          : MODAL_TOKENS.textSecondary
-                      }
-                    />
-                  </View>
-                  <View>
-                    <Text style={styles.dateCardLabel}>End Time</Text>
-                    <Text
+                    <View style={styles.dateCardIconInfo}>
+                      <Clock size={16} color={MODAL_TOKENS.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.dateCardLabel}>Start Time</Text>
+                      <Text
+                        style={[
+                          styles.dateCardValue,
+                          (!eventDate || !hasTime) && {
+                            color: MODAL_TOKENS.textMuted,
+                          },
+                        ]}
+                      >
+                        {eventDate && hasTime
+                          ? eventDate.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Pick time"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* End Time Card — always visible */}
+                  <TouchableOpacity
+                    style={styles.dateCard}
+                    onPress={() => setShowEndTimePicker(true)}
+                  >
+                    <View
                       style={[
-                        styles.dateCardValue,
-                        !hasEndTime && { color: MODAL_TOKENS.textMuted },
+                        styles.dateCardIconInfo,
+                        hasEndTime && { backgroundColor: "#EEF2FF" },
                       ]}
                     >
-                      {hasEndTime && endDate
-                        ? endDate.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Pick time"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                      <Flag
+                        size={16}
+                        color={
+                          hasEndTime
+                            ? MODAL_TOKENS.primary
+                            : MODAL_TOKENS.textSecondary
+                        }
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.dateCardLabel}>End Time</Text>
+                      <Text
+                        style={[
+                          styles.dateCardValue,
+                          !hasEndTime && { color: MODAL_TOKENS.textMuted },
+                        ]}
+                      >
+                        {hasEndTime && endDate
+                          ? endDate.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Pick time"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Date Picker — intent-based, single or range */}
@@ -907,7 +986,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               )}
             </View>
 
-            {/* Location Section */}
+            {/* Location Section — In-Person / Hybrid */}
             {eventType !== "virtual" && (
               <View style={styles.sectionBlock}>
                 <Text style={styles.label}>Location</Text>
@@ -917,7 +996,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                     style={styles.locationInput}
                     value={locationUrl}
                     onChangeText={setLocationUrl}
-                    placeholder="Search Location or Paste Link"
+                    placeholder="Google Maps Link"
                     placeholderTextColor={MODAL_TOKENS.textMuted}
                   />
                 </View>
@@ -946,158 +1025,54 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               </View>
             )}
 
-            {/* Ticketing Section - Interactive Panels */}
+            {/* Virtual Link Section — Virtual / Hybrid */}
+            {(eventType === "virtual" || eventType === "hybrid") && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>
+                  {eventType === "hybrid" ? "Online Link" : "Virtual Link"}
+                </Text>
+                <View style={styles.locationCard}>
+                  <Video size={20} color={MODAL_TOKENS.primary} />
+                  <TextInput
+                    style={styles.locationInput}
+                    value={virtualLink}
+                    onChangeText={setVirtualLink}
+                    placeholder="Paste meeting link (Zoom, Meet, Teams…)"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Ticketing Section — Uses Editor Components */}
             <View style={styles.sectionBlock}>
-              <Text style={[styles.label, { marginBottom: 12 }]}>
-                Ticketing
-              </Text>
+              <TicketTypesEditor
+                ref={ticketEditorRef}
+                ticketTypes={ticketTypes}
+                onChange={setTicketTypes}
+                onAddPress={() => setShowAddTicketSheet(true)}
+                pricingRules={pricingRules}
+                eventStartDate={eventDate}
+                eventEndDate={endDate}
+              />
 
-              {/* Ticket Types Panel */}
-              {ticketTypes.length === 0 ? (
-                <View style={[styles.ticketBlock, styles.ticketBlockEmpty]}>
-                  {/* Top Row: Icon + Text */}
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <LinearGradient
-                      colors={MODAL_TOKENS.primaryGradient}
-                      style={styles.ticketIconCircle}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      <Ticket size={24} color="#FFFFFF" />
-                    </LinearGradient>
-                    <View style={styles.ticketBlockContent}>
-                      <Text style={styles.ticketBlockTitle}>
-                        No tickets added
-                      </Text>
-                      <Text style={styles.ticketBlockSub}>
-                        Add ticket types to enable registrations
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* CTA Button */}
-                  <TouchableOpacity
-                    style={styles.addTicketButton}
-                    onPress={() =>
-                      Alert.alert("Add Ticket", "Opens Ticket Editor")
-                    }
-                  >
-                    <LinearGradient
-                      colors={MODAL_TOKENS.primaryGradient}
-                      style={styles.addTicketGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <Text style={styles.addTicketText}>Add Ticket Type</Text>
-                      <ArrowRight size={16} color="#FFFFFF" />
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.ticketBlock}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 16,
-                      width: "100%",
-                    }}
-                  >
-                    <Text style={styles.ticketBlockTitle}>
-                      Ticket Types ({ticketTypes.length})
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        Alert.alert("Edit Tickets", "Opens Ticket Editor")
-                      }
-                    >
-                      <Text
-                        style={{
-                          fontFamily: MODAL_TOKENS.fonts.medium,
-                          color: MODAL_TOKENS.primary,
-                        }}
-                      >
-                        Edit
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {ticketTypes.map((ticket, index) => (
-                    <View
-                      key={index}
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        backgroundColor: MODAL_TOKENS.surface,
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 8,
-                        width: "100%",
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Ticket size={16} color={MODAL_TOKENS.textSecondary} />
-                        <Text
-                          style={{
-                            fontFamily: MODAL_TOKENS.fonts.medium,
-                            color: MODAL_TOKENS.textPrimary,
-                            fontSize: 14,
-                          }}
-                        >
-                          {ticket.name}
-                        </Text>
-                      </View>
-                      <Text
-                        style={{
-                          fontFamily: MODAL_TOKENS.fonts.semibold,
-                          color: MODAL_TOKENS.textPrimary,
-                          fontSize: 14,
-                        }}
-                      >
-                        {ticket.price === 0 ? "Free" : `₹${ticket.price}`}
-                      </Text>
-                    </View>
-                  ))}
-
-                  <TouchableOpacity
-                    style={[styles.addTicketButton, { marginTop: 12 }]}
-                    onPress={() =>
-                      Alert.alert("Add Ticket", "Opens Ticket Editor")
-                    }
-                  >
-                    <LinearGradient
-                      colors={MODAL_TOKENS.primaryGradient}
-                      style={styles.addTicketGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <Text style={styles.addTicketText}>
-                        Add Another Ticket Type
-                      </Text>
-                      <Plus size={16} color="#FFFFFF" />
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* We can do similar for Discount/Pricing if needed, but for now just showing Ticket Types as the main block */}
               {ticketTypes.length > 0 && (
                 <>
                   <DiscountCodesEditor
+                    ref={discountEditorRef}
                     discountCodes={discountCodes}
                     onChange={setDiscountCodes}
+                    ticketTypes={ticketTypes}
                   />
                   <PricingRulesEditor
+                    ref={pricingEditorRef}
                     pricingRules={pricingRules}
                     onChange={setPricingRules}
+                    ticketTypes={ticketTypes}
+                    eventStartDate={eventDate}
                   />
                 </>
               )}
@@ -1387,7 +1362,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
         {/* Error Message Display */}
         {creationError && (
-          <View style={styles.errorContainer}>
+          <View
+            style={[
+              styles.errorContainer,
+              { marginBottom: insets.bottom + 100 },
+            ]}
+          >
             <Ionicons
               name="alert-circle"
               size={20}
@@ -1397,22 +1377,24 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           </View>
         )}
 
-        {/* Footer Actions */}
-        <View style={styles.footer}>
+        {/* Floating Pill CTA */}
+        <Animated.View
+          style={[styles.floatingFooter, { bottom: insets.bottom + 24 }]}
+        >
           {currentStep > 1 && (
             <TouchableOpacity
               onPress={handleBack}
-              style={styles.backButton}
+              style={styles.floatingBackButton}
               disabled={creating}
             >
-              <Text style={styles.backButtonText}>Back</Text>
+              <Text style={styles.floatingBackButtonText}>Back</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
             onPress={currentStep === 7 ? handleCreate : handleNext}
             style={[
-              styles.nextButton,
+              styles.floatingNextButton,
               creating && { opacity: 0.7 },
               currentStep === 1 && { marginLeft: "auto" },
             ]}
@@ -1429,7 +1411,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               />
             )}
             {!creating && (
-              <Text style={styles.nextButtonText}>
+              <Text style={styles.floatingNextButtonText}>
                 {currentStep === 7 ? "Publish Event" : "Next"}
               </Text>
             )}
@@ -1442,7 +1424,123 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
               />
             )}
           </TouchableOpacity>
-        </View>
+        </Animated.View>
+
+        {/* Add Ticket Type Bottom Sheet */}
+        <Modal
+          visible={showAddTicketSheet}
+          transparent
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={() => setShowAddTicketSheet(false)}
+        >
+          <TouchableOpacity
+            style={styles.sheetOverlay}
+            activeOpacity={1}
+            onPress={() => setShowAddTicketSheet(false)}
+          >
+            <View style={styles.sheetContainer}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>Add to Ticketing</Text>
+
+              {/* Normal Ticket */}
+              <TouchableOpacity
+                style={styles.sheetRow}
+                onPress={() => {
+                  setShowAddTicketSheet(false);
+                  setTimeout(
+                    () => ticketEditorRef.current?.openAddModal(),
+                    300,
+                  );
+                }}
+              >
+                <View
+                  style={[
+                    styles.sheetIconCircle,
+                    { backgroundColor: "#EEF2FF" },
+                  ]}
+                >
+                  <Ticket size={20} color={MODAL_TOKENS.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowTitle}>Ticket Type</Text>
+                  <Text style={styles.sheetRowDesc}>
+                    Standard admission tiers
+                  </Text>
+                </View>
+                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+
+              {/* Early Bird Pricing */}
+              <TouchableOpacity
+                style={[
+                  styles.sheetRow,
+                  ticketTypes.length === 0 && { opacity: 0.45 },
+                ]}
+                disabled={ticketTypes.length === 0}
+                onPress={() => {
+                  setShowAddTicketSheet(false);
+                  setTimeout(
+                    () => pricingEditorRef.current?.openAddModal(),
+                    300,
+                  );
+                }}
+              >
+                <View
+                  style={[
+                    styles.sheetIconCircle,
+                    { backgroundColor: "#FFF7ED" },
+                  ]}
+                >
+                  <Ionicons name="flash" size={20} color="#F59E0B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowTitle}>Early Bird Pricing</Text>
+                  <Text style={styles.sheetRowDesc}>
+                    {ticketTypes.length === 0
+                      ? "Add a ticket type first"
+                      : "Time or quantity-based auto-discounts"}
+                  </Text>
+                </View>
+                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+
+              {/* Discount Code */}
+              <TouchableOpacity
+                style={[
+                  styles.sheetRow,
+                  ticketTypes.length === 0 && { opacity: 0.45 },
+                ]}
+                disabled={ticketTypes.length === 0}
+                onPress={() => {
+                  setShowAddTicketSheet(false);
+                  setTimeout(
+                    () => discountEditorRef.current?.openAddModal(),
+                    300,
+                  );
+                }}
+              >
+                <View
+                  style={[
+                    styles.sheetIconCircle,
+                    { backgroundColor: "#F0FDF4" },
+                  ]}
+                >
+                  <Ionicons name="pricetag" size={20} color="#22C55E" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowTitle}>Discount Code</Text>
+                  <Text style={styles.sheetRowDesc}>
+                    {ticketTypes.length === 0
+                      ? "Add a ticket type first"
+                      : "Promo codes for attendees"}
+                  </Text>
+                </View>
+                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Draft Prompt Modal */}
         <Modal visible={showDraftPrompt} transparent animationType="fade">
@@ -1548,11 +1646,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   scrollContent: {
-    paddingBottom: 40,
-  },
-  scrollContent: {
     padding: 20,
-    paddingBottom: 100,
+    paddingBottom: 120, // Enough padding to not hide behind floating CTA
   },
 
   // Section Blocks
@@ -1622,26 +1717,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  // Footer
-  footer: {
+  // Floating Footer CTA
+  floatingFooter: {
+    position: "absolute",
+    left: 20,
+    right: 20,
     flexDirection: "row",
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: MODAL_TOKENS.border,
-    backgroundColor: MODAL_TOKENS.background,
     alignItems: "center",
     justifyContent: "space-between",
+    zIndex: 100,
   },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+  floatingBackButton: {
+    backgroundColor: MODAL_TOKENS.surface,
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    ...MODAL_TOKENS.shadow.sm,
   },
-  backButtonText: {
+  floatingBackButtonText: {
     fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 16,
     color: MODAL_TOKENS.textSecondary,
   },
-  nextButton: {
+  floatingNextButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1652,7 +1752,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     ...MODAL_TOKENS.shadow.md,
   },
-  nextButtonText: {
+  floatingNextButtonText: {
     fontFamily: MODAL_TOKENS.fonts.semibold,
     fontSize: 16,
     color: "#ffffff",
@@ -2015,6 +2115,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MODAL_TOKENS.textPrimary,
     flex: 1,
+  },
+
+  // Add Ticket Bottom Sheet
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  sheetContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D1D5DB",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 18,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 16,
+  },
+  sheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 14,
+  },
+  sheetIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetRowTitle: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  sheetRowDesc: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+    marginTop: 2,
   },
 });
 
