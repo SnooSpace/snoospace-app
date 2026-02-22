@@ -20,12 +20,17 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { COLORS, SHADOWS } from "../../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
+import {
+  KeyboardAwareScrollView,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
@@ -47,6 +52,31 @@ const TicketTypesEditor = React.forwardRef(
     const [editingIndex, setEditingIndex] = useState(null);
     const [showSalesStartPicker, setShowSalesStartPicker] = useState(false);
     const [showSalesEndPicker, setShowSalesEndPicker] = useState(false);
+
+    const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+    React.useEffect(() => {
+      const showSubscription = Keyboard.addListener(
+        Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+        () => setKeyboardVisible(true),
+      );
+      const hideSubscription = Keyboard.addListener(
+        Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+        () => setKeyboardVisible(false),
+      );
+
+      return () => {
+        showSubscription.remove();
+        hideSubscription.remove();
+      };
+    }, []);
+
+    // Progressive Disclosure States
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [capacityMode, setCapacityMode] = useState("unlimited"); // "unlimited" | "limited"
+    const [salesMode, setSalesMode] = useState("duration"); // "duration" | "custom"
+    const [genderMode, setGenderMode] = useState("none"); // "none" | "restricted"
+
     const [currentTicket, setCurrentTicket] = useState({
       name: "",
       description: "",
@@ -74,6 +104,10 @@ const TicketTypesEditor = React.forwardRef(
         sales_end_date: null,
       });
       setEditingIndex(null);
+      setShowAdvanced(false);
+      setCapacityMode("unlimited");
+      setSalesMode("duration");
+      setGenderMode("none");
     };
 
     const openAddModal = () => {
@@ -104,6 +138,20 @@ const TicketTypesEditor = React.forwardRef(
           ? new Date(ticket.sales_end_date)
           : null,
       });
+
+      setCapacityMode(ticket.total_quantity ? "limited" : "unlimited");
+      setSalesMode(
+        ticket.sales_start_date || ticket.sales_end_date
+          ? "custom"
+          : "duration",
+      );
+      setGenderMode(
+        ticket.gender_restriction && ticket.gender_restriction !== "all"
+          ? "restricted"
+          : "none",
+      );
+      setShowAdvanced(false);
+
       setEditingIndex(index);
       setShowModal(true);
     };
@@ -142,16 +190,26 @@ const TicketTypesEditor = React.forwardRef(
         name: currentTicket.name.trim(),
         description: currentTicket.description.trim() || null,
         base_price: parseFloat(currentTicket.base_price) || 0,
-        total_quantity: currentTicket.total_quantity
-          ? parseInt(currentTicket.total_quantity)
-          : null,
+        total_quantity:
+          capacityMode === "limited" && currentTicket.total_quantity
+            ? parseInt(currentTicket.total_quantity)
+            : null,
         visibility: currentTicket.visibility,
-        gender_restriction: currentTicket.gender_restriction || "all",
+        gender_restriction:
+          genderMode === "restricted"
+            ? currentTicket.gender_restriction
+            : "all",
         min_per_order: parseInt(currentTicket.min_per_order) || 1,
         max_per_order: parseInt(currentTicket.max_per_order) || 10,
         is_active: true,
-        sales_start_date: currentTicket.sales_start_date?.toISOString() || null,
-        sales_end_date: currentTicket.sales_end_date?.toISOString() || null,
+        sales_start_date:
+          salesMode === "custom" && currentTicket.sales_start_date
+            ? currentTicket.sales_start_date.toISOString()
+            : null,
+        sales_end_date:
+          salesMode === "custom" && currentTicket.sales_end_date
+            ? currentTicket.sales_end_date.toISOString()
+            : null,
       };
 
       if (editingIndex !== null) {
@@ -455,10 +513,7 @@ const TicketTypesEditor = React.forwardRef(
           statusBarTranslucent={true}
           onRequestClose={() => setShowModal(false)}
         >
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-          >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.sheetHandle} />
 
@@ -468,177 +523,451 @@ const TicketTypesEditor = React.forwardRef(
                     ? "Edit Ticket Type"
                     : "Add Ticket Type"}
                 </Text>
-                <TouchableOpacity
-                  onPress={() => setShowModal(false)}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={20} color={TEXT_COLOR} />
-                </TouchableOpacity>
               </View>
 
-              <ScrollView
+              <KeyboardAwareScrollView
                 style={styles.modalBody}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 120 }}
+                contentContainerStyle={{ paddingBottom: 150 }}
+                bottomOffset={80}
               >
-                {/* Name */}
-                <Text style={[styles.fieldLabel, { marginTop: 0 }]}>
-                  Ticket Name *
-                </Text>
+                {/* BASICS */}
+                <Text style={styles.sectionHeader}>BASICS</Text>
+
+                {/* Ticket Name */}
+                <Text style={styles.fieldLabel}>Ticket Name *</Text>
                 <TextInput
                   style={styles.input}
                   value={currentTicket.name}
                   onChangeText={(text) =>
                     setCurrentTicket({ ...currentTicket, name: text })
                   }
-                  placeholder="e.g., General Admission, VIP"
+                  placeholder="e.g., General Admission"
                   placeholderTextColor={LIGHT_TEXT_COLOR}
                 />
-
-                {/* Description */}
-                <Text style={styles.fieldLabel}>Description</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={currentTicket.description}
-                  onChangeText={(text) =>
-                    setCurrentTicket({ ...currentTicket, description: text })
-                  }
-                  placeholder="What's included with this ticket?"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  multiline
-                  numberOfLines={3}
-                />
+                <View style={styles.quickChipsContainer}>
+                  {[
+                    "General Admission",
+                    "VIP",
+                    "Early Bird",
+                    "Couple Pass",
+                  ].map((preset) => (
+                    <TouchableOpacity
+                      key={preset}
+                      style={[
+                        styles.quickChip,
+                        currentTicket.name === preset && styles.quickChipActive,
+                      ]}
+                      onPress={() =>
+                        setCurrentTicket({ ...currentTicket, name: preset })
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.quickChipText,
+                          currentTicket.name === preset &&
+                            styles.quickChipTextActive,
+                        ]}
+                      >
+                        {preset}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
                 {/* Price */}
-                <Text style={styles.fieldLabel}>Price (₹)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentTicket.base_price}
-                  onChangeText={(text) =>
-                    setCurrentTicket({ ...currentTicket, base_price: text })
-                  }
-                  placeholder="0 for free tickets"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  keyboardType="numeric"
-                />
-
-                {/* Max Attendees */}
-                <Text style={styles.fieldLabel}>Capacity Limit</Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentTicket.total_quantity}
-                  onChangeText={(text) =>
-                    setCurrentTicket({ ...currentTicket, total_quantity: text })
-                  }
-                  placeholder="Leave empty for unlimited capacity"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  keyboardType="numeric"
-                />
-                {/* Capacity Helper */}
-                {currentTicket.total_quantity
-                  ? (() => {
-                      const helper = getCapacityHelper(currentTicket);
-                      return helper ? (
-                        <Text
-                          style={[styles.helperText, { color: helper.color }]}
-                        >
-                          {helper.text}
-                        </Text>
-                      ) : null;
-                    })()
-                  : null}
-
-                {/* Sales Window */}
-                <Text style={styles.fieldLabel}>Sales Window (Optional)</Text>
-                <Text style={styles.helperText}>
-                  If not set, sales close when the event starts
-                </Text>
-                <View style={styles.salesWindowRow}>
-                  <TouchableOpacity
-                    style={[styles.datePickerBtn, { flex: 1 }]}
-                    onPress={() => setShowSalesStartPicker(true)}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={16}
-                      color={COLORS.primary}
-                    />
-                    <Text style={styles.datePickerBtnText} numberOfLines={1}>
-                      {currentTicket.sales_start_date
-                        ? currentTicket.sales_start_date.toLocaleDateString()
-                        : "Start date"}
-                    </Text>
-                    {currentTicket.sales_start_date && (
-                      <TouchableOpacity
-                        onPress={() =>
-                          setCurrentTicket({
-                            ...currentTicket,
-                            sales_start_date: null,
-                          })
-                        }
-                      >
-                        <Ionicons
-                          name="close-circle"
-                          size={16}
-                          color={LIGHT_TEXT_COLOR}
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={14}
-                    color={LIGHT_TEXT_COLOR}
+                <View style={styles.fieldSpacing} />
+                <Text style={styles.fieldLabel}>Price *</Text>
+                <View style={styles.priceInputWrapper}>
+                  <Text style={styles.currencySymbol}>₹</Text>
+                  <TextInput
+                    style={styles.priceInput}
+                    value={currentTicket.base_price}
+                    onChangeText={(text) =>
+                      setCurrentTicket({ ...currentTicket, base_price: text })
+                    }
+                    placeholder="0.00"
+                    placeholderTextColor={LIGHT_TEXT_COLOR}
+                    keyboardType="numeric"
                   />
+                </View>
+                <Text style={styles.inputHelper}>Enter 0 for free tickets</Text>
+
+                {/* Capacity */}
+                <View style={styles.fieldSpacing} />
+                <Text style={styles.fieldLabel}>Capacity</Text>
+                <TouchableOpacity
+                  style={styles.radioRow}
+                  onPress={() => setCapacityMode("unlimited")}
+                >
+                  <Ionicons
+                    name={
+                      capacityMode === "unlimited"
+                        ? "radio-button-on"
+                        : "radio-button-off"
+                    }
+                    size={20}
+                    color={
+                      capacityMode === "unlimited"
+                        ? COLORS.primary
+                        : LIGHT_TEXT_COLOR
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.radioText,
+                      capacityMode === "unlimited" && styles.radioTextActive,
+                    ]}
+                  >
+                    Unlimited
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.radioRow}>
                   <TouchableOpacity
-                    style={[styles.datePickerBtn, { flex: 1 }]}
-                    onPress={() => setShowSalesEndPicker(true)}
+                    style={styles.radioRowHeader}
+                    onPress={() => setCapacityMode("limited")}
                   >
                     <Ionicons
-                      name="calendar-outline"
-                      size={16}
-                      color={COLORS.primary}
+                      name={
+                        capacityMode === "limited"
+                          ? "radio-button-on"
+                          : "radio-button-off"
+                      }
+                      size={20}
+                      color={
+                        capacityMode === "limited"
+                          ? COLORS.primary
+                          : LIGHT_TEXT_COLOR
+                      }
                     />
-                    <Text style={styles.datePickerBtnText} numberOfLines={1}>
-                      {currentTicket.sales_end_date
-                        ? currentTicket.sales_end_date.toLocaleDateString()
-                        : "End date"}
+                    <Text
+                      style={[
+                        styles.radioText,
+                        capacityMode === "limited" && styles.radioTextActive,
+                      ]}
+                    >
+                      Limited to
                     </Text>
-                    {currentTicket.sales_end_date && (
+                  </TouchableOpacity>
+                  {capacityMode === "limited" && (
+                    <TextInput
+                      style={styles.inlineNumberInput}
+                      value={currentTicket.total_quantity}
+                      onChangeText={(text) =>
+                        setCurrentTicket({
+                          ...currentTicket,
+                          total_quantity: text,
+                        })
+                      }
+                      placeholder="100"
+                      keyboardType="numeric"
+                    />
+                  )}
+                </View>
+
+                <View style={styles.sectionDivider} />
+
+                {/* ADVANCED SETTINGS COLLAPSIBLE */}
+                <TouchableOpacity
+                  style={styles.advancedHeader}
+                  onPress={() => setShowAdvanced(!showAdvanced)}
+                >
+                  <Text style={styles.advancedHeaderText}>
+                    Advanced Settings
+                  </Text>
+                  <Ionicons
+                    name={showAdvanced ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color="#374151"
+                  />
+                </TouchableOpacity>
+
+                {showAdvanced && (
+                  <View style={styles.advancedContainer}>
+                    {/* Description */}
+                    <Text style={styles.fieldLabel}>Description</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      value={currentTicket.description}
+                      onChangeText={(text) =>
+                        setCurrentTicket({
+                          ...currentTicket,
+                          description: text,
+                        })
+                      }
+                      placeholder="What's included with this ticket?"
+                      placeholderTextColor={LIGHT_TEXT_COLOR}
+                      multiline
+                    />
+
+                    {/* Sales Window */}
+                    <View style={styles.fieldSpacing} />
+                    <Text style={styles.fieldLabel}>Sales Window</Text>
+                    <TouchableOpacity
+                      style={styles.radioRow}
+                      onPress={() => setSalesMode("duration")}
+                    >
+                      <Ionicons
+                        name={
+                          salesMode === "duration"
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={20}
+                        color={
+                          salesMode === "duration"
+                            ? COLORS.primary
+                            : LIGHT_TEXT_COLOR
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.radioText,
+                          salesMode === "duration" && styles.radioTextActive,
+                        ]}
+                      >
+                        Entire event duration
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.radioRow}
+                      onPress={() => setSalesMode("custom")}
+                    >
+                      <Ionicons
+                        name={
+                          salesMode === "custom"
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={20}
+                        color={
+                          salesMode === "custom"
+                            ? COLORS.primary
+                            : LIGHT_TEXT_COLOR
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.radioText,
+                          salesMode === "custom" && styles.radioTextActive,
+                        ]}
+                      >
+                        Custom dates
+                      </Text>
+                    </TouchableOpacity>
+
+                    {salesMode === "custom" && (
+                      <View style={styles.customDatesContainer}>
+                        <View style={styles.datePickerWrapper}>
+                          <Text style={styles.dateLabel}>Start:</Text>
+                          <TouchableOpacity
+                            style={styles.datePickerBtnCompact}
+                            onPress={() => setShowSalesStartPicker(true)}
+                          >
+                            <Text
+                              style={styles.datePickerBtnText}
+                              numberOfLines={1}
+                            >
+                              {currentTicket.sales_start_date
+                                ? new Date(
+                                    currentTicket.sales_start_date,
+                                  ).toLocaleDateString()
+                                : "Select date"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.datePickerWrapper}>
+                          <Text style={styles.dateLabel}>End:</Text>
+                          <TouchableOpacity
+                            style={styles.datePickerBtnCompact}
+                            onPress={() => setShowSalesEndPicker(true)}
+                          >
+                            <Text
+                              style={styles.datePickerBtnText}
+                              numberOfLines={1}
+                            >
+                              {currentTicket.sales_end_date
+                                ? new Date(
+                                    currentTicket.sales_end_date,
+                                  ).toLocaleDateString()
+                                : "Select date"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Date Errors */}
+                        {currentTicket.sales_start_date &&
+                          currentTicket.sales_end_date &&
+                          currentTicket.sales_end_date <
+                            currentTicket.sales_start_date && (
+                            <Text style={styles.validationError}>
+                              End date cannot be before start date
+                            </Text>
+                          )}
+                        {currentTicket.sales_end_date &&
+                          eventStartDate &&
+                          currentTicket.sales_end_date >
+                            new Date(eventStartDate) && (
+                            <Text style={styles.validationWarning}>
+                              Sales must close before the event starts
+                            </Text>
+                          )}
+                      </View>
+                    )}
+                    {salesMode === "duration" && (
+                      <Text style={styles.inputHelper}>
+                        Defaults to event duration if not customized
+                      </Text>
+                    )}
+
+                    {/* Visibility */}
+                    <View style={styles.fieldSpacing} />
+                    <Text style={styles.fieldLabel}>Visibility</Text>
+                    <View style={styles.segmentedControl}>
                       <TouchableOpacity
+                        style={[
+                          styles.segmentBtn,
+                          currentTicket.visibility === "public" &&
+                            styles.segmentBtnActive,
+                        ]}
                         onPress={() =>
                           setCurrentTicket({
                             ...currentTicket,
-                            sales_end_date: null,
+                            visibility: "public",
                           })
                         }
                       >
-                        <Ionicons
-                          name="close-circle"
-                          size={16}
-                          color={LIGHT_TEXT_COLOR}
-                        />
+                        <Text
+                          style={[
+                            styles.segmentText,
+                            currentTicket.visibility === "public" &&
+                              styles.segmentTextActive,
+                          ]}
+                        >
+                          🌍 Public
+                        </Text>
                       </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.segmentBtn,
+                          currentTicket.visibility === "invite_only" &&
+                            styles.segmentBtnActive,
+                        ]}
+                        onPress={() =>
+                          setCurrentTicket({
+                            ...currentTicket,
+                            visibility: "invite_only",
+                          })
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.segmentText,
+                            currentTicket.visibility === "invite_only" &&
+                              styles.segmentTextActive,
+                          ]}
+                        >
+                          🔒 Invite Only
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {currentTicket.visibility === "invite_only" && (
+                      <Text style={styles.inputHelper}>
+                        Only users with direct link can purchase
+                      </Text>
                     )}
-                  </TouchableOpacity>
-                </View>
-                {/* Sales window inline validation */}
-                {currentTicket.sales_start_date &&
-                  currentTicket.sales_end_date &&
-                  currentTicket.sales_end_date <
-                    currentTicket.sales_start_date && (
-                    <Text style={styles.validationError}>
-                      End date cannot be before start date
-                    </Text>
-                  )}
-                {currentTicket.sales_end_date &&
-                  eventStartDate &&
-                  currentTicket.sales_end_date > eventStartDate && (
-                    <Text style={styles.validationWarning}>
-                      Sales must end before event starts
-                    </Text>
-                  )}
 
+                    {/* Gender Restriction */}
+                    <View style={styles.fieldSpacing} />
+                    <Text style={styles.fieldLabel}>Restrict by gender?</Text>
+                    <TouchableOpacity
+                      style={styles.radioRow}
+                      onPress={() => setGenderMode("none")}
+                    >
+                      <Ionicons
+                        name={
+                          genderMode === "none"
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={20}
+                        color={
+                          genderMode === "none"
+                            ? COLORS.primary
+                            : LIGHT_TEXT_COLOR
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.radioText,
+                          genderMode === "none" && styles.radioTextActive,
+                        ]}
+                      >
+                        No restriction
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.radioRow}
+                      onPress={() => setGenderMode("restricted")}
+                    >
+                      <Ionicons
+                        name={
+                          genderMode === "restricted"
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={20}
+                        color={
+                          genderMode === "restricted"
+                            ? COLORS.primary
+                            : LIGHT_TEXT_COLOR
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.radioText,
+                          genderMode === "restricted" && styles.radioTextActive,
+                        ]}
+                      >
+                        Yes
+                      </Text>
+                    </TouchableOpacity>
+
+                    {genderMode === "restricted" && (
+                      <View style={styles.genderChipsContainer}>
+                        {["Male", "Female", "Non-binary"].map((g) => (
+                          <TouchableOpacity
+                            key={g}
+                            style={[
+                              styles.genderChip,
+                              currentTicket.gender_restriction === g &&
+                                styles.genderChipActive,
+                            ]}
+                            onPress={() =>
+                              setCurrentTicket({
+                                ...currentTicket,
+                                gender_restriction: g,
+                              })
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.genderChipText,
+                                currentTicket.gender_restriction === g &&
+                                  styles.genderChipTextActive,
+                              ]}
+                            >
+                              {g === "Male" ? "M" : g === "Female" ? "F" : "NB"}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Date Pickers (Invisible normally) */}
                 {showSalesStartPicker && (
                   <DateTimePicker
                     value={currentTicket.sales_start_date || new Date()}
@@ -673,115 +1002,77 @@ const TicketTypesEditor = React.forwardRef(
                     }}
                   />
                 )}
+              </KeyboardAwareScrollView>
 
-                {/* Scope Label */}
-                <Text style={[styles.helperText, { marginTop: 16 }]}>
-                  Ticket sales close at event start unless scheduled earlier
-                </Text>
-
-                {/* Visibility */}
-                <Text style={styles.fieldLabel}>Visibility</Text>
-                <View style={styles.pillContainer}>
-                  {["public", "invite_only"].map((vis) => (
-                    <TouchableOpacity
-                      key={vis}
-                      style={[
-                        styles.pillOption,
-                        currentTicket.visibility === vis &&
-                          styles.pillOptionActive,
-                      ]}
-                      onPress={() =>
-                        setCurrentTicket({ ...currentTicket, visibility: vis })
-                      }
-                    >
-                      <Ionicons
-                        name={
-                          vis === "public"
-                            ? "globe-outline"
-                            : "lock-closed-outline"
-                        }
-                        size={16}
-                        color={
-                          currentTicket.visibility === vis
-                            ? COLORS.primary
-                            : LIGHT_TEXT_COLOR
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.pillOptionText,
-                          currentTicket.visibility === vis &&
-                            styles.pillOptionTextActive,
-                        ]}
-                      >
-                        {vis === "invite_only" ? "Invite Only" : "Public"}
+              {/* LIVE PREVIEW CARD */}
+              {!isKeyboardVisible && (
+                <View style={styles.livePreviewContainer}>
+                  <View style={styles.previewCard}>
+                    <View style={styles.previewCardHeader}>
+                      <Text style={styles.previewCardTitle} numberOfLines={1}>
+                        🎟 {currentTicket.name || "Ticket Name"}
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Gender Restriction */}
-                <Text style={styles.fieldLabel}>Gender Restriction</Text>
-                <View style={styles.pillContainer}>
-                  {[
-                    { key: "all", label: "All" },
-                    { key: "Male", label: "M" },
-                    { key: "Female", label: "F" },
-                    { key: "Non-binary", label: "NB" },
-                  ].map((g) => (
-                    <TouchableOpacity
-                      key={g.key}
-                      style={[
-                        styles.compactPill,
-                        currentTicket.gender_restriction === g.key &&
-                          styles.compactPillActive,
-                      ]}
-                      onPress={() =>
-                        setCurrentTicket({
-                          ...currentTicket,
-                          gender_restriction: g.key,
-                        })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.compactPillText,
-                          currentTicket.gender_restriction === g.key &&
-                            styles.compactPillTextActive,
-                        ]}
-                      >
-                        {g.label}
+                      <Text style={styles.previewCardPrice}>
+                        {currentTicket.base_price &&
+                        parseFloat(currentTicket.base_price) > 0
+                          ? `₹${parseFloat(currentTicket.base_price).toLocaleString("en-IN")}`
+                          : "Free"}
                       </Text>
-                    </TouchableOpacity>
-                  ))}
+                    </View>
+                    <Text style={styles.previewCardMeta}>
+                      {capacityMode === "limited" &&
+                      currentTicket.total_quantity
+                        ? `Limited to ${currentTicket.total_quantity}`
+                        : "Unlimited capacity"}{" "}
+                      •{" "}
+                      {currentTicket.visibility === "invite_only"
+                        ? "Invite Only"
+                        : "Public"}{" "}
+                      •{" "}
+                      {genderMode === "restricted" &&
+                      currentTicket.gender_restriction &&
+                      currentTicket.gender_restriction !== "all"
+                        ? `${currentTicket.gender_restriction} Only`
+                        : "All genders"}
+                    </Text>
+                  </View>
                 </View>
-              </ScrollView>
+              )}
 
-              {/* Save Button (Floating) */}
-              <View
-                style={[
-                  styles.floatingFooter,
-                  { paddingBottom: Math.max(insets.bottom, 20) },
-                ]}
+              {/* STICKY FOOTER */}
+              <KeyboardStickyView
+                offset={{ closed: 0, opened: 0 }}
+                style={styles.stickyFooterContainer}
               >
-                <TouchableOpacity
-                  style={styles.saveButton}
-                  onPress={handleSave}
+                <View
+                  style={[
+                    styles.stickyFooter,
+                    { paddingBottom: Math.max(insets.bottom, 20) },
+                  ]}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.saveButtonGradient}
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setShowModal(false)}
                   >
-                    <Text style={styles.saveButtonText}>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryAddButton,
+                      !currentTicket.name.trim() &&
+                        styles.primaryAddButtonDisabled,
+                    ]}
+                    onPress={handleSave}
+                    disabled={!currentTicket.name.trim()}
+                  >
+                    <Text style={styles.primaryAddButtonText}>
                       {editingIndex !== null ? "Update Ticket" : "Add Ticket"}
                     </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+                  </TouchableOpacity>
+                </View>
+              </KeyboardStickyView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       </View>
     );
@@ -1019,8 +1310,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: FONTS.primary,
+    fontSize: 22,
     color: TEXT_COLOR,
   },
   closeButton: {
@@ -1032,23 +1323,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalBody: {
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
   fieldLabel: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
     color: "#374151",
-    marginBottom: 8,
-    marginTop: 24,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: TEXT_COLOR,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
   },
   textArea: {
     minHeight: 100,
@@ -1197,6 +1490,298 @@ const styles = StyleSheet.create({
   compactPillTextActive: {
     color: COLORS.primary,
     fontWeight: "600",
+  },
+
+  // --- REDESIGN STYLES ---
+  sectionHeader: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: "#6B7280",
+    marginBottom: 20,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 32,
+  },
+  fieldSpacing: {
+    height: 20,
+  },
+  quickChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  quickChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  quickChipActive: {
+    backgroundColor: "#EEF2FF",
+    borderColor: COLORS.primary,
+  },
+  quickChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  quickChipTextActive: {
+    color: COLORS.primary,
+  },
+  priceInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  currencySymbol: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginRight: 8,
+  },
+  priceInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: TEXT_COLOR,
+    textAlign: "right",
+  },
+  inputHelper: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 6,
+  },
+  radioRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+  },
+  radioRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  radioText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#374151",
+  },
+  radioTextActive: {
+    color: COLORS.primary,
+  },
+  inlineNumberInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    width: 80,
+    marginLeft: 12,
+    textAlign: "center",
+  },
+  advancedHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  advancedHeaderText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#374151",
+  },
+  advancedContainer: {
+    marginTop: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  customDatesContainer: {
+    marginTop: 12,
+    gap: 12,
+    paddingLeft: 32,
+  },
+  datePickerWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#4B5563",
+  },
+  datePickerBtnCompact: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    width: 140,
+    alignItems: "center",
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    padding: 4,
+    height: 44,
+  },
+  segmentBtn: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  segmentBtnActive: {
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  segmentTextActive: {
+    color: "#FFFFFF",
+  },
+  genderChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+    paddingLeft: 32,
+  },
+  genderChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  genderChipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#EEF2FF",
+  },
+  genderChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  genderChipTextActive: {
+    color: COLORS.primary,
+  },
+  livePreviewContainer: {
+    position: "absolute",
+    bottom: 92,
+    left: 20,
+    right: 20,
+    zIndex: 10,
+    elevation: 10,
+  },
+  previewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  previewCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  previewCardTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 16,
+    color: "#111827",
+    flex: 1,
+    marginRight: 12,
+  },
+  previewCardPrice: {
+    fontFamily: FONTS.black,
+    fontSize: 18,
+    color: "#111827",
+  },
+  previewCardMeta: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  stickyFooterContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  stickyFooter: {
+    height: 80,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 16,
+  },
+  cancelButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    height: 48,
+    borderRadius: 12,
+  },
+  cancelButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#374151",
+  },
+  primaryAddButton: {
+    flex: 2,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    height: 48,
+    borderRadius: 12,
+  },
+  primaryAddButtonDisabled: {
+    opacity: 0.5,
+  },
+  primaryAddButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#FFFFFF",
   },
 });
 
