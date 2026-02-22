@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import { COLORS, SHADOWS } from "../../constants/theme";
 
 const TEXT_COLOR = "#1C1C1E";
@@ -29,8 +29,7 @@ const DiscountCodesEditor = React.forwardRef(
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState(null);
-    const [showValidFromPicker, setShowValidFromPicker] = useState(false);
-    const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
+    const [showValidityPicker, setShowValidityPicker] = useState(false);
 
     const [currentCode, setCurrentCode] = useState({
       code: "",
@@ -341,353 +340,379 @@ const DiscountCodesEditor = React.forwardRef(
               <ScrollView
                 style={styles.modalBody}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 120 }}
+                contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
               >
-                {/* Code */}
-                <Text style={[styles.fieldLabel, { marginTop: 0 }]}>
-                  Promo Code *
-                </Text>
-                <View style={styles.codeInputRow}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    value={currentCode.code}
-                    onChangeText={(text) =>
-                      setCurrentCode({
-                        ...currentCode,
-                        code: text.toUpperCase(),
-                      })
-                    }
-                    placeholder="e.g., EARLYBIRD20, VIP50"
-                    placeholderTextColor={LIGHT_TEXT_COLOR}
-                    autoCapitalize="characters"
-                  />
-                  <TouchableOpacity
-                    style={styles.generateBtn}
-                    onPress={generateCode}
-                  >
-                    <Ionicons
-                      name="sparkles"
-                      size={14}
-                      color={COLORS.primary}
+                {/* ── CARD 1: Code Details ── */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Code Details</Text>
+
+                  <Text style={styles.fieldLabel}>Promo Code *</Text>
+                  <View style={styles.codeInputRow}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={currentCode.code}
+                      onChangeText={(text) =>
+                        setCurrentCode({
+                          ...currentCode,
+                          code: text.toUpperCase(),
+                        })
+                      }
+                      placeholder="e.g., EARLYBIRD20, VIP50"
+                      placeholderTextColor="#94A3B8"
+                      autoCapitalize="characters"
                     />
-                    <Text style={styles.generateBtnText}>Generate</Text>
-                  </TouchableOpacity>
+
+                    <View style={styles.dotSeparator} />
+
+                    <TouchableOpacity
+                      style={styles.generateBtn}
+                      onPress={generateCode}
+                    >
+                      <Ionicons
+                        name="sparkles"
+                        size={14}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.generateBtnText}>Generate</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                {/* Discount Type */}
-                <Text style={styles.fieldLabel}>Discount Type</Text>
-                <View style={styles.pillContainer}>
-                  {["percentage", "flat"].map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[
-                        styles.pillOption,
-                        currentCode.discount_type === type &&
-                          styles.pillOptionActive,
-                      ]}
-                      onPress={() =>
-                        setCurrentCode({ ...currentCode, discount_type: type })
-                      }
-                    >
-                      <Text
+                {/* ── CARD 2: Discount Configuration ── */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Discount Configuration</Text>
+
+                  <Text style={styles.fieldLabel}>Type</Text>
+                  <View style={styles.segContainer}>
+                    {["percentage", "flat"].map((type) => (
+                      <TouchableOpacity
+                        key={type}
                         style={[
-                          styles.pillOptionText,
+                          styles.segBtn,
                           currentCode.discount_type === type &&
-                            styles.pillOptionTextActive,
+                            styles.segBtnActive,
                         ]}
+                        onPress={() =>
+                          setCurrentCode({
+                            ...currentCode,
+                            discount_type: type,
+                          })
+                        }
                       >
-                        {type === "percentage"
-                          ? "Percentage (%)"
-                          : "Flat Amount (₹)"}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Discount Value */}
-                <Text style={styles.fieldLabel}>
-                  Discount Value{" "}
-                  {currentCode.discount_type === "percentage" ? "(%)" : "(₹)"} *
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentCode.discount_value}
-                  onChangeText={(text) =>
-                    setCurrentCode({ ...currentCode, discount_value: text })
-                  }
-                  placeholder={
-                    currentCode.discount_type === "percentage" ? "20" : "500"
-                  }
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  keyboardType="numeric"
-                />
-
-                {/* Discount Preview */}
-                {(() => {
-                  const preview = getPreviewPrice();
-                  if (!preview) return null;
-                  const exceeded =
-                    currentCode.discount_type === "percentage"
-                      ? parseFloat(currentCode.discount_value) > 100
-                      : (parseFloat(currentCode.discount_value) || 0) >
-                        preview.original;
-                  return (
-                    <View style={styles.previewBlock}>
-                      <Text style={styles.previewTitle}>
-                        {ticketTypes.length > 0
-                          ? `Preview (${ticketTypes[0].name})`
-                          : "Example Preview (₹1,000 ticket)"}
-                      </Text>
-                      <View style={styles.previewPriceRow}>
-                        <Text style={styles.previewOldPrice}>
-                          ₹{preview.original.toLocaleString("en-IN")}
+                        <Text
+                          style={[
+                            styles.segBtnText,
+                            currentCode.discount_type === type &&
+                              styles.segBtnTextActive,
+                          ]}
+                        >
+                          {type === "percentage"
+                            ? "Percentage (%)"
+                            : "Flat Amount (₹)"}
                         </Text>
-                        <Ionicons
-                          name="arrow-forward"
-                          size={14}
-                          color={LIGHT_TEXT_COLOR}
-                          style={{ marginHorizontal: 6 }}
-                        />
-                        <Text style={styles.previewNewPrice}>
-                          ₹
-                          {Math.max(0, preview.discounted).toLocaleString(
-                            "en-IN",
-                          )}
-                        </Text>
-                      </View>
-                      {exceeded && (
-                        <Text style={styles.validationWarning}>
-                          Discount exceeds ticket price
-                        </Text>
-                      )}
-                    </View>
-                  );
-                })()}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-                {/* Max Uses */}
-                <Text style={styles.fieldLabel}>Max Uses (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentCode.max_uses}
-                  onChangeText={(text) =>
-                    setCurrentCode({ ...currentCode, max_uses: text })
-                  }
-                  placeholder="Leave empty for unlimited"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  keyboardType="numeric"
-                />
-
-                {/* Applies To */}
-                <Text style={styles.fieldLabel}>Applies To</Text>
-                <View style={styles.pillContainer}>
-                  {["all", "specific"].map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[
-                        styles.pillOption,
-                        currentCode.applies_to === opt &&
-                          styles.pillOptionActive,
-                        opt === "specific" &&
-                          ticketTypes.length === 0 && { opacity: 0.5 },
-                      ]}
-                      disabled={opt === "specific" && ticketTypes.length === 0}
-                      onPress={() =>
-                        setCurrentCode({ ...currentCode, applies_to: opt })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.pillOptionText,
-                          currentCode.applies_to === opt &&
-                            styles.pillOptionTextActive,
-                        ]}
-                      >
-                        {opt === "all" ? "All Tickets" : "Specific Tickets"}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {ticketTypes.length === 0 && (
-                  <Text style={styles.helperText}>
-                    Create tickets first to select specific ones
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                    Value{" "}
+                    {currentCode.discount_type === "percentage" ? "(%)" : "(₹)"}{" "}
+                    *
                   </Text>
-                )}
-                {currentCode.applies_to === "specific" &&
-                  ticketTypes.length > 0 && (
-                    <View style={styles.ticketChipContainer}>
-                      {ticketTypes.map((t, idx) => {
-                        const selected = currentCode.selected_tickets.includes(
-                          t.name,
-                        );
-                        return (
-                          <TouchableOpacity
-                            key={idx}
-                            style={[
-                              styles.ticketChip,
-                              selected && styles.ticketChipSelected,
-                            ]}
-                            onPress={() => toggleTicketSelection(t.name)}
-                          >
-                            <Ionicons
-                              name={
-                                selected
-                                  ? "checkmark-circle"
-                                  : "ellipse-outline"
-                              }
-                              size={16}
-                              color={
-                                selected ? COLORS.primary : LIGHT_TEXT_COLOR
-                              }
-                            />
-                            <Text
-                              style={[
-                                styles.ticketChipText,
-                                selected && styles.ticketChipTextSelected,
-                              ]}
-                            >
-                              {t.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                  <TextInput
+                    style={styles.input}
+                    value={currentCode.discount_value}
+                    onChangeText={(text) =>
+                      setCurrentCode({ ...currentCode, discount_value: text })
+                    }
+                    placeholder={
+                      currentCode.discount_type === "percentage" ? "20" : "500"
+                    }
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+
+                  {/* Preview Box */}
+                  {(() => {
+                    const preview = getPreviewPrice();
+                    if (!preview) return null;
+                    const exceeded =
+                      currentCode.discount_type === "percentage"
+                        ? parseFloat(currentCode.discount_value) > 100
+                        : (parseFloat(currentCode.discount_value) || 0) >
+                          preview.original;
+                    return (
+                      <View style={styles.previewCard}>
+                        <Text style={styles.previewLabel}>
+                          {ticketTypes.length > 0
+                            ? `PREVIEW — ${ticketTypes[0].name.toUpperCase()}`
+                            : "PREVIEW — EXAMPLE TICKET"}
+                        </Text>
+                        <View style={styles.previewPriceRow}>
+                          <Text style={styles.previewOriginalPrice}>
+                            ₹{preview.original.toLocaleString("en-IN")}
+                          </Text>
+                          <Text style={styles.previewArrow}>→</Text>
+                          <Text style={styles.previewDiscountedPrice}>
+                            ₹
+                            {Math.max(0, preview.discounted).toLocaleString(
+                              "en-IN",
+                            )}
+                          </Text>
+                        </View>
+                        {exceeded && (
+                          <Text style={styles.validationWarning}>
+                            Discount exceeds ticket price
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })()}
+                </View>
+
+                {/* ── CARD 3: Conditions ── */}
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Conditions</Text>
+
+                  <Text style={styles.fieldLabel}>Max Uses (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={currentCode.max_uses}
+                    onChangeText={(text) =>
+                      setCurrentCode({ ...currentCode, max_uses: text })
+                    }
+                    placeholder="Leave empty for unlimited"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                    Applies To
+                  </Text>
+                  <View style={styles.segContainer}>
+                    {["all", "specific"].map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[
+                          styles.segBtn,
+                          currentCode.applies_to === opt && styles.segBtnActive,
+                          opt === "specific" &&
+                            ticketTypes.length === 0 && { opacity: 0.4 },
+                        ]}
+                        disabled={
+                          opt === "specific" && ticketTypes.length === 0
+                        }
+                        onPress={() =>
+                          setCurrentCode({ ...currentCode, applies_to: opt })
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.segBtnText,
+                            currentCode.applies_to === opt &&
+                              styles.segBtnTextActive,
+                          ]}
+                        >
+                          {opt === "all" ? "All Tickets" : "Specific Tickets"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {ticketTypes.length === 0 && (
+                    <Text style={styles.helperText}>
+                      Create tickets first to select specific ones
+                    </Text>
                   )}
 
-                {/* Stacking Rule */}
-                <View style={styles.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>
-                      Can combine with other discounts
-                    </Text>
-                    <Text style={styles.helperText}>
-                      When off, this code cannot stack with early bird pricing
-                    </Text>
+                  {currentCode.applies_to === "specific" &&
+                    ticketTypes.length > 0 && (
+                      <View style={styles.chipGrid}>
+                        {ticketTypes.map((t, idx) => {
+                          const selected =
+                            currentCode.selected_tickets.includes(t.name);
+                          return (
+                            <TouchableOpacity
+                              key={idx}
+                              style={[
+                                styles.ticketChip,
+                                selected && styles.ticketChipSelected,
+                              ]}
+                              onPress={() => toggleTicketSelection(t.name)}
+                            >
+                              {selected && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={13}
+                                  color={COLORS.primary}
+                                />
+                              )}
+                              <Text
+                                style={[
+                                  styles.ticketChipText,
+                                  selected && styles.ticketChipTextSelected,
+                                ]}
+                              >
+                                {t.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                  {/* Combine Toggle */}
+                  <View style={styles.toggleContainer}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.toggleTitle}>
+                        Combine with other discounts
+                      </Text>
+                      <Text style={styles.toggleSubtitle}>
+                        When off, this code cannot stack with early bird pricing
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[
+                        styles.toggleTrack,
+                        currentCode.stackable && styles.toggleTrackActive,
+                      ]}
+                      onPress={() =>
+                        setCurrentCode({
+                          ...currentCode,
+                          stackable: !currentCode.stackable,
+                        })
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.toggleThumb,
+                          currentCode.stackable && styles.toggleThumbActive,
+                        ]}
+                      />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggleSwitch,
-                      currentCode.stackable && styles.toggleSwitchActive,
-                    ]}
-                    onPress={() =>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                    Minimum Purchase Amount (Optional)
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={currentCode.min_purchase}
+                    onChangeText={(text) =>
+                      setCurrentCode({ ...currentCode, min_purchase: text })
+                    }
+                    placeholder="₹0 (no minimum)"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+
+                  {/* Valid From */}
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                    Validity Window
+                  </Text>
+                  <View style={styles.datePillRow}>
+                    <TouchableOpacity
+                      style={styles.datePillBtn}
+                      onPress={() => setShowValidityPicker(true)}
+                    >
+                      <Ionicons
+                        name="calendar-outline"
+                        size={15}
+                        color={COLORS.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.datePillText,
+                          !currentCode.valid_from && styles.datePillPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {currentCode.valid_from
+                          ? currentCode.valid_from.toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                            })
+                          : "From date"}
+                      </Text>
+                      {currentCode.valid_from && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            setCurrentCode({ ...currentCode, valid_from: null })
+                          }
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={16}
+                            color="#94A3B8"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+
+                    <Text style={styles.datePillArrow}>→</Text>
+
+                    <TouchableOpacity
+                      style={styles.datePillBtn}
+                      onPress={() => setShowValidityPicker(true)}
+                    >
+                      <Ionicons
+                        name="calendar-outline"
+                        size={15}
+                        color={COLORS.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.datePillText,
+                          !currentCode.valid_until &&
+                            styles.datePillPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {currentCode.valid_until
+                          ? currentCode.valid_until.toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                              },
+                            )
+                          : "Until date"}
+                      </Text>
+                      {currentCode.valid_until && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            setCurrentCode({
+                              ...currentCode,
+                              valid_until: null,
+                            })
+                          }
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={16}
+                            color="#94A3B8"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <CustomDatePicker
+                    visible={showValidityPicker}
+                    onClose={() => setShowValidityPicker(false)}
+                    startDate={currentCode.valid_from || undefined}
+                    endDate={currentCode.valid_until || undefined}
+                    onConfirm={({ startDate, endDate }) => {
                       setCurrentCode({
                         ...currentCode,
-                        stackable: !currentCode.stackable,
-                      })
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.toggleSwitchText,
-                        currentCode.stackable && styles.toggleSwitchTextActive,
-                      ]}
-                    >
-                      {currentCode.stackable ? "Yes" : "No"}
-                    </Text>
-                  </TouchableOpacity>
+                        valid_from: startDate || null,
+                        valid_until: endDate || null,
+                      });
+                      setShowValidityPicker(false);
+                    }}
+                  />
                 </View>
-
-                {/* Minimum Purchase */}
-                <Text style={styles.fieldLabel}>
-                  Minimum Purchase Amount (Optional)
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentCode.min_purchase}
-                  onChangeText={(text) =>
-                    setCurrentCode({ ...currentCode, min_purchase: text })
-                  }
-                  placeholder="₹0 (no minimum)"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                  keyboardType="numeric"
-                />
-
-                {/* Valid From */}
-                <Text style={styles.fieldLabel}>Valid From (Optional)</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowValidFromPicker(true)}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={COLORS.primary}
-                  />
-                  <Text style={styles.dateButtonText}>
-                    {currentCode.valid_from
-                      ? currentCode.valid_from.toLocaleDateString()
-                      : "Set start date"}
-                  </Text>
-                  {currentCode.valid_from && (
-                    <TouchableOpacity
-                      onPress={() =>
-                        setCurrentCode({ ...currentCode, valid_from: null })
-                      }
-                    >
-                      <Ionicons
-                        name="close-circle"
-                        size={20}
-                        color={LIGHT_TEXT_COLOR}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-
-                {/* Valid Until */}
-                <Text style={styles.fieldLabel}>Valid Until (Optional)</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowValidUntilPicker(true)}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={COLORS.primary}
-                  />
-                  <Text style={styles.dateButtonText}>
-                    {currentCode.valid_until
-                      ? currentCode.valid_until.toLocaleDateString()
-                      : "Set expiry date"}
-                  </Text>
-                  {currentCode.valid_until && (
-                    <TouchableOpacity
-                      onPress={() =>
-                        setCurrentCode({ ...currentCode, valid_until: null })
-                      }
-                    >
-                      <Ionicons
-                        name="close-circle"
-                        size={20}
-                        color={LIGHT_TEXT_COLOR}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-
-                {showValidFromPicker && (
-                  <DateTimePicker
-                    value={currentCode.valid_from || new Date()}
-                    mode="date"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowValidFromPicker(false);
-                      if (date)
-                        setCurrentCode({ ...currentCode, valid_from: date });
-                    }}
-                  />
-                )}
-
-                {showValidUntilPicker && (
-                  <DateTimePicker
-                    value={currentCode.valid_until || new Date()}
-                    mode="date"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowValidUntilPicker(false);
-                      if (date)
-                        setCurrentCode({ ...currentCode, valid_until: date });
-                    }}
-                  />
-                )}
               </ScrollView>
 
               <View
@@ -871,7 +896,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F9FC",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: "90%",
@@ -893,12 +918,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: "#F0F2F5",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-Bold",
+    fontSize: 20,
+    color: "#0F172A",
   },
   closeButton: {
     width: 36,
@@ -909,97 +934,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalBody: {
+    paddingHorizontal: 16,
+  },
+  // --- CARD ---
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#F0F2F5",
+    marginTop: 8,
+  },
+  cardTitle: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
+    color: "#0F172A",
+    marginBottom: 16,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#64748B",
     marginBottom: 8,
-    marginTop: 24,
   },
   input: {
+    backgroundColor: "#F6F8FB",
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    fontFamily: "Manrope-Regular",
+    fontSize: 15,
+    color: "#0F172A",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: "#F9FAFB",
+    borderColor: "#EAEEF4",
   },
-  pillContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  pillOption: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    gap: 6,
-  },
-  pillOptionActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
-  },
-  pillOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#4B5563",
-  },
-  pillOptionTextActive: {
-    color: COLORS.primary,
-    fontWeight: "600",
-  },
-  dateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    backgroundColor: "#F9FAFB",
-    gap: 10,
-  },
-  dateButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: TEXT_COLOR,
-  },
-  floatingFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  saveButton: {
-    borderRadius: 30,
-    overflow: "hidden",
-    shadowColor: COLORS.primary,
-    ...SHADOWS.primaryGlow,
-  },
-  saveButtonGradient: {
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  // --- Code Input & Generate ---
+  // --- CODE INPUT ROW ---
   codeInputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1008,121 +978,246 @@ const styles = StyleSheet.create({
   generateBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 12,
+    gap: 5,
+    paddingVertical: 13,
     paddingHorizontal: 14,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "transparent",
   },
   generateBtnText: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 13,
-    fontWeight: "600",
     color: COLORS.primary,
   },
-  // --- Preview ---
-  previewBlock: {
-    backgroundColor: "#F0F9FF",
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#BAE6FD",
+  dotSeparator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#94A3B8",
   },
-  previewTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#0369A1",
-    marginBottom: 8,
+  // --- SEGMENTED CONTROL ---
+  segContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F3F6FB",
+    borderRadius: 14,
+    padding: 4,
+    height: 44,
+  },
+  segBtn: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  segBtnActive: {
+    backgroundColor: "#FFFFFF",
+  },
+  segBtnText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "rgba(100,116,139,0.8)",
+  },
+  segBtnTextActive: {
+    fontFamily: "Manrope-SemiBold",
+    color: "#0F172A",
+  },
+  // --- PREVIEW CARD ---
+  previewCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "#E8ECF4",
+  },
+  previewLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11,
+    color: "#94A3B8",
+    letterSpacing: 0.8,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    marginBottom: 10,
   },
   previewPriceRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
-  previewOldPrice: {
+  previewOriginalPrice: {
+    fontFamily: "Manrope-Medium",
     fontSize: 16,
-    fontWeight: "500",
     color: "#94A3B8",
     textDecorationLine: "line-through",
   },
-  previewNewPrice: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#059669",
+  previewArrow: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 16,
+    color: "#CBD5E1",
   },
-  // --- Ticket Chips ---
-  ticketChipContainer: {
+  previewDiscountedPrice: {
+    fontFamily: "Manrope-Bold",
+    fontSize: 20,
+    color: "#0F172A",
+  },
+  // --- CHIP GRID (Applies To) ---
+  chipGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 10,
+    marginTop: 12,
   },
   ticketChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
+    borderColor: "#E8ECF4",
+    backgroundColor: "#F6F8FB",
   },
   ticketChipSelected: {
+    borderWidth: 1.5,
     borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   ticketChipText: {
+    fontFamily: "Manrope-Medium",
     fontSize: 13,
-    fontWeight: "500",
-    color: "#6B7280",
+    color: "#64748B",
   },
   ticketChipTextSelected: {
-    color: COLORS.primary,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
+    color: "#0F172A",
   },
-  // --- Toggle ---
-  toggleRow: {
+  // --- TOGGLE ROW ---
+  toggleContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     marginTop: 16,
-  },
-  toggleSwitch: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
+    borderColor: "#EAEEF4",
   },
-  toggleSwitchActive: {
-    borderColor: "#059669",
-    backgroundColor: "#ECFDF5",
-  },
-  toggleSwitchText: {
+  toggleTitle: {
+    fontFamily: "Manrope-Medium",
     fontSize: 14,
-    fontWeight: "600",
-    color: "#6B7280",
+    color: "#1C1F26",
+    marginBottom: 2,
   },
-  toggleSwitchTextActive: {
-    color: "#059669",
+  toggleSubtitle: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#94A3B8",
   },
-  // --- Helper & Validation ---
-  helperText: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+  toggleTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#E2E8F0", // Off state background
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleTrackActive: {
+    backgroundColor: COLORS.primary, // On state background
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleThumbActive: {
+    transform: [{ translateX: 20 }], // Slide to the right
+  },
+  // --- DATE PILL ROW ---
+  datePillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginTop: 4,
-    fontWeight: "400",
+  },
+  datePillBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#F0F5FF",
+    borderWidth: 1,
+    borderColor: "#D8E4FF",
+  },
+  datePillText: {
+    flex: 1,
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#1E3A8A",
+  },
+  datePillPlaceholder: {
+    color: "#94A3B8",
+    fontFamily: "Manrope-Regular",
+  },
+  datePillArrow: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 16,
+    color: "#94A3B8",
+  },
+  // --- FOOTER ---
+  floatingFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderTopWidth: 1,
+    borderTopColor: "#F0F2F5",
+  },
+  saveButton: {
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  saveButtonGradient: {
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveButtonText: {
+    fontFamily: "Manrope-Bold",
+    color: "#FFFFFF",
+    fontSize: 16,
+  },
+  // --- HELPER & VALIDATION ---
+  helperText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#94A3B8",
+    marginTop: 6,
   },
   validationWarning: {
+    fontFamily: "Manrope-Medium",
     fontSize: 13,
     color: "#F59E0B",
-    marginTop: 6,
-    fontWeight: "500",
+    marginTop: 8,
   },
 });
 
