@@ -10,16 +10,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
   Alert,
-  Platform,
-  KeyboardAvoidingView,
 } from "react-native";
+import {
+  KeyboardAwareScrollView,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
-import { COLORS, SHADOWS } from "../../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
@@ -316,10 +317,7 @@ const DiscountCodesEditor = React.forwardRef(
           statusBarTranslucent={true}
           onRequestClose={() => setShowModal(false)}
         >
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-          >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.sheetHandle} />
 
@@ -337,10 +335,11 @@ const DiscountCodesEditor = React.forwardRef(
                 </TouchableOpacity>
               </View>
 
-              <ScrollView
+              <KeyboardAwareScrollView
                 style={styles.modalBody}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+                bottomOffset={80}
               >
                 {/* ── CARD 1: Code Details ── */}
                 <View style={styles.card}>
@@ -713,13 +712,14 @@ const DiscountCodesEditor = React.forwardRef(
                     }}
                   />
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
 
-              <View
+              <KeyboardStickyView
                 style={[
                   styles.floatingFooter,
                   { paddingBottom: Math.max(insets.bottom, 20) },
                 ]}
+                offset={{ closed: 0, opened: 8 }}
               >
                 <TouchableOpacity
                   style={styles.saveButton}
@@ -736,9 +736,9 @@ const DiscountCodesEditor = React.forwardRef(
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
-              </View>
+              </KeyboardStickyView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       </View>
     );
@@ -1193,16 +1193,17 @@ const styles = StyleSheet.create({
     borderTopColor: "#F0F2F5",
   },
   saveButton: {
-    borderRadius: 30,
+    borderRadius: 16,
     overflow: "hidden",
   },
   saveButtonGradient: {
+    borderRadius: 16,
     paddingVertical: 15,
     alignItems: "center",
     justifyContent: "center",
   },
   saveButtonText: {
-    fontFamily: "Manrope-Bold",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
     fontSize: 16,
   },
