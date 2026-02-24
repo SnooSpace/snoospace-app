@@ -16,10 +16,14 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  KeyboardAwareScrollView,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { COLORS, SHADOWS } from "../../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
@@ -280,10 +284,7 @@ const PricingRulesEditor = React.forwardRef(
           statusBarTranslucent={true}
           onRequestClose={() => setShowModal(false)}
         >
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-          >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.sheetHandle} />
 
@@ -301,15 +302,16 @@ const PricingRulesEditor = React.forwardRef(
                 </TouchableOpacity>
               </View>
 
-              <ScrollView
+              <KeyboardAwareScrollView
                 style={styles.modalBody}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 120 }}
+                bottomOffset={80}
               >
                 {/* Ticket Linking Label */}
                 {ticketTypes.length > 0 ? (
                   <View style={styles.linkingBadge}>
-                    <Ionicons name="ticket" size={14} color={COLORS.primary} />
+                    <Ionicons name="ticket" size={16} color="#94A3B8" />
                     <Text style={styles.linkingBadgeText}>
                       Applies to: {ticketTypes.map((t) => t.name).join(", ")}
                     </Text>
@@ -413,43 +415,55 @@ const PricingRulesEditor = React.forwardRef(
                         })
                       }
                     >
-                      <View style={styles.ruleTypeHeader}>
-                        <Ionicons
-                          name={type.icon}
-                          size={20}
-                          color={
-                            currentRule.rule_type === type.value
-                              ? COLORS.primary
-                              : LIGHT_TEXT_COLOR
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.ruleTypeLabel,
-                            currentRule.rule_type === type.value &&
-                              styles.ruleTypeLabelActive,
-                          ]}
-                        >
-                          {type.label}
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.ruleTypeHeader}>
+                          <Ionicons
+                            name={type.icon}
+                            size={20}
+                            color={
+                              currentRule.rule_type === type.value
+                                ? COLORS.primary
+                                : LIGHT_TEXT_COLOR
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.ruleTypeLabel,
+                              currentRule.rule_type === type.value &&
+                                styles.ruleTypeLabelActive,
+                            ]}
+                          >
+                            {type.label}
+                          </Text>
+                        </View>
+                        <Text style={styles.ruleTypeDesc}>
+                          {type.description}
                         </Text>
                       </View>
-                      <Text style={styles.ruleTypeDesc}>
-                        {type.description}
-                      </Text>
+
+                      {currentRule.rule_type === type.value ? (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={COLORS.primary}
+                        />
+                      ) : (
+                        <View style={styles.radioPlaceholder} />
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 {/* Discount Type */}
                 <Text style={styles.fieldLabel}>Discount Type</Text>
-                <View style={styles.pillContainer}>
+                <View style={styles.segContainer}>
                   {["percentage", "flat"].map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
-                        styles.pillOption,
+                        styles.segBtn,
                         currentRule.discount_type === type &&
-                          styles.pillOptionActive,
+                          styles.segBtnActive,
                       ]}
                       onPress={() =>
                         setCurrentRule({ ...currentRule, discount_type: type })
@@ -457,9 +471,9 @@ const PricingRulesEditor = React.forwardRef(
                     >
                       <Text
                         style={[
-                          styles.pillOptionText,
+                          styles.segBtnText,
                           currentRule.discount_type === type &&
-                            styles.pillOptionTextActive,
+                            styles.segBtnTextActive,
                         ]}
                       >
                         {type === "percentage"
@@ -499,9 +513,14 @@ const PricingRulesEditor = React.forwardRef(
                       <Ionicons
                         name="calendar-outline"
                         size={20}
-                        color={COLORS.primary}
+                        color="#94A3B8"
                       />
-                      <Text style={styles.dateButtonText}>
+                      <Text
+                        style={[
+                          styles.dateButtonText,
+                          !currentRule.valid_until && { color: "#94A3B8" },
+                        ]}
+                      >
                         {currentRule.valid_until
                           ? currentRule.valid_until.toLocaleDateString()
                           : "Select end date"}
@@ -554,13 +573,14 @@ const PricingRulesEditor = React.forwardRef(
                     }}
                   />
                 )}
-              </ScrollView>
+              </KeyboardAwareScrollView>
 
-              <View
+              <KeyboardStickyView
                 style={[
                   styles.floatingFooter,
                   { paddingBottom: Math.max(insets.bottom, 20) },
                 ]}
+                offset={{ closed: 0, opened: 8 }}
               >
                 <TouchableOpacity
                   style={styles.saveButton}
@@ -577,9 +597,9 @@ const PricingRulesEditor = React.forwardRef(
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
-              </View>
+              </KeyboardStickyView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       </View>
     );
@@ -784,88 +804,98 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
+    borderColor: "#E8ECF4",
+    borderRadius: 14,
     padding: 16,
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: TEXT_COLOR,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F6F8FB",
   },
   typeOptions: {
     gap: 8,
   },
   ruleTypeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
+    borderColor: "#E8ECF4",
+    backgroundColor: "#F6F8FB",
     marginBottom: 8,
+  },
+  ruleTypeOptionActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: "#FFFFFF",
+    ...SHADOWS.sm,
   },
   ruleTypeHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  ruleTypeOptionActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
-  },
   ruleTypeLabel: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 15,
-    fontWeight: "600",
-    color: LIGHT_TEXT_COLOR,
-  },
-  ruleTypeLabelActive: {
-    color: COLORS.primary,
-  },
-  ruleTypeDesc: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 6,
-    marginLeft: 28,
-  },
-  pillContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  pillOption: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    gap: 6,
-  },
-  pillOptionActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#EEF2FF",
-  },
-  pillOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
     color: "#4B5563",
   },
-  pillOptionTextActive: {
-    color: COLORS.primary,
-    fontWeight: "600",
+  ruleTypeLabelActive: {
+    color: "#0F172A",
+  },
+  ruleTypeDesc: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#8A94A6",
+    marginTop: 4,
+    marginLeft: 28,
+  },
+  radioPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+  },
+  // --- SEGMENTED CONTROL ---
+  segContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F3F6FB",
+    borderRadius: 14,
+    padding: 4,
+    height: 44,
+  },
+  segBtn: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  segBtnActive: {
+    backgroundColor: "#FFFFFF",
+  },
+  segBtnText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "rgba(100,116,139,0.8)",
+  },
+  segBtnTextActive: {
+    fontFamily: "Manrope-SemiBold",
+    color: "#0F172A",
   },
   dateButton: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    backgroundColor: "#F9FAFB",
+    borderColor: "#E8ECF4",
+    borderRadius: 14,
+    backgroundColor: "#F6F8FB",
     gap: 10,
   },
   dateButtonText: {
+    fontFamily: "Manrope-Regular",
     flex: 1,
     fontSize: 16,
     color: TEXT_COLOR,
@@ -913,37 +943,38 @@ const styles = StyleSheet.create({
     borderTopColor: "#F3F4F6",
   },
   saveButton: {
-    borderRadius: 30,
+    borderRadius: 24,
     overflow: "hidden",
     shadowColor: COLORS.primary,
     ...SHADOWS.primaryGlow,
   },
   saveButtonGradient: {
-    padding: 16,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 24,
   },
   saveButtonText: {
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "700",
   },
   // --- Linking Badge ---
   linkingBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
-    marginBottom: 16,
+    borderColor: "#E8ECF4",
+    backgroundColor: "#F6F8FB",
+    marginBottom: 20,
   },
   linkingBadgeText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.primary,
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: "#0F172A",
     flex: 1,
   },
   // --- Preview Savings ---

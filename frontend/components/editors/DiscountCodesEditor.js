@@ -190,18 +190,42 @@ const DiscountCodesEditor = React.forwardRef(
     const getPreviewPrice = useCallback(() => {
       const val = parseFloat(currentCode.discount_value) || 0;
       if (val <= 0) return null;
-      const samplePrice =
-        ticketTypes.length > 0
-          ? parseFloat(ticketTypes[0].base_price) || 1000
-          : 1000;
+
+      // Pick the preview ticket: first selected ticket if "specific", else first ticket overall
+      let previewTicket = null;
+      if (
+        currentCode.applies_to === "specific" &&
+        currentCode.selected_tickets.length > 0
+      ) {
+        previewTicket = ticketTypes.find((t) =>
+          currentCode.selected_tickets.includes(t.name),
+        );
+      }
+      if (!previewTicket && ticketTypes.length > 0) {
+        previewTicket = ticketTypes[0];
+      }
+
+      const samplePrice = previewTicket
+        ? parseFloat(previewTicket.base_price) || 1000
+        : 1000;
       let discounted;
       if (currentCode.discount_type === "percentage") {
         discounted = samplePrice - (samplePrice * val) / 100;
       } else {
         discounted = Math.max(0, samplePrice - val);
       }
-      return { original: samplePrice, discounted: Math.round(discounted) };
-    }, [currentCode.discount_type, currentCode.discount_value, ticketTypes]);
+      return {
+        original: samplePrice,
+        discounted: Math.round(discounted),
+        ticketName: previewTicket?.name || null,
+      };
+    }, [
+      currentCode.discount_type,
+      currentCode.discount_value,
+      currentCode.applies_to,
+      currentCode.selected_tickets,
+      ticketTypes,
+    ]);
 
     // Toggle ticket in selected_tickets
     const toggleTicketSelection = useCallback((ticketName) => {
@@ -443,8 +467,8 @@ const DiscountCodesEditor = React.forwardRef(
                     return (
                       <View style={styles.previewCard}>
                         <Text style={styles.previewLabel}>
-                          {ticketTypes.length > 0
-                            ? `PREVIEW — ${ticketTypes[0].name.toUpperCase()}`
+                          {preview.ticketName
+                            ? `PREVIEW — ${preview.ticketName.toUpperCase()}`
                             : "PREVIEW — EXAMPLE TICKET"}
                         </Text>
                         <View style={styles.previewPriceRow}>

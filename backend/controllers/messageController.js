@@ -34,12 +34,22 @@ const getOrCreateConversation = async (
     `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type) 
      VALUES ($1, $2, $3, $4) 
      ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type) 
-     DO UPDATE SET updated_at = COALESCE(conversations.updated_at, NOW())
+     DO NOTHING
      RETURNING id`,
     [p1Id, p1Type, p2Id, p2Type],
   );
 
-  return result.rows[0].id;
+  if (result.rows[0]) {
+    return result.rows[0].id;
+  }
+
+  // ON CONFLICT DO NOTHING returns no rows - fetch the existing conversation
+  const existing = await pool.query(
+    `SELECT id FROM conversations 
+     WHERE participant1_id = $1 AND participant1_type = $2 AND participant2_id = $3 AND participant2_type = $4`,
+    [p1Id, p1Type, p2Id, p2Type],
+  );
+  return existing.rows[0].id;
 };
 
 // Get all conversations for current user (member or community)
