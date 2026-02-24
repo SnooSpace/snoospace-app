@@ -27,8 +27,7 @@ import HighlightsEditor from "../HighlightsEditor";
 import FeaturedAccountsEditor from "../FeaturedAccountsEditor";
 import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
-import DiscountCodesEditor from "../editors/DiscountCodesEditor";
-import PricingRulesEditor from "../editors/PricingRulesEditor";
+import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
 
 const PRIMARY_COLOR = COLORS.primary; // This should be your solid Blue
@@ -62,8 +61,7 @@ export default function EditEventModal({
   const [virtualLink, setVirtualLink] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
-  const [discountCodes, setDiscountCodes] = useState([]);
-  const [pricingRules, setPricingRules] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [categories, setCategories] = useState([]);
   // Event visibility
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
@@ -130,8 +128,28 @@ export default function EditEventModal({
       setFeaturedAccounts(eventData.featured_accounts || []);
       setThingsToKnow(eventData.things_to_know || []);
       setTicketTypes(eventData.ticket_types || []);
-      setDiscountCodes(eventData.discount_codes || []);
-      setPricingRules(eventData.pricing_rules || []);
+      // Merge legacy discount_codes + pricing_rules into unified promos
+      const loadedPromos = [];
+      if (eventData.discount_codes) {
+        eventData.discount_codes.forEach((dc) => {
+          loadedPromos.push({
+            ...dc,
+            offer_type: "promo_code",
+            name: dc.name || dc.code || "",
+          });
+        });
+      }
+      if (eventData.pricing_rules) {
+        eventData.pricing_rules.forEach((pr) => {
+          loadedPromos.push({
+            ...pr,
+            offer_type: "early_bird",
+            trigger:
+              pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
+          });
+        });
+      }
+      setPromos(loadedPromos);
       // Transform categories from objects (with id, name, etc.) to array of IDs
       const categoryIds = (eventData.categories || []).map((c) =>
         typeof c === "object" ? c.id : c,
@@ -170,8 +188,19 @@ export default function EditEventModal({
         featuredAccounts: JSON.stringify(eventData.featured_accounts || []),
         thingsToKnow: JSON.stringify(eventData.things_to_know || []),
         ticketTypes: JSON.stringify(eventData.ticket_types || []),
-        discountCodes: JSON.stringify(eventData.discount_codes || []),
-        pricingRules: JSON.stringify(eventData.pricing_rules || []),
+        promos: JSON.stringify([
+          ...(eventData.discount_codes || []).map((dc) => ({
+            ...dc,
+            offer_type: "promo_code",
+            name: dc.name || dc.code || "",
+          })),
+          ...(eventData.pricing_rules || []).map((pr) => ({
+            ...pr,
+            offer_type: "early_bird",
+            trigger:
+              pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
+          })),
+        ]),
         categories: JSON.stringify(categoryIds),
         accessType: eventData.access_type || "public",
         invitePublicVisibility: eventData.invite_public_visibility || false,
@@ -200,8 +229,7 @@ export default function EditEventModal({
       JSON.stringify(featuredAccounts) !== initialSnapshot.featuredAccounts ||
       JSON.stringify(thingsToKnow) !== initialSnapshot.thingsToKnow ||
       JSON.stringify(ticketTypes) !== initialSnapshot.ticketTypes ||
-      JSON.stringify(discountCodes) !== initialSnapshot.discountCodes ||
-      JSON.stringify(pricingRules) !== initialSnapshot.pricingRules ||
+      JSON.stringify(promos) !== initialSnapshot.promos ||
       JSON.stringify(categories) !== initialSnapshot.categories ||
       accessType !== initialSnapshot.accessType ||
       invitePublicVisibility !== initialSnapshot.invitePublicVisibility
@@ -224,8 +252,7 @@ export default function EditEventModal({
     featuredAccounts,
     thingsToKnow,
     ticketTypes,
-    discountCodes,
-    pricingRules,
+    promos,
     categories,
     accessType,
     invitePublicVisibility,
@@ -319,24 +346,44 @@ export default function EditEventModal({
                     : parseInt(t.quantity || 0),
               }))
             : null,
-        discount_codes:
-          discountCodes.length > 0
-            ? discountCodes.map((d) => ({
-                ...d,
-                discount_type: d.discount_type || d.type,
+        discount_codes: (() => {
+          const codes = promos.filter((p) => p.offer_type === "promo_code");
+          return codes.length > 0
+            ? codes.map((p) => ({
+                code: p.code,
+                discount_type: p.discount_type,
                 discount_value:
-                  d.discount_value !== undefined ? d.discount_value : d.value,
+                  p.discount_value !== undefined ? p.discount_value : p.value,
+                max_uses: p.max_uses,
+                valid_from: p.valid_from,
+                valid_until: p.valid_until,
+                applies_to: p.applies_to,
+                selected_tickets: p.selected_tickets,
+                stackable: p.stackable,
+                min_purchase: p.min_purchase,
+                is_active: p.is_active,
+                name: p.name,
               }))
-            : null,
-        pricing_rules:
-          pricingRules.length > 0
-            ? pricingRules.map((r) => ({
-                ...r,
-                discount_type: r.discount_type || r.type,
+            : null;
+        })(),
+        pricing_rules: (() => {
+          const rules = promos.filter((p) => p.offer_type === "early_bird");
+          return rules.length > 0
+            ? rules.map((p) => ({
+                name: p.name,
+                rule_type:
+                  p.trigger === "by_sales"
+                    ? "early_bird_quantity"
+                    : "early_bird_time",
+                discount_type: p.discount_type,
                 discount_value:
-                  r.discount_value !== undefined ? r.discount_value : r.value,
+                  p.discount_value !== undefined ? p.discount_value : p.value,
+                valid_until: p.valid_until,
+                quantity_threshold: p.quantity_threshold,
+                is_active: p.is_active,
               }))
-            : null,
+            : null;
+        })(),
         categories: categories.length > 0 ? categories : [],
         access_type: accessType,
         invite_public_visibility: invitePublicVisibility,
@@ -684,18 +731,26 @@ export default function EditEventModal({
             <TicketTypesEditor
               ticketTypes={ticketTypes}
               onChange={setTicketTypes}
-              pricingRules={pricingRules}
+              pricingRules={promos
+                .filter((p) => p.offer_type === "early_bird")
+                .map((p) => ({
+                  name: p.name,
+                  rule_type:
+                    p.trigger === "by_sales"
+                      ? "early_bird_quantity"
+                      : "early_bird_time",
+                  discount_type: p.discount_type,
+                  discount_value: p.discount_value,
+                  valid_until: p.valid_until,
+                  quantity_threshold: p.quantity_threshold,
+                  is_active: p.is_active,
+                }))}
               eventStartDate={eventDate}
               eventEndDate={endDate}
             />
-            <DiscountCodesEditor
-              discountCodes={discountCodes}
-              onChange={setDiscountCodes}
-              ticketTypes={ticketTypes}
-            />
-            <PricingRulesEditor
-              pricingRules={pricingRules}
-              onChange={setPricingRules}
+            <PromoEditor
+              promos={promos}
+              onChange={setPromos}
               ticketTypes={ticketTypes}
               eventStartDate={eventDate}
             />

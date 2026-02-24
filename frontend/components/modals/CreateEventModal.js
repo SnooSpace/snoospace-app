@@ -58,8 +58,7 @@ import HighlightsEditor from "../HighlightsEditor";
 import FeaturedAccountsEditor from "../FeaturedAccountsEditor";
 import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
-import DiscountCodesEditor from "../editors/DiscountCodesEditor";
-import PricingRulesEditor from "../editors/PricingRulesEditor";
+import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
 
 // Draft storage utilities
@@ -236,8 +235,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [virtualLink, setVirtualLink] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
-  const [discountCodes, setDiscountCodes] = useState([]);
-  const [pricingRules, setPricingRules] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [categories, setCategories] = useState([]);
   const [bannerCarousel, setBannerCarousel] = useState([]);
   const [gallery, setGallery] = useState([]);
@@ -265,8 +263,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
 
   // Editor refs for imperative modal triggers
   const ticketEditorRef = useRef(null);
-  const discountEditorRef = useRef(null);
-  const pricingEditorRef = useRef(null);
+  const promoEditorRef = useRef(null);
 
   // Bottom sheet state for ticket type selection
   const [showAddTicketSheet, setShowAddTicketSheet] = useState(false);
@@ -291,6 +288,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setVirtualLink("");
     setMaxAttendees("");
     setTicketTypes([]);
+    setPromos([]);
     setCategories([]);
     setBannerCarousel([]);
     setGallery([]);
@@ -316,8 +314,34 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     virtual_link: virtualLink,
     max_attendees: maxAttendees,
     ticket_types: ticketTypes,
-    discount_codes: discountCodes,
-    pricing_rules: pricingRules,
+    discount_codes: promos
+      .filter((p) => p.offer_type === "promo_code")
+      .map((p) => ({
+        code: p.code,
+        discount_type: p.discount_type,
+        discount_value: p.discount_value,
+        max_uses: p.max_uses,
+        valid_from: p.valid_from,
+        valid_until: p.valid_until,
+        applies_to: p.applies_to,
+        selected_tickets: p.selected_tickets,
+        stackable: p.stackable,
+        min_purchase: p.min_purchase,
+        is_active: p.is_active,
+        name: p.name,
+      })),
+    pricing_rules: promos
+      .filter((p) => p.offer_type === "early_bird")
+      .map((p) => ({
+        name: p.name,
+        rule_type:
+          p.trigger === "by_sales" ? "early_bird_quantity" : "early_bird_time",
+        discount_type: p.discount_type,
+        discount_value: p.discount_value,
+        valid_until: p.valid_until,
+        quantity_threshold: p.quantity_threshold,
+        is_active: p.is_active,
+      })),
     categories: categories,
     banner_carousel: bannerCarousel,
     gallery: gallery,
@@ -392,9 +416,34 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         // Also load categories if they exist
         if (draft.data.categories) setCategories(draft.data.categories);
         if (draft.data.ticket_types) setTicketTypes(draft.data.ticket_types);
-        if (draft.data.discount_codes)
-          setDiscountCodes(draft.data.discount_codes);
-        if (draft.data.pricing_rules) setPricingRules(draft.data.pricing_rules);
+        // Load promos from unified array or merge legacy fields
+        if (draft.data.promos) {
+          setPromos(draft.data.promos);
+        } else {
+          const legacyPromos = [];
+          if (draft.data.discount_codes) {
+            draft.data.discount_codes.forEach((dc) => {
+              legacyPromos.push({
+                ...dc,
+                offer_type: "promo_code",
+                name: dc.name || dc.code || "",
+              });
+            });
+          }
+          if (draft.data.pricing_rules) {
+            draft.data.pricing_rules.forEach((pr) => {
+              legacyPromos.push({
+                ...pr,
+                offer_type: "early_bird",
+                trigger:
+                  pr.rule_type === "early_bird_quantity"
+                    ? "by_sales"
+                    : "by_date",
+              });
+            });
+          }
+          if (legacyPromos.length > 0) setPromos(legacyPromos);
+        }
 
         setCurrentStep(draft.currentStep || 1);
         setShowDraftPrompt(false);
@@ -1054,27 +1103,32 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
                 onAddPress={() => setShowAddTicketSheet(true)}
-                pricingRules={pricingRules}
+                pricingRules={promos
+                  .filter((p) => p.offer_type === "early_bird")
+                  .map((p) => ({
+                    name: p.name,
+                    rule_type:
+                      p.trigger === "by_sales"
+                        ? "early_bird_quantity"
+                        : "early_bird_time",
+                    discount_type: p.discount_type,
+                    discount_value: p.discount_value,
+                    valid_until: p.valid_until,
+                    quantity_threshold: p.quantity_threshold,
+                    is_active: p.is_active,
+                  }))}
                 eventStartDate={eventDate}
                 eventEndDate={endDate}
               />
 
               {ticketTypes.length > 0 && (
-                <>
-                  <DiscountCodesEditor
-                    ref={discountEditorRef}
-                    discountCodes={discountCodes}
-                    onChange={setDiscountCodes}
-                    ticketTypes={ticketTypes}
-                  />
-                  <PricingRulesEditor
-                    ref={pricingEditorRef}
-                    pricingRules={pricingRules}
-                    onChange={setPricingRules}
-                    ticketTypes={ticketTypes}
-                    eventStartDate={eventDate}
-                  />
-                </>
+                <PromoEditor
+                  ref={promoEditorRef}
+                  promos={promos}
+                  onChange={setPromos}
+                  ticketTypes={ticketTypes}
+                  eventStartDate={eventDate}
+                />
               )}
             </View>
 
@@ -1471,7 +1525,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
               </TouchableOpacity>
 
-              {/* Early Bird Pricing */}
+              {/* Add Promo */}
               <TouchableOpacity
                 style={[
                   styles.sheetRow,
@@ -1480,44 +1534,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 disabled={ticketTypes.length === 0}
                 onPress={() => {
                   setShowAddTicketSheet(false);
-                  setTimeout(
-                    () => pricingEditorRef.current?.openAddModal(),
-                    300,
-                  );
-                }}
-              >
-                <View
-                  style={[
-                    styles.sheetIconCircle,
-                    { backgroundColor: "#FFF7ED" },
-                  ]}
-                >
-                  <Ionicons name="flash" size={20} color="#F59E0B" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetRowTitle}>Early Bird Pricing</Text>
-                  <Text style={styles.sheetRowDesc}>
-                    {ticketTypes.length === 0
-                      ? "Add a ticket type first"
-                      : "Time or quantity-based auto-discounts"}
-                  </Text>
-                </View>
-                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
-              </TouchableOpacity>
-
-              {/* Discount Code */}
-              <TouchableOpacity
-                style={[
-                  styles.sheetRow,
-                  ticketTypes.length === 0 && { opacity: 0.45 },
-                ]}
-                disabled={ticketTypes.length === 0}
-                onPress={() => {
-                  setShowAddTicketSheet(false);
-                  setTimeout(
-                    () => discountEditorRef.current?.openAddModal(),
-                    300,
-                  );
+                  setTimeout(() => promoEditorRef.current?.openAddModal(), 300);
                 }}
               >
                 <View
@@ -1529,11 +1546,11 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   <Ionicons name="pricetag" size={20} color="#22C55E" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetRowTitle}>Discount Code</Text>
+                  <Text style={styles.sheetRowTitle}>Add Promo</Text>
                   <Text style={styles.sheetRowDesc}>
                     {ticketTypes.length === 0
                       ? "Add a ticket type first"
-                      : "Promo codes for attendees"}
+                      : "Promo codes & early bird discounts"}
                   </Text>
                 </View>
                 <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
