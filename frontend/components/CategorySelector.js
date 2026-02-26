@@ -111,7 +111,7 @@ export default function CategorySelector({
       <View style={styles.labelRow}>
         <Text style={styles.label}>Categories</Text>
         <Text style={styles.counter}>
-          {selectedCategories.length}/{maxCategories}
+          {selectedCategories.length} / {maxCategories} selected
         </Text>
       </View>
 
@@ -129,17 +129,10 @@ export default function CategorySelector({
               style={styles.selectedChip}
               onPress={() => toggleCategory(categoryId)}
             >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.selectedChipGradient}
-              >
-                <Text style={styles.selectedChipText}>
-                  {getCategoryName(categoryId)}
-                </Text>
-                <XCircle size={18} color="#FFFFFF" />
-              </LinearGradient>
+              <Text style={styles.selectedChipText}>
+                {getCategoryName(categoryId)}
+              </Text>
+              <X size={16} color="#64748B" />
             </TouchableOpacity>
           ))}
         </View>
@@ -156,17 +149,17 @@ export default function CategorySelector({
           }
         }}
       >
-        <Tags size={20} color={COLORS.primary} />
+        <Tags size={20} color="#64748B" />
         <Text style={styles.selectorButtonText}>
           {selectedCategories.length === 0
             ? "Select categories"
             : "Change categories"}
         </Text>
-        {expanded ? (
-          <ChevronUp size={20} color={LIGHT_TEXT_COLOR} />
-        ) : (
-          <ChevronDown size={20} color={LIGHT_TEXT_COLOR} />
-        )}
+        <ChevronDown
+          size={20}
+          color="#94A3B8"
+          style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
+        />
       </TouchableOpacity>
 
       {/* Expanded Category List */}
@@ -221,28 +214,34 @@ export default function CategorySelector({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 15,
+    padding: 24,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#F0F2F5",
+    marginTop: 20,
   },
   labelRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    gap: 8,
     marginBottom: 4,
   },
+  label: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: TEXT_COLOR,
+  },
   counter: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.primary,
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: "#94A3B8",
   },
   hint: {
     fontSize: 12,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
-    marginBottom: 10,
+    marginBottom: 20,
   },
   loadingContainer: {
     flexDirection: "row",
@@ -252,6 +251,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
   },
   errorContainer: {
@@ -264,45 +264,48 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: "#EF4444",
   },
   selectedContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
+    columnGap: 12,
+    rowGap: 16,
+    marginBottom: 16,
   },
   selectedChip: {
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  selectedChipGradient: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingLeft: 12,
-    paddingRight: 8,
-    gap: 6,
+    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 10,
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E8ECF4",
+    borderRadius: 16,
   },
   selectedChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1F2937",
   },
   selectorButton: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 12,
-    backgroundColor: "#F9FAFB",
+    borderColor: "#E8ECF4",
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
     gap: 10,
   },
   selectorButtonText: {
     flex: 1,
     fontSize: 14,
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: "#64748B",
   },
   categoryList: {
     marginTop: 8,
