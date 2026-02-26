@@ -4,6 +4,8 @@
  */
 import React, {
   useState,
+  useRef,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useCallback,
@@ -42,10 +44,13 @@ import {
   User,
   CalendarDays,
   Check,
+  BadgePercent,
+  Zap,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import CustomDatePicker from "../ui/CustomDatePicker";
+import CustomDatePicker from "../../components/ui/CustomDatePicker";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 import {
   KeyboardAwareScrollView,
@@ -61,6 +66,7 @@ const TicketTypesEditor = React.forwardRef(
       ticketTypes = [],
       onChange,
       onAddPress,
+      promos = [],
       pricingRules = [],
       eventStartDate,
       eventEndDate,
@@ -110,6 +116,8 @@ const TicketTypesEditor = React.forwardRef(
       sales_start_date: null,
       sales_end_date: null,
     });
+
+    const [alertConfig, setAlertConfig] = useState(null);
 
     const resetForm = () => {
       setCurrentTicket({
@@ -179,7 +187,15 @@ const TicketTypesEditor = React.forwardRef(
 
     const handleSave = () => {
       if (!currentTicket.name.trim()) {
-        Alert.alert("Required", "Please enter a ticket name");
+        setAlertConfig({
+          visible: true,
+          title: "Required",
+          message: "Please enter a ticket name",
+          primaryAction: {
+            text: "OK",
+            onPress: () => setAlertConfig(null),
+          },
+        });
         return;
       }
 
@@ -189,21 +205,32 @@ const TicketTypesEditor = React.forwardRef(
         currentTicket.sales_end_date &&
         currentTicket.sales_end_date < currentTicket.sales_start_date
       ) {
-        Alert.alert(
-          "Invalid Sales Window",
-          "Sales end date cannot be before sales start date.",
-        );
+        setAlertConfig({
+          visible: true,
+          title: "Invalid Sales Window",
+          message: "Sales end date cannot be before sales start date.",
+          primaryAction: {
+            text: "OK",
+            onPress: () => setAlertConfig(null),
+          },
+        });
         return;
       }
       if (
+        salesMode === "custom" &&
         currentTicket.sales_end_date &&
         eventStartDate &&
         currentTicket.sales_end_date > new Date(eventStartDate)
       ) {
-        Alert.alert(
-          "Invalid Sales Window",
-          "Sales must close before the event starts.",
-        );
+        setAlertConfig({
+          visible: true,
+          title: "Invalid Sales Window",
+          message: "Sales must close before the event starts.",
+          primaryAction: {
+            text: "OK",
+            onPress: () => setAlertConfig(null),
+          },
+        });
         return;
       }
 
@@ -253,29 +280,36 @@ const TicketTypesEditor = React.forwardRef(
 
       // If ticket has sold tickets, show a different warning
       if (hasSoldTickets && (ticket.sold_count || 0) > 0) {
-        Alert.alert(
-          "Cannot Delete Ticket",
-          `This ticket type has ${ticket.sold_count} sold ticket(s). You cannot delete a ticket type that has been purchased by users.\n\nYou can edit the ticket details instead.`,
-          [{ text: "OK" }],
-        );
+        setAlertConfig({
+          visible: true,
+          title: "Cannot Delete Ticket",
+          message: `This ticket type has ${ticket.sold_count} sold ticket(s). You cannot delete a ticket type that has been purchased by users.\n\nYou can edit the ticket details instead.`,
+          primaryAction: {
+            text: "OK",
+            onPress: () => setAlertConfig(null),
+          },
+        });
         return;
       }
 
-      Alert.alert(
-        "Delete Ticket Type",
-        "Are you sure you want to delete this ticket type?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              const updated = ticketTypes.filter((_, i) => i !== index);
-              onChange(updated);
-            },
+      setAlertConfig({
+        visible: true,
+        title: "Delete Ticket Type",
+        message: "Are you sure you want to delete this ticket type?",
+        secondaryAction: {
+          text: "Cancel",
+          onPress: () => setAlertConfig(null),
+        },
+        primaryAction: {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const updated = ticketTypes.filter((_, i) => i !== index);
+            onChange(updated);
+            setAlertConfig(null);
           },
-        ],
-      );
+        },
+      });
     };
 
     const formatPrice = (price) => {
@@ -314,32 +348,136 @@ const TicketTypesEditor = React.forwardRef(
       return { text: `${remaining} spots remaining`, color: "#6B7280" };
     }, []);
 
-    // --- Find active early bird for a ticket ---
-    const getEarlyBirdDiscount = useCallback(
+    // --- Find ALL applicable discounts for a ticket ---
+    const getApplicableDiscounts = useCallback(
       (ticket) => {
-        if (!pricingRules || pricingRules.length === 0) return null;
+        const price = parseFloat(ticket.base_price) || 0;
+        if (price <= 0) return [];
+
         const now = new Date();
-        for (const rule of pricingRules) {
-          if (!rule.is_active) continue;
-          if (
-            rule.rule_type === "early_bird_time" &&
-            rule.valid_until &&
-            new Date(rule.valid_until) < now
-          )
-            continue;
-          const price = parseFloat(ticket.base_price) || 0;
-          if (price <= 0) continue;
+        const results = [];
+
+        for (const p of promos) {
+          if (p.is_active === false) continue;
+
+          const applies =
+            !p.applies_to ||
+            p.applies_to === "all" ||
+            (p.applies_to === "specific" &&
+              p.selected_tickets &&
+              p.selected_tickets.includes(ticket.name));
+          if (!applies) continue;
+
+          if (p.offer_type === "early_bird") {
+            if (
+              p.trigger === "by_date" &&
+              p.valid_until &&
+              new Date(p.valid_until) < now
+            )
+              continue;
+          }
+
           const discounted =
-            rule.discount_type === "percentage"
-              ? price - (price * (parseFloat(rule.discount_value) || 0)) / 100
-              : Math.max(0, price - (parseFloat(rule.discount_value) || 0));
+            p.discount_type === "percentage"
+              ? price - (price * (parseFloat(p.discount_value) || 0)) / 100
+              : Math.max(0, price - (parseFloat(p.discount_value) || 0));
           const savingsPct = Math.round(((price - discounted) / price) * 100);
-          return { original: price, discounted, savingsPct };
+
+          results.push({
+            original: price,
+            discounted,
+            savingsPct,
+            offerType: p.offer_type,
+            name:
+              p.name || (p.offer_type === "early_bird" ? "Early Bird" : p.code),
+          });
         }
-        return null;
+
+        // Sort by best discount first (lowest discounted price)
+        results.sort((a, b) => a.discounted - b.discounted);
+        return results;
       },
-      [pricingRules],
+      [promos],
     );
+
+    // --- DiscountPreview: auto-cycles through applicable discounts ---
+    const DiscountPreview = ({ discounts, formatPrice }) => {
+      const [activeIdx, setActiveIdx] = useState(0);
+      const timerRef = useRef(null);
+
+      // Auto-cycle every 3s when multiple discounts
+      useEffect(() => {
+        if (discounts.length <= 1) return;
+        timerRef.current = setInterval(() => {
+          setActiveIdx((prev) => (prev + 1) % discounts.length);
+        }, 3000);
+        return () => clearInterval(timerRef.current);
+      }, [discounts.length]);
+
+      // Reset index if discounts change
+      useEffect(() => {
+        setActiveIdx(0);
+      }, [discounts.length]);
+
+      const d = discounts[activeIdx] || discounts[0];
+      if (!d) return null;
+
+      const isEarlyBird = d.offerType === "early_bird";
+
+      return (
+        <View>
+          <View style={styles.discountPriceRow}>
+            <Text style={styles.tilePriceStruck}>
+              {formatPrice(d.original)}
+            </Text>
+            <Text style={styles.tilePrice}>
+              <Text style={styles.currencySymbol}>₹</Text>
+              {d.discounted
+                ? parseFloat(d.discounted).toLocaleString("en-IN")
+                : "0"}
+            </Text>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>{d.savingsPct}% OFF</Text>
+            </View>
+          </View>
+          {/* Offer tag with icon */}
+          <TouchableOpacity
+            style={styles.offerTag}
+            onPress={() => {
+              if (discounts.length > 1) {
+                clearInterval(timerRef.current);
+                setActiveIdx((prev) => (prev + 1) % discounts.length);
+                // Restart timer
+                timerRef.current = setInterval(() => {
+                  setActiveIdx((prev) => (prev + 1) % discounts.length);
+                }, 3000);
+              }
+            }}
+            activeOpacity={discounts.length > 1 ? 0.6 : 1}
+          >
+            {isEarlyBird ? (
+              <Zap size={12} color="#EA580C" fill="#EA580C" />
+            ) : (
+              <BadgePercent size={12} color="#16A34A" />
+            )}
+            <Text
+              style={[
+                styles.offerTagText,
+                { color: isEarlyBird ? "#EA580C" : "#16A34A" },
+              ]}
+              numberOfLines={1}
+            >
+              {d.name}
+            </Text>
+            {discounts.length > 1 && (
+              <Text style={styles.offerTagCounter}>
+                {activeIdx + 1}/{discounts.length}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      );
+    };
 
     return (
       <View style={styles.container}>
@@ -391,7 +529,7 @@ const TicketTypesEditor = React.forwardRef(
             ? Math.min((soldCount / totalQty) * 100, 100)
             : 0;
           const status = getTicketStatus(ticket);
-          const earlyBird = getEarlyBirdDiscount(ticket);
+          const discounts = getApplicableDiscounts(ticket);
 
           return (
             <View key={index} style={styles.ticketTile}>
@@ -435,26 +573,12 @@ const TicketTypesEditor = React.forwardRef(
                   </View>
                 </View>
 
-                {/* Price + Early Bird Discount */}
-                {earlyBird ? (
-                  <View style={styles.discountPriceRow}>
-                    <Text style={styles.tilePriceStruck}>
-                      {formatPrice(earlyBird.original)}
-                    </Text>
-                    <Text style={styles.tilePrice}>
-                      <Text style={styles.currencySymbol}>₹</Text>
-                      {earlyBird.discounted
-                        ? parseFloat(earlyBird.discounted).toLocaleString(
-                            "en-IN",
-                          )
-                        : "0"}
-                    </Text>
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountBadgeText}>
-                        {earlyBird.savingsPct}% OFF
-                      </Text>
-                    </View>
-                  </View>
+                {/* Price + Discount Preview */}
+                {discounts.length > 0 ? (
+                  <DiscountPreview
+                    discounts={discounts}
+                    formatPrice={formatPrice}
+                  />
                 ) : !ticket.base_price || ticket.base_price === 0 ? (
                   <Text style={styles.tilePrice}>Free</Text>
                 ) : (
@@ -1200,6 +1324,18 @@ const TicketTypesEditor = React.forwardRef(
             </View>
           </View>
         </Modal>
+
+        {/* ── CUSTOM ALERT MODAL ── */}
+        {alertConfig && (
+          <CustomAlertModal
+            visible={alertConfig.visible}
+            title={alertConfig.title}
+            message={alertConfig.message}
+            onClose={() => setAlertConfig(null)}
+            primaryAction={alertConfig.primaryAction}
+            secondaryAction={alertConfig.secondaryAction}
+          />
+        )}
       </View>
     );
   },
@@ -1542,7 +1678,7 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   discountBadge: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: "#FFF7ED",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1550,7 +1686,24 @@ const styles = StyleSheet.create({
   discountBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#92400E",
+    color: "#EA580C",
+  },
+  offerTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  offerTagText: {
+    fontSize: 11,
+    fontFamily: "Manrope-SemiBold",
+    maxWidth: 120,
+  },
+  offerTagCounter: {
+    fontSize: 10,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
+    marginLeft: 2,
   },
   // --- Sales Window ---
   salesWindowRow: {

@@ -1089,6 +1089,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 onAddPress={() =>
                   setTimeout(() => ticketEditorRef.current?.openAddModal(), 300)
                 }
+                promos={promos}
                 pricingRules={promos
                   .filter((p) => p.offer_type === "early_bird")
                   .map((p) => ({

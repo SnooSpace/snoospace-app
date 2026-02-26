@@ -108,17 +108,16 @@ export default function CategorySelector({
 
   return (
     <View style={styles.container}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>Categories</Text>
-        <Text style={styles.counter}>
-          {selectedCategories.length} / {maxCategories} selected
-        </Text>
-      </View>
-
       <Text style={styles.hint}>
         Select up to {maxCategories} categories for your event to appear in the
         Discover feed
       </Text>
+
+      <View style={styles.counterRow}>
+        <Text style={styles.counter}>
+          {selectedCategories.length} / {maxCategories} selected
+        </Text>
+      </View>
 
       {/* Selected Categories Preview */}
       {selectedCategories.length > 0 && (
@@ -221,16 +220,10 @@ const styles = StyleSheet.create({
     borderColor: "#F0F2F5",
     marginTop: 20,
   },
-  labelRow: {
+  counterRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
-  },
-  label: {
-    fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
-    color: TEXT_COLOR,
+    justifyContent: "flex-end",
+    marginBottom: 12,
   },
   counter: {
     fontSize: 13,
@@ -241,7 +234,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   loadingContainer: {
     flexDirection: "row",

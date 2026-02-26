@@ -22,9 +22,10 @@ import {
 } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { BadgePercent } from "lucide-react-native";
+import { BadgePercent, Zap } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 if (
@@ -48,8 +49,8 @@ const OFFER_TYPES = [
   {
     value: "early_bird",
     label: "Early Bird",
-    icon: "flash",
-    color: "#F59E0B", // Amber/Orange
+    icon: "Zap",
+    color: "#F97316", // Vibrant Orange
     description: "Auto-applied by date or sales volume",
   },
 ];
@@ -96,6 +97,7 @@ const PromoEditor = React.forwardRef(
     const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
     const [showValidityPicker, setShowValidityPicker] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [alertConfig, setAlertConfig] = useState(null);
 
     const [current, setCurrent] = useState({ ...DEFAULT_PROMO });
 
@@ -399,21 +401,24 @@ const PromoEditor = React.forwardRef(
     };
 
     const handleDelete = (index) => {
-      Alert.alert(
-        "Delete Promo",
-        "Are you sure you want to delete this offer?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              const updated = promos.filter((_, i) => i !== index);
-              onChange(updated);
-            },
+      setAlertConfig({
+        visible: true,
+        title: "Delete Promo",
+        message: "Are you sure you want to delete this offer?",
+        secondaryAction: {
+          text: "Cancel",
+          onPress: () => setAlertConfig(null),
+        },
+        primaryAction: {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const updated = promos.filter((_, i) => i !== index);
+            onChange(updated);
+            setAlertConfig(null);
           },
-        ],
-      );
+        },
+      });
     };
 
     const formatDiscount = (p) => {
@@ -442,17 +447,17 @@ const PromoEditor = React.forwardRef(
 
       if (p.offer_type === "early_bird") {
         return {
-          name: p.trigger === "by_date" ? "time" : "trending-up",
-          isLucide: false,
+          name: "Zap",
+          isLucide: true,
           colors: isActiveAndUsed
-            ? ["#DCFCE7", "#BBF7D0"]
+            ? ["#DCFCE7", "#DCFCE7"]
             : isActive
-              ? ["#FFF7ED", "#FDE68A"]
+              ? ["#FFF7ED", "#FFF7ED"]
               : ["#F3F6FB", "#F3F6FB"],
           iconColor: isActiveAndUsed
             ? "#166534"
             : isActive
-              ? "#D97706"
+              ? "#EA580C"
               : "#64748B",
           hasBorder: isActiveAndUsed,
         };
@@ -461,9 +466,9 @@ const PromoEditor = React.forwardRef(
         name: "BadgePercent",
         isLucide: true,
         colors: isActiveAndUsed
-          ? ["#DCFCE7", "#BBF7D0"]
+          ? ["#DCFCE7", "#DCFCE7"]
           : isActive
-            ? ["#F0FDF4", "#DCFCE7"]
+            ? ["#F0FDF4", "#F0FDF4"]
             : ["#F3F6FB", "#F3F6FB"],
         iconColor: isActiveAndUsed
           ? "#166534"
@@ -524,7 +529,15 @@ const PromoEditor = React.forwardRef(
                   ]}
                 >
                   {tile.isLucide ? (
-                    <BadgePercent size={20} color={tile.iconColor} />
+                    tile.name === "Zap" ? (
+                      <Zap
+                        size={20}
+                        color={tile.iconColor}
+                        fill={tile.iconColor}
+                      />
+                    ) : (
+                      <BadgePercent size={20} color={tile.iconColor} />
+                    )
                   ) : (
                     <Ionicons
                       name={tile.name}
@@ -644,6 +657,20 @@ const PromoEditor = React.forwardRef(
                                   current.offer_type === type.value
                                     ? type.color
                                     : LIGHT_TEXT_COLOR
+                                }
+                              />
+                            ) : type.icon === "Zap" ? (
+                              <Zap
+                                size={20}
+                                color={
+                                  current.offer_type === type.value
+                                    ? type.color
+                                    : LIGHT_TEXT_COLOR
+                                }
+                                fill={
+                                  current.offer_type === type.value
+                                    ? type.color
+                                    : "transparent"
                                 }
                               />
                             ) : (
@@ -1304,6 +1331,18 @@ const PromoEditor = React.forwardRef(
             </View>
           </View>
         </Modal>
+
+        {/* ── CUSTOM ALERT MODAL ── */}
+        {alertConfig && (
+          <CustomAlertModal
+            visible={alertConfig.visible}
+            title={alertConfig.title}
+            message={alertConfig.message}
+            onClose={() => setAlertConfig(null)}
+            primaryAction={alertConfig.primaryAction}
+            secondaryAction={alertConfig.secondaryAction}
+          />
+        )}
       </View>
     );
   },
