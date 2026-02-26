@@ -397,10 +397,12 @@ const CustomDatePicker = ({
 
                 const isEndpoint = isStart || isEnd;
 
-                // Two independent half-strips for range highlighting
-                const showLeftHalf = !isSingleDayRange && (isInRange || isEnd);
+                const isRangeMode = selectionMode === "range";
+                // Range tracking logic
+                const showFullRange = isRangeMode && isInRange;
+                const showLeftHalf = isRangeMode && !isSingleDayRange && isEnd;
                 const showRightHalf =
-                  !isSingleDayRange && (isInRange || isStart);
+                  isRangeMode && !isSingleDayRange && isStart;
 
                 return (
                   <TouchableOpacity
@@ -409,17 +411,10 @@ const CustomDatePicker = ({
                     onPress={() => handleSelectDate(day)}
                     disabled={isDisabled}
                   >
-                    {/* Range strip halves (behind circle) */}
-                    {showLeftHalf && (
-                      <View
-                        style={[StyleSheet.absoluteFill, styles.rangeHalfLeft]}
-                      />
-                    )}
-                    {showRightHalf && (
-                      <View
-                        style={[StyleSheet.absoluteFill, styles.rangeHalfRight]}
-                      />
-                    )}
+                    {/* Range strip backgrounds (behind circle) */}
+                    {showFullRange && <View style={styles.rangeFull} />}
+                    {showLeftHalf && <View style={styles.rangeHalfLeft} />}
+                    {showRightHalf && <View style={styles.rangeHalfRight} />}
 
                     {/* Circle */}
                     {isEndpoint ? (
@@ -545,27 +540,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
-    overflow: "hidden",
   },
 
-  // ── Range half-strip styles ──────────────────────────────────────────────
-  rangeHalfLeft: {
+  // ── Range Backgrounds ──────────────────────────────────────────────
+  rangeFull: {
+    position: "absolute",
     backgroundColor: BRAND.rangeHighlight,
-    top: "10%",
-    bottom: "10%",
-    left: 0,
+    height: 36,
+    left: -1,
+    right: -1,
+    top: "50%",
+    marginTop: -18,
+  },
+  rangeHalfLeft: {
+    position: "absolute",
+    backgroundColor: BRAND.rangeHighlight,
+    height: 36,
+    left: -1,
     right: "50%",
-    borderTopLeftRadius: 4,
-    borderBottomLeftRadius: 4,
+    marginRight: -18,
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
+    top: "50%",
+    marginTop: -18,
   },
   rangeHalfRight: {
+    position: "absolute",
     backgroundColor: BRAND.rangeHighlight,
-    top: "10%",
-    bottom: "10%",
+    height: 36,
     left: "50%",
-    right: 0,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
+    marginLeft: -18,
+    right: -1,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+    top: "50%",
+    marginTop: -18,
   },
 
   // ── Day circle styles ────────────────────────────────────────────────────
