@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Modal,
   View,
@@ -74,6 +80,7 @@ const CustomDatePicker = ({
   onConfirm,
   minDate,
   maxDate,
+  singleMode = false,
   disabledDates = [],
 }) => {
   // ─── Internal State ──────────────────────────────────────────────────────
@@ -84,6 +91,9 @@ const CustomDatePicker = ({
   const [selectionMode, setSelectionMode] = useState(
     propStartDate ? (propEndDate ? "range" : "single") : "none",
   );
+  // Snapshot of values when the picker opened — used to detect real changes
+  const initialStartRef = useRef(propStartDate || null);
+  const initialEndRef = useRef(propEndDate || null);
 
   // ─── Sync from props on open ─────────────────────────────────────────────
   useEffect(() => {
@@ -94,6 +104,9 @@ const CustomDatePicker = ({
       setInternalEnd(e);
       setSelectionMode(s ? (e ? "range" : "single") : "none");
       setCurrentMonth(s || new Date());
+      // Snapshot the values at open time
+      initialStartRef.current = s;
+      initialEndRef.current = e;
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -222,6 +235,14 @@ const CustomDatePicker = ({
       if (!day || isDateDisabled(day)) return;
       const tapped = normalize(day);
 
+      // Single mode: always replace the selected date, never create a range
+      if (singleMode) {
+        setInternalStart(tapped);
+        setInternalEnd(null);
+        setSelectionMode("single");
+        return;
+      }
+
       // CASE 3: Range already set → reset to new single
       if (selectionMode === "range") {
         setInternalStart(tapped);
@@ -264,6 +285,7 @@ const CustomDatePicker = ({
       setSelectionMode("range");
     },
     [
+      singleMode,
       selectionMode,
       internalStart,
       isDateDisabled,
@@ -284,13 +306,31 @@ const CustomDatePicker = ({
     onClose();
   };
 
-  const confirmDisabled = selectionMode === "none";
+  // Confirm is enabled only when current selection differs from the snapshot on open
+  const confirmDisabled = useMemo(() => {
+    if (selectionMode === "none") return true;
+    const initStart = initialStartRef.current;
+    const initEnd = initialEndRef.current;
+    const startSame = initStart
+      ? isSameDay(internalStart, initStart)
+      : internalStart === null;
+    const endSame = initEnd
+      ? isSameDay(internalEnd, initEnd)
+      : internalEnd === null;
+    return startSame && endSame;
+  }, [selectionMode, internalStart, internalEnd, isSameDay]);
 
   // ─── Dynamic Title & Button Label ────────────────────────────────────────
-  const headerTitle =
-    selectionMode === "range" ? "Confirm date range" : "Select date";
-  const buttonLabel =
-    selectionMode === "range" ? "Confirm Range" : "Confirm Date";
+  const headerTitle = singleMode
+    ? "Select date"
+    : selectionMode === "range"
+      ? "Confirm date range"
+      : "Select date";
+  const buttonLabel = singleMode
+    ? "Confirm Date"
+    : selectionMode === "range"
+      ? "Confirm Range"
+      : "Confirm Date";
 
   // ─── Per-Day State ───────────────────────────────────────────────────────
   const getDayState = useCallback(

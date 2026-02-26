@@ -22,6 +22,7 @@ import {
 } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { BadgePercent } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
@@ -40,13 +41,15 @@ const OFFER_TYPES = [
   {
     value: "promo_code",
     label: "Promo Code",
-    icon: "pricetag",
+    icon: "BadgePercent",
+    color: "#10B981", // Emerald Green
     description: "Manual code entered by attendee",
   },
   {
     value: "early_bird",
     label: "Early Bird",
     icon: "flash",
+    color: "#F59E0B", // Amber/Orange
     description: "Auto-applied by date or sales volume",
   },
 ];
@@ -56,12 +59,14 @@ const TRIGGER_TYPES = [
     value: "by_date",
     label: "By Date",
     icon: "time-outline",
+    color: "#3B82F6", // Blue
     description: "Discount before a specific date",
   },
   {
     value: "by_sales",
     label: "By Sales",
     icon: "trending-up-outline",
+    color: "#3B82F6", // Reverted to Blue
     description: "Discount for first X tickets sold",
   },
 ];
@@ -234,6 +239,41 @@ const PromoEditor = React.forwardRef(
       });
     }, []);
 
+    // Computed validation — mirrors handleSave required checks
+    const isFormValid = (() => {
+      // Discount value is always required
+      if (!current.discount_value || parseFloat(current.discount_value) <= 0)
+        return false;
+
+      if (current.offer_type === "promo_code") {
+        // Promo code string required
+        if (!current.code.trim()) return false;
+      }
+
+      if (current.offer_type === "early_bird") {
+        if (current.trigger === "by_date") {
+          // End date required
+          if (!current.valid_until) return false;
+          // End date must be before event start
+          if (eventStartDate && current.valid_until > new Date(eventStartDate))
+            return false;
+        }
+        if (current.trigger === "by_sales") {
+          // Quantity threshold required
+          if (!current.quantity_threshold) return false;
+        }
+      }
+
+      // Specific tickets: at least one must be selected
+      if (
+        current.applies_to === "specific" &&
+        current.selected_tickets.length === 0
+      )
+        return false;
+
+      return true;
+    })();
+
     // Validation & Save
     const handleSave = () => {
       if (current.offer_type === "promo_code" && !current.code.trim()) {
@@ -310,9 +350,7 @@ const PromoEditor = React.forwardRef(
       const autoName =
         current.offer_type === "promo_code"
           ? current.code.trim().toUpperCase()
-          : current.trigger === "by_date"
-            ? "Early Bird (Date)"
-            : "Early Bird (Sales)";
+          : "Early Bird";
 
       const promoData = {
         offer_type: current.offer_type,
@@ -398,17 +436,41 @@ const PromoEditor = React.forwardRef(
     };
 
     const getTileIcon = (p) => {
+      const isUsed = (p.current_uses || p.sold_count) > 0;
+      const isActiveAndUsed = p.is_active !== false && isUsed;
+      const isActive = p.is_active !== false;
+
       if (p.offer_type === "early_bird") {
         return {
           name: p.trigger === "by_date" ? "time" : "trending-up",
-          colors: ["#FFF7ED", "#FDE68A"],
-          iconColor: "#D97706",
+          isLucide: false,
+          colors: isActiveAndUsed
+            ? ["#DCFCE7", "#BBF7D0"]
+            : isActive
+              ? ["#FFF7ED", "#FDE68A"]
+              : ["#F3F6FB", "#F3F6FB"],
+          iconColor: isActiveAndUsed
+            ? "#166534"
+            : isActive
+              ? "#D97706"
+              : "#64748B",
+          hasBorder: isActiveAndUsed,
         };
       }
       return {
-        name: "pricetag",
-        colors: ["#F0FDF4", "#BBF7D0"],
-        iconColor: "#16A34A",
+        name: "BadgePercent",
+        isLucide: true,
+        colors: isActiveAndUsed
+          ? ["#DCFCE7", "#BBF7D0"]
+          : isActive
+            ? ["#F0FDF4", "#DCFCE7"]
+            : ["#F3F6FB", "#F3F6FB"],
+        iconColor: isActiveAndUsed
+          ? "#166534"
+          : isActive
+            ? "#16A34A"
+            : "#64748B",
+        hasBorder: isActiveAndUsed,
       };
     };
 
@@ -419,7 +481,7 @@ const PromoEditor = React.forwardRef(
         <View style={styles.header}>
           <Text style={styles.label}>Promos & Discounts</Text>
           <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-            <Ionicons name="add-circle" size={24} color={COLORS.primary} />
+            <Ionicons name="add-circle" size={20} color={COLORS.primary} />
             <Text style={styles.addButtonText}>Add Promo</Text>
           </TouchableOpacity>
         </View>
@@ -433,7 +495,7 @@ const PromoEditor = React.forwardRef(
                 end={{ x: 1, y: 1 }}
                 style={styles.emptyIconGradient}
               >
-                <Ionicons name="pricetag-outline" size={32} color="#FFFFFF" />
+                <BadgePercent size={32} color="#FFFFFF" strokeWidth={1.5} />
               </LinearGradient>
             </View>
             <Text style={styles.emptyText}>No promos yet</Text>
@@ -453,27 +515,33 @@ const PromoEditor = React.forwardRef(
                   colors={tile.colors}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.tileIconCircle}
+                  style={[
+                    styles.tileIconCircle,
+                    tile.hasBorder && {
+                      borderWidth: 1,
+                      borderColor: "#86EFAC",
+                    },
+                  ]}
                 >
-                  <Ionicons name={tile.name} size={20} color={tile.iconColor} />
+                  {tile.isLucide ? (
+                    <BadgePercent size={20} color={tile.iconColor} />
+                  ) : (
+                    <Ionicons
+                      name={tile.name}
+                      size={20}
+                      color={tile.iconColor}
+                    />
+                  )}
                 </LinearGradient>
               </View>
               <View style={styles.tileContent}>
                 <View style={styles.tileHeader}>
                   <Text style={styles.tileName} numberOfLines={1}>
                     {p.offer_type === "promo_code"
-                      ? p.code || "No Code"
+                      ? p.name || "Promo Code"
                       : p.name || "Early Bird"}
                   </Text>
-                  <View style={styles.tileBadge}>
-                    <Text style={styles.tileBadgeText}>
-                      {p.offer_type === "early_bird" ? "EARLY BIRD" : "PROMO"}
-                    </Text>
-                  </View>
                 </View>
-                {p.offer_type === "promo_code" && p.code ? (
-                  <Text style={styles.tileCode}>{p.code}</Text>
-                ) : null}
                 <Text style={styles.tilePrice}>{formatDiscount(p)}</Text>
                 {/* Applies To info */}
                 <Text style={styles.tileAppliesTo}>
@@ -489,14 +557,12 @@ const PromoEditor = React.forwardRef(
                     style={styles.actionBtn}
                     onPress={() => openEditModal(index)}
                   >
-                    <Ionicons name="pencil" size={14} color="#6B7280" />
                     <Text style={styles.actionBtnText}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => handleDelete(index)}
                   >
-                    <Ionicons name="trash" size={14} color="#EF4444" />
                     <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>
                       Delete
                     </Text>
@@ -571,15 +637,26 @@ const PromoEditor = React.forwardRef(
                       >
                         <View style={{ flex: 1 }}>
                           <View style={styles.offerTypeHeader}>
-                            <Ionicons
-                              name={type.icon}
-                              size={20}
-                              color={
-                                current.offer_type === type.value
-                                  ? COLORS.primary
-                                  : LIGHT_TEXT_COLOR
-                              }
-                            />
+                            {type.icon === "BadgePercent" ? (
+                              <BadgePercent
+                                size={20}
+                                color={
+                                  current.offer_type === type.value
+                                    ? type.color
+                                    : LIGHT_TEXT_COLOR
+                                }
+                              />
+                            ) : (
+                              <Ionicons
+                                name={type.icon}
+                                size={20}
+                                color={
+                                  current.offer_type === type.value
+                                    ? type.color
+                                    : LIGHT_TEXT_COLOR
+                                }
+                              />
+                            )}
                             <Text
                               style={[
                                 styles.offerTypeLabel,
@@ -598,7 +675,7 @@ const PromoEditor = React.forwardRef(
                           <Ionicons
                             name="checkmark-circle"
                             size={22}
-                            color={COLORS.primary}
+                            color={type.color}
                           />
                         ) : (
                           <View style={styles.radioPlaceholder} />
@@ -672,7 +749,7 @@ const PromoEditor = React.forwardRef(
                                 size={20}
                                 color={
                                   current.trigger === type.value
-                                    ? COLORS.primary
+                                    ? type.color
                                     : LIGHT_TEXT_COLOR
                                 }
                               />
@@ -694,7 +771,7 @@ const PromoEditor = React.forwardRef(
                             <Ionicons
                               name="checkmark-circle"
                               size={22}
-                              color={COLORS.primary}
+                              color={type.color}
                             />
                           ) : (
                             <View style={styles.radioPlaceholder} />
@@ -1172,6 +1249,7 @@ const PromoEditor = React.forwardRef(
                   visible={showValidUntilPicker}
                   onClose={() => setShowValidUntilPicker(false)}
                   startDate={current.valid_until || undefined}
+                  singleMode={true}
                   maxDate={
                     eventStartDate ? new Date(eventStartDate) : undefined
                   }
@@ -1191,19 +1269,36 @@ const PromoEditor = React.forwardRef(
                 offset={{ closed: 0, opened: 8 }}
               >
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[
+                    styles.saveButton,
+                    !isFormValid && styles.saveButtonDisabled,
+                  ]}
                   onPress={handleSave}
+                  disabled={!isFormValid}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.saveButtonGradient}
-                  >
-                    <Text style={styles.saveButtonText}>
-                      {editingIndex !== null ? "Update Promo" : "Add Promo"}
-                    </Text>
-                  </LinearGradient>
+                  {isFormValid ? (
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.saveButtonGradient}
+                    >
+                      <Text style={styles.saveButtonText}>
+                        {editingIndex !== null ? "Update Promo" : "Add Promo"}
+                      </Text>
+                    </LinearGradient>
+                  ) : (
+                    <View style={styles.saveButtonGradient}>
+                      <Text
+                        style={[
+                          styles.saveButtonText,
+                          styles.saveButtonTextDisabled,
+                        ]}
+                      >
+                        {editingIndex !== null ? "Update Promo" : "Add Promo"}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               </KeyboardStickyView>
             </View>
@@ -1219,16 +1314,35 @@ PromoEditor.displayName = "PromoEditor";
 // ─── STYLES ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { marginTop: 16 },
+  container: { marginTop: 32 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  label: { fontSize: 16, fontWeight: "600", color: TEXT_COLOR },
-  addButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-  addButtonText: { color: COLORS.primary, fontWeight: "600" },
+  label: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    color: TEXT_COLOR,
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E5EAF2",
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingLeft: 10,
+    paddingRight: 14,
+  },
+  addButtonText: {
+    fontFamily: "BasicCommercial-Bold",
+    color: "#111827",
+    fontSize: 15,
+  },
   emptyState: {
     alignItems: "center",
     padding: 32,
@@ -1256,14 +1370,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
+    borderColor: "#E8ECF4",
+    padding: 20,
     gap: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
   },
   tileIconContainer: { paddingTop: 4 },
   tileIconCircle: {
@@ -1282,7 +1391,7 @@ const styles = StyleSheet.create({
   },
   tileName: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     flex: 1,
     marginRight: 8,
@@ -1290,26 +1399,14 @@ const styles = StyleSheet.create({
   tileCode: {
     fontSize: 14,
     fontFamily: "monospace",
-    color: "#64748B",
+    letterSpacing: 1.5,
+    color: "#111827",
     marginBottom: 4,
   },
-  tileBadge: {
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  tileBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#166534",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
   tilePrice: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.primary,
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: "#111827",
     marginBottom: 4,
   },
   tileAppliesTo: {
@@ -1327,12 +1424,14 @@ const styles = StyleSheet.create({
   },
   tileActions: { flexDirection: "row", alignItems: "center", gap: 16 },
   actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingVertical: 4,
-    gap: 4,
+    marginLeft: 12,
   },
-  actionBtnText: { fontSize: 14, fontWeight: "600", color: "#4B5563" },
+  actionBtnText: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#4B5563",
+  },
 
   // ── MODAL ──
   modalOverlay: {
@@ -1725,16 +1824,21 @@ const styles = StyleSheet.create({
     borderTopColor: "#F0F2F5",
   },
   saveButton: { borderRadius: 16, overflow: "hidden" },
+  saveButtonDisabled: { opacity: 0.5 },
   saveButtonGradient: {
     borderRadius: 16,
     paddingVertical: 15,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#E5E7EB",
   },
   saveButtonText: {
     fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
     fontSize: 16,
+  },
+  saveButtonTextDisabled: {
+    color: "#9CA3AF",
   },
 
   // ── HELPER & VALIDATION ──

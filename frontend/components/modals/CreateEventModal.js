@@ -1086,7 +1086,9 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 ref={ticketEditorRef}
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
-                onAddPress={() => setShowAddTicketSheet(true)}
+                onAddPress={() =>
+                  setTimeout(() => ticketEditorRef.current?.openAddModal(), 300)
+                }
                 pricingRules={promos
                   .filter((p) => p.offer_type === "early_bird")
                   .map((p) => ({
@@ -1463,85 +1465,6 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
             )}
           </TouchableOpacity>
         </Animated.View>
-
-        {/* Add Ticket Type Bottom Sheet */}
-        <Modal
-          visible={showAddTicketSheet}
-          transparent
-          animationType="slide"
-          statusBarTranslucent={true}
-          onRequestClose={() => setShowAddTicketSheet(false)}
-        >
-          <TouchableOpacity
-            style={styles.sheetOverlay}
-            activeOpacity={1}
-            onPress={() => setShowAddTicketSheet(false)}
-          >
-            <View style={styles.sheetContainer}>
-              <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>Add to Ticketing</Text>
-
-              {/* Normal Ticket */}
-              <TouchableOpacity
-                style={styles.sheetRow}
-                onPress={() => {
-                  setShowAddTicketSheet(false);
-                  setTimeout(
-                    () => ticketEditorRef.current?.openAddModal(),
-                    300,
-                  );
-                }}
-              >
-                <View
-                  style={[
-                    styles.sheetIconCircle,
-                    { backgroundColor: "#EEF2FF" },
-                  ]}
-                >
-                  <Ticket size={20} color={MODAL_TOKENS.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetRowTitle}>Ticket Type</Text>
-                  <Text style={styles.sheetRowDesc}>
-                    Standard admission tiers
-                  </Text>
-                </View>
-                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
-              </TouchableOpacity>
-
-              {/* Add Promo */}
-              <TouchableOpacity
-                style={[
-                  styles.sheetRow,
-                  ticketTypes.length === 0 && { opacity: 0.45 },
-                ]}
-                disabled={ticketTypes.length === 0}
-                onPress={() => {
-                  setShowAddTicketSheet(false);
-                  setTimeout(() => promoEditorRef.current?.openAddModal(), 300);
-                }}
-              >
-                <View
-                  style={[
-                    styles.sheetIconCircle,
-                    { backgroundColor: "#F0FDF4" },
-                  ]}
-                >
-                  <Ionicons name="pricetag" size={20} color="#22C55E" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetRowTitle}>Add Promo</Text>
-                  <Text style={styles.sheetRowDesc}>
-                    {ticketTypes.length === 0
-                      ? "Add a ticket type first"
-                      : "Promo codes & early bird discounts"}
-                  </Text>
-                </View>
-                <ArrowRight size={16} color={MODAL_TOKENS.textMuted} />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
 
         {/* Draft Prompt Modal */}
         <Modal

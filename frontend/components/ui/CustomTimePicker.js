@@ -48,6 +48,11 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("AM");
   const [showError, setShowError] = useState(false);
 
+  // Snapshots of the initial values on open — to detect real changes and re-enable on revert
+  const initialHourRef = useRef(12);
+  const initialMinuteRef = useRef("00");
+  const initialPeriodRef = useRef("AM");
+
   const hoursRef = useRef(null);
   const minutesRef = useRef(null);
   const periodRef = useRef(null);
@@ -79,8 +84,12 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
       h = h ? h : 12; // 0 should be 12
 
       setSelectedHour(h);
-      setSelectedMinute(m.toString().padStart(2, "0"));
+      setSelectedMinute(m.toString().padStart(2, "00"));
       setSelectedPeriod(p);
+      // Snapshot initial values
+      initialHourRef.current = h;
+      initialMinuteRef.current = m.toString().padStart(2, "0");
+      initialPeriodRef.current = p;
 
       // Scroll to position after short delay to allow layout
       setTimeout(() => {
@@ -119,7 +128,10 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
         }
       }, 300); // slightly longer delay so the modal is visible first
     } else if (visible) {
-      // Reset error state when picker opens fresh
+      // Reset snapshot when opening without an existing time
+      initialHourRef.current = 12;
+      initialMinuteRef.current = "00";
+      initialPeriodRef.current = "AM";
       setShowError(false);
     }
   }, [visible, time]);
@@ -224,7 +236,9 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
                   );
                   const val = HOURS[index];
-                  if (val !== undefined) setSelectedHour(val);
+                  if (val !== undefined) {
+                    setSelectedHour(val);
+                  }
                 }}
                 getItemLayout={getItemLayout}
               />
@@ -258,7 +272,9 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
                   );
                   const val = MINUTES[index];
-                  if (val !== undefined) setSelectedMinute(val);
+                  if (val !== undefined) {
+                    setSelectedMinute(val);
+                  }
                 }}
                 getItemLayout={getItemLayout}
               />
@@ -292,26 +308,43 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
                   );
                   const val = PERIODS[index];
-                  if (val !== undefined) setSelectedPeriod(val);
+                  if (val !== undefined) {
+                    setSelectedPeriod(val);
+                  }
                 }}
                 getItemLayout={getItemLayout}
               />
             </View>
           </View>
 
-          {/* Confirm Button */}
-          <View style={styles.confirmButtonContainer}>
-            <TouchableOpacity onPress={handleConfirm}>
-              <LinearGradient
-                colors={BRAND.primaryGradient}
-                style={styles.confirmButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.confirmButtonText}>Confirm Time</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          {/* Confirm Button — disabled when current selection matches the initial snapshot */}
+          {(() => {
+            const confirmDisabled =
+              selectedHour === initialHourRef.current &&
+              selectedMinute === initialMinuteRef.current &&
+              selectedPeriod === initialPeriodRef.current;
+            return (
+              <View style={styles.confirmButtonContainer}>
+                <TouchableOpacity
+                  onPress={handleConfirm}
+                  disabled={confirmDisabled}
+                >
+                  <LinearGradient
+                    colors={
+                      confirmDisabled
+                        ? ["#C4C4C4", "#C4C4C4"]
+                        : BRAND.primaryGradient
+                    }
+                    style={styles.confirmButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={styles.confirmButtonText}>Confirm Time</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
         </View>
 
         {/* Custom Error Modal Overlay */}

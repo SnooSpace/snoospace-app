@@ -363,12 +363,7 @@ const TicketTypesEditor = React.forwardRef(
           <View style={styles.emptyCard}>
             <View style={styles.emptyCardContent}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons
-                  name="ticket"
-                  size={24}
-                  color="#FFFFFF"
-                  style={{ transform: [{ rotate: "90deg" }] }}
-                />
+                <Ticket size={24} color="#FFFFFF" />
               </View>
               <View style={styles.emptyTextContainer}>
                 <Text style={styles.emptyCardTitle}>No tickets added</Text>
@@ -402,14 +397,25 @@ const TicketTypesEditor = React.forwardRef(
             <View key={index} style={styles.ticketTile}>
               {/* Left Tile Icon */}
               <View style={styles.tileIconContainer}>
-                <LinearGradient
-                  colors={["#EEF2FF", "#C7D2FE"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.tileIconCircle}
-                >
-                  <Ionicons name="ticket" size={20} color={COLORS.primary} />
-                </LinearGradient>
+                {status.label === "Active" ? (
+                  <LinearGradient
+                    colors={["#EEF2FF", "#C7D2FE"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.tileIconCircle}
+                  >
+                    <Ticket size={20} color={COLORS.primary} />
+                  </LinearGradient>
+                ) : (
+                  <View
+                    style={[
+                      styles.tileIconCircle,
+                      { backgroundColor: "#F3F6FB" },
+                    ]}
+                  >
+                    <Ticket size={20} color="#64748B" />
+                  </View>
+                )}
               </View>
 
               {/* Right Content */}
@@ -418,20 +424,14 @@ const TicketTypesEditor = React.forwardRef(
                   <Text style={styles.tileName} numberOfLines={1}>
                     {ticket.name}
                   </Text>
-                  <View
-                    style={[
-                      styles.tileBadge,
-                      { backgroundColor: status.color },
-                    ]}
-                  >
-                    <Text
+                  <View style={styles.statusContainer}>
+                    <View
                       style={[
-                        styles.tileBadgeText,
-                        { color: status.textColor },
+                        styles.statusDot,
+                        { backgroundColor: status.dotColor },
                       ]}
-                    >
-                      {status.label}
-                    </Text>
+                    />
+                    <Text style={styles.statusText}>{status.label}</Text>
                   </View>
                 </View>
 
@@ -442,7 +442,12 @@ const TicketTypesEditor = React.forwardRef(
                       {formatPrice(earlyBird.original)}
                     </Text>
                     <Text style={styles.tilePrice}>
-                      {formatPrice(earlyBird.discounted)}
+                      <Text style={styles.currencySymbol}>₹</Text>
+                      {earlyBird.discounted
+                        ? parseFloat(earlyBird.discounted).toLocaleString(
+                            "en-IN",
+                          )
+                        : "0"}
                     </Text>
                     <View style={styles.discountBadge}>
                       <Text style={styles.discountBadgeText}>
@@ -450,29 +455,35 @@ const TicketTypesEditor = React.forwardRef(
                       </Text>
                     </View>
                   </View>
+                ) : !ticket.base_price || ticket.base_price === 0 ? (
+                  <Text style={styles.tilePrice}>Free</Text>
                 ) : (
                   <Text style={styles.tilePrice}>
-                    {formatPrice(ticket.base_price)}
+                    <Text style={styles.currencySymbol}>₹</Text>
+                    {parseFloat(ticket.base_price).toLocaleString("en-IN")}
                   </Text>
                 )}
 
                 {ticket.total_quantity ? (
                   <View style={styles.progressSection}>
-                    <Text style={styles.progressText}>
-                      {soldCount} of {ticket.total_quantity} sold
-                    </Text>
                     <View style={styles.progressBarTrack}>
                       <View
                         style={[
                           styles.progressBarFill,
                           { width: `${progress}%` },
                           isSoldOut && { backgroundColor: "#EF4444" },
+                          progress === 0 && { backgroundColor: "transparent" },
                         ]}
                       />
                     </View>
+                    <Text style={[styles.progressText, { marginTop: 6 }]}>
+                      {soldCount} / {ticket.total_quantity} sold
+                    </Text>
                   </View>
                 ) : (
-                  <Text style={styles.progressText}>Unlimited capacity</Text>
+                  <Text style={styles.progressText}>
+                    {soldCount} sold · Unlimited capacity
+                  </Text>
                 )}
 
                 <View style={styles.tileActions}>
@@ -499,18 +510,12 @@ const TicketTypesEditor = React.forwardRef(
                     style={styles.actionBtn}
                     onPress={() => openEditModal(index)}
                   >
-                    <Ionicons name="pencil" size={14} color="#6B7280" />
                     <Text style={styles.actionBtnText}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => handleDelete(index)}
                   >
-                    <Ionicons
-                      name={soldCount > 0 ? "lock-closed" : "trash"}
-                      size={14}
-                      color={soldCount > 0 ? "#9CA3AF" : "#EF4444"}
-                    />
                     <Text
                       style={[
                         styles.actionBtnText,
@@ -1204,7 +1209,7 @@ TicketTypesEditor.displayName = "TicketTypesEditor";
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 16,
+    marginTop: 32,
   },
   header: {
     flexDirection: "row",
@@ -1213,18 +1218,25 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   label: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 16,
-    fontWeight: "600",
     color: TEXT_COLOR,
   },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E5EAF2",
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   addButtonText: {
-    color: COLORS.primary,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
+    color: "#111827",
+    fontSize: 15,
   },
   emptyCard: {
     backgroundColor: "#FFFFFF",
@@ -1288,14 +1300,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
+    borderColor: "#E8ECF4",
+    padding: 20,
     gap: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
   },
   tileIconContainer: {
     paddingTop: 4,
@@ -1318,55 +1325,54 @@ const styles = StyleSheet.create({
   },
   tileName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     flex: 1,
     marginRight: 8,
   },
-  tileBadge: {
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  statusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  tileBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#166534",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  tileBadgeSoldOut: {
-    backgroundColor: "#FEE2E2",
-  },
-  tileBadgeTextSoldOut: {
-    color: "#991B1B",
+  statusText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: "#4B5563",
   },
   tilePrice: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.primary,
+    fontSize: 18,
+    fontFamily: "Manrope-SemiBold",
+    color: "#111827",
     marginBottom: 12,
+  },
+  currencySymbol: {
+    fontSize: 15,
+    color: "#6B7280",
   },
   progressSection: {
     marginBottom: 16,
   },
   progressText: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 6,
-    fontWeight: "500",
+    fontSize: 12,
+    color: "#94A3B8",
+    fontFamily: "Manrope-Medium",
   },
   progressBarTrack: {
-    height: 4,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 999,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
     backgroundColor: COLORS.primary,
-    borderRadius: 2,
+    borderRadius: 999,
   },
   tileActions: {
     flexDirection: "row",
@@ -1388,14 +1394,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingVertical: 4,
-    gap: 4,
+    marginLeft: 12,
   },
   actionBtnText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#4B5563",
   },
 
