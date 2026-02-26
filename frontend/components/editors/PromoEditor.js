@@ -728,9 +728,23 @@ const PromoEditor = React.forwardRef(
                               : "Select end date"}
                           </Text>
                         </TouchableOpacity>
-                        <Text style={styles.helperText}>
-                          Must end before event start
-                        </Text>
+                        {eventStartDate ? (
+                          <Text style={styles.eventDateHint}>
+                            Event starts on{" "}
+                            {new Date(eventStartDate).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </Text>
+                        ) : (
+                          <Text style={styles.helperText}>
+                            Must end before event start
+                          </Text>
+                        )}
                         {current.valid_until &&
                           eventStartDate &&
                           current.valid_until > new Date(eventStartDate) && (
@@ -1115,11 +1129,30 @@ const PromoEditor = React.forwardRef(
                           </TouchableOpacity>
                         </View>
 
+                        {eventStartDate && (
+                          <Text style={styles.eventDateHint}>
+                            Event starts on{" "}
+                            {new Date(eventStartDate).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </Text>
+                        )}
+
                         <CustomDatePicker
                           visible={showValidityPicker}
                           onClose={() => setShowValidityPicker(false)}
                           startDate={current.valid_from || undefined}
                           endDate={current.valid_until || undefined}
+                          maxDate={
+                            eventStartDate
+                              ? new Date(eventStartDate)
+                              : undefined
+                          }
                           onConfirm={({ startDate, endDate }) => {
                             setCurrent({
                               ...current,
@@ -1139,6 +1172,9 @@ const PromoEditor = React.forwardRef(
                   visible={showValidUntilPicker}
                   onClose={() => setShowValidUntilPicker(false)}
                   startDate={current.valid_until || undefined}
+                  maxDate={
+                    eventStartDate ? new Date(eventStartDate) : undefined
+                  }
                   onConfirm={({ startDate }) => {
                     setCurrent({ ...current, valid_until: startDate });
                     setShowValidUntilPicker(false);
@@ -1601,6 +1637,15 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: "#EAEEF4",
+  },
+
+  // ── EVENT DATE HINT ──
+  eventDateHint: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: COLORS.primary,
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
   toggleTitle: {
     fontFamily: "Manrope-Medium",
