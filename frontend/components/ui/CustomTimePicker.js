@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Clock } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 // Brand System Colors - Strictly Enforced
 const BRAND = {
@@ -50,6 +51,22 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   const hoursRef = useRef(null);
   const minutesRef = useRef(null);
   const periodRef = useRef(null);
+
+  // Haptic feedback tracking refs
+  const lastHapticIndexHours = useRef(-1);
+  const lastHapticIndexMinutes = useRef(-1);
+  const lastHapticIndexPeriod = useRef(-1);
+
+  const handleScroll = (ev, lastIndexRef) => {
+    const y = ev.nativeEvent.contentOffset.y;
+    const newIndex = Math.round(y / ITEM_HEIGHT);
+
+    if (newIndex !== lastIndexRef.current && newIndex >= 0) {
+      lastIndexRef.current = newIndex;
+      // High quality Apple-style picker wheel tick
+      Haptics.selectionAsync();
+    }
+  };
 
   // Initialize state from props & Scroll to position
   useEffect(() => {
@@ -200,6 +217,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
+                onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
+                scrollEventThrottle={16}
                 onMomentumScrollEnd={(ev) => {
                   const index = Math.round(
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
@@ -232,6 +251,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
+                onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
+                scrollEventThrottle={16}
                 onMomentumScrollEnd={(ev) => {
                   const index = Math.round(
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
@@ -264,6 +285,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 contentContainerStyle={{
                   paddingVertical: (150 - ITEM_HEIGHT) / 2,
                 }}
+                onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
+                scrollEventThrottle={16}
                 onMomentumScrollEnd={(ev) => {
                   const index = Math.round(
                     ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
