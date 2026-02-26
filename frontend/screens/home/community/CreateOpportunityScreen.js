@@ -1624,6 +1624,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         transparent
         animationType="fade"
         onRequestClose={() => setShowDraftPrompt(false)}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.draftPromptCard}>

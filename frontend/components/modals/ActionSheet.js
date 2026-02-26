@@ -81,6 +81,7 @@ export default function ActionSheet({
       visible={shouldRender}
       animationType="none"
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={onClose}>

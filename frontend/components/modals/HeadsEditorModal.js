@@ -641,6 +641,7 @@ export default function HeadsEditorModal({
         transparent
         animationType="slide"
         onRequestClose={closeLinkModal}
+        statusBarTranslucent={true}
       >
         <TouchableWithoutFeedback onPress={closeLinkModal}>
           <View style={styles.linkOverlay}>

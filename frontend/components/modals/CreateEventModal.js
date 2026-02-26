@@ -40,6 +40,7 @@ import {
   XCircle,
   ArrowRight,
   Info,
+  X,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
@@ -257,6 +258,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [draftExists, setDraftExists] = useState(false);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
 
   // Scroll ref for auto-scrolling when category dropdown opens
   const scrollViewRef = useRef(null);
@@ -480,25 +482,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
       onClose();
       return;
     }
-    Alert.alert("Save Draft?", "Would you like to save your progress?", [
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: async () => {
-          await deleteDraftData();
-          resetForm();
-          onClose();
-        },
-      },
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Save Draft",
-        onPress: async () => {
-          await saveDraft(true);
-          onClose();
-        },
-      },
-    ]);
+    setShowSaveDraftModal(true);
   };
 
   const validateStep = (step) => {
@@ -1560,7 +1544,12 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         </Modal>
 
         {/* Draft Prompt Modal */}
-        <Modal visible={showDraftPrompt} transparent animationType="fade">
+        <Modal
+          visible={showDraftPrompt}
+          transparent
+          animationType="fade"
+          statusBarTranslucent={true}
+        >
           <View style={styles.draftPromptOverlay}>
             <View style={styles.draftPromptContainer}>
               <Ionicons
@@ -1588,6 +1577,62 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 }}
               >
                 <Text style={styles.draftSecondaryButtonText}>Start Fresh</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Save Draft Confirmation Modal */}
+        <Modal
+          visible={showSaveDraftModal}
+          transparent
+          animationType="fade"
+          statusBarTranslucent={true}
+          onRequestClose={() => setShowSaveDraftModal(false)}
+        >
+          <View style={styles.draftPromptOverlay}>
+            <View style={styles.draftPromptContainer}>
+              <TouchableOpacity
+                style={styles.modalXButton}
+                onPress={() => setShowSaveDraftModal(false)}
+              >
+                <X size={24} color={MODAL_TOKENS.textSecondary} />
+              </TouchableOpacity>
+
+              <Ionicons
+                name="save-outline"
+                size={48}
+                color={MODAL_TOKENS.primary}
+                style={{ alignSelf: "center", marginBottom: 15, marginTop: 10 }}
+              />
+              <Text style={styles.draftPromptTitle}>Save Draft?</Text>
+              <Text style={styles.draftPromptSubtitle}>
+                Would you like to save your progress?
+              </Text>
+
+              <TouchableOpacity
+                style={styles.draftMainButton}
+                onPress={async () => {
+                  await saveDraft(true);
+                  setShowSaveDraftModal(false);
+                  onClose();
+                }}
+              >
+                <Text style={styles.draftMainButtonText}>Save Draft</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.draftSecondaryButton}
+                onPress={async () => {
+                  await deleteDraftData();
+                  resetForm();
+                  setShowSaveDraftModal(false);
+                  onClose();
+                }}
+              >
+                <Text style={styles.draftSecondaryButtonText}>
+                  Discard Changes
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2027,6 +2072,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 32,
     alignItems: "center",
+    position: "relative",
+  },
+  modalXButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    padding: 4,
+    zIndex: 10,
   },
   draftPromptTitle: {
     fontFamily: MODAL_TOKENS.fonts.bold,

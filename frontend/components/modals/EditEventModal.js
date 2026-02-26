@@ -1093,7 +1093,12 @@ export default function EditEventModal({
       </SafeAreaView>
 
       {/* Unsaved Changes Modal */}
-      <Modal visible={showUnsavedModal} transparent animationType="fade">
+      <Modal
+        visible={showUnsavedModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent={true}
+      >
         <View style={styles.unsavedOverlay}>
           <View style={styles.unsavedCard}>
             {/* Warning Icon */}

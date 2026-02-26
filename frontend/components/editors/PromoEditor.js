@@ -23,7 +23,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
@@ -248,6 +247,18 @@ const PromoEditor = React.forwardRef(
       if (current.offer_type === "early_bird") {
         if (current.trigger === "by_date" && !current.valid_until) {
           Alert.alert("Required", "Please set an end date for early bird");
+          return;
+        }
+        if (
+          current.trigger === "by_date" &&
+          current.valid_until &&
+          eventStartDate &&
+          current.valid_until > new Date(eventStartDate)
+        ) {
+          Alert.alert(
+            "Invalid Date",
+            "Early bird end date must be before the event start date.",
+          );
           return;
         }
         if (current.trigger === "by_sales" && !current.quantity_threshold) {
@@ -542,7 +553,20 @@ const PromoEditor = React.forwardRef(
                           LayoutAnimation.configureNext(
                             LayoutAnimation.Presets.easeInEaseOut,
                           );
-                          setCurrent({ ...current, offer_type: type.value });
+                          setCurrent((prev) => {
+                            const updates = { ...prev, offer_type: type.value };
+                            // Clear type-specific fields to prevent stale data
+                            if (type.value === "promo_code") {
+                              updates.trigger = "by_date";
+                              updates.quantity_threshold = "";
+                              // Keep valid_until only if it was set for promo validity
+                            } else {
+                              // Early bird — clear promo-specific fields
+                              updates.code = "";
+                              updates.valid_from = null;
+                            }
+                            return updates;
+                          });
                         }}
                       >
                         <View style={{ flex: 1 }}>
@@ -1110,19 +1134,17 @@ const PromoEditor = React.forwardRef(
                   </View>
                 )}
 
-                {/* Early Bird date picker (native) */}
-                {showValidUntilPicker && (
-                  <DateTimePicker
-                    value={current.valid_until || new Date()}
-                    mode="date"
-                    display="default"
-                    minimumDate={new Date()}
-                    onChange={(event, date) => {
-                      setShowValidUntilPicker(false);
-                      if (date) setCurrent({ ...current, valid_until: date });
-                    }}
-                  />
-                )}
+                {/* Early Bird date picker (custom) */}
+                <CustomDatePicker
+                  visible={showValidUntilPicker}
+                  onClose={() => setShowValidUntilPicker(false)}
+                  startDate={current.valid_until || undefined}
+                  onConfirm={({ startDate }) => {
+                    setCurrent({ ...current, valid_until: startDate });
+                    setShowValidUntilPicker(false);
+                  }}
+                  minDate={new Date()}
+                />
               </KeyboardAwareScrollView>
 
               <KeyboardStickyView

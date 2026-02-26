@@ -286,7 +286,11 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
       )}
 
       {/* Presets Modal */}
-      <Modal visible={showPresets} animationType="slide">
+      <Modal
+        visible={showPresets}
+        animationType="slide"
+        statusBarTranslucent={true}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select from Presets</Text>
@@ -301,7 +305,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                 <Text style={styles.categoryTitle}>{category}</Text>
                 {presets.map((preset) => {
                   const isAdded = items.some(
-                    (item) => item.preset_id === preset.id
+                    (item) => item.preset_id === preset.id,
                   );
                   return (
                     <TouchableOpacity
