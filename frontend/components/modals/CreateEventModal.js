@@ -183,7 +183,12 @@ const STEP_TITLES = {
   7: "Review",
 };
 
-const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
+const CreateEventModal = ({
+  visible,
+  onClose,
+  onEventCreated,
+  resumeDraft = false,
+}) => {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 7;
@@ -256,9 +261,11 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
   const [hasEndTime, setHasEndTime] = useState(false);
   const [hasTime, setHasTime] = useState(false); // true once user explicitly picks a start time
   const [draftExists, setDraftExists] = useState(false);
-  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
-  const [draftLastSaved, setDraftLastSaved] = useState(null);
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
+
+  // Track whether user has made changes since loading
+  const hasUnsavedChanges = useRef(false);
+  const draftWasResumed = useRef(false);
 
   // Scroll ref for auto-scrolling when category dropdown opens
   const scrollViewRef = useRef(null);
@@ -448,7 +455,6 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
         }
 
         setCurrentStep(draft.currentStep || 1);
-        setShowDraftPrompt(false);
       }
     } catch (error) {
       console.error("[CreateEventModal] Error loading draft:", error);
@@ -462,26 +468,63 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
     setDraftExists(false);
   };
 
-  const checkForDraft = async () => {
-    const account = await getActiveAccount();
-    if (!account?.id) return;
-    const exists = await hasDraft(account.id);
-    if (exists) {
-      const draft = await loadDraftUtil(account.id);
-      setDraftLastSaved(draft.lastSaved);
-      setShowDraftPrompt(true);
-    }
-  };
+  // Mark changes whenever form data updates (skip initial mount/load)
+  const isInitialMount = useRef(true);
 
+  // Load draft when resumeDraft prop is true
   useEffect(() => {
-    if (visible) checkForDraft();
-  }, [visible]);
+    if (visible && resumeDraft) {
+      draftWasResumed.current = true;
+      hasUnsavedChanges.current = false;
+      isInitialMount.current = true;
+      loadDraftData();
+    } else if (visible && !resumeDraft) {
+      draftWasResumed.current = false;
+      hasUnsavedChanges.current = false;
+      isInitialMount.current = true;
+    }
+  }, [visible, resumeDraft]);
+
+  // Track form data changes
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (visible) {
+      hasUnsavedChanges.current = true;
+    }
+  }, [
+    title,
+    eventDate,
+    endDate,
+    eventType,
+    locationUrl,
+    locationName,
+    virtualLink,
+    ticketTypes,
+    promos,
+    categories,
+    bannerCarousel,
+    gallery,
+    description,
+    highlights,
+    featuredAccounts,
+    thingsToKnow,
+    accessType,
+  ]);
 
   const handleClose = () => {
-    if (title.trim() === "" && bannerCarousel.length === 0) {
+    // Nothing entered at all — just close
+    if (
+      title.trim() === "" &&
+      bannerCarousel.length === 0 &&
+      !draftWasResumed.current
+    ) {
       onClose();
       return;
     }
+    // Show the smart save/keep modal
     setShowSaveDraftModal(true);
   };
 
@@ -1467,46 +1510,7 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Draft Prompt Modal */}
-        <Modal
-          visible={showDraftPrompt}
-          transparent
-          animationType="fade"
-          statusBarTranslucent={true}
-        >
-          <View style={styles.draftPromptOverlay}>
-            <View style={styles.draftPromptContainer}>
-              <Ionicons
-                name="save-outline"
-                size={48}
-                color={MODAL_TOKENS.primary}
-                style={{ alignSelf: "center", marginBottom: 15 }}
-              />
-              <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
-              <Text style={styles.draftPromptSubtitle}>
-                Last saved{" "}
-                {draftLastSaved ? formatLastSaved(draftLastSaved) : "recently"}
-              </Text>
-              <TouchableOpacity
-                style={styles.draftMainButton}
-                onPress={loadDraftData}
-              >
-                <Text style={styles.draftMainButtonText}>Continue Editing</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.draftSecondaryButton}
-                onPress={() => {
-                  setShowDraftPrompt(false);
-                  resetForm();
-                }}
-              >
-                <Text style={styles.draftSecondaryButtonText}>Start Fresh</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Save Draft Confirmation Modal */}
+        {/* Save/Keep Draft Confirmation Modal */}
         <Modal
           visible={showSaveDraftModal}
           transparent
@@ -1529,20 +1533,30 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                 color={MODAL_TOKENS.primary}
                 style={{ alignSelf: "center", marginBottom: 15, marginTop: 10 }}
               />
-              <Text style={styles.draftPromptTitle}>Save Draft?</Text>
+              <Text style={styles.draftPromptTitle}>
+                {hasUnsavedChanges.current ? "Save Draft?" : "Keep Draft?"}
+              </Text>
               <Text style={styles.draftPromptSubtitle}>
-                Would you like to save your progress?
+                {hasUnsavedChanges.current
+                  ? "Would you like to save your progress?"
+                  : "You haven't made any changes."}
               </Text>
 
               <TouchableOpacity
                 style={styles.draftMainButton}
                 onPress={async () => {
-                  await saveDraft(true);
+                  if (hasUnsavedChanges.current) {
+                    await saveDraft(true);
+                  }
                   setShowSaveDraftModal(false);
+                  hasUnsavedChanges.current = false;
+                  draftWasResumed.current = false;
                   onClose();
                 }}
               >
-                <Text style={styles.draftMainButtonText}>Save Draft</Text>
+                <Text style={styles.draftMainButtonText}>
+                  {hasUnsavedChanges.current ? "Save Draft" : "Keep Draft"}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1551,11 +1565,15 @@ const CreateEventModal = ({ visible, onClose, onEventCreated }) => {
                   await deleteDraftData();
                   resetForm();
                   setShowSaveDraftModal(false);
+                  hasUnsavedChanges.current = false;
+                  draftWasResumed.current = false;
                   onClose();
                 }}
               >
                 <Text style={styles.draftSecondaryButtonText}>
-                  Discard Changes
+                  {hasUnsavedChanges.current
+                    ? "Discard Changes"
+                    : "Discard Draft"}
                 </Text>
               </TouchableOpacity>
             </View>

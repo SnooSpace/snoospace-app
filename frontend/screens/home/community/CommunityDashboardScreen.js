@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ import {
   Lightbulb,
   Calendar,
   Ticket,
+  X,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -42,6 +44,13 @@ import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 
 import { COLORS, SHADOWS, FONTS } from "../../../constants/theme";
+import {
+  hasDraft,
+  loadDraft as loadDraftUtil,
+  deleteDraft as deleteDraftUtil,
+  formatLastSaved,
+} from "../../../utils/draftStorage";
+import { getActiveAccount } from "../../../api/auth";
 
 // --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
@@ -156,6 +165,11 @@ export default function CommunityDashboardScreen({ navigation }) {
     actions: [],
   });
 
+  // Draft prompt state (shown on Dashboard before opening CreateEventModal)
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const [draftLastSaved, setDraftLastSaved] = useState(null);
+  const [resumeDraft, setResumeDraft] = useState(false);
+
   // Data
   const [metrics, setMetrics] = useState({
     totalMembers: 1250,
@@ -207,7 +221,29 @@ export default function CommunityDashboardScreen({ navigation }) {
   };
 
   // --- Handlers ---
-  const handleCreateEvent = () => setShowCreateEventModal(true);
+  const handleCreateEvent = async () => {
+    try {
+      const account = await getActiveAccount();
+      if (!account?.id) {
+        setResumeDraft(false);
+        setShowCreateEventModal(true);
+        return;
+      }
+      const exists = await hasDraft(account.id);
+      if (exists) {
+        const draft = await loadDraftUtil(account.id);
+        setDraftLastSaved(draft.lastSaved);
+        setShowDraftPrompt(true);
+      } else {
+        setResumeDraft(false);
+        setShowCreateEventModal(true);
+      }
+    } catch (e) {
+      console.error("Draft check error:", e);
+      setResumeDraft(false);
+      setShowCreateEventModal(true);
+    }
+  };
   const handleInviteMembers = () =>
     Alert.alert("Invite Members", "Feature coming soon!");
 
@@ -617,8 +653,12 @@ export default function CommunityDashboardScreen({ navigation }) {
       {/* Modals */}
       <CreateEventModal
         visible={showCreateEventModal}
-        onClose={() => setShowCreateEventModal(false)}
+        onClose={() => {
+          setShowCreateEventModal(false);
+          setResumeDraft(false);
+        }}
         onEventCreated={handleEventCreated}
+        resumeDraft={resumeDraft}
       />
       <EditEventModal
         visible={showEditEventModal}
@@ -636,6 +676,63 @@ export default function CommunityDashboardScreen({ navigation }) {
         actions={modalConfig.actions}
         onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
       />
+
+      {/* Draft Prompt Modal (shown on Dashboard) */}
+      <Modal
+        visible={showDraftPrompt}
+        transparent
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowDraftPrompt(false)}
+      >
+        <View style={styles.draftPromptOverlay}>
+          <View style={styles.draftPromptContainer}>
+            <TouchableOpacity
+              style={styles.draftXButton}
+              onPress={() => setShowDraftPrompt(false)}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+            <Ionicons
+              name="save-outline"
+              size={48}
+              color={COLORS.primary}
+              style={{ alignSelf: "center", marginBottom: 15 }}
+            />
+            <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
+            <Text style={styles.draftPromptSubtitle}>
+              Last saved{" "}
+              {draftLastSaved ? formatLastSaved(draftLastSaved) : "recently"}
+            </Text>
+            <TouchableOpacity
+              style={styles.draftMainButton}
+              onPress={() => {
+                setShowDraftPrompt(false);
+                setResumeDraft(true);
+                setShowCreateEventModal(true);
+              }}
+            >
+              <Text style={styles.draftMainButtonText}>Continue Editing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.draftSecondaryButton}
+              onPress={async () => {
+                setShowDraftPrompt(false);
+                try {
+                  const account = await getActiveAccount();
+                  if (account?.id) await deleteDraftUtil(account.id);
+                } catch (e) {
+                  console.error("Delete draft error:", e);
+                }
+                setResumeDraft(false);
+                setShowCreateEventModal(true);
+              }}
+            >
+              <Text style={styles.draftSecondaryButtonText}>Start Fresh</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1093,5 +1190,63 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
     fontSize: 14,
+  },
+
+  // Draft Prompt Modal
+  draftPromptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  draftPromptContainer: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    position: "relative",
+  },
+  draftXButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    padding: 4,
+    zIndex: 10,
+  },
+  draftPromptTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 24,
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  draftPromptSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    color: "#6B7280",
+    marginBottom: 32,
+    textAlign: "center",
+  },
+  draftMainButton: {
+    width: "100%",
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  draftMainButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  draftSecondaryButton: {
+    paddingVertical: 12,
+  },
+  draftSecondaryButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "#6B7280",
   },
 });
