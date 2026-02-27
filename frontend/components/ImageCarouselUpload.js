@@ -8,15 +8,16 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Animated,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { GalleryHorizontal, Plus, Star, Trash2 } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { uploadEventBanner } from "../api/upload";
 
 import { COLORS } from "../constants/theme";
-
-// Local constants removed in favor of theme constants
 
 /**
  * ImageCarouselUpload - Upload and manage carousel images (1-5 images)
@@ -27,6 +28,23 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
   const [uploading, setUploading] = useState(false);
   const navigation = useNavigation();
   const resolveRef = useRef(null);
+
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 4,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const pickImages = async () => {
     const remainingSlots = maxImages - images.length;
@@ -43,7 +61,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Please grant access to your photo library."
+          "Please grant access to your photo library.",
         );
         return;
       }
@@ -141,191 +159,279 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.cardContainer}>
       <View style={styles.header}>
-        <Text style={styles.title}>Banner Carousel</Text>
-        <Text style={styles.subtitle}>
-          {images.length}/{maxImages} images • First image is primary
-        </Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.iconCircle}>
+            <GalleryHorizontal size={20} color={"#4B5563"} />
+          </View>
+          <Text style={styles.title}>Banner Images</Text>
+        </View>
+        <View style={styles.counterPill}>
+          <Text style={styles.counterText}>
+            {images.length} / {maxImages} images
+          </Text>
+        </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {images.map((image, index) => (
-          <View key={index} style={styles.imageWrapper}>
-            <Image source={{ uri: image.url }} style={styles.image} />
-
-            {/* Primary badge */}
-            {index === 0 && (
-              <View style={styles.primaryBadge}>
-                <Text style={styles.primaryText}>Primary</Text>
-              </View>
-            )}
-
-            {/* Image order */}
-            <View style={styles.orderBadge}>
-              <Text style={styles.orderText}>{index + 1}</Text>
-            </View>
-
-            {/* Actions */}
-            <View style={styles.actions}>
-              {index > 0 && (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.setPrimaryButton]}
-                  onPress={() => setPrimaryImage(index)}
-                >
-                  <Ionicons name="star" size={16} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={[styles.actionButton, styles.deleteButton]}
-                onPress={() => removeImage(index)}
-              >
-                <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-
-        {/* Add image button */}
-        {images.length < maxImages && (
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={pickImages}
-            disabled={uploading}
+      {images.length === 0 ? (
+        <TouchableWithoutFeedback
+          onPress={pickImages}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={uploading}
+        >
+          <Animated.View
+            style={[styles.uploadTile, { transform: [{ scale: scaleAnim }] }]}
           >
             {uploading ? (
-              <ActivityIndicator color={COLORS.primary} />
+              <ActivityIndicator
+                size="large"
+                color={COLORS.primary || "#3A57E8"}
+              />
             ) : (
               <>
-                <Ionicons
-                  name="add-circle-outline"
-                  size={40}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.addText}>Add Images</Text>
+                <View
+                  style={[
+                    styles.gradientCircle,
+                    { backgroundColor: "#F3F4F6" },
+                  ]}
+                >
+                  <Plus size={24} color="#6B7280" />
+                </View>
+                <Text style={styles.addText}>Add Banner Images</Text>
+                <Text style={styles.addTextSub}>
+                  Up to {maxImages} images • First image is primary
+                </Text>
               </>
             )}
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+          </Animated.View>
+        </TouchableWithoutFeedback>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {images.map((image, index) => (
+            <View key={index} style={styles.imageWrapper}>
+              <Image source={{ uri: image.url }} style={styles.image} />
 
-      {images.length === 0 && (
-        <Text style={styles.emptyText}>
-          Add up to {maxImages} banner images. First image will be the primary
-          banner.
-        </Text>
+              {/* Primary badge */}
+              {index === 0 && (
+                <View style={styles.primaryBadge}>
+                  <Text style={styles.primaryText}>PRIMARY</Text>
+                </View>
+              )}
+
+              {/* Actions */}
+              <View style={styles.actions}>
+                {index > 0 && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.setPrimaryButton]}
+                    onPress={() => setPrimaryImage(index)}
+                  >
+                    <Star size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => removeImage(index)}
+                >
+                  <Trash2 size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+
+          {/* Small add button at the end */}
+          {images.length < maxImages && (
+            <TouchableOpacity
+              style={styles.smallAddTile}
+              onPress={pickImages}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator color={COLORS.primary || "#3A57E8"} />
+              ) : (
+                <>
+                  <View style={styles.smallAddIconWrapper}>
+                    <Plus size={20} color={COLORS.primary || "#3A57E8"} />
+                  </View>
+                  <Text style={styles.smallAddText}>Add More</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  cardContainer: {
     marginVertical: 15,
+    backgroundColor: "#F4F7FB",
+    borderRadius: 24,
+    padding: 24,
   },
   header: {
-    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6", // Neutral grey matching Event Gallery
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1F2937",
+  },
+  counterPill: {
+    backgroundColor: "#EEF2F8",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  counterText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
+    letterSpacing: 0.2,
+  },
+  uploadTile: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E6EAF2",
+  },
+  gradientCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addText: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1C1F26",
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+  addTextSub: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280",
   },
   scrollContent: {
     paddingVertical: 10,
+    paddingHorizontal: 2, // Slight padding to not clip the shadow of the first item
   },
   imageWrapper: {
     marginRight: 15,
     position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   image: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
-    backgroundColor: "#F5F5F5",
+    width: 140,
+    height: 140,
+    borderRadius: 16,
+    backgroundColor: "#E8EDF4",
   },
   primaryBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: COLORS.primary,
+    top: 10,
+    left: 10,
+    backgroundColor: COLORS.primary || "#3A57E8",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.4)",
   },
   primaryText: {
     color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: "600",
-  },
-  orderBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  orderText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
+    letterSpacing: 0.5,
   },
   actions: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
+    bottom: 10,
+    right: 10,
     flexDirection: "row",
     gap: 8,
   },
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   setPrimaryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   deleteButton: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: "rgba(255, 59, 48, 0.8)",
   },
-  addButton: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: COLORS.textSecondary,
+  smallAddTile: {
+    width: 140,
+    height: 140,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E6EAF2",
+    marginRight: 15,
+    marginVertical: 2, // Helps prevent shadow clipping
+  },
+  smallAddIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F0FF",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
+    marginBottom: 8,
   },
-  addText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: "600",
-  },
-  emptyText: {
-    textAlign: "center",
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 10,
+  smallAddText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.primary || "#3A57E8",
   },
 });
 

@@ -278,6 +278,16 @@ const CreateEventModal = ({
   // Bottom sheet state for ticket type selection
   const [showAddTicketSheet, setShowAddTicketSheet] = useState(false);
 
+  // ── Validation: error highlight state ──
+  const [errorField, setErrorField] = useState(null);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const sectionPositions = useRef({}); // { fieldName: yPosition }
+
+  // Helper to register section y positions
+  const registerSectionLayout = (fieldName) => (e) => {
+    sectionPositions.current[fieldName] = e.nativeEvent.layout.y;
+  };
+
   // Memoized date formatting to prevent heavy recalculations every render
   const dateDisplay = React.useMemo(() => {
     return formatEventDateRange(eventDate, endDate);
@@ -534,42 +544,139 @@ const CreateEventModal = ({
     setShowSaveDraftModal(true);
   };
 
-  const validateStep = (step) => {
-    if (step === 1) {
-      if (!title.trim()) {
-        Alert.alert("Required", "Enter an event title");
-        return false;
-      }
-      if (eventType !== "virtual" && !isValidGoogleMapsUrl(locationUrl)) {
-        Alert.alert("Invalid URL", "Please paste a valid Google Maps link");
-        return false;
-      }
-      if (ticketTypes.length === 0) {
-        Alert.alert("Required", "Add at least one ticket type");
-        return false;
-      }
-      if (categories.length === 0) {
-        Alert.alert("Required", "Select at least one category");
-        return false;
-      }
+  // ── Step completion check (pure boolean) ──
+  const isStepComplete = (step) => {
+    switch (step) {
+      case 1:
+        if (!title.trim()) return false;
+        if (!eventDate || !hasTime) return false;
+        if (eventType !== "virtual" && !isValidGoogleMapsUrl(locationUrl))
+          return false;
+        if (
+          (eventType === "virtual" || eventType === "hybrid") &&
+          !virtualLink.trim()
+        )
+          return false;
+        if (ticketTypes.length === 0) return false;
+        if (categories.length === 0) return false;
+        return true;
+      case 2:
+        return bannerCarousel.length > 0;
+      case 3:
+        return description.length >= 50;
+      case 4:
+      case 5:
+        return true; // optional steps
+      case 6:
+        return thingsToKnow.length >= 3;
+      case 7:
+        return true; // review step
+      default:
+        return true;
     }
-    if (step === 2 && bannerCarousel.length === 0) {
-      Alert.alert("Required", "Add a banner image");
-      return false;
-    }
-    if (step === 3 && description.length < 50) {
-      Alert.alert("Required", "Description must be 50+ chars");
-      return false;
-    }
-    if (step === 6 && thingsToKnow.length < 3) {
-      Alert.alert("Required", "Add at least 3 items");
-      return false;
-    }
-    return true;
   };
 
-  const handleNext = () =>
-    validateStep(currentStep) && setCurrentStep(currentStep + 1);
+  // ── Get first missing field name for scroll-to-error ──
+  const getFirstMissingField = (step) => {
+    if (step === 1) {
+      if (!title.trim()) return "title";
+      if (!eventDate || !hasTime) return "dateTime";
+      if (eventType !== "virtual" && !isValidGoogleMapsUrl(locationUrl))
+        return "location";
+      if (
+        (eventType === "virtual" || eventType === "hybrid") &&
+        !virtualLink.trim()
+      )
+        return "virtualLink";
+      if (ticketTypes.length === 0) return "ticketing";
+      if (categories.length === 0) return "categories";
+    }
+    if (step === 2) return "bannerImages";
+    if (step === 3) return "description";
+    if (step === 6) return "thingsToKnow";
+    return null;
+  };
+
+  // ── Shake animation trigger ──
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, {
+        toValue: 8,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: -8,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 4,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // ── Auto-clear error when user fills the field ──
+  useEffect(() => {
+    if (!errorField) return;
+    const fieldFilled = {
+      title: !!title.trim(),
+      dateTime: !!eventDate && hasTime,
+      location: isValidGoogleMapsUrl(locationUrl),
+      virtualLink: !!virtualLink.trim(),
+      ticketing: ticketTypes.length > 0,
+      categories: categories.length > 0,
+      bannerImages: bannerCarousel.length > 0,
+      description: description.length >= 50,
+      thingsToKnow: thingsToKnow.length >= 3,
+    };
+    if (fieldFilled[errorField]) {
+      setErrorField(null);
+    }
+  }, [
+    errorField,
+    title,
+    eventDate,
+    hasTime,
+    locationUrl,
+    virtualLink,
+    ticketTypes,
+    categories,
+    bannerCarousel,
+    description,
+    thingsToKnow,
+  ]);
+
+  // ── Clear error on step change ──
+  useEffect(() => {
+    setErrorField(null);
+  }, [currentStep]);
+
+  // ── Handle Next: advance or scroll-to-error ──
+  const handleNext = () => {
+    if (isStepComplete(currentStep)) {
+      setErrorField(null);
+      setCurrentStep(currentStep + 1);
+    } else {
+      const field = getFirstMissingField(currentStep);
+      setErrorField(field);
+      triggerShake();
+      // Scroll to the error section
+      const yPos = sectionPositions.current[field];
+      if (yPos !== undefined && scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: yPos - 20, animated: true });
+      } else if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: true });
+      }
+    }
+  };
   const handleBack = () => setCurrentStep(currentStep - 1);
 
   const [creationError, setCreationError] = useState(null);
@@ -611,7 +718,16 @@ const CreateEventModal = ({
             contentContainerStyle={styles.scrollContent}
           >
             {/* Event Identity Section */}
-            <View style={styles.sectionBlock}>
+            <Animated.View
+              style={[
+                styles.sectionBlock,
+                errorField === "title" && styles.sectionError,
+                errorField === "title" && {
+                  transform: [{ translateX: shakeAnim }],
+                },
+              ]}
+              onLayout={registerSectionLayout("title")}
+            >
               <Text style={styles.label}>Event Title</Text>
               <View style={styles.titleInputContainer}>
                 <TextInput
@@ -623,10 +739,19 @@ const CreateEventModal = ({
                   autoFocus={true}
                 />
               </View>
-            </View>
+            </Animated.View>
 
             {/* Date & Time Section */}
-            <View style={styles.sectionBlock}>
+            <Animated.View
+              style={[
+                styles.sectionBlock,
+                errorField === "dateTime" && styles.sectionError,
+                errorField === "dateTime" && {
+                  transform: [{ translateX: shakeAnim }],
+                },
+              ]}
+              onLayout={registerSectionLayout("dateTime")}
+            >
               <Text style={styles.label}>Date & Time</Text>
               <View style={{ gap: 12 }}>
                 {/* Unified Date Card — Full Width */}
@@ -871,9 +996,8 @@ const CreateEventModal = ({
                   }
                 }}
               />
-            </View>
+            </Animated.View>
 
-            {/* Event Type Section */}
             {/* Event Type Section (Sliding Gradient) */}
             <View style={styles.sectionBlock}>
               <Text style={styles.label}>Event Type</Text>
@@ -1070,7 +1194,16 @@ const CreateEventModal = ({
 
             {/* Location Section — In-Person / Hybrid */}
             {eventType !== "virtual" && (
-              <View style={styles.sectionBlock}>
+              <Animated.View
+                style={[
+                  styles.sectionBlock,
+                  errorField === "location" && styles.sectionError,
+                  errorField === "location" && {
+                    transform: [{ translateX: shakeAnim }],
+                  },
+                ]}
+                onLayout={registerSectionLayout("location")}
+              >
                 <Text style={styles.label}>Location</Text>
                 <View style={styles.locationCard}>
                   <Search size={20} color={MODAL_TOKENS.primary} />
@@ -1104,12 +1237,21 @@ const CreateEventModal = ({
                     placeholderTextColor={MODAL_TOKENS.textMuted}
                   />
                 </View>
-              </View>
+              </Animated.View>
             )}
 
             {/* Virtual Link Section — Virtual / Hybrid */}
             {(eventType === "virtual" || eventType === "hybrid") && (
-              <View style={styles.sectionBlock}>
+              <Animated.View
+                style={[
+                  styles.sectionBlock,
+                  errorField === "virtualLink" && styles.sectionError,
+                  errorField === "virtualLink" && {
+                    transform: [{ translateX: shakeAnim }],
+                  },
+                ]}
+                onLayout={registerSectionLayout("virtualLink")}
+              >
                 <Text style={styles.label}>
                   {eventType === "hybrid" ? "Online Link" : "Virtual Link"}
                 </Text>
@@ -1126,11 +1268,20 @@ const CreateEventModal = ({
                     keyboardType="url"
                   />
                 </View>
-              </View>
+              </Animated.View>
             )}
 
             {/* Ticketing Section — Uses Editor Components */}
-            <View style={styles.sectionBlock}>
+            <Animated.View
+              style={[
+                styles.sectionBlock,
+                errorField === "ticketing" && styles.sectionError,
+                errorField === "ticketing" && {
+                  transform: [{ translateX: shakeAnim }],
+                },
+              ]}
+              onLayout={registerSectionLayout("ticketing")}
+            >
               <TicketTypesEditor
                 ref={ticketEditorRef}
                 ticketTypes={ticketTypes}
@@ -1166,10 +1317,19 @@ const CreateEventModal = ({
                   eventStartDate={eventDate}
                 />
               )}
-            </View>
+            </Animated.View>
 
             {/* Categories */}
-            <View style={styles.sectionBlock}>
+            <Animated.View
+              style={[
+                styles.sectionBlock,
+                errorField === "categories" && styles.sectionError,
+                errorField === "categories" && {
+                  transform: [{ translateX: shakeAnim }],
+                },
+              ]}
+              onLayout={registerSectionLayout("categories")}
+            >
               <Text style={styles.label}>Categories</Text>
               <CategorySelector
                 selectedCategories={categories}
@@ -1181,18 +1341,32 @@ const CreateEventModal = ({
                   }, 100);
                 }}
               />
-            </View>
+            </Animated.View>
           </ScrollView>
         );
       case 2:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Media</Text>
-            <ImageCarouselUpload
-              images={bannerCarousel}
-              onChange={setBannerCarousel}
-              maxImages={5}
-            />
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            <Animated.View
+              style={[
+                errorField === "bannerImages" && styles.sectionError,
+                errorField === "bannerImages" && {
+                  borderRadius: 24,
+                  transform: [{ translateX: shakeAnim }],
+                },
+              ]}
+              onLayout={registerSectionLayout("bannerImages")}
+            >
+              <ImageCarouselUpload
+                images={bannerCarousel}
+                onChange={setBannerCarousel}
+                maxImages={5}
+              />
+            </Animated.View>
             <EventGalleryUpload
               images={gallery}
               onChange={setGallery}
@@ -1202,7 +1376,7 @@ const CreateEventModal = ({
         );
       case 3:
         return (
-          <ScrollView style={styles.stepContent}>
+          <ScrollView ref={scrollViewRef} style={styles.stepContent}>
             <Text style={styles.stepTitle}>Description</Text>
             <RichTextEditor
               value={description}
@@ -1234,7 +1408,7 @@ const CreateEventModal = ({
         );
       case 6:
         return (
-          <ScrollView style={styles.stepContent}>
+          <ScrollView ref={scrollViewRef} style={styles.stepContent}>
             <Text style={styles.stepTitle}>Things to Know</Text>
             <ThingsToKnowEditor
               items={thingsToKnow}
@@ -1486,6 +1660,8 @@ const CreateEventModal = ({
             style={[
               styles.floatingNextButton,
               creating && { opacity: 0.7 },
+              currentStep !== 7 &&
+                !isStepComplete(currentStep) && { opacity: 0.45 },
               currentStep === 1 && { marginLeft: "auto" },
             ]}
             disabled={creating}
@@ -1668,6 +1844,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: MODAL_TOKENS.border, // #E6ECF8
     padding: 20,
+  },
+  sectionError: {
+    borderColor: "#EF4444",
+    borderWidth: 1.5,
   },
   sectionTitle: {
     fontFamily: MODAL_TOKENS.fonts.semibold,

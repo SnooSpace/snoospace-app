@@ -8,15 +8,14 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  Animated,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { Images, Plus, X } from "lucide-react-native";
 import { uploadEventGallery } from "../api/upload";
 import { COLORS } from "../constants/theme";
-
-const TEXT_COLOR = "#1C1C1E";
-const LIGHT_TEXT_COLOR = "#8E8E93";
 
 /**
  * EventGalleryUpload - Upload and manage additional event gallery images (0-20 images)
@@ -27,13 +26,30 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
   const navigation = useNavigation();
   const resolveRef = useRef(null);
 
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 4,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const pickImages = async () => {
     const remainingSlots = maxImages - images.length;
 
     if (remainingSlots <= 0) {
       Alert.alert(
         "Limit Reached",
-        `You can upload up to ${maxImages} gallery images.`
+        `You can upload up to ${maxImages} gallery images.`,
       );
       return;
     }
@@ -45,7 +61,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
-          "Please grant access to your photo library."
+          "Please grant access to your photo library.",
         );
         return;
       }
@@ -142,88 +158,175 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
     <View style={styles.galleryItem}>
       <Image source={{ uri: item.url }} style={styles.galleryImage} />
 
-      {/* Order badge */}
-      <View style={styles.orderBadge}>
-        <Text style={styles.orderText}>{index + 1}</Text>
-      </View>
-
       {/* Delete button */}
       <TouchableOpacity
         style={styles.deleteButton}
         onPress={() => removeImage(index)}
       >
-        <Ionicons name="close-circle" size={24} color="#FF3B30" />
+        <X size={14} color="#FFFFFF" strokeWidth={3} />
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.cardContainer}>
       <View style={styles.header}>
-        <Text style={styles.title}>Event Gallery (Optional)</Text>
-        <Text style={styles.subtitle}>
-          {images.length}/{maxImages} images • Additional photos for your event
-        </Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.iconCircle}>
+            <Images size={20} color={"#4B5563"} />
+          </View>
+          <Text style={styles.title}>Event Gallery • Optional</Text>
+        </View>
+        <View style={styles.counterPill}>
+          <Text style={styles.counterText}>
+            {images.length} / {maxImages}
+          </Text>
+        </View>
       </View>
 
-      {images.length > 0 && (
-        <FlatList
-          data={images}
-          renderItem={renderGalleryItem}
-          keyExtractor={(item, index) => index.toString()}
-          numColumns={3}
-          columnWrapperStyle={styles.row}
-          scrollEnabled={false}
-        />
-      )}
-
-      {/* Add images button */}
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={pickImages}
-        disabled={uploading || images.length >= maxImages}
-      >
-        {uploading ? (
-          <ActivityIndicator color={COLORS.primary} />
-        ) : (
-          <>
-            <Ionicons name="images-outline" size={32} color={COLORS.primary} />
-            <Text style={styles.addButtonText}>
-              {images.length === 0 ? "Add Gallery Images" : "Add More Images"}
-            </Text>
-            <Text style={styles.addButtonSubtext}>
-              {maxImages - images.length} slots remaining
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
-
-      {images.length === 0 && (
-        <Text style={styles.emptyText}>
-          Gallery images help showcase your event. You can add up to {maxImages}{" "}
-          photos.
-        </Text>
+      {images.length === 0 ? (
+        <TouchableWithoutFeedback
+          onPress={pickImages}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={uploading || images.length >= maxImages}
+        >
+          <Animated.View
+            style={[styles.uploadTile, { transform: [{ scale: scaleAnim }] }]}
+          >
+            {uploading ? (
+              <ActivityIndicator size="large" color={"#4B5563"} />
+            ) : (
+              <>
+                <View
+                  style={[
+                    styles.iconCircle,
+                    {
+                      backgroundColor: "#F3F4F6",
+                      marginBottom: 12,
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                    },
+                  ]}
+                >
+                  <Plus size={24} color="#6B7280" />
+                </View>
+                <Text style={styles.addText}>Add Gallery Images</Text>
+                <Text style={styles.addTextSub}>
+                  Showcase your event (up to {maxImages} photos)
+                </Text>
+              </>
+            )}
+          </Animated.View>
+        </TouchableWithoutFeedback>
+      ) : (
+        <View>
+          <FlatList
+            data={images}
+            renderItem={renderGalleryItem}
+            keyExtractor={(item, index) => index.toString()}
+            numColumns={3}
+            columnWrapperStyle={styles.row}
+            scrollEnabled={false}
+          />
+          {images.length < maxImages && (
+            <TouchableOpacity
+              style={styles.smallAddTile}
+              onPress={pickImages}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator color={"#4B5563"} />
+              ) : (
+                <>
+                  <Plus
+                    size={20}
+                    color={"#4B5563"}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.smallAddText}>
+                    Add More Gallery Images
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  cardContainer: {
     marginVertical: 15,
+    backgroundColor: "#F4F7FB",
+    borderRadius: 24,
+    padding: 24,
   },
   header: {
-    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6", // lighter gray-blue/neutral tint
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 4,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1F2937",
   },
   subtitle: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  counterPill: {
+    backgroundColor: "#EEF2F8",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  counterText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
+    letterSpacing: 0.2,
+  },
+  uploadTile: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E8EDF4",
+  },
+  addText: {
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1C1F26",
+    marginBottom: 4,
+  },
+  addTextSub: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280",
+    textAlign: "center",
   },
   row: {
     marginBottom: 10,
@@ -239,58 +342,40 @@ const styles = StyleSheet.create({
   galleryImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 8,
-    backgroundColor: "#F5F5F5",
-  },
-  orderBadge: {
-    position: "absolute",
-    top: 6,
-    left: 6,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  orderText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "600",
+    borderRadius: 12,
+    backgroundColor: "#E8EDF4",
   },
   deleteButton: {
     position: "absolute",
-    top: 4,
-    right: 4,
-  },
-  addButton: {
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: LIGHT_TEXT_COLOR,
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  smallAddTile: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F5F5",
-    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#E8EDF4",
+    marginTop: 8,
   },
-  addButtonText: {
-    marginTop: 10,
+  smallAddText: {
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.primary,
-  },
-  addButtonSubtext: {
-    marginTop: 4,
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: LIGHT_TEXT_COLOR,
-    fontSize: 12,
-    marginTop: 15,
-    paddingHorizontal: 20,
+    fontFamily: "Manrope-SemiBold",
+    color: "#4B5563",
   },
 });
 
