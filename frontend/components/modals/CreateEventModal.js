@@ -30,6 +30,7 @@ import {
   Video,
   Layers,
   Globe,
+  Earth,
   Lock,
   Search,
   Check,
@@ -323,6 +324,7 @@ const CreateEventModal = ({
     virtual_link: virtualLink,
     max_attendees: maxAttendees,
     ticket_types: ticketTypes,
+    promos: promos,
     discount_codes: promos
       .filter((p) => p.offer_type === "promo_code")
       .map((p) => ({
@@ -350,6 +352,8 @@ const CreateEventModal = ({
         valid_until: p.valid_until,
         quantity_threshold: p.quantity_threshold,
         is_active: p.is_active,
+        applies_to: p.applies_to,
+        selected_tickets: p.selected_tickets,
       })),
     categories: categories,
     banner_carousel: bannerCarousel,
@@ -448,6 +452,8 @@ const CreateEventModal = ({
                   pr.rule_type === "early_bird_quantity"
                     ? "by_sales"
                     : "by_date",
+                applies_to: pr.applies_to || "all",
+                selected_tickets: pr.selected_tickets || [],
               });
             });
           }
@@ -972,7 +978,7 @@ const CreateEventModal = ({
               <Text style={styles.label}>Event Visibility</Text>
               <View style={styles.visibilityContainer}>
                 {[
-                  { value: "public", label: "Public", icon: "globe-outline" },
+                  { value: "public", label: "Public", icon: "earth-outline" },
                   {
                     value: "invite_only",
                     label: "Invite Only",
@@ -1007,7 +1013,7 @@ const CreateEventModal = ({
                       )}
                       <View style={{ zIndex: 1, alignItems: "center", gap: 6 }}>
                         {opt.value === "public" ? (
-                          <Globe
+                          <Earth
                             size={24}
                             color={
                               isSelected ? "#FFF" : MODAL_TOKENS.textSecondary
