@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
@@ -20,6 +11,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import ProgressBar from "../../../components/Progressbar";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
@@ -160,7 +152,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : (
               <Text style={styles.buttonText}>Verify</Text>
             )}
@@ -173,7 +165,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" />
+            <SnooLoader color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}

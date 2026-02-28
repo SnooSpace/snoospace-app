@@ -1,16 +1,5 @@
 import React, { useState, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Alert, Animated, TouchableWithoutFeedback } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { GalleryHorizontal, Plus, Star, Trash2 } from "lucide-react-native";
@@ -18,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { uploadEventBanner } from "../api/upload";
 
 import { COLORS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 /**
  * ImageCarouselUpload - Upload and manage carousel images (1-5 images)
@@ -185,7 +175,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
             style={[styles.uploadTile, { transform: [{ scale: scaleAnim }] }]}
           >
             {uploading ? (
-              <ActivityIndicator
+              <SnooLoader
                 size="large"
                 color={COLORS.primary || "#3A57E8"}
               />
@@ -254,7 +244,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
           disabled={uploading}
         >
           {uploading ? (
-            <ActivityIndicator color={COLORS.primary || "#3A57E8"} />
+            <SnooLoader color={COLORS.primary || "#3A57E8"} />
           ) : (
             <>
               <Plus size={20} color={"#4B5563"} style={{ marginRight: 6 }} />

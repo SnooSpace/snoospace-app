@@ -1,17 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  Animated,
-  Linking,
-  StatusBar,
-} from "react-native";
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions, Animated, Linking, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +17,7 @@ import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
+import SnooLoader from "../../components/ui/SnooLoader";
 import {
   getEventState,
   shouldShowViewAttendees,
@@ -477,7 +466,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <SnooLoader size="large" color={PRIMARY_COLOR} />
       </View>
     );
   }
@@ -1143,7 +1132,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 style={styles.registerButtonGradient}
               >
                 {requestingInvite ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <SnooLoader color="#FFFFFF" size="small" />
                 ) : (
                   <Text style={styles.registerButtonText}>
                     {isRegistered

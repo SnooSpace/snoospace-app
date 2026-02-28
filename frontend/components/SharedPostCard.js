@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";
@@ -15,6 +7,7 @@ import PollPostCard from "./posts/PollPostCard";
 import ChallengePostCard from "./posts/ChallengePostCard";
 import PromptPostCard from "./posts/PromptPostCard";
 import QnAPostCard from "./posts/QnAPostCard";
+import SnooLoader from "./ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
@@ -65,7 +58,7 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
       <View style={[styles.container, style]}>
         <View style={styles.card}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
+            <SnooLoader size="small" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading post...</Text>
           </View>
         </View>

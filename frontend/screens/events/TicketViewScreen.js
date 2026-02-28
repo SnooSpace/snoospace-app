@@ -3,16 +3,7 @@
  * Shows: QR code for entry, event details, ticket breakdown
  */
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Linking,
-  Alert,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Alert } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -21,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import { getMyTicket } from "../../api/events";
 import { useLocationName } from "../../utils/locationNameCache";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const BACKGROUND_COLOR = "#F5F5F5";
 const CARD_BACKGROUND = "#FFFFFF";
@@ -147,7 +139,7 @@ export default function TicketViewScreen({ route, navigation }) {
           </View>
         </View>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
           <Text style={styles.loadingText}>Loading ticket...</Text>
         </View>
       </SafeAreaView>

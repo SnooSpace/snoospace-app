@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Platform,
-} from "react-native";
+import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,6 +18,7 @@ import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
+import SnooLoader from "../ui/SnooLoader";
 
 const PRIMARY_COLOR = COLORS.primary; // This should be your solid Blue
 const TEXT_COLOR = "#1F2937";
@@ -1011,7 +1001,7 @@ export default function EditEventModal({
             ]}
           >
             {loading ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
             ) : hasChanges ? (
               <LinearGradient
                 colors={COLORS.primaryGradient}
@@ -1075,7 +1065,7 @@ export default function EditEventModal({
                 style={styles.fullButtonGradient}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <SnooLoader color="#FFFFFF" />
                 ) : (
                   <>
                     <Text style={styles.nextButtonText}>Save Changes</Text>

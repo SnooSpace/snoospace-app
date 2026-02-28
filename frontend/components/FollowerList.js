@@ -1,14 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +8,7 @@ import { COLORS, FONTS } from "../constants/theme";
 import PropTypes from "prop-types";
 import EventBus from "../utils/EventBus";
 import SkeletonUserCard from "./SkeletonUserCard";
+import SnooLoader from "./ui/SnooLoader";
 
 const PAGE_SIZE = 30;
 const DEFAULT_PRIMARY = COLORS.primary;
@@ -319,7 +311,7 @@ export default function FollowerList({
           }
           ListFooterComponent={
             loadingMore ? (
-              <ActivityIndicator
+              <SnooLoader
                 style={styles.footerLoader}
                 color={primaryColor}
               />

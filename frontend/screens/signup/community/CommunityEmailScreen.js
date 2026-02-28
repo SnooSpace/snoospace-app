@@ -1,17 +1,5 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  StatusBar,
-  ScrollView,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 
@@ -23,6 +11,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState("");
@@ -167,7 +156,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
               style={styles.button}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.textInverted} />
+                <SnooLoader color={COLORS.textInverted} />
               ) : (
                 <Text style={styles.buttonText}>Get Code</Text>
               )}

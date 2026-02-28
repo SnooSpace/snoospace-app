@@ -1,22 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Animated,
-  LayoutAnimation,
-  UIManager,
-  Easing,
-  TouchableHighlight,
-  Image,
-} from "react-native";
+import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Animated, LayoutAnimation, UIManager, Easing, TouchableHighlight, Image } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
   SafeAreaView,
@@ -74,6 +57,7 @@ import {
   formatLastSaved,
 } from "../../utils/draftStorage";
 import { getActiveAccount } from "../../api/auth";
+import SnooLoader from "../ui/SnooLoader";
 
 /**
  * Intelligent compressed date range formatter.
@@ -1690,7 +1674,7 @@ const CreateEventModal = ({
               disabled={creating}
             >
               {creating ? (
-                <ActivityIndicator color="#fff" />
+                <SnooLoader color="#fff" />
               ) : (
                 <LinearGradient
                   colors={MODAL_TOKENS.primaryGradient}

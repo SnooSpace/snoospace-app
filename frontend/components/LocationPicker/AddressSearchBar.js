@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { searchAddress } from '../../utils/geocoding';
 import SearchResultsList from './SearchResultsList';
+import SnooLoader from "../ui/SnooLoader";
 
 const TEXT_COLOR = '#1e1e1e';
 const LIGHT_TEXT_COLOR = '#6c757d';
@@ -83,7 +78,7 @@ export default function AddressSearchBar({
           autoCorrect={false}
         />
         {isSearching && (
-          <ActivityIndicator 
+          <SnooLoader 
             size="small" 
             color={LIGHT_TEXT_COLOR} 
             style={styles.loader}

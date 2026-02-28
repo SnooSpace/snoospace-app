@@ -4,21 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, Modal, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet, apiPatch } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { COLORS, SPACING, FONTS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 const RemovalRequestsModal = ({
   visible,
@@ -151,7 +142,7 @@ const RemovalRequestsModal = ({
             disabled={isReviewing}
           >
             {isReviewing ? (
-              <ActivityIndicator size="small" color="#FF3B30" />
+              <SnooLoader size="small" color="#FF3B30" />
             ) : (
               <>
                 <Ionicons name="close" size={18} color="#FF3B30" />
@@ -165,7 +156,7 @@ const RemovalRequestsModal = ({
             disabled={isReviewing}
           >
             {isReviewing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <>
                 <Ionicons name="checkmark" size={18} color="#FFFFFF" />
@@ -212,7 +203,7 @@ const RemovalRequestsModal = ({
           {/* Content */}
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FF9500" />
+              <SnooLoader size="large" color="#FF9500" />
             </View>
           ) : (
             <FlatList

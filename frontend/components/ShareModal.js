@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, FlatList, Image, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
 import { getRecentChatUsers, sharePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
+import SnooLoader from "./ui/SnooLoader";
 
 const ShareModal = ({ visible, onClose, post }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,7 +181,7 @@ const ShareModal = ({ visible, onClose, post }) => {
           {/* Users Grid */}
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
+              <SnooLoader size="large" color="#007AFF" />
             </View>
           ) : (
             <FlatList
@@ -219,7 +209,7 @@ const ShareModal = ({ visible, onClose, post }) => {
                 disabled={sending}
               >
                 {sending ? (
-                  <ActivityIndicator color="#FFF" />
+                  <SnooLoader color="#FFF" />
                 ) : (
                   <>
                     <Ionicons name="paper-plane" size={20} color="#FFF" />

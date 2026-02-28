@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-  ActivityIndicator,
-  Image,
-  Animated,
-  Pressable,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
@@ -29,6 +18,7 @@ import {
 } from "../../constants/theme";
 import { getGradientForName } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -749,7 +739,7 @@ export default function YourEventsScreen({ navigation }) {
       {/* Events List */}
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       ) : (
         <Animated.View

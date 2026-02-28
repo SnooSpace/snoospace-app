@@ -1,20 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  LayoutAnimation,
-  UIManager,
-  Platform,
-  Image,
-  Keyboard,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -101,6 +86,7 @@ if (
 }
 
 import { INTEREST_CATEGORIES, getInterestStyle } from "./EditProfileConstants";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Pronoun Category Tints
 const PRONOUN_STYLE_CONFIG = {
@@ -439,7 +425,7 @@ export default function EditProfileScreen({ route, navigation }) {
           ]}
         >
           {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <SnooLoader size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.saveButtonText}>Save</Text>
           )}
@@ -465,7 +451,7 @@ export default function EditProfileScreen({ route, navigation }) {
             <Image source={{ uri: photoUrl }} style={styles.profileImage} />
             <View style={styles.cameraButton}>
               {uploadingPhoto ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
               )}
@@ -501,7 +487,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 placeholderTextColor={TEXT_SECONDARY}
               />
               {usernameChecking && (
-                <ActivityIndicator size="small" color={ACCENT_COLOR} />
+                <SnooLoader size="small" color={ACCENT_COLOR} />
               )}
               {!usernameChecking && usernameAvailable === true && (
                 <Ionicons name="checkmark-circle" size={18} color="green" />

@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  FlatList,
-  ActivityIndicator,
-  Modal,
-  Alert,
-  ScrollView,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Platform, StatusBar, FlatList, Modal, Alert, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -25,6 +11,7 @@ import {
 import GlassBackButton from "../../../components/GlassBackButton";
 import { apiGet, apiPost } from "../../../api/client";
 import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Debounce helper
 const useDebounce = (value, delay) => {
@@ -261,7 +248,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
         {/* Loading indicator */}
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
+            <SnooLoader size="small" color={COLORS.primary} />
           </View>
         )}
 
@@ -405,7 +392,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                   style={styles.submitButtonGradient}
                 >
                   {submitting ? (
-                    <ActivityIndicator color="#fff" />
+                    <SnooLoader color="#fff" />
                   ) : (
                     <Text style={styles.submitButtonText}>Submit Request</Text>
                   )}

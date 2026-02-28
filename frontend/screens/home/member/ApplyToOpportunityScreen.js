@@ -1,20 +1,10 @@
 import React, { useState, useLayoutEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { applyToOpportunity } from "../../../api/opportunities";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const COLORS = {
   background: "#FAFAFA",
@@ -402,7 +392,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
               style={styles.nextGradient}
             >
               {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <SnooLoader color="#FFFFFF" />
               ) : (
                 <>
                   <Text style={styles.nextButtonText}>

@@ -4,19 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  Dimensions,
-  Modal,
-  Alert,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete, apiPatch } from "../../api/client";
@@ -27,6 +15,7 @@ import RemovalRequestsModal from "../../components/RemovalRequestsModal";
 import { Video, ResizeMode } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveAccount } from "../../utils/accountManager";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
 const COLUMN_COUNT = 2;
@@ -689,7 +678,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF9500" />
+          <SnooLoader size="large" color="#FF9500" />
         </View>
       ) : (
         <FlatList

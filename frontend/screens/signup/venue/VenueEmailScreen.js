@@ -1,14 +1,5 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -19,6 +10,7 @@ import {
 } from "../../../constants/theme";
 import { apiPost } from "../../../api/client";
 import { checkEmailExists } from "../../../api/auth";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const VenueEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState("");
@@ -189,7 +181,7 @@ const VenueEmailScreen = ({ navigation, route }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : (
               <Text style={styles.buttonText}>Continue</Text>
             )}

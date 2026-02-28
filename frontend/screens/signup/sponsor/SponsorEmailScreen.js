@@ -1,14 +1,5 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { checkEmailExists } from "../../../api/auth";
@@ -20,6 +11,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import ProgressBar from "../../../components/Progressbar";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const SponsorEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState("");
@@ -185,7 +177,7 @@ const SponsorEmailScreen = ({ navigation, route }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : (
               <Text style={styles.buttonText}>Continue</Text>
             )}

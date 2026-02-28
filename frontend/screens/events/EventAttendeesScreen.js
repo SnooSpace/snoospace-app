@@ -4,21 +4,13 @@
  * For community owners to view who registered for their events
  */
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-  ActivityIndicator,
-  Image,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { getEventRegistrations } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const BACKGROUND_COLOR = "#F9FAFB";
 const CARD_BACKGROUND = "#FFFFFF";
@@ -262,7 +254,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
           <Text style={styles.loadingText}>Loading attendees...</Text>
         </View>
       </SafeAreaView>

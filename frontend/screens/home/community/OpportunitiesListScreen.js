@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from "react-native";
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,6 +7,7 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { COLORS } from "../../../constants/theme";
 import { getOpportunities, closeOpportunity } from "../../../api/opportunities";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
@@ -254,7 +246,7 @@ export default function OpportunitiesListScreen({ navigation }) {
       {/* Content */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       ) : (
         <FlatList

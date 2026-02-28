@@ -4,15 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
@@ -40,6 +32,7 @@ import {
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
 import { getExtensionBadgeText } from "../../utils/cardTiming";
+import SnooLoader from "../ui/SnooLoader";
 
 const PollPostCard = ({
   post,

@@ -3,18 +3,7 @@
  * Shows order summary, timer, promo codes, and confirmation
  */
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  TextInput,
-  Alert,
-  Image,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, TextInput, Alert, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +16,7 @@ import {
 } from "../../api/events";
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/CelebrationModal";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -282,7 +272,7 @@ export default function CheckoutScreen({ route, navigation }) {
       {/* Reservation loading overlay */}
       {isReserving && (
         <View style={styles.reservingOverlay}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
           <Text style={styles.reservingText}>Reserving your tickets...</Text>
         </View>
       )}
@@ -509,7 +499,7 @@ export default function CheckoutScreen({ route, navigation }) {
             style={styles.confirmButtonGradient}
           >
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <SnooLoader color="#FFFFFF" size="small" />
             ) : (
               <Text style={styles.confirmButtonText}>
                 {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}

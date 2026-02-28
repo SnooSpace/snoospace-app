@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Image,
-  Dimensions,
-  ImageBackground,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BarChart3, User } from "lucide-react-native";
@@ -17,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
+import SnooLoader from "../../components/ui/SnooLoader";
 import {
   COLORS,
   SPACING,
@@ -365,7 +356,7 @@ export default function DiscoverScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <SnooLoader size="large" color={COLORS.primary} />
       </View>
     );
   }

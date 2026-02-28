@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert } from "react-native";
 import { apiPost } from "../../../api/client";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const FONT_SIZES = {
   largeHeader: 28,
@@ -153,7 +145,7 @@ const VenueUsernameScreen = ({ navigation, route }) => {
                 onBlur={() => setIsFocused(false)}
               />
               {isChecking && (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
               )}
             </View>
             <Text style={[styles.statusText, { color: status.color }]}>

@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  TouchableWithoutFeedback,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView } from "react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
+import SnooLoader from "../ui/SnooLoader";
 
 const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   const [promptText, setPromptText] = useState("");
@@ -153,7 +143,7 @@ const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                   disabled={!isValid || isLoading}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <SnooLoader size="small" color="#FFFFFF" />
                   ) : (
                     <Text style={styles.saveButtonText}>Save Changes</Text>
                   )}

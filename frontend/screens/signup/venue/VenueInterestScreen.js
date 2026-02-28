@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import ProgressBar from "../../../components/Progressbar";
 
@@ -21,6 +11,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import { getSignupInterests } from "../../../api/categories";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const MIN_SELECTIONS = 3; // Requirement from the design text
 const MAX_SELECTIONS = 7; // Maximum selections allowed
@@ -143,7 +134,7 @@ const VenueInterestScreen = ({ navigation, route }) => {
           {/* Interest Chips Container */}
           <View style={styles.chipsContainer}>
             {loading ? (
-              <ActivityIndicator size="large" color={COLORS.primary} />
+              <SnooLoader size="large" color={COLORS.primary} />
             ) : allInterests.length === 0 ? (
               <Text style={styles.subtitle}>No interests available</Text>
             ) : (

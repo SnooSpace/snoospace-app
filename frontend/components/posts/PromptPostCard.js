@@ -4,20 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -44,6 +31,7 @@ import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
 import PromptEditModal from "./PromptEditModal";
 import EventBus from "../../utils/EventBus";
+import SnooLoader from "../ui/SnooLoader";
 
 const PromptPostCard = ({
   post,
@@ -541,7 +529,7 @@ const PromptPostCard = ({
                 disabled={!submissionText.trim() || isSubmitting}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <SnooLoader size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.submitActionButtonText}>Submit</Text>
                 )}

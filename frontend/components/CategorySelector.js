@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Tags,
@@ -20,6 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, BORDER_RADIUS } from "../constants/theme";
 import { getDiscoverCategories } from "../api/categories";
+import SnooLoader from "./ui/SnooLoader";
 
 const TEXT_COLOR = "#1F2937";
 const LIGHT_TEXT_COLOR = "#6B7280";
@@ -87,7 +81,7 @@ export default function CategorySelector({
       <View style={styles.container}>
         <Text style={styles.label}>Categories</Text>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
+          <SnooLoader size="small" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading categories...</Text>
         </View>
       </View>

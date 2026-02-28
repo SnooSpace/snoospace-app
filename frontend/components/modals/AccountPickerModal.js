@@ -4,19 +4,12 @@
  * User can select one, multiple, or all accounts to log into
  */
 import React, { useState, useEffect } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import PropTypes from "prop-types";
 import { COLORS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import SnooLoader from "../ui/SnooLoader";
 
 // Type badges and colors
 const TYPE_CONFIG = {
@@ -225,7 +218,7 @@ export default function AccountPickerModal({
           {/* Loading indicator */}
           {loading && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#5f27cd" />
+              <SnooLoader size="large" color="#5f27cd" />
               <Text style={styles.loadingText}>Logging in...</Text>
             </View>
           )}

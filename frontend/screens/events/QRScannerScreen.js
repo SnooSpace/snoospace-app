@@ -3,24 +3,14 @@
  * For community accounts to check in attendees at events
  */
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Image,
-  Animated,
-  Dimensions,
-  TextInput,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Dimensions, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { verifyTicket } from "../../api/events";
 import { COLORS } from "../../constants/theme";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width, height } = Dimensions.get("window");
 const SCAN_FRAME_SIZE = width * 0.7;
@@ -144,7 +134,7 @@ export default function QRScannerScreen({ route, navigation }) {
   if (!permission) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <SnooLoader size="large" color={PRIMARY_COLOR} />
       </SafeAreaView>
     );
   }
@@ -229,7 +219,7 @@ export default function QRScannerScreen({ route, navigation }) {
         {/* Processing Indicator */}
         {processing && (
           <View style={styles.processingContainer}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
+            <SnooLoader size="large" color="#FFFFFF" />
             <Text style={styles.processingText}>Verifying...</Text>
           </View>
         )}

@@ -1,20 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TouchableWithoutFeedback,
-  Dimensions,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Modal, TouchableWithoutFeedback, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -33,6 +18,7 @@ import SignupHeader from "../../../components/SignupHeader";
 
 import { apiPost } from "../../../api/client";
 import { setPendingOtp, checkEmailExists } from "../../../api/auth";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
 
@@ -245,7 +231,7 @@ const EmailInputScreen = ({ navigation }) => {
               style={styles.continueButton}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.textInverted} />
+                <SnooLoader color={COLORS.textInverted} />
               ) : (
                 <Text style={styles.buttonText}>
                   {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Get Code"}

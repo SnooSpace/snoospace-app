@@ -5,18 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  View,
-  TextInput,
-  FlatList,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Keyboard,
-  ScrollView,
-} from "react-native";
+import { View, TextInput, FlatList, Text, Image, TouchableOpacity, StyleSheet, Keyboard, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -33,6 +22,7 @@ import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
 import { DiscoverFeedV2 } from "../../components/discover";
 import SuggestedCommunityCard from "../../components/SuggestedCommunityCard";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 // Helper to create rgba from hex
 const hexToRgba = (hex, alpha) => {

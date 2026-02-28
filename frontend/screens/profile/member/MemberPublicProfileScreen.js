@@ -7,18 +7,7 @@ import React, {
 } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Dimensions,
-  ActivityIndicator,
-  Modal,
-  ScrollView,
-  Alert,
-} from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
 import {
@@ -58,6 +47,7 @@ import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
@@ -721,7 +711,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             }
             ListFooterComponent={
               loadingMore ? (
-                <ActivityIndicator style={{ marginVertical: 12 }} />
+                <SnooLoader style={{ marginVertical: 12 }} />
               ) : null
             }
           />

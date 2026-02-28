@@ -1,18 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import { getApplications } from "../../../api/opportunities";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const COLORS = {
   background: "#FAFAFA",
@@ -237,7 +229,7 @@ export default function ApplicantsListScreen({ route, navigation }) {
       {/* Content */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
       ) : (
         <FlatList

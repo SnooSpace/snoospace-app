@@ -4,19 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Image,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -25,6 +13,7 @@ import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const ChallengeSubmitScreen = ({ route, navigation }) => {
   const { post, participation } = route.params;
@@ -349,7 +338,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -375,7 +364,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           disabled={!canSubmit() || isSubmitting}
         >
           {isSubmitting ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <SnooLoader size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>Submit</Text>
           )}

@@ -26,6 +26,7 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -334,7 +335,7 @@ export default function VenueProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
           <Text style={{ marginTop: 10 }}>Loading profile...</Text>
         </View>
       </SafeAreaView>

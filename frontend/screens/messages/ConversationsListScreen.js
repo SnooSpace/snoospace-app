@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  PanResponder,
-} from "react-native";
+  View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getConversations } from "../../api/messages";
@@ -18,6 +9,7 @@ import { getMemberFollowers, getMemberFollowing } from "../../api/members";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiGet, apiPost } from "../../api/client";
 import EventBus from "../../utils/EventBus";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -311,7 +303,7 @@ export default function ConversationsListScreen({ navigation }) {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       </SafeAreaView>
     );
@@ -335,7 +327,7 @@ export default function ConversationsListScreen({ navigation }) {
           <Text style={styles.emptyTitle}>Start a conversation</Text>
 
           {loadingSuggestions ? (
-            <ActivityIndicator
+            <SnooLoader
               size="small"
               color={PRIMARY_COLOR}
               style={{ marginTop: 20 }}

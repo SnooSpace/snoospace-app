@@ -1,15 +1,9 @@
 import React, { useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 /**
  * Blocking modal for attendance confirmation
@@ -64,7 +58,7 @@ export default function AttendanceConfirmationModal({
               disabled={loading}
             >
               {loading && selectedOption === "no" ? (
-                <ActivityIndicator size="small" color="#666" />
+                <SnooLoader size="small" color="#666" />
               ) : (
                 <>
                   <Ionicons
@@ -89,7 +83,7 @@ export default function AttendanceConfirmationModal({
                 style={styles.yesButtonGradient}
               >
                 {loading && selectedOption === "yes" ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <SnooLoader size="small" color="#FFF" />
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={20} color="#FFF" />

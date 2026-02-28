@@ -1,22 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Alert,
-  Modal,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  Animated,
-} from "react-native";
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Alert, Modal, FlatList, TextInput, Dimensions, KeyboardAvoidingView, Platform, RefreshControl, Animated } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -96,6 +79,7 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -1018,7 +1002,7 @@ export default function CommunityProfileScreen({ navigation }) {
               onPress={handleBannerAction}
             >
               {bannerUploading ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <SnooLoader size="small" color="#fff" />
               ) : (
                 <Camera size={20} color="#fff" />
               )}

@@ -1,24 +1,12 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { X, Check } from "lucide-react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
   startEmailChange as startMemberEmailChange,
   verifyEmailChange as verifyMemberEmailChange,
 } from "../api/members";
+import SnooLoader from "./ui/SnooLoader";
 import {
   COLORS,
   FONTS,
@@ -215,7 +203,7 @@ export default function EmailChangeModal({
                         disabled={!isValidEmailStep}
                       >
                         {sendingOtp ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
+                          <SnooLoader size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={styles.primaryButtonText}>
                             Send verification code
@@ -287,7 +275,7 @@ export default function EmailChangeModal({
                           disabled={!isValidOtpStep}
                         >
                           {loading ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
+                            <SnooLoader size="small" color="#FFFFFF" />
                           ) : (
                             <Text style={styles.primaryButtonText}>
                               Verify Email

@@ -5,17 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Image,
-  Dimensions,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Image, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
@@ -31,6 +21,7 @@ import CropView from "./CropView";
 import { getPreset, getVideoPresets } from "./CropPresets";
 import { calculateCropRegion } from "./CropUtils";
 import { COLORS } from "../../constants/theme";
+import SnooLoader from "../ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const THUMBNAIL_SIZE = 74; // Increased from 60
@@ -642,7 +633,7 @@ const BatchCropScreen = ({ route, navigation }) => {
             activeOpacity={0.85}
           >
             {processing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <Text style={styles.doneText}>Done</Text>
             )}

@@ -1,7 +1,7 @@
 import "react-native-gesture-handler";
 import "react-native-get-random-values";
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { NavigationContainer, CommonActions } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -29,6 +29,7 @@ import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 import { VideoProvider } from "./context/VideoContext";
+import SnooLoader from "./components/ui/SnooLoader";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -84,7 +85,7 @@ export default function App() {
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1976D2" />
+        <SnooLoader size="large" color="#1976D2" />
       </View>
     );
   }

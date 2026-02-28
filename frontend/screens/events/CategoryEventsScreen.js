@@ -1,20 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  Image,
-  RefreshControl,
-} from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
 import { getEventsByCategory } from "../../api/categories";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
@@ -159,7 +151,7 @@ export default function CategoryEventsScreen({ navigation, route }) {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );

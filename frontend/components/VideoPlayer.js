@@ -9,19 +9,12 @@
  * - Global coordination via VideoContext
  */
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
-import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  Text,
-  Image,
-} from "react-native";
+import { View, TouchableOpacity, StyleSheet, Dimensions, Text, Image } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { RotateCcw } from "lucide-react-native";
 import { useVideoContext } from "../context/VideoContext";
+import SnooLoader from "./ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -555,7 +548,7 @@ const VideoPlayer = ({
         {/* Loading indicator - only show when actively loading (not just waiting) */}
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#fff" />
+            <SnooLoader size="large" color="#fff" />
           </View>
         )}
 

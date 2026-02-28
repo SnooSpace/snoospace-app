@@ -1,21 +1,11 @@
 import React, { useState, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  FlatList,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { View, Text, TouchableOpacity, Image, StyleSheet, FlatList, Alert, Animated, TouchableWithoutFeedback } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { Images, Plus, X } from "lucide-react-native";
 import { uploadEventGallery } from "../api/upload";
 import { COLORS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 /**
  * EventGalleryUpload - Upload and manage additional event gallery images (0-20 images)
@@ -195,7 +185,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
             style={[styles.uploadTile, { transform: [{ scale: scaleAnim }] }]}
           >
             {uploading ? (
-              <ActivityIndicator size="large" color={"#4B5563"} />
+              <SnooLoader size="large" color={"#4B5563"} />
             ) : (
               <>
                 <View
@@ -237,7 +227,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
               disabled={uploading}
             >
               {uploading ? (
-                <ActivityIndicator color={"#4B5563"} />
+                <SnooLoader color={"#4B5563"} />
               ) : (
                 <>
                   <Plus

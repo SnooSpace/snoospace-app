@@ -1,20 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  StyleSheet,
-  View,
-  Platform,
-  Alert,
-  Animated as RNAnimated,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  PanResponder,
-  Pressable,
-} from "react-native";
+import { StyleSheet, View, Platform, Alert, Animated as RNAnimated, Text, TextInput, TouchableOpacity, FlatList, Image, KeyboardAvoidingView, PanResponder, Pressable } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -37,6 +22,7 @@ import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#3565F2"; // Branded Blue
 const TEXT_COLOR = COLORS.textPrimary;
@@ -704,7 +690,7 @@ export default function ChatScreen({ route, navigation }) {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       </View>
     );
@@ -812,7 +798,7 @@ export default function ChatScreen({ route, navigation }) {
             disabled={!messageText.trim() || sending}
           >
             {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
             )}

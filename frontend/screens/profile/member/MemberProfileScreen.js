@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-  Alert,
-  Dimensions,
-  Modal,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  TextInput,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -67,6 +51,7 @@ import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 import { useAuthState } from "../../../contexts/AuthStateContext";
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -826,7 +811,7 @@ export default function MemberProfileScreen({ navigation }) {
         ListFooterComponent={
           loadingMorePosts ? (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
             </View>
           ) : null
         }

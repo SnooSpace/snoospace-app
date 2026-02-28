@@ -1,20 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TouchableWithoutFeedback,
-  Dimensions,
-  Platform,
-  StatusBar,
-  Animated,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated } from "react-native";
 import { useRef } from "react";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +20,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -479,7 +465,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : (
               <Text style={styles.buttonText}>Login</Text>
             )}
@@ -492,7 +478,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" />
+            <SnooLoader color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}

@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Dimensions,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,6 +14,7 @@ import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
 import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
 import HapticsService from "../../services/HapticsService";
 import ThemeChip from "../../components/ThemeChip";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -194,7 +181,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <SnooLoader size="large" color={COLORS.primary} />
       </View>
     );
   }

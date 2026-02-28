@@ -1,20 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Dimensions,
-  ScrollView,
-  Modal,
-  TextInput,
-  Alert,
-  Platform,
-  StatusBar,
-  ActivityIndicator,
-} from "react-native";
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Dimensions, ScrollView, Modal, TextInput, Alert, Platform, StatusBar } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for the back arrow
@@ -34,6 +21,7 @@ import {
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import { apiGet, apiPost } from "../../../api/client";
+import SnooLoader from "../../../components/ui/SnooLoader";
 // Fallback categories in case API fails
 const fallbackCategories = [
   "Sports",

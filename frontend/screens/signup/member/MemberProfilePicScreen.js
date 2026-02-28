@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  Image,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  Easing,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Image, Alert, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
 import { useCrop } from "../../../components/MediaCrop";
 
@@ -35,6 +21,7 @@ import {
   getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, name } = route.params || {};
@@ -312,7 +299,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           >
             {uploading ? (
               <View style={styles.buttonLoadingContainer}>
-                <ActivityIndicator
+                <SnooLoader
                   size="small"
                   color={COLORS.textInverted}
                   style={styles.buttonSpinner}

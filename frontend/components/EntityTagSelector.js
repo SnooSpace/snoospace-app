@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Image,
-  FlatList,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Trophy } from "lucide-react-native";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { COLORS, FONTS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 // Local overrides if needed, but mostly using theme
 const LOCAL_COLORS = {
@@ -196,7 +186,7 @@ const EntityTagSelector = ({
     if (isSearching) {
       return (
         <View style={[styles.resultsContainer, { padding: 20 }]}>
-          <ActivityIndicator size="small" color={LOCAL_COLORS.challenge} />
+          <SnooLoader size="small" color={LOCAL_COLORS.challenge} />
         </View>
       );
     }
@@ -254,7 +244,7 @@ const EntityTagSelector = ({
     if (isLoadingChallenges) {
       return (
         <View style={[styles.resultsContainer, { padding: 20 }]}>
-          <ActivityIndicator size="small" color={LOCAL_COLORS.challenge} />
+          <SnooLoader size="small" color={LOCAL_COLORS.challenge} />
         </View>
       );
     }

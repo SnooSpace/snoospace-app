@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getCurrentLocation, hasLocationPermission, requestLocationPermission } from '../../utils/location';
@@ -17,6 +9,7 @@ import AddressSearchBar from './AddressSearchBar';
 import LocationMapView from './MapView';
 import ConfirmationScreen from './ConfirmationScreen';
 import { COLORS } from '../../constants/theme';
+import SnooLoader from "../ui/SnooLoader";
 
 // Local constants removed in favor of theme constants
 
@@ -186,7 +179,7 @@ export default function LocationPicker({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Getting your location...</Text>
         </View>
       </SafeAreaView>
@@ -243,7 +236,7 @@ export default function LocationPicker({
 
           {isLoadingAddress && (
             <View style={styles.loadingAddressContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
               <Text style={styles.loadingAddressText}>Getting address...</Text>
             </View>
           )}

@@ -1,23 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const QnAQuestionsScreen = ({ route, navigation }) => {
   const { post } = route.params;
@@ -361,7 +349,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                   disabled={!replyText.trim() || isSubmittingReply}
                 >
                   {isSubmittingReply ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <SnooLoader size="small" color="#FFFFFF" />
                   ) : (
                     <Text style={styles.sendReplyText}>Send</Text>
                   )}
@@ -546,7 +534,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#5856D6" />
+            <SnooLoader size="large" color="#5856D6" />
           </View>
         ) : (
           <FlatList
@@ -588,7 +576,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
               disabled={!questionText.trim() || isSubmitting}
             >
               {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <Ionicons name="send" size={18} color="#FFFFFF" />
               )}

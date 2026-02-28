@@ -1,18 +1,10 @@
 import React, { useState, useEffect, useLayoutEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { getOpportunityDetail } from "../../../api/opportunities";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
 const COLORS = {
@@ -84,7 +76,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading opportunity...</Text>
         </View>
       </SafeAreaView>

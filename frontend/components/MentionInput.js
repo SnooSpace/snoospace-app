@@ -1,19 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  ScrollView,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { globalSearch } from "../api/search";
 import MentionSearchDropdown from "./MentionSearchDropdown";
+import SnooLoader from "./ui/SnooLoader";
 
 const COLORS = {
   primary: "#5f27cd",

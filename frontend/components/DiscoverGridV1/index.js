@@ -1,18 +1,9 @@
 import React, { useMemo } from 'react';
-import {
-  View,
-  Image,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { View, Image, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, BORDER_RADIUS } from '../constants/theme';
+import SnooLoader from "../ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 2;
@@ -242,7 +233,7 @@ export default function DiscoverGrid({
   if (loading && items.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <SnooLoader size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Discovering content...</Text>
       </View>
     );
@@ -282,7 +273,7 @@ export default function DiscoverGrid({
       {rows.map((row, index) => renderRow(row, index))}
       {loading && items.length > 0 && (
         <View style={styles.footerLoader}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
+          <SnooLoader size="small" color={COLORS.primary} />
         </View>
       )}
     </ScrollView>

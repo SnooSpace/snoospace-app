@@ -1,21 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  Image,
-  Alert,
-  ActivityIndicator,
-  Dimensions,
-  Platform,
-  Animated,
-  Easing,
-  TouchableWithoutFeedback,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback } from "react-native";
 import {
   User,
   Camera,
@@ -39,6 +23,7 @@ import {
   FONTS,
 } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
+import SnooLoader from "../ui/SnooLoader";
 
 const PRIMARY = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -617,7 +602,7 @@ export default function HeadsEditorModal({
                     ]}
                   >
                     {saving ? (
-                      <ActivityIndicator color="#fff" />
+                      <SnooLoader color="#fff" />
                     ) : (
                       <Text style={styles.saveButtonText}>Save Changes</Text>
                     )}
@@ -671,7 +656,7 @@ export default function HeadsEditorModal({
                   </Text>
                 ) : memberLoading ? (
                   <View style={styles.linkLoading}>
-                    <ActivityIndicator size="small" color={PRIMARY} />
+                    <SnooLoader size="small" color={PRIMARY} />
                   </View>
                 ) : memberResults.length === 0 ? (
                   <Text style={styles.linkHint}>

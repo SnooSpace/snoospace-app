@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import CategoryCarousel from "./CategoryCarousel";
 import { getDiscoverFeedV2 } from "../../api/categories";
 import { COLORS } from "../../constants/theme";
+import SnooLoader from "../ui/SnooLoader";
 
 /**
  * DiscoverFeedV2 - Main discover feed component with category carousels
@@ -106,7 +100,7 @@ export default function DiscoverFeedV2({
   if (loading && categories.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <SnooLoader size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading events...</Text>
       </View>
     );

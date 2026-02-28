@@ -4,20 +4,7 @@ import React, {
   useCallback,
   useLayoutEffect,
 } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-} from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Switch, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -38,6 +25,7 @@ import {
   formatLastSaved,
 } from "../../../utils/opportunityDraftStorage";
 import EventBus from "../../../utils/EventBus";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
@@ -1590,7 +1578,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   style={styles.publishGradient}
                 >
                   {saving ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <SnooLoader color="#FFFFFF" />
                   ) : (
                     <>
                       <Ionicons name="rocket" size={20} color="#FFFFFF" />

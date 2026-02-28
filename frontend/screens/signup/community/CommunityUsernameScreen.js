@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  StatusBar,
-  Dimensions,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert, Platform, StatusBar, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
@@ -28,6 +16,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -292,7 +281,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                 maxLength={30}
               />
               {isChecking && (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
               )}
             </View>
             <Text style={[styles.statusText, { color: status.color }]}>

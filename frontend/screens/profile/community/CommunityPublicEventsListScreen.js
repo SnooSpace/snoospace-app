@@ -1,19 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 import { getCommunityPublicEvents } from "../../../api/events";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -251,7 +243,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
 
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       ) : (
         <FlatList
@@ -271,7 +263,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
           onEndReachedThreshold={0.5}
           ListFooterComponent={
             loadingMore && (
-              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <SnooLoader size="small" color={PRIMARY_COLOR} />
             )
           }
           ListEmptyComponent={

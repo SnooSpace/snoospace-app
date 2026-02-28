@@ -4,19 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-  Modal,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -25,6 +13,7 @@ import { getAuthToken } from "../../api/auth";
 import { getActiveAccount } from "../../utils/accountManager";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import EventBus from "../../utils/EventBus";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const TABS = [
   { key: "pending", label: "Pending" },
@@ -262,7 +251,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             disabled={moderatingId === item.id}
           >
             {moderatingId === item.id ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <>
                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
@@ -344,7 +333,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       <View style={styles.contentArea}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <SnooLoader size="large" color={COLORS.primary} />
           </View>
         ) : (
           <FlatList
@@ -384,7 +373,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
               disabled={pinningId === selectedSubmission?.id}
             >
               {pinningId === selectedSubmission?.id ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
               ) : (
                 <>
                   <Ionicons

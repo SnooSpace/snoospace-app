@@ -10,8 +10,7 @@ import {
   StatusBar,
   ScrollView,
   Image,
-  Alert,
-  ActivityIndicator, // 👈 Imported ActivityIndicator for the spinner
+  Alert, // 👈 Imported  for the spinner
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCrop } from "../../../components/MediaCrop";
@@ -35,6 +34,7 @@ import {
   getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityLogoScreen = ({ navigation, route }) => {
   const {
@@ -100,7 +100,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       Alert.alert(
         "Photo Required",
         "Please add a community logo before proceeding.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
       return;
     }
@@ -118,7 +118,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       } catch (e) {
         console.log(
           "[CommunityLogoScreen] Draft update failed (non-critical):",
-          e.message
+          e.message,
         );
       }
 
@@ -143,7 +143,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       console.error("Image upload failed:", e);
       Alert.alert(
         "Upload failed",
-        e?.message || "Unable to upload logo. Please try again."
+        e?.message || "Unable to upload logo. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -157,7 +157,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
@@ -249,7 +249,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           >
             {/* 👈 Display ActivityIndicator when loading, otherwise display text */}
             {isLoading ? (
-              <ActivityIndicator color={COLORS.textInverted} size="small" />
+              <SnooLoader color={COLORS.textInverted} size="small" />
             ) : (
               <Text style={styles.buttonText}>Next</Text>
             )}

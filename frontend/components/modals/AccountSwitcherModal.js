@@ -1,19 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
+import SnooLoader from "../ui/SnooLoader";
 
 /**
  * Account Switcher Modal - Instagram-style
@@ -305,7 +296,7 @@ export default function AccountSwitcherModal({
           </View>
 
           {isSwitching ? (
-            <ActivityIndicator size="small" color="#0095F6" />
+            <SnooLoader size="small" color="#0095F6" />
           ) : isActive && !isLoggedOut ? (
             <Ionicons name="checkmark-circle" size={24} color="#0095F6" />
           ) : null}

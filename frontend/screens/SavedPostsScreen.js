@@ -1,20 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  SafeAreaView,
-  StatusBar,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, SafeAreaView, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getSavedPosts } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import ProfilePostFeed from "../components/ProfilePostFeed";
+import SnooLoader from "../components/ui/SnooLoader";
 
 const COLORS = {
   background: "#000",
@@ -159,7 +149,7 @@ const SavedPostsScreen = ({ navigation }) => {
     if (!loading || posts.length === 0) return null;
     return (
       <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={COLORS.text} />
+        <SnooLoader size="small" color={COLORS.text} />
       </View>
     );
   };
@@ -183,7 +173,7 @@ const SavedPostsScreen = ({ navigation }) => {
       {/* Posts Grid */}
       {loading && posts.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.text} />
+          <SnooLoader size="large" color={COLORS.text} />
         </View>
       ) : (
         <FlatList

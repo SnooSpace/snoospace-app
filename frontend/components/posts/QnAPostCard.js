@@ -4,20 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Switch,
-  Alert,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, Switch, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -46,6 +33,7 @@ import { postService } from "../../services/postService";
 import QnAEditModal from "./QnAEditModal";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
+import SnooLoader from "../ui/SnooLoader";
 
 const QnAPostCard = ({
   post,

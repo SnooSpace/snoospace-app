@@ -1,22 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Image,
-  ActivityIndicator,
-  Switch,
-  Alert,
-  StatusBar,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, Switch, Alert, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS } from "../../constants/theme";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -194,7 +183,7 @@ const ShareTicketScreen = ({ navigation, route }) => {
               </Text>
             </View>
             {loadingTickets && selectedEvent?.id === event.id ? (
-              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <SnooLoader size="small" color={PRIMARY_COLOR} />
             ) : (
               <Ionicons
                 name="chevron-forward"
@@ -321,7 +310,7 @@ const ShareTicketScreen = ({ navigation, route }) => {
               onChangeText={handleSearch}
             />
             {searching && (
-              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <SnooLoader size="small" color={PRIMARY_COLOR} />
             )}
           </View>
           {searchResults.length > 0 && (
@@ -416,7 +405,7 @@ const ShareTicketScreen = ({ navigation, route }) => {
         disabled={!selectedTicketType || !selectedRecipient || sending}
       >
         {sending ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <SnooLoader color="#FFFFFF" />
         ) : (
           <>
             <Ionicons name="gift" size={20} color="#FFFFFF" />

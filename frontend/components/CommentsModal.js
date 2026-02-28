@@ -5,20 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  FlatList,
-  TextInput,
-  Image,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-  Alert,
-  Animated,
-} from "react-native";
+import { View, Text, Modal, TouchableOpacity, FlatList, TextInput, Image, StyleSheet, Platform, Alert, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { X, Send, Heart, CornerUpLeft } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
@@ -29,6 +16,7 @@ import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import MentionInput from "./MentionInput";
 
 import { COLORS as GLOBAL_COLORS, FONTS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 const COLORS = {
   ...GLOBAL_COLORS,
@@ -775,7 +763,7 @@ const CommentsModal = ({
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={COLORS.textSecondary} />
+            <SnooLoader size="small" color={COLORS.textSecondary} />
           </View>
         ) : (
           <FlatList
@@ -890,7 +878,7 @@ const CommentsModal = ({
               ]}
             >
               {posting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Ionicons

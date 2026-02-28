@@ -4,16 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Animated,
-  Alert,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Animated, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -45,6 +36,7 @@ import {
   EDITORIAL_TYPOGRAPHY,
 } from "../../constants/theme";
 import CountdownTimer from "../CountdownTimer";
+import SnooLoader from "../ui/SnooLoader";
 import {
   getExtensionBadgeText,
   getTimeRemaining,
@@ -657,7 +649,7 @@ const ChallengePostCard = ({
               disabled={isJoining}
             >
               {isJoining ? (
-                <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                <SnooLoader size="small" color={COLORS.textSecondary} />
               ) : (
                 <Ionicons
                   name="exit-outline"
@@ -681,7 +673,7 @@ const ChallengePostCard = ({
               style={styles.joinButtonGradient}
             >
               {isJoining ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Text style={styles.joinButtonText}>Join Challenge</Text>

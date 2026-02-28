@@ -1,19 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Text,
-  TextInput,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  ScrollView,
-} from "react-native";
+  StyleSheet, View, TouchableOpacity, Text, TextInput, SafeAreaView, Platform, StatusBar, Alert, KeyboardAvoidingView, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
@@ -40,6 +28,7 @@ import {
   getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityLocationScreen = ({ navigation, route }) => {
   const {
@@ -384,7 +373,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
               disabled={isLoadingGps}
             >
               {isLoadingGps ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
               ) : (
                 <Ionicons name="locate" size={22} color={COLORS.primary} />
               )}
@@ -430,7 +419,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             {/* URL Validation Indicator */}
             {isParsingUrl && (
               <View style={styles.validationRow}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
                 <Text style={styles.parsingText}>Parsing location...</Text>
               </View>
             )}

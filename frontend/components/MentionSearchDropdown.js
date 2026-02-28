@@ -1,16 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-  Animated,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 const MentionSearchDropdown = ({
   visible,
@@ -116,7 +108,7 @@ const MentionSearchDropdown = ({
     >
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
+          <SnooLoader size="small" color={COLORS.primary} />
         </View>
       ) : results.length === 0 ? (
         <View style={styles.emptyState}>

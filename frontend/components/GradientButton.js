@@ -1,12 +1,8 @@
 import React from "react";
-import {
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import { Text, TouchableOpacity, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 const GradientButton = ({
   onPress,
@@ -39,7 +35,7 @@ const GradientButton = ({
         style={[styles.gradient, gradientStyle]}
       >
         {loading ? (
-          <ActivityIndicator color={COLORS.textInverted} size="small" />
+          <SnooLoader color={COLORS.textInverted} size="small" />
         ) : (
           <>
             {icon && icon}

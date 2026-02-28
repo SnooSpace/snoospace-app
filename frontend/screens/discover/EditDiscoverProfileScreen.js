@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Alert,
-  ActivityIndicator,
-  BackHandler,
-  Platform,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
@@ -38,6 +27,7 @@ import {
   Sparkles,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 // STRICT CONSTANTS - ITERATION 2
 const CONSTANTS_COLORS = {
@@ -364,7 +354,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       </SafeAreaView>
     );

@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
+import SnooLoader from "../../../components/ui/SnooLoader";
 import {
   COLORS,
   SPACING,
@@ -148,7 +140,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : (
               <Text style={styles.buttonText}>Verify</Text>
             )}
@@ -161,7 +153,7 @@ const VenueOtpScreen = ({ navigation, route }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" />
+            <SnooLoader color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}

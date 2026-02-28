@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -27,6 +17,7 @@ import {
   getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const MAX_SELECTIONS = 4;
 const PREFER_NOT_TO_SAY = "Prefer not to say";
@@ -223,7 +214,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
           {/* Pronouns List */}
           <View style={styles.pronounsList}>
             {loading ? (
-              <ActivityIndicator size="large" color={COLORS.primary} />
+              <SnooLoader size="large" color={COLORS.primary} />
             ) : allPronouns.length === 0 ? (
               <Text style={styles.subtitle}>No pronouns available</Text>
             ) : (

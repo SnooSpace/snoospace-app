@@ -1,17 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Linking,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
 
 import * as Location from "expo-location";
@@ -29,6 +17,7 @@ import {
   getDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 // Removed local constants in favor of theme constants
 
 const LocationInputScreen = ({ navigation, route }) => {
@@ -297,7 +286,7 @@ const LocationInputScreen = ({ navigation, route }) => {
             disabled={loadingLocation}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
             ) : (
               <Ionicons name="location" size={20} color={COLORS.primary} />
             )}

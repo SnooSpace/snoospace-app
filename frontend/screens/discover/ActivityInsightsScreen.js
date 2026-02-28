@@ -1,17 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  RefreshControl,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Pressable,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, RefreshControl, Alert, Animated, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -19,6 +7,7 @@ import { getAuthToken } from "../../api/auth";
 import { apiGet, apiPost } from "../../api/client";
 import { COLORS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
+import SnooLoader from "../../components/ui/SnooLoader";
 import {
   ArrowLeft,
   Eye,
@@ -264,7 +253,7 @@ export default function ActivityInsightsScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );

@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Image,
-  Alert,
-  Animated,
-  Dimensions,
-  Platform,
-  Modal,
-} from "react-native";
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, FlatList, Image, Alert, Animated, Dimensions, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -51,6 +37,7 @@ import {
   formatLastSaved,
 } from "../../../utils/draftStorage";
 import { getActiveAccount } from "../../../api/auth";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
@@ -272,7 +259,7 @@ export default function CommunityDashboardScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <SnooLoader size="large" color={COLORS.primary} />
       </View>
     );
   }

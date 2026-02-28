@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  SafeAreaView,
-} from "react-native";
+import { View, Text, Modal, StyleSheet, TouchableOpacity, FlatList, Image, SafeAreaView } from "react-native";
 import { X } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
+import SnooLoader from "../ui/SnooLoader";
 
 const PollVotersModal = ({ visible, onClose, postId, options }) => {
   const [loading, setLoading] = useState(true);
@@ -152,7 +143,7 @@ const PollVotersModal = ({ visible, onClose, postId, options }) => {
           <View style={styles.votersListContainer}>
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#3b65e4" />
+                <SnooLoader size="large" color="#3b65e4" />
               </View>
             ) : (
               <FlatList

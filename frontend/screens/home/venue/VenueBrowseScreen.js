@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mockData } from '../../../data/mockData';
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -184,7 +177,7 @@ export default function VenueBrowseScreen({ navigation }) {
       <View style={styles.communitiesContainer}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+            <SnooLoader size="large" color={PRIMARY_COLOR} />
             <Text style={styles.loadingText}>Loading communities...</Text>
           </View>
         ) : (

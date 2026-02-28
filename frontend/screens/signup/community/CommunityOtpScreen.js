@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  StatusBar,
-  ScrollView,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView } from "react-native";
 import * as Haptics from "expo-haptics";
 import Reanimated, { ZoomIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +17,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import GlassBackButton from "../../../components/GlassBackButton";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const RESEND_COOLDOWN = 60; // 60 seconds
 
@@ -333,7 +322,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
               style={styles.button}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.textInverted} />
+                <SnooLoader color={COLORS.textInverted} />
               ) : isSuccess ? (
                 <Reanimated.View entering={ZoomIn}>
                   <Ionicons
@@ -362,7 +351,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             disabled={resendTimer > 0 || resendLoading}
           >
             {resendLoading ? (
-              <ActivityIndicator color={COLORS.primary} size="small" />
+              <SnooLoader color={COLORS.primary} size="small" />
             ) : (
               <Text
                 style={[

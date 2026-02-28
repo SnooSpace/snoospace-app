@@ -1,20 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Modal,
-  TouchableWithoutFeedback,
-  Dimensions,
-  Platform,
-  StatusBar,
-  Animated,
-} from "react-native";
+import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated } from "react-native";
 import * as Haptics from "expo-haptics";
 import Reanimated, { ZoomIn } from "react-native-reanimated";
 import { useRef } from "react";
@@ -34,6 +19,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -376,7 +362,7 @@ const VerificationScreen = ({ route, navigation }) => {
             style={styles.button}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.textInverted} />
+              <SnooLoader color={COLORS.textInverted} />
             ) : isSuccess ? (
               <Reanimated.View entering={ZoomIn}>
                 <Ionicons
@@ -401,7 +387,7 @@ const VerificationScreen = ({ route, navigation }) => {
           disabled={resendTimer > 0 || resendLoading}
         >
           {resendLoading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" />
+            <SnooLoader color={COLORS.primary} size="small" />
           ) : (
             <Text style={styles.resendText}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}

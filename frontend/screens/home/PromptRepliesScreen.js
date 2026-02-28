@@ -10,17 +10,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, TextInput } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -31,6 +21,7 @@ import { apiGet, apiPost, apiPatch } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getActiveAccount } from "../../utils/accountManager";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import SnooLoader from "../../components/ui/SnooLoader";
 
 const PromptRepliesScreen = ({ route, navigation }) => {
   const { submission, post } = route.params;
@@ -655,7 +646,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
       <View style={styles.contentArea}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <SnooLoader size="large" color={COLORS.primary} />
           </View>
         ) : (
           <View style={styles.repliesThreadContainer}>
@@ -737,7 +728,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
             disabled={!replyText.trim() || isSending}
           >
             {isSending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <Ionicons name="send" size={20} color="#FFFFFF" />
             )}

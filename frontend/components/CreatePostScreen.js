@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Animated,
-  Easing,
-  Modal,
-  Keyboard,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, Animated, Easing, Modal, Keyboard } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   SafeAreaView,
@@ -34,6 +20,7 @@ import GradientButton from "./GradientButton";
 import { COLORS, SHADOWS, FONTS } from "../constants/theme";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import { Ionicons } from "@expo/vector-icons";
+import SnooLoader from "./ui/SnooLoader";
 
 // Use theme COLORS imported from constants
 

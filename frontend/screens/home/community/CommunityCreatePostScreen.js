@@ -1,20 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  ActivityIndicator,
-  Modal,
-  LayoutAnimation,
-  UIManager,
-  Keyboard,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, Image, Modal, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Camera, Info, X, Video, Trophy } from "lucide-react-native";
@@ -38,6 +23,7 @@ import { getCommunityProfile } from "../../../api/communities";
 import EventBus from "../../../utils/EventBus";
 import { COLORS, FONTS } from "../../../constants/theme";
 import GradientButton from "../../../components/GradientButton";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Enable LayoutAnimation for Android
 if (
@@ -602,7 +588,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           <View style={styles.authorInfo}>
             <View style={styles.authorAvatar}>
               {loadingProfile ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <SnooLoader size="small" color={COLORS.primary} />
               ) : profile?.logo_url ? (
                 <Image
                   source={{ uri: profile.logo_url }}

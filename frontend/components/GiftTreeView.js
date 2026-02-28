@@ -1,18 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Image,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
+import SnooLoader from "./ui/SnooLoader";
 
 const PRIMARY_COLOR = "#007AFF";
 const TEXT_COLOR = "#1D1D1F";
@@ -256,7 +249,7 @@ const GiftTreeView = ({ eventId, giftId = null, onUserPress }) => {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <SnooLoader size="large" color={PRIMARY_COLOR} />
         <Text style={styles.loadingText}>Loading gift history...</Text>
       </View>
     );

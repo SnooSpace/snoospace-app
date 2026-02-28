@@ -8,18 +8,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Linking,
-} from "react-native";
+  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
@@ -36,6 +25,7 @@ import {
   getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 const IndividualLocationScreen = ({ navigation, route }) => {
   const {
@@ -288,7 +278,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
             disabled={loadingLocation}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
             ) : (
               <Ionicons name="location" size={20} color={COLORS.primary} />
             )}

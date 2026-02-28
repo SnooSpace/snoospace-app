@@ -1,14 +1,8 @@
 import React from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Dimensions,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from "react-native";
 import { Ticket } from "lucide-react-native";
 import { COLORS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;

@@ -1,22 +1,12 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  Modal,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Modal, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { uploadPerformerPhoto } from '../api/upload';
 import { searchAccounts as searchAccountsAPI } from '../api/search';
 import { COLORS, SHADOWS } from '../constants/theme';
+import SnooLoader from "./ui/SnooLoader";
 
 const TEXT_COLOR = '#1C1C1E';
 const LIGHT_TEXT_COLOR = '#8E8E93';
@@ -312,7 +302,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                 placeholderTextColor={LIGHT_TEXT_COLOR}
               />
 
-              {searching && <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} />}
+              {searching && <SnooLoader style={{ marginTop: 20 }} color={COLORS.primary} />}
 
               {searchResults.map((result) => (
                 <TouchableOpacity

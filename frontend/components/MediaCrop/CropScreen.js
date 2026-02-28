@@ -5,16 +5,7 @@
  */
 
 import React, { useState, useCallback, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
@@ -29,6 +20,7 @@ import CropView from "./CropView";
 import { getPreset, CROP_PRESETS } from "./CropPresets";
 import { calculateCropRegion, validateImageSize } from "./CropUtils";
 import { COLORS } from "../../constants/theme";
+import SnooLoader from "../ui/SnooLoader";
 
 /**
  * CropScreen Component
@@ -348,7 +340,7 @@ const CropScreen = ({ route, navigation }) => {
             activeOpacity={0.85}
           >
             {processing || !imageLoaded ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <Text style={styles.doneText}>Done</Text>
             )}

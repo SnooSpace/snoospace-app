@@ -1,18 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  Image,
-  Modal,
-  LayoutAnimation,
-  UIManager,
-} from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
@@ -60,6 +47,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import HapticsService from "../../../services/HapticsService";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Typography constants
 const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold";
@@ -461,7 +449,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           ]}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <SnooLoader size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.saveButtonText}>Save</Text>
           )}
@@ -494,7 +482,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             )}
             <View style={[styles.cameraButton, styles.bannerCamera]}>
               {uploadingBanner ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
               )}
@@ -509,7 +497,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <Image source={{ uri: logoUrl }} style={styles.logoImage} />
             <View style={[styles.cameraButton, styles.logoCamera]}>
               {uploadingPhoto ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <Camera size={16} color="#FFFFFF" strokeWidth={2.5} />
               )}
@@ -544,7 +532,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 placeholderTextColor={TEXT_SECONDARY}
               />
               {usernameChecking && (
-                <ActivityIndicator size="small" color={ACCENT_COLOR} />
+                <SnooLoader size="small" color={ACCENT_COLOR} />
               )}
               {!usernameChecking && usernameAvailable === true && (
                 <View style={styles.indicator}>

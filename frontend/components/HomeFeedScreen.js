@@ -1,18 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  RefreshControl,
-  Alert,
-  FlatList,
-  Platform,
-  Easing,
-  Animated as RNAnimated,
-  ActivityIndicator,
-} from "react-native";
+  StyleSheet, View, Text, TouchableOpacity, RefreshControl, Alert, FlatList, Platform, Easing, Animated as RNAnimated } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -56,6 +45,7 @@ import DynamicStatusBar from "./DynamicStatusBar";
 import PremiumHeader, { getPremiumHeaderTotalHeight } from "./PremiumHeader";
 
 import { COLORS } from "../constants/theme";
+import SnooLoader from "./ui/SnooLoader";
 
 // SnooSpace Logo SVG (full wordmark)
 const SnooSpaceLogoSvg = `<svg width="893" height="217" viewBox="0 0 893 217" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1180,7 +1170,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ListFooterComponent={
           loadingMore ? (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SnooLoader size="small" color={COLORS.primary} />
             </View>
           ) : null
         }
