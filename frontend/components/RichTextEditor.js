@@ -25,6 +25,7 @@ const RichTextEditor = ({
   minLength = 50,
   maxLength = 2000,
   placeholder,
+  variant = "default",
 }) => {
   const [charCount, setCharCount] = useState(value?.length || 0);
   const [showPreview, setShowPreview] = useState(false);
@@ -43,70 +44,117 @@ const RichTextEditor = ({
   };
 
   const isValid = charCount >= minLength;
+  const isMinimal = variant === "minimal";
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.label}>Event Description *</Text>
-        <Text style={[styles.charCount, !isValid && styles.charCountInvalid]}>
-          {charCount}/{maxLength}
-          {!isValid && ` (min ${minLength})`}
-        </Text>
-      </View>
+    <View style={[styles.container, isMinimal && styles.minimalContainer]}>
+      {!isMinimal && (
+        <View style={styles.header}>
+          <Text style={styles.label}>Event Description *</Text>
+          <Text style={[styles.charCount, !isValid && styles.charCountInvalid]}>
+            {charCount}/{maxLength}
+            {!isValid && ` (min ${minLength})`}
+          </Text>
+        </View>
+      )}
 
       {/* Simple Toolbar */}
-      <View style={styles.toolbar}>
-        <TouchableOpacity style={styles.toolButton} disabled>
-          <Ionicons name="text-outline" size={20} color={LIGHT_TEXT_COLOR} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.toolButton}
-          onPress={() => setShowPreview(!showPreview)}
-        >
-          <Ionicons
-            name={showPreview ? "create-outline" : "eye-outline"}
-            size={20}
-            color={showPreview ? COLORS.primary : LIGHT_TEXT_COLOR}
-          />
-        </TouchableOpacity>
+      <View style={[styles.toolbar, isMinimal && styles.minimalToolbar]}>
+        {!isMinimal && (
+          <>
+            <TouchableOpacity style={styles.toolButton} disabled>
+              <Ionicons
+                name="text-outline"
+                size={isMinimal ? 24 : 20}
+                color={LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.toolButton}
+              onPress={() => setShowPreview(!showPreview)}
+            >
+              <Ionicons
+                name={showPreview ? "create-outline" : "eye-outline"}
+                size={isMinimal ? 24 : 20}
+                color={showPreview ? COLORS.primary : LIGHT_TEXT_COLOR}
+              />
+            </TouchableOpacity>
+          </>
+        )}
+
+        {isMinimal && (
+          <View
+            style={{
+              flex: 1,
+              alignItems: "flex-end",
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={[
+                styles.minimalCharCount,
+                !isValid && charCount > 0 && { color: "#EF4444" },
+              ]}
+            >
+              {charCount}/{maxLength}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Text Input */}
       {!showPreview ? (
-        <View style={styles.inputContainer}>
+        <View
+          style={[
+            styles.inputContainer,
+            isMinimal && styles.minimalInputContainer,
+          ]}
+        >
           <MentionInput
             value={value}
             onChangeText={handleTextChange}
             onTaggedEntitiesChange={handleTaggedEntitiesChange}
             placeholder={
-              placeholder || "Tell people what makes this event special..."
+              placeholder ||
+              (isMinimal
+                ? "Tell people what makes this event special..."
+                : "Tell people what makes this event special...")
             }
-            placeholderTextColor={LIGHT_TEXT_COLOR}
+            placeholderTextColor={isMinimal ? "#9CA3AF" : LIGHT_TEXT_COLOR}
             multiline
             maxLength={maxLength}
-            inputStyle={styles.mentionInput}
-            inputContainerStyle={styles.mentionInputContainer}
+            inputStyle={[
+              styles.mentionInput,
+              isMinimal && styles.minimalMentionInput,
+            ]}
+            inputContainerStyle={[
+              styles.mentionInputContainer,
+              isMinimal && styles.minimalMentionInputContainer,
+            ]}
           />
         </View>
       ) : (
-        <View style={styles.preview}>
+        <View style={[styles.preview, isMinimal && styles.minimalPreview]}>
           <MentionTextRenderer
             text={value || "No description yet..."}
             taggedEntities={taggedEntities}
-            textStyle={styles.previewText}
+            textStyle={[
+              styles.previewText,
+              isMinimal && styles.minimalPreviewText,
+            ]}
             mentionStyle={styles.mentionText}
           />
         </View>
       )}
 
       {/* Helper Text */}
-      {!isValid && charCount > 0 && (
+      {!isMinimal && !isValid && charCount > 0 && (
         <Text style={styles.helperText}>
           Add at least {minLength - charCount} more characters
         </Text>
       )}
 
-      {isValid && (
+      {!isMinimal && isValid && (
         <View style={styles.checkmark}>
           <Ionicons name="checkmark-circle" size={20} color="#34C759" />
           <Text style={styles.validText}>Description looks good!</Text>
@@ -119,6 +167,10 @@ const RichTextEditor = ({
 const styles = StyleSheet.create({
   container: {
     marginVertical: 15,
+  },
+  minimalContainer: {
+    marginVertical: 0,
+    marginTop: -8,
   },
   header: {
     flexDirection: "row",
@@ -135,6 +187,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: LIGHT_TEXT_COLOR,
   },
+  minimalCharCount: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontFamily: "Manrope-Medium",
+  },
   charCountInvalid: {
     color: "#FF3B30",
   },
@@ -147,6 +204,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: "#E5E5EA",
+  },
+  minimalToolbar: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    paddingBottom: 12,
   },
   toolButton: {
     padding: 8,
@@ -163,16 +227,31 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 12,
     overflow: "hidden",
   },
+  minimalInputContainer: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+  },
   mentionInputContainer: {
     paddingHorizontal: 15,
     paddingVertical: 12,
     minHeight: 150,
+  },
+  minimalMentionInputContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 0,
+    minHeight: 200,
   },
   mentionInput: {
     fontSize: 14,
     color: TEXT_COLOR,
     textAlignVertical: "top",
     paddingTop: 0,
+  },
+  minimalMentionInput: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontFamily: "Manrope-Regular",
+    color: "#1F2937",
   },
   mentionText: {
     color: COLORS.primary,
@@ -188,10 +267,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
     minHeight: 150,
   },
+  minimalPreview: {
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: 24,
+  },
   previewText: {
     fontSize: 14,
     color: TEXT_COLOR,
     lineHeight: 20,
+  },
+  minimalPreviewText: {
+    fontSize: 18,
+    lineHeight: 26,
+    color: "#1F2937",
+    fontFamily: "Manrope-Regular",
   },
   helperText: {
     fontSize: 12,

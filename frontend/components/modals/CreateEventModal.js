@@ -15,7 +15,9 @@ import {
   UIManager,
   Easing,
   TouchableHighlight,
+  Image,
 } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -1386,12 +1388,16 @@ const CreateEventModal = ({
         );
       case 3:
         return (
-          <ScrollView ref={scrollViewRef} style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Description</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          >
             <RichTextEditor
               value={description}
               onChange={setDescription}
               minLength={50}
+              variant="minimal"
             />
           </ScrollView>
         );
@@ -1652,55 +1658,63 @@ const CreateEventModal = ({
         )}
 
         {/* Floating Pill CTA */}
-        <Animated.View
-          style={[styles.floatingFooter, { bottom: insets.bottom + 24 }]}
+        <KeyboardStickyView
+          offset={{ opened: insets.bottom + 12, closed: 0 }}
+          style={styles.stickyFooter}
         >
-          {currentStep > 1 && (
+          <View
+            style={[
+              styles.floatingFooter,
+              { paddingBottom: insets.bottom + 24 },
+            ]}
+          >
+            {currentStep > 1 && (
+              <TouchableOpacity
+                onPress={handleBack}
+                style={styles.floatingBackButton}
+                disabled={creating}
+              >
+                <Text style={styles.floatingBackButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              onPress={handleBack}
-              style={styles.floatingBackButton}
+              onPress={currentStep === 7 ? handleCreate : handleNext}
+              style={[
+                styles.floatingNextButton,
+                creating && { opacity: 0.7 },
+                currentStep !== 7 &&
+                  !isStepComplete(currentStep) && { opacity: 0.45 },
+                currentStep === 1 && { marginLeft: "auto" },
+              ]}
               disabled={creating}
             >
-              <Text style={styles.floatingBackButtonText}>Back</Text>
+              {creating ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <LinearGradient
+                  colors={MODAL_TOKENS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              {!creating && (
+                <Text style={styles.floatingNextButtonText}>
+                  {currentStep === 7 ? "Publish Event" : "Next"}
+                </Text>
+              )}
+              {!creating && currentStep !== 7 && (
+                <Ionicons
+                  name="arrow-forward"
+                  size={18}
+                  color="#fff"
+                  style={{ marginLeft: 8 }}
+                />
+              )}
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            onPress={currentStep === 7 ? handleCreate : handleNext}
-            style={[
-              styles.floatingNextButton,
-              creating && { opacity: 0.7 },
-              currentStep !== 7 &&
-                !isStepComplete(currentStep) && { opacity: 0.45 },
-              currentStep === 1 && { marginLeft: "auto" },
-            ]}
-            disabled={creating}
-          >
-            {creating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <LinearGradient
-                colors={MODAL_TOKENS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
-            {!creating && (
-              <Text style={styles.floatingNextButtonText}>
-                {currentStep === 7 ? "Publish Event" : "Next"}
-              </Text>
-            )}
-            {!creating && currentStep !== 7 && (
-              <Ionicons
-                name="arrow-forward"
-                size={18}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            )}
-          </TouchableOpacity>
-        </Animated.View>
+          </View>
+        </KeyboardStickyView>
 
         {/* Save/Keep Draft Confirmation Modal */}
         <Modal
@@ -2295,7 +2309,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-
   checkboxRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2323,6 +2336,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MODAL_TOKENS.textPrimary,
     flex: 1,
+  },
+  stickyFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  floatingFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  floatingBackButton: {
+    backgroundColor: MODAL_TOKENS.surface,
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    ...MODAL_TOKENS.shadow.sm,
+  },
+  floatingBackButtonText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 16,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  floatingNextButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 56,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    overflow: "hidden",
+    minWidth: 140,
+    ...MODAL_TOKENS.shadow.md,
+  },
+  floatingNextButtonText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    zIndex: 1,
   },
 
   // Add Ticket Bottom Sheet
