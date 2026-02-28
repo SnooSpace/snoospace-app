@@ -18,8 +18,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import {
+  X,
+  Grid3x3,
+  CheckCircle2,
+  Square,
+  RectangleVertical,
+  Lock,
+} from "lucide-react-native";
 import * as ImageManipulator from "expo-image-manipulator";
 import CropView from "./CropView";
 import { getPreset, getVideoPresets } from "./CropPresets";
@@ -27,7 +33,7 @@ import { calculateCropRegion } from "./CropUtils";
 import { COLORS } from "../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const THUMBNAIL_SIZE = 60;
+const THUMBNAIL_SIZE = 74; // Increased from 60
 
 /**
  * BatchCropScreen Component
@@ -611,40 +617,47 @@ const BatchCropScreen = ({ route, navigation }) => {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
+          {/* Cancel — X icon */}
           <TouchableOpacity
-            style={styles.headerButton}
+            style={styles.cancelButton}
             onPress={handleCancel}
             disabled={processing}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <X size={22} color="#1A1A1A" strokeWidth={2} />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            {currentIndex + 1} of {imageUris.length}
-          </Text>
+          {/* Title */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Edit Image</Text>
+            </View>
+          </View>
 
+          {/* Done button — solid pill */}
           <TouchableOpacity
-            style={[styles.headerButton, styles.doneButtonWrapper]}
+            style={[styles.doneButton, processing && styles.doneButtonDisabled]}
             onPress={handleDone}
             disabled={processing}
+            activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={["#00C6FF", "#0072FF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.doneButton}
-            >
-              {processing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.doneText}>Done</Text>
-              )}
-            </LinearGradient>
+            {processing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.doneText}>Done</Text>
+            )}
           </TouchableOpacity>
         </View>
 
         {/* Crop View */}
         <View style={styles.cropContainer}>
+          {/* X of Y floating pill */}
+          <View style={styles.progressPill} pointerEvents="none">
+            <Text style={styles.progressPillText}>
+              {currentIndex + 1} of {imageUris.length}
+            </Text>
+          </View>
+
           <CropView
             key={`${currentIndex}-${currentPresetKey}`}
             imageUri={currentImageUri}
@@ -672,17 +685,15 @@ const BatchCropScreen = ({ route, navigation }) => {
               onPress={handleAspectToggle}
             >
               <View style={styles.aspectToggleIcon}>
-                <Ionicons
-                  name={
-                    currentPresetKey === "feed_square"
-                      ? "square-outline"
-                      : currentPresetKey === "feed_portrait"
-                        ? "tablet-portrait-outline"
-                        : "image-outline"
-                  }
-                  size={18}
-                  color="#FFFFFF"
-                />
+                {currentPresetKey === "feed_square" ? (
+                  <Square size={16} color="#FFFFFF" strokeWidth={2} />
+                ) : (
+                  <RectangleVertical
+                    size={16}
+                    color="#FFFFFF"
+                    strokeWidth={2}
+                  />
+                )}
               </View>
               <Text style={styles.aspectToggleText}>
                 {currentPresetKey === "feed_square"
@@ -690,9 +701,9 @@ const BatchCropScreen = ({ route, navigation }) => {
                   : currentPresetKey === "feed_portrait"
                     ? "4:5"
                     : currentPresetKey === "feed_landscape"
-                      ? "16:9" // Video landscape
+                      ? "16:9"
                       : currentPresetKey === "story"
-                        ? "9:16" // Video full
+                        ? "9:16"
                         : "1.91:1"}
               </Text>
             </TouchableOpacity>
@@ -701,7 +712,7 @@ const BatchCropScreen = ({ route, navigation }) => {
           {/* Locked aspect ratio indicator - show when preset is locked */}
           {lockedPreset && (
             <View style={styles.aspectLockedBadge}>
-              <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+              <Lock size={13} color="#FFFFFF" strokeWidth={2} />
               <Text style={styles.aspectLockedText}>
                 {currentPresetKey === "feed_square"
                   ? "1:1"
@@ -718,7 +729,7 @@ const BatchCropScreen = ({ route, navigation }) => {
             currentIndex > 0 &&
             imageUris.length > 1 && (
               <View style={styles.aspectLockedBadge}>
-                <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+                <Lock size={13} color="#FFFFFF" strokeWidth={2} />
                 <Text style={styles.aspectLockedText}>
                   {currentPresetKey === "feed_square"
                     ? "1:1"
@@ -732,54 +743,50 @@ const BatchCropScreen = ({ route, navigation }) => {
 
         {/* Bottom Controls with Thumbnail Strip */}
         <SafeAreaView edges={["bottom"]} style={styles.bottomControls}>
-          {/* Tool buttons */}
-          <View style={styles.progressRow}>
-            <Text style={styles.progressText}>
-              {currentIndex + 1}/{imageUris.length}
-            </Text>
+          <View style={styles.bottomRow}>
+            {/* Thumbnail Strip */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbnailContainer}
+              style={styles.thumbnailScroll}
+            >
+              {imageUris.map((uri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.thumbnailWrapper,
+                    currentIndex === index && styles.thumbnailActive,
+                  ]}
+                  onPress={() => handleThumbnailPress(index)}
+                >
+                  <Image source={{ uri }} style={styles.thumbnail} />
+
+                  {/* Cropped checkmark */}
+                  {croppedImages[index] && (
+                    <View style={styles.croppedBadge}>
+                      <CheckCircle2 size={14} color="#FFFFFF" strokeWidth={2} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Grid Tool Toggle inline with thumbnails */}
             <TouchableOpacity
-              style={[styles.toolButton, showGrid && styles.toolButtonActive]}
+              style={[
+                styles.inlineToolButton,
+                showGrid && styles.toolButtonActive,
+              ]}
               onPress={() => setShowGrid(!showGrid)}
             >
-              <Ionicons
-                name="grid-outline"
-                size={20}
-                color={showGrid ? COLORS.primary : "#666666"}
+              <Grid3x3
+                size={22}
+                color={showGrid ? COLORS.primary : "#888888"}
+                strokeWidth={1.75}
               />
             </TouchableOpacity>
           </View>
-
-          {/* Thumbnail Strip */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.thumbnailContainer}
-          >
-            {imageUris.map((uri, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.thumbnailWrapper,
-                  currentIndex === index && styles.thumbnailActive,
-                ]}
-                onPress={() => handleThumbnailPress(index)}
-              >
-                <Image source={{ uri }} style={styles.thumbnail} />
-
-                {/* Cropped checkmark */}
-                {croppedImages[index] && (
-                  <View style={styles.croppedBadge}>
-                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                  </View>
-                )}
-
-                {/* Current indicator */}
-                {currentIndex === index && (
-                  <View style={styles.currentIndicator} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         </SafeAreaView>
       </SafeAreaView>
     </GestureHandlerRootView>
@@ -798,130 +805,151 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  headerButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minWidth: 70,
-    alignItems: "center",
-  },
-  doneButtonWrapper: {
-    shadowColor: "#00C6FF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  doneButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  cancelText: {
-    color: "#333333",
-    fontSize: 16,
-    fontWeight: "500",
+  doneButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 70,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  doneButtonDisabled: {
+    backgroundColor: "#B0C4DE",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   doneText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    letterSpacing: 0.2,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    color: "#333333",
     fontSize: 17,
-    fontWeight: "600",
+    color: "#1A1A1A",
+    fontFamily: "BasicCommercial-Bold",
+    letterSpacing: 0.1,
   },
   cropContainer: {
     flex: 1,
+    backgroundColor: "#000000", // Dark background for crop view
+  },
+  progressPill: {
+    position: "absolute",
+    top: 16,
+    alignSelf: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  progressPillText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
   },
   bottomControls: {
     backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5E5",
-    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E8E8E8",
+    paddingVertical: 12, // Revert to even padding
   },
-  progressRow: {
+  bottomRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingRight: 16,
   },
-  progressText: {
-    fontSize: 14,
-    color: "#666666",
-    fontWeight: "500",
-  },
-  toolButton: {
-    padding: 8,
-  },
-  toolButtonActive: {
-    opacity: 1,
+  thumbnailScroll: {
+    flex: 1,
   },
   thumbnailContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
     gap: 10,
   },
+  inlineToolButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F5F5F5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  toolButtonActive: {
+    backgroundColor: "#E8F0FE", // Slight tint when active
+  },
   thumbnailWrapper: {
-    width: THUMBNAIL_SIZE,
-    height: THUMBNAIL_SIZE,
-    borderRadius: 8,
-    overflow: "hidden",
+    width: THUMBNAIL_SIZE + 6,
+    height: THUMBNAIL_SIZE + 6,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "transparent",
-    marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
   },
   thumbnailActive: {
-    borderColor: COLORS.primary,
+    borderColor: COLORS.primary, // Changed from dark '#1A1A1A'
   },
   thumbnail: {
-    width: "100%",
-    height: "100%",
+    width: THUMBNAIL_SIZE - 2,
+    height: THUMBNAIL_SIZE - 2,
+    borderRadius: 6,
     backgroundColor: "#F5F5F5",
   },
   croppedBadge: {
     position: "absolute",
-    top: 4,
-    right: 4,
+    top: -2,
+    right: -2,
     width: 20,
     height: 20,
     borderRadius: 10,
     backgroundColor: "#34C759",
     justifyContent: "center",
     alignItems: "center",
-  },
-  currentIndicator: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   aspectToggleButton: {
     position: "absolute",
     left: 16,
-    bottom: 3, // Moved lower as requested
+    bottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
+    gap: 6,
   },
-  aspectToggleIcon: {
-    marginRight: 6,
-  },
+  aspectToggleIcon: {},
   aspectToggleText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
   },
   cropCurrentButton: {
     position: "absolute",
@@ -936,26 +964,26 @@ const styles = StyleSheet.create({
   },
   cropCurrentText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 6,
   },
   aspectLockedBadge: {
     position: "absolute",
     left: 16,
-    bottom: 4,
+    bottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     gap: 6,
   },
   aspectLockedText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
   },
 });
 

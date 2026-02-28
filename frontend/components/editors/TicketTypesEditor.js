@@ -695,11 +695,11 @@ const TicketTypesEditor = React.forwardRef(
                     onChangeText={(text) =>
                       setCurrentTicket({ ...currentTicket, name: text })
                     }
-                    placeholder="e.g., General Admission"
+                    placeholder="e.g., General"
                     placeholderTextColor="#94A3B8"
                   />
                   <View style={styles.presetPillsContainer}>
-                    {["General Admission", "VIP", "Early Access", "Couple"].map(
+                    {["General", "VIP", "Early Access", "Couple"].map(
                       (preset) => (
                         <TouchableOpacity
                           key={preset}
@@ -728,7 +728,7 @@ const TicketTypesEditor = React.forwardRef(
 
                   <View style={styles.fieldSpacing} />
 
-                  <Text style={styles.fieldLabel}>Description</Text>
+                  <Text style={styles.fieldLabel}>Description •(Optional)</Text>
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     value={currentTicket.description}

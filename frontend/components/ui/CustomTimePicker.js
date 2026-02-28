@@ -121,11 +121,7 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
           }
         }
 
-        // Auto-show error if the existing time is already invalid on open
-        // (e.g., user changed the date back to today with a past time)
-        if (minTime && time < minTime) {
-          setShowError(true);
-        }
+        setShowError(false);
       }, 300); // slightly longer delay so the modal is visible first
     } else if (visible) {
       // Reset snapshot when opening without an existing time
@@ -317,34 +313,19 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
             </View>
           </View>
 
-          {/* Confirm Button — disabled when current selection matches the initial snapshot */}
-          {(() => {
-            const confirmDisabled =
-              selectedHour === initialHourRef.current &&
-              selectedMinute === initialMinuteRef.current &&
-              selectedPeriod === initialPeriodRef.current;
-            return (
-              <View style={styles.confirmButtonContainer}>
-                <TouchableOpacity
-                  onPress={handleConfirm}
-                  disabled={confirmDisabled}
-                >
-                  <LinearGradient
-                    colors={
-                      confirmDisabled
-                        ? ["#C4C4C4", "#C4C4C4"]
-                        : BRAND.primaryGradient
-                    }
-                    style={styles.confirmButton}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={styles.confirmButtonText}>Confirm Time</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            );
-          })()}
+          {/* Confirm Button */}
+          <View style={styles.confirmButtonContainer}>
+            <TouchableOpacity onPress={handleConfirm}>
+              <LinearGradient
+                colors={BRAND.primaryGradient}
+                style={styles.confirmButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.confirmButtonText}>Confirm Time</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Custom Error Modal Overlay */}

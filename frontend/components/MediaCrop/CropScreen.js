@@ -17,8 +17,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import {
+  X,
+  Grid3x3,
+  ScanLine,
+  Square,
+  RectangleVertical,
+} from "lucide-react-native";
 import * as ImageManipulator from "expo-image-manipulator";
 import CropView from "./CropView";
 import { getPreset, CROP_PRESETS } from "./CropPresets";
@@ -315,39 +320,38 @@ const CropScreen = ({ route, navigation }) => {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
+          {/* Cancel — X icon */}
           <TouchableOpacity
-            style={styles.headerButton}
+            style={styles.cancelButton}
             onPress={handleCancel}
             disabled={processing}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <X size={22} color="#1A1A1A" strokeWidth={2} />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>{preset.label}</Text>
+          {/* Title */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>{preset.label}</Text>
+            </View>
+          </View>
 
+          {/* Done button — solid pill */}
           <TouchableOpacity
             style={[
-              styles.headerButton,
-              styles.confirmButtonWrapper,
-              !imageLoaded && styles.buttonDisabled,
+              styles.doneButton,
+              (!imageLoaded || processing) && styles.doneButtonDisabled,
             ]}
             onPress={handleConfirm}
             disabled={processing || !imageLoaded}
+            activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={
-                imageLoaded ? ["#00C6FF", "#0072FF"] : ["#CCCCCC", "#AAAAAA"]
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.confirmButton}
-            >
-              {processing || !imageLoaded ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.confirmText}>Done</Text>
-              )}
-            </LinearGradient>
+            {processing || !imageLoaded ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.doneText}>Done</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -376,15 +380,15 @@ const CropScreen = ({ route, navigation }) => {
               onPress={handleAspectToggle}
             >
               <View style={styles.aspectToggleIcon}>
-                <Ionicons
-                  name={
-                    currentPresetKey === "feed_square"
-                      ? "square-outline"
-                      : "tablet-portrait-outline"
-                  }
-                  size={18}
-                  color="#FFFFFF"
-                />
+                {currentPresetKey === "feed_square" ? (
+                  <Square size={16} color="#FFFFFF" strokeWidth={2} />
+                ) : (
+                  <RectangleVertical
+                    size={16}
+                    color="#FFFFFF"
+                    strokeWidth={2}
+                  />
+                )}
               </View>
               <Text style={styles.aspectToggleText}>
                 {currentPresetKey === "feed_square"
@@ -409,10 +413,10 @@ const CropScreen = ({ route, navigation }) => {
               style={[styles.toolButton, showGrid && styles.toolButtonActive]}
               onPress={handleToggleGrid}
             >
-              <Ionicons
-                name="grid-outline"
-                size={22}
-                color={showGrid ? COLORS.primary : "#FFFFFF"}
+              <Grid3x3
+                size={20}
+                color={showGrid ? COLORS.primary : "#888888"}
+                strokeWidth={1.75}
               />
               <Text
                 style={[
@@ -432,10 +436,10 @@ const CropScreen = ({ route, navigation }) => {
                 ]}
                 onPress={handleToggleSafeZone}
               >
-                <Ionicons
-                  name="scan-outline"
-                  size={22}
-                  color={showSafeZone ? COLORS.primary : "#FFFFFF"}
+                <ScanLine
+                  size={20}
+                  color={showSafeZone ? COLORS.primary : "#888888"}
+                  strokeWidth={1.75}
                 />
                 <Text
                   style={[
@@ -500,82 +504,91 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  headerButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minWidth: 70,
-    alignItems: "center",
-  },
-  confirmButtonWrapper: {
-    shadowColor: "#00C6FF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  confirmButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  cancelText: {
-    color: "#333333",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  confirmText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    color: "#333333",
     fontSize: 17,
-    fontWeight: "600",
+    color: "#1A1A1A",
+    fontFamily: "BasicCommercial-Bold",
+    letterSpacing: 0.1,
   },
+  // ── Done button ─────────────────────────────────────────────────────────────
+  doneButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 70,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  doneButtonDisabled: {
+    backgroundColor: "#B0C4DE",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  doneText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    letterSpacing: 0.2,
+  },
+  // ── Crop Area ────────────────────────────────────────────────────────────────
   cropContainer: {
     flex: 1,
+    backgroundColor: "#000000",
   },
+  // ── Bottom Controls ──────────────────────────────────────────────────────────
   bottomControls: {
     backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5E5",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E8E8E8",
   },
   toolbar: {
     flexDirection: "row",
     justifyContent: "center",
-    paddingVertical: 12,
-    gap: 32,
+    paddingVertical: 14,
+    gap: 40,
   },
   toolButton: {
     alignItems: "center",
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  toolButtonActive: {
-    opacity: 1,
-  },
+  toolButtonActive: {},
   toolButtonText: {
-    color: "#666666",
+    color: "#888888",
     fontSize: 11,
     marginTop: 4,
-    opacity: 0.9,
+    fontFamily: "Manrope-Medium",
   },
   toolButtonTextActive: {
     color: COLORS.primary,
-    opacity: 1,
   },
+  // ── Preset Row ───────────────────────────────────────────────────────────────
   presetContainer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
@@ -589,40 +602,42 @@ const styles = StyleSheet.create({
   presetIcon: {
     width: 36,
     height: 36,
-    borderWidth: 2,
-    borderColor: "rgba(0, 0, 0, 0.2)",
-    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "rgba(0, 0, 0, 0.15)",
+    borderRadius: 5,
   },
   presetIconActive: {
     borderColor: COLORS.primary,
     borderWidth: 2,
   },
   presetText: {
-    color: "rgba(0, 0, 0, 0.5)",
+    color: "rgba(0, 0, 0, 0.45)",
     fontSize: 11,
     marginTop: 6,
+    fontFamily: "Manrope-Regular",
   },
   presetTextActive: {
     color: COLORS.primary,
+    fontFamily: "Manrope-SemiBold",
   },
+  // ── Aspect Toggle Pill ───────────────────────────────────────────────────────
   aspectToggleButton: {
     position: "absolute",
     left: 16,
-    bottom: 8,
+    bottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
+    gap: 6,
   },
-  aspectToggleIcon: {
-    marginRight: 6,
-  },
+  aspectToggleIcon: {},
   aspectToggleText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
   },
 });
 

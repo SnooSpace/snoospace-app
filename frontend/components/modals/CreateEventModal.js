@@ -324,6 +324,7 @@ const CreateEventModal = ({
     title: title.trim(),
     event_date: eventDate.toISOString(),
     start_datetime: eventDate.toISOString(),
+    has_time: hasTime,
     end_datetime: hasEndTime ? endDate.toISOString() : null,
     has_end_time: hasEndTime,
     gates_open_time: gatesOpenTime ? gatesOpenTime.toISOString() : null,
@@ -397,7 +398,14 @@ const CreateEventModal = ({
 
         // Handle both old camelCase and new snake_case keys for backward compatibility with existing drafts
         const dateStr = draft.data.event_date || draft.data.eventDate;
-        if (dateStr) setEventDate(new Date(dateStr));
+        if (dateStr) {
+          setEventDate(new Date(dateStr));
+          // Restore hasTime — if has_time was explicitly saved, use it;
+          // otherwise infer from the presence of event_date (backward compat)
+          const savedHasTime =
+            draft.data.has_time !== undefined ? draft.data.has_time : true;
+          setHasTime(savedHasTime);
+        }
 
         const hasEnd =
           draft.data.has_end_time !== undefined
@@ -535,8 +543,10 @@ const CreateEventModal = ({
     if (
       title.trim() === "" &&
       bannerCarousel.length === 0 &&
-      !draftWasResumed.current
+      !draftWasResumed.current &&
+      !hasUnsavedChanges.current
     ) {
+      resetForm();
       onClose();
       return;
     }
