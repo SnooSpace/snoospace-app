@@ -244,27 +244,24 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
               </View>
             </View>
           ))}
-
-          {/* Small add button at the end */}
-          {images.length < maxImages && (
-            <TouchableOpacity
-              style={styles.smallAddTile}
-              onPress={pickImages}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <ActivityIndicator color={COLORS.primary || "#3A57E8"} />
-              ) : (
-                <>
-                  <View style={styles.smallAddIconWrapper}>
-                    <Plus size={20} color={COLORS.primary || "#3A57E8"} />
-                  </View>
-                  <Text style={styles.smallAddText}>Add More</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
         </ScrollView>
+      )}
+
+      {images.length > 0 && images.length < maxImages && (
+        <TouchableOpacity
+          style={styles.smallAddTile}
+          onPress={pickImages}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <ActivityIndicator color={COLORS.primary || "#3A57E8"} />
+          ) : (
+            <>
+              <Plus size={20} color={"#4B5563"} style={{ marginRight: 6 }} />
+              <Text style={styles.smallAddText}>Add More Banner Images</Text>
+            </>
+          )}
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -403,35 +400,25 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 59, 48, 0.8)",
   },
   smallAddTile: {
-    width: 140,
-    height: 140,
-    borderRadius: 16,
+    flexDirection: "row",
     backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
     borderWidth: 1,
-    borderColor: "#E6EAF2",
-    marginRight: 15,
-    marginVertical: 2, // Helps prevent shadow clipping
-  },
-  smallAddIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E8F0FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
+    borderColor: "#E8EDF4",
+    marginTop: 8,
   },
   smallAddText: {
-    fontSize: 13,
-    fontFamily: "Manrope-Medium",
-    color: COLORS.primary || "#3A57E8",
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#4B5563",
   },
 });
 

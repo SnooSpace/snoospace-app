@@ -728,7 +728,7 @@ const TicketTypesEditor = React.forwardRef(
 
                   <View style={styles.fieldSpacing} />
 
-                  <Text style={styles.fieldLabel}>Description •(Optional)</Text>
+                  <Text style={styles.fieldLabel}>Description •Optional</Text>
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     value={currentTicket.description}
