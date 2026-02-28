@@ -939,11 +939,11 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   counterText: {
-    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
     color: COLORS.textSecondary,
     textAlign: "right",
     marginTop: 8,
-    fontWeight: "500",
   },
   mediaTrayContainer: {
     marginTop: 16,

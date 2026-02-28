@@ -120,7 +120,7 @@ const RichTextEditor = ({
                 ? "Tell people what makes this event special..."
                 : "Tell people what makes this event special...")
             }
-            placeholderTextColor={isMinimal ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+            placeholderTextColor="#9CA3AF"
             multiline
             maxLength={maxLength}
             inputStyle={[
@@ -184,11 +184,12 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
   },
   charCount: {
-    fontSize: 12,
+    fontSize: 13,
     color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
   },
   minimalCharCount: {
-    fontSize: 11,
+    fontSize: 13,
     color: "#9CA3AF",
     fontFamily: "Manrope-Medium",
   },
@@ -242,7 +243,7 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   mentionInput: {
-    fontSize: 14,
+    fontSize: 18,
     color: TEXT_COLOR,
     textAlignVertical: "top",
     paddingTop: 0,

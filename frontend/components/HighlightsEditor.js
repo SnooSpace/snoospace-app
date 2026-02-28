@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   FlatList,
   Modal,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SHADOWS } from "../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../constants/theme";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
@@ -30,6 +32,46 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
     description: "",
     order: 0,
   });
+
+  const descriptionWords = currentHighlight.description
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+  const slideAnim = useRef(new Animated.Value(10)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (descriptionWords >= 50) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 10,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [descriptionWords, fadeAnim, slideAnim]);
 
   // Popular event-related icons
   const popularIcons = [
@@ -51,7 +93,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
     if (highlights.length >= maxHighlights) {
       Alert.alert(
         "Limit Reached",
-        `You can add up to ${maxHighlights} highlights.`
+        `You can add up to ${maxHighlights} highlights.`,
       );
       return;
     }
@@ -114,7 +156,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
             onChange(reordered);
           },
         },
-      ]
+      ],
     );
   };
 
@@ -257,7 +299,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                 setCurrentHighlight({ ...currentHighlight, title: text })
               }
               placeholder="Why this event stands out"
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor="#9CA3AF"
               maxLength={50}
             />
 
@@ -270,11 +312,30 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                 setCurrentHighlight({ ...currentHighlight, description: text })
               }
               placeholder="Brief explanation..."
-              placeholderTextColor={LIGHT_TEXT_COLOR}
+              placeholderTextColor="#9CA3AF"
               multiline
               numberOfLines={3}
-              maxLength={150}
+              maxLength={500}
             />
+
+            {/* Animated Success Message (Appears when word count >= 50) */}
+            <Animated.View
+              pointerEvents={descriptionWords >= 50 ? "auto" : "none"}
+              style={[
+                styles.animatedCheckmarkContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                  height: descriptionWords >= 50 ? "auto" : 0,
+                  overflow: "hidden",
+                },
+              ]}
+            >
+              <View style={styles.iconCircleCustom}>
+                <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+              </View>
+              <Text style={styles.validText}>Description looks good!</Text>
+            </Animated.View>
 
             {/* Save Button */}
             <TouchableOpacity style={styles.saveButton} onPress={saveHighlight}>
@@ -310,7 +371,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 12,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
     color: LIGHT_TEXT_COLOR,
   },
   highlightCard: {
@@ -444,11 +506,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   input: {
+    fontFamily: FONTS.regular,
     borderWidth: 1,
     borderColor: "#E5E5EA",
     borderRadius: 12,
     padding: 12,
-    fontSize: 14,
+    fontSize: 18,
     color: TEXT_COLOR,
     backgroundColor: "#FFFFFF",
   },
@@ -470,6 +533,32 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  animatedCheckmarkContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    alignSelf: "flex-start",
+    backgroundColor: "#F0FDF4", // Very faint green background
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+  },
+  iconCircleCustom: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#22C55E",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  validText: {
+    fontSize: 13,
+    color: "#166534", // Dark premium green
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

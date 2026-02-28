@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { COLORS } from "../constants/theme";
+import { COLORS, FONTS } from "../constants/theme";
 
 // Local constants removed in favor of theme constants
 
@@ -404,7 +404,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
               value={customLabel}
               onChangeText={setCustomLabel}
               placeholder="e.g., 'Bring your own chair'"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor="#9CA3AF"
               maxLength={60}
             />
 
@@ -434,7 +434,8 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   subtitle: {
-    fontSize: 12,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   subtitleInvalid: {
