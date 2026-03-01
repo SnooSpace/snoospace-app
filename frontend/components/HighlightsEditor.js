@@ -297,7 +297,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
         <View style={styles.highlightHeader}>
           <View style={styles.iconTitleRow}>
             <View style={styles.cardIconCircle}>
-              <IconComp size={20} color={TOKENS.primary} strokeWidth={2} />
+              <IconComp size={20} color={"#4B5563"} strokeWidth={2} />
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
               <Text style={styles.highlightTitle}>{item.title}</Text>
@@ -453,9 +453,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                     >
                       <IconComponent
                         size={24}
-                        color={
-                          isSelected ? TOKENS.primary : TOKENS.textSecondary
-                        }
+                        color={isSelected ? "#FFFFFF" : TOKENS.textSecondary}
                         strokeWidth={2}
                       />
                       <Text
@@ -752,20 +750,20 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   iconOptionSelected: {
-    backgroundColor: TOKENS.surface,
-    borderColor: TOKENS.primary,
+    backgroundColor: "#4B5563",
+    borderColor: "#1F2937",
     borderWidth: 1,
   },
   iconLabel: {
     fontFamily: TOKENS.fonts.medium,
     fontSize: 11,
     color: TOKENS.textSecondary,
-    marginTop: 7,
+    marginBottom: 8,
     height: 16,
     textAlign: "center",
   },
   iconLabelSelected: {
-    color: TOKENS.primary,
+    color: "#FFFFFF",
     fontFamily: TOKENS.fonts.semibold,
   },
   input: {
