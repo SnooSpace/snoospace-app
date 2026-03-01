@@ -1,5 +1,21 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
-import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Animated, LayoutAnimation, UIManager, Easing, TouchableHighlight, Image } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
+  Easing,
+  TouchableHighlight,
+  Image,
+} from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
   SafeAreaView,
@@ -1684,7 +1700,12 @@ const CreateEventModal = ({
                 />
               )}
               {!creating && (
-                <Text style={[styles.floatingNextButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
+                <Text
+                  style={[
+                    styles.floatingNextButtonText,
+                    { fontFamily: "Manrope-SemiBold" },
+                  ]}
+                >
                   {currentStep === 7 ? "Publish Event" : "Next"}
                 </Text>
               )}

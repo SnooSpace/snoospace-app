@@ -1,12 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Animated,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { COLORS } from "../constants/theme";
 import MentionInput from "./MentionInput";
 import MentionTextRenderer from "./MentionTextRenderer";
@@ -23,6 +26,7 @@ const RichTextEditor = ({
   onChange,
   onTaggedEntitiesChange,
   minLength = 50,
+  minWords,
   maxLength = 2000,
   placeholder,
   variant = "default",
@@ -45,6 +49,56 @@ const RichTextEditor = ({
 
   const isValid = charCount >= minLength;
   const isMinimal = variant === "minimal";
+
+  const slideAnim = useRef(new Animated.Value(10)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () =>
+      setKeyboardVisible(true),
+    );
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () =>
+      setKeyboardVisible(false),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isMinimal && isValid && !keyboardVisible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (isMinimal) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 10,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isValid, fadeAnim, slideAnim, isMinimal, keyboardVisible]);
 
   return (
     <View style={[styles.container, isMinimal && styles.minimalContainer]}>
@@ -159,6 +213,29 @@ const RichTextEditor = ({
           <Ionicons name="checkmark-circle" size={20} color="#34C759" />
           <Text style={styles.validText}>Description looks good!</Text>
         </View>
+      )}
+
+      {isMinimal && (
+        <Animated.View
+          pointerEvents={isValid ? "auto" : "none"}
+          style={[
+            styles.animatedCheckmarkContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+              height: isValid ? "auto" : 0,
+              overflow: "hidden",
+            },
+          ]}
+        >
+          <LottieView
+            source={require("../assets/animations/success.json")}
+            autoPlay
+            loop={false}
+            style={{ width: 20, height: 20, marginRight: 6 }}
+          />
+          <Text style={styles.validTextMinimal}>Description looks good</Text>
+        </Animated.View>
       )}
     </View>
   );
@@ -299,6 +376,23 @@ const styles = StyleSheet.create({
     color: "#34C759",
     marginLeft: 6,
     fontWeight: "600",
+  },
+  animatedCheckmarkContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    alignSelf: "flex-start",
+    backgroundColor: "#F0FDF4",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+  },
+  validTextMinimal: {
+    fontSize: 13,
+    color: "#166534",
+    fontFamily: "Manrope-SemiBold",
   },
 });
 
