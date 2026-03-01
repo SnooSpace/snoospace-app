@@ -870,8 +870,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
+    fontFamily: FONTS.black,
+    color: COLORS.textPrimary,
   },
   scrollContent: {
     paddingTop: 0,

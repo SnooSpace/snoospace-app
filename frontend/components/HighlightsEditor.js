@@ -30,8 +30,10 @@ import {
   Check,
   X,
   Plus,
+  PlusCircle,
   Trash2,
   Pencil,
+  CircleStar,
 } from "lucide-react-native";
 
 // Local mirroring of MODAL_TOKENS for consistency
@@ -120,6 +122,38 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
     order: 0,
   });
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Per-item entry animation refs
+  const entryAnims = useRef({});
+
+  const getEntryAnim = (index) => {
+    if (!entryAnims.current[index]) {
+      entryAnims.current[index] = {
+        opacity: new Animated.Value(0),
+        translateY: new Animated.Value(12),
+      };
+    }
+    return entryAnims.current[index];
+  };
+
+  useEffect(() => {
+    // Animate new items in
+    highlights.forEach((_, index) => {
+      const anim = getEntryAnim(index);
+      Animated.parallel([
+        Animated.timing(anim.opacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim.translateY, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, [highlights.length]);
 
   // Success animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -249,16 +283,20 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
   const renderHighlightCard = ({ item, index }) => {
     const IconComp = getIconComponent(item.icon_name);
+    const anim = getEntryAnim(index);
     return (
-      <View style={styles.highlightCard}>
+      <Animated.View
+        style={[
+          styles.highlightCard,
+          {
+            opacity: anim.opacity,
+            transform: [{ translateY: anim.translateY }],
+          },
+        ]}
+      >
         <View style={styles.highlightHeader}>
-          <View
-            style={[
-              styles.iconTitleRow,
-              !item.description && { alignItems: "center" },
-            ]}
-          >
-            <View style={styles.iconCircle}>
+          <View style={styles.iconTitleRow}>
+            <View style={styles.cardIconCircle}>
               <IconComp size={20} color={TOKENS.primary} strokeWidth={2} />
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
@@ -273,19 +311,19 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
           <View style={styles.actions}>
             <TouchableOpacity
               onPress={() => editHighlight(index)}
-              style={styles.actionButton}
+              style={styles.actionIconButton}
             >
               <Pencil size={18} color={TOKENS.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => deleteHighlight(index)}
-              style={styles.actionButton}
+              style={styles.actionIconButton}
             >
-              <Trash2 size={18} color={TOKENS.error} strokeWidth={2} />
+              <Trash2 size={18} color={TOKENS.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -293,36 +331,58 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerStatusRow}>
-          <Text style={styles.subtitle}>
-            {highlights.length} / {maxHighlights} added
-          </Text>
-          <View style={styles.optionalPill}>
-            <Text style={styles.optionalText}>Optional</Text>
+      {/* 2️⃣ Strengthen Section Header Hierarchy */}
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <CircleStar size={24} color={TOKENS.primary} strokeWidth={2} />
           </View>
+          <Text style={styles.sectionHeaderTitle}>
+            Highlights{" "}
+            <Text style={styles.sectionHeaderOptional}>•(Optional)</Text>
+          </Text>
         </View>
-        <Text style={styles.helperText}>
+        <Text style={styles.sectionHeaderCounter}>
+          {highlights.length} of {maxHighlights} added
+        </Text>
+        <Text style={styles.sectionHeaderHelper}>
           Showcase what makes your event special
         </Text>
       </View>
 
-      {highlights.length > 0 && (
-        <FlatList
-          data={highlights}
-          renderItem={renderHighlightCard}
-          keyExtractor={(item, index) => index.toString()}
-          scrollEnabled={false}
-          contentContainerStyle={{ gap: 12, paddingBottom: 12 }}
-        />
-      )}
+      {/* 3️⃣ Add Primary Surface Container */}
+      <View style={styles.surfaceContainer}>
+        {highlights.length > 0 && (
+          <FlatList
+            data={highlights}
+            renderItem={renderHighlightCard}
+            keyExtractor={(item, index) => index.toString()}
+            scrollEnabled={false}
+            contentContainerStyle={{
+              gap: 12,
+              paddingBottom: highlights.length < maxHighlights ? 16 : 0,
+            }}
+          />
+        )}
 
-      {highlights.length < maxHighlights && (
-        <TouchableOpacity style={styles.addButton} onPress={addHighlight}>
-          <Plus size={20} color={TOKENS.primary} strokeWidth={2.5} />
-          <Text style={styles.addButtonText}>Add Highlight</Text>
-        </TouchableOpacity>
-      )}
+        {/* 4️⃣ Elevated Action Tile */}
+        {highlights.length < maxHighlights ? (
+          <TouchableOpacity
+            style={styles.actionTile}
+            onPress={addHighlight}
+            activeOpacity={0.8}
+          >
+            <Plus size={22} color={TOKENS.primary} strokeWidth={2.5} />
+            <Text style={styles.actionTileTitle}>Add Highlight</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.actionTileDisabled}>
+            <Text style={styles.actionTileDisabledText}>
+              Maximum highlights reached
+            </Text>
+          </View>
+        )}
+      </View>
 
       {/* Edit/Add Modal */}
       <Modal
@@ -495,106 +555,134 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 4,
   },
-  header: {
-    marginBottom: 16,
+  sectionHeaderNew: {
+    marginBottom: 0,
   },
-  headerStatusRow: {
+  sectionHeaderTitleRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
   },
-  optionalPill: {
-    backgroundColor: TOKENS.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: TOKENS.border,
+  sectionHeaderIconContainer: {
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  optionalText: {
-    fontFamily: TOKENS.fonts.medium,
-    fontSize: 11,
-    color: TOKENS.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontFamily: TOKENS.fonts.medium,
-    fontSize: 14,
+  sectionHeaderTitle: {
+    fontFamily: TOKENS.fonts.bold,
+    fontSize: 22,
     color: TOKENS.textPrimary,
   },
-  helperText: {
+  sectionHeaderOptional: {
     fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#9CA3AF",
+  },
+  sectionHeaderCounter: {
+    fontFamily: TOKENS.fonts.medium,
     fontSize: 13,
-    color: TOKENS.textSecondary,
+    color: TOKENS.textPrimary,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  sectionHeaderHelper: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  surfaceContainer: {
+    backgroundColor: "#F4F7FB",
+    borderRadius: 24,
+    padding: 20,
+    marginTop: 16,
   },
   highlightCard: {
-    backgroundColor: TOKENS.background,
-    borderRadius: TOKENS.radius.lg,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: TOKENS.border,
-    ...TOKENS.shadow.sm,
+    borderColor: "#E6ECF8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 2,
   },
   highlightHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   iconTitleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     flex: 1,
     paddingRight: 12,
   },
-  iconCircle: {
+  cardIconCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: TOKENS.surface,
+    backgroundColor: "#EEF2FF",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
+    marginRight: 12,
   },
   highlightTitle: {
-    fontFamily: TOKENS.fonts.medium,
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 15,
     color: TOKENS.textPrimary,
   },
   highlightDescription: {
     fontFamily: TOKENS.fonts.regular,
     fontSize: 14,
-    color: TOKENS.textSecondary,
+    color: "#6B7280",
     marginTop: 4,
-    lineHeight: 20,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
   },
-  actionButton: {
-    padding: 8,
-    marginLeft: 4,
-    backgroundColor: TOKENS.background,
-    borderRadius: 20,
+  actionIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
-  addButton: {
+  actionTile: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    height: 52,
     flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#E6ECF8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  actionTileTitle: {
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: TOKENS.primary,
+    marginLeft: 8,
+  },
+  actionTileDisabled: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 16,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: TOKENS.border,
-    borderRadius: TOKENS.radius.lg,
-    backgroundColor: TOKENS.background,
+    paddingVertical: 16,
   },
-  addButtonText: {
-    marginLeft: 8,
-    fontSize: 15,
-    fontFamily: TOKENS.fonts.semibold,
-    color: TOKENS.primary,
+  actionTileDisabledText: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 13,
+    color: "#9CA3AF",
   },
   modalOverlay: {
     flex: 1,

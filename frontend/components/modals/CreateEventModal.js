@@ -43,6 +43,12 @@ import {
   ArrowRight,
   Info,
   X,
+  NotebookPen,
+  Camera,
+  BookMarked,
+  Sparkles,
+  BookOpenCheck,
+  Glasses,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
@@ -138,7 +144,7 @@ const MODAL_TOKENS = {
   primary: "#3565F2",
   primaryGradient: ["#3565F2", "#2F56D6"],
   surface: "#F5F8FF", // Surface Tint
-  background: "#FFFFFF",
+  background: "#F9F9F9",
   border: "#E6ECF8",
   textPrimary: "#1F2937",
   textSecondary: "#6B7280",
@@ -727,8 +733,27 @@ const CreateEventModal = ({
           <ScrollView
             ref={scrollViewRef}
             style={styles.stepContent}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
           >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <BookMarked
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Event Details{" "}
+                  <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Set the name, date, time ,ticket and much more of your event.
+              </Text>
+            </View>
+
             {/* Event Identity Section */}
             <Animated.View
               style={[
@@ -1363,6 +1388,23 @@ const CreateEventModal = ({
             style={styles.stepContent}
             contentContainerStyle={{ paddingBottom: 120 }}
           >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <Camera
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Media <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Add photos to make your event look more appealing.
+              </Text>
+            </View>
             <Animated.View
               style={[
                 errorField === "bannerImages" && styles.sectionError,
@@ -1393,6 +1435,24 @@ const CreateEventModal = ({
             style={styles.stepContent}
             contentContainerStyle={{ paddingBottom: 100 }}
           >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <NotebookPen
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Description <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Provide a detailed overview of your event to help people
+                understand what to expect.
+              </Text>
+            </View>
             <RichTextEditor
               value={description}
               onChange={setDescription}
@@ -1403,7 +1463,10 @@ const CreateEventModal = ({
         );
       case 4:
         return (
-          <ScrollView style={styles.stepContent}>
+          <ScrollView
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
             <HighlightsEditor
               highlights={highlights}
               onChange={setHighlights}
@@ -1413,8 +1476,28 @@ const CreateEventModal = ({
         );
       case 5:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Featured</Text>
+          <ScrollView
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <Sparkles
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Featured <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Highlight key people, performers, or contributors for your
+                event.
+              </Text>
+            </View>
             <FeaturedAccountsEditor
               accounts={featuredAccounts}
               onChange={setFeaturedAccounts}
@@ -1423,8 +1506,30 @@ const CreateEventModal = ({
         );
       case 6:
         return (
-          <ScrollView ref={scrollViewRef} style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Things to Know</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <BookOpenCheck
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Things to Know{" "}
+                  <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Add important details like dress code, age limits, arrival
+                instructions and much more.
+              </Text>
+            </View>
             <ThingsToKnowEditor
               items={thingsToKnow}
               onChange={setThingsToKnow}
@@ -1436,12 +1541,25 @@ const CreateEventModal = ({
         return (
           <ScrollView
             style={styles.stepContent}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
           >
-            <Text style={styles.stepTitle}>Review</Text>
-            <Text style={styles.reviewSubtitle}>
-              Check your event details before publishing
-            </Text>
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <Glasses
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Review <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Check your event details before publishing.
+              </Text>
+            </View>
 
             <View style={styles.reviewCard}>
               <View style={styles.reviewSection}>
@@ -1798,6 +1916,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: MODAL_TOKENS.background,
+  },
+  sectionHeaderNew: {
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  sectionHeaderIconContainer: {
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionHeaderTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
+    fontSize: 22,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  sectionHeaderOptional: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#9CA3AF",
+  },
+  sectionHeaderHelper: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -2393,7 +2541,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheetContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: MODAL_TOKENS.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
