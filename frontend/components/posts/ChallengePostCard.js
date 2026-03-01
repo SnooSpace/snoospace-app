@@ -4,7 +4,15 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Animated, Alert } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Alert,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -15,6 +23,7 @@ import {
   Send,
   Bookmark,
   Ellipsis,
+  Trophy,
 } from "lucide-react-native";
 import {
   apiPost,
@@ -448,15 +457,13 @@ const ChallengePostCard = ({
 
   return (
     <>
-      <LinearGradient
-        colors={["#C8E9EA", "#E8F7F8"]} // Softer gradient - less white
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.container}
-      >
+      <View style={styles.container}>
         {/* Header Row: Badge & Trophy Icon */}
         <View style={styles.headerRow}>
           <View style={styles.badgesRow}>
+            <View style={styles.challengePill}>
+              <Text style={styles.challengePillText}>Challenge</Text>
+            </View>
             {isExpired && (
               <View style={styles.endedBadge}>
                 <Text style={styles.endedBadgeText}>Ended</Text>
@@ -501,9 +508,6 @@ const ChallengePostCard = ({
                   </Animated.View>
                 );
               })()}
-            <View style={styles.challengePill}>
-              <Text style={styles.challengePillText}>Challenge</Text>
-            </View>
           </View>
           <View style={styles.rightHeaderContent}>
             {isOwnPost && (onEdit || onDelete) && (
@@ -516,7 +520,7 @@ const ChallengePostCard = ({
               </TouchableOpacity>
             )}
             <View style={styles.trophyContainer}>
-              <Ionicons name="trophy" size={24} color="#1976D2" />
+              <Trophy size={20} color="#EAB308" />
             </View>
           </View>
         </View>
@@ -676,7 +680,14 @@ const ChallengePostCard = ({
                 <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={[styles.joinButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Join Challenge</Text>
+                  <Text
+                    style={[
+                      styles.joinButtonText,
+                      { fontFamily: "Manrope-SemiBold" },
+                    ]}
+                  >
+                    Join Challenge
+                  </Text>
                   <Ionicons
                     name="arrow-forward"
                     size={18}
@@ -828,7 +839,7 @@ const ChallengePostCard = ({
             />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
       <ChallengeEditModal
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}
@@ -846,7 +857,7 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.m,
     borderRadius: BORDER_RADIUS.xl, // 20px
     padding: SPACING.l,
-    overflow: "hidden", // For gradient
+    backgroundColor: "#FFFFFF",
   },
   headerRow: {
     flexDirection: "row",
@@ -857,7 +868,7 @@ const styles = StyleSheet.create({
   trophyContainer: {
     width: 44,
     height: 44,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -1046,7 +1057,7 @@ const styles = StyleSheet.create({
   },
   // Progress Bar
   progressContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.6)", // Transparent white on gradient
+    backgroundColor: "#F9FAFB",
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.m,
     marginBottom: SPACING.m,
@@ -1085,7 +1096,7 @@ const styles = StyleSheet.create({
   // Preview
   previewContainer: {
     flexDirection: "row",
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    backgroundColor: "#F9FAFB",
     borderRadius: BORDER_RADIUS.m,
     padding: SPACING.s,
     marginBottom: SPACING.m,
