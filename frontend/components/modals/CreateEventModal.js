@@ -1404,7 +1404,6 @@ const CreateEventModal = ({
       case 4:
         return (
           <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Highlights</Text>
             <HighlightsEditor
               highlights={highlights}
               onChange={setHighlights}
