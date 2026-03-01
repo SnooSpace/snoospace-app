@@ -154,7 +154,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
             {loading ? (
               <SnooLoader color={COLORS.textInverted} />
             ) : (
-              <Text style={styles.buttonText}>Verify</Text>
+              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Verify</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -167,7 +167,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
           {resendLoading ? (
             <SnooLoader color={COLORS.primary} size="small" />
           ) : (
-            <Text style={styles.resendText}>
+            <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
               {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
             </Text>
           )}
@@ -245,7 +245,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   resendButton: {
     alignItems: "center",
@@ -254,7 +255,8 @@ const styles = StyleSheet.create({
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: "500",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   errorText: {
     color: COLORS.error,

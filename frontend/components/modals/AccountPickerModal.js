@@ -219,7 +219,7 @@ export default function AccountPickerModal({
           {loading && (
             <View style={styles.loadingContainer}>
               <SnooLoader size="large" color="#5f27cd" />
-              <Text style={styles.loadingText}>Logging in...</Text>
+              <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Logging in...</Text>
             </View>
           )}
 
@@ -357,6 +357,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: "#8E8E93",
+  
+    fontFamily: "Manrope-Regular",
   },
   loginAllButton: {
     flexDirection: "row",

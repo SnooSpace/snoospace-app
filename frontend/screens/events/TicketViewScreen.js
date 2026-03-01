@@ -140,7 +140,7 @@ export default function TicketViewScreen({ route, navigation }) {
         </View>
         <View style={styles.centerContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Loading ticket...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading ticket...</Text>
         </View>
       </SafeAreaView>
     );
@@ -416,6 +416,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED_TEXT,
     marginTop: 12,
+  
+    fontFamily: "Manrope-Regular",
   },
   errorTitle: {
     fontSize: 18,

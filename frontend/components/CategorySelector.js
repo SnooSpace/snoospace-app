@@ -82,7 +82,7 @@ export default function CategorySelector({
         <Text style={styles.label}>Categories</Text>
         <View style={styles.loadingContainer}>
           <SnooLoader size="small" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading categories...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading categories...</Text>
         </View>
       </View>
     );

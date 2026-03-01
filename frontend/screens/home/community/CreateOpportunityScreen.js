@@ -1582,7 +1582,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   ) : (
                     <>
                       <Ionicons name="rocket" size={20} color="#FFFFFF" />
-                      <Text style={styles.publishButtonText}>
+                      <Text style={[styles.publishButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                         {isEditing ? "Update Opportunity" : "Publish"}
                       </Text>
                     </>
@@ -2268,8 +2268,9 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     fontSize: 16,
-    fontWeight: "600",
     color: "#FFFFFF",
+  
+    fontFamily: "Manrope-SemiBold",
   },
   publishButtons: {
     flexDirection: "row",

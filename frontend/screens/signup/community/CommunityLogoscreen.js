@@ -251,7 +251,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
             {isLoading ? (
               <SnooLoader color={COLORS.textInverted} size="small" />
             ) : (
-              <Text style={styles.buttonText}>Next</Text>
+              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -377,7 +377,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "700",
+    
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

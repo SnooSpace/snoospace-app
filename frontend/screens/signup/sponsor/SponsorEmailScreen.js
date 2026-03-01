@@ -179,7 +179,7 @@ const SponsorEmailScreen = ({ navigation, route }) => {
             {loading ? (
               <SnooLoader color={COLORS.textInverted} />
             ) : (
-              <Text style={styles.buttonText}>Continue</Text>
+              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Continue</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -255,7 +255,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   errorText: {
     color: COLORS.error,

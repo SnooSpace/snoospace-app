@@ -282,7 +282,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
             ) : (
               <Ionicons name="location" size={20} color={COLORS.primary} />
             )}
-            <Text style={styles.locationButtonText}>
+            <Text style={[styles.locationButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
               {loadingLocation
                 ? "Getting location..."
                 : hasLocation
@@ -424,7 +424,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

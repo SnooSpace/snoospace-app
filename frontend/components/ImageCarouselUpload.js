@@ -248,7 +248,7 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
           ) : (
             <>
               <Plus size={20} color={"#4B5563"} style={{ marginRight: 6 }} />
-              <Text style={styles.smallAddText}>Add More Banner Images</Text>
+              <Text style={[styles.smallAddText, { fontFamily: 'Manrope-Medium' }]}>Add More Banner Images</Text>
             </>
           )}
         </TouchableOpacity>

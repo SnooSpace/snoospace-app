@@ -635,7 +635,7 @@ const BatchCropScreen = ({ route, navigation }) => {
             {processing ? (
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.doneText}>Done</Text>
+              <Text style={[styles.doneText, { fontFamily: 'Manrope-SemiBold' }]}>Done</Text>
             )}
           </TouchableOpacity>
         </View>

@@ -235,7 +235,7 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
                     color={"#4B5563"}
                     style={{ marginRight: 6 }}
                   />
-                  <Text style={styles.smallAddText}>
+                  <Text style={[styles.smallAddText, { fontFamily: 'Manrope-Medium' }]}>
                     Add More Gallery Images
                   </Text>
                 </>

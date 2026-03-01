@@ -427,7 +427,7 @@ export default function EditProfileScreen({ route, navigation }) {
           {saving ? (
             <SnooLoader size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.saveButtonText}>Save</Text>
+            <Text style={[styles.saveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Save</Text>
           )}
         </TouchableOpacity>
       </View>

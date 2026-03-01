@@ -221,7 +221,7 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                   {isLoading ? (
                     <SnooLoader size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                    <Text style={[styles.saveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Save Changes</Text>
                   )}
                 </TouchableOpacity>
               </View>

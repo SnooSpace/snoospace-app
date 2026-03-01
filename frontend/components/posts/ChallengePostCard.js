@@ -676,7 +676,7 @@ const ChallengePostCard = ({
                 <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.joinButtonText}>Join Challenge</Text>
+                  <Text style={[styles.joinButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Join Challenge</Text>
                   <Ionicons
                     name="arrow-forward"
                     size={18}

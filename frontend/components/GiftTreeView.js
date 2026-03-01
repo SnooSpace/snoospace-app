@@ -250,7 +250,7 @@ const GiftTreeView = ({ eventId, giftId = null, onUserPress }) => {
     return (
       <View style={styles.centered}>
         <SnooLoader size="large" color={PRIMARY_COLOR} />
-        <Text style={styles.loadingText}>Loading gift history...</Text>
+        <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading gift history...</Text>
       </View>
     );
   }
@@ -306,6 +306,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
+  
+    fontFamily: "Manrope-Regular",
   },
   errorText: {
     marginTop: 12,

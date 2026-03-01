@@ -409,7 +409,7 @@ const ShareTicketScreen = ({ navigation, route }) => {
         ) : (
           <>
             <Ionicons name="gift" size={20} color="#FFFFFF" />
-            <Text style={styles.sendButtonText}>
+            <Text style={[styles.sendButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
               {parseFloat(selectedTicketType?.base_price || 0) === 0
                 ? "Send Ticket"
                 : "Send Invite"}

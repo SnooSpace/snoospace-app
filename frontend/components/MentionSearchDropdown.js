@@ -112,7 +112,7 @@ const MentionSearchDropdown = ({
         </View>
       ) : results.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No results found</Text>
+          <Text style={[styles.emptyTitle, { fontFamily: 'Manrope-Medium' }]}>No results found</Text>
           <Text style={styles.emptySubtitle}>
             Try searching for a different name
           </Text>

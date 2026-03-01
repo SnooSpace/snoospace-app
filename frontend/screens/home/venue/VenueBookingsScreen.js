@@ -228,7 +228,7 @@ export default function VenueBookingsScreen({ navigation }) {
         {loading ? (
           <View style={styles.loadingContainer}>
             <SnooLoader size="large" color={PRIMARY_COLOR} />
-            <Text style={styles.loadingText}>Loading bookings...</Text>
+            <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading bookings...</Text>
           </View>
         ) : (
           <FlatList
@@ -300,6 +300,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
     marginTop: 10,
+  
+    fontFamily: "Manrope-Regular",
   },
   listContainer: {
     flexGrow: 1,

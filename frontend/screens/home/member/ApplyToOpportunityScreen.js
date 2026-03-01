@@ -395,7 +395,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 <SnooLoader color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.nextButtonText}>
+                  <Text style={[styles.nextButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                     {currentStep === TOTAL_STEPS
                       ? "Submit Application"
                       : "Continue"}
@@ -684,7 +684,8 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     fontSize: 17,
-    fontWeight: "700",
     color: "#FFFFFF",
+  
+    fontFamily: "Manrope-SemiBold",
   },
 });

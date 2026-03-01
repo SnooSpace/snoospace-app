@@ -255,7 +255,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
         </View>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Loading attendees...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading attendees...</Text>
         </View>
       </SafeAreaView>
     );
@@ -373,6 +373,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED_TEXT,
     marginTop: 12,
+  
+    fontFamily: "Manrope-Regular",
   },
   errorContainer: {
     flex: 1,

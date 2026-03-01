@@ -146,7 +146,7 @@ const RemovalRequestsModal = ({
             ) : (
               <>
                 <Ionicons name="close" size={18} color="#FF3B30" />
-                <Text style={styles.rejectButtonText}>Reject</Text>
+                <Text style={[styles.rejectButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Reject</Text>
               </>
             )}
           </TouchableOpacity>
@@ -160,7 +160,7 @@ const RemovalRequestsModal = ({
             ) : (
               <>
                 <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                <Text style={styles.approveButtonText}>Approve</Text>
+                <Text style={[styles.approveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Approve</Text>
               </>
             )}
           </TouchableOpacity>

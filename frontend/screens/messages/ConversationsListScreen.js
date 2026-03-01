@@ -334,7 +334,7 @@ export default function ConversationsListScreen({ navigation }) {
             />
           ) : suggestions.length > 0 ? (
             <>
-              <Text style={styles.suggestionsTitle}>Suggestions</Text>
+              <Text style={[styles.suggestionsTitle, { fontFamily: 'Manrope-Medium' }]}>Suggestions</Text>
               <FlatList
                 data={suggestions}
                 keyExtractor={(item) => String(item.id)}

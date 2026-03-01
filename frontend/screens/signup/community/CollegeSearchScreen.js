@@ -394,7 +394,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                   {submitting ? (
                     <SnooLoader color="#fff" />
                   ) : (
-                    <Text style={styles.submitButtonText}>Submit Request</Text>
+                    <Text style={[styles.submitButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Submit Request</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -587,8 +587,9 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: "600",
     color: "#fff",
+  
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

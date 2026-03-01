@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+  Alert,
+} from "react-native";
 import { apiPost } from "../../../api/client";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const FONT_SIZES = {
@@ -11,8 +24,6 @@ const FONT_SIZES = {
   body: 16,
   small: 13,
 };
-
-
 
 const VenueUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
@@ -60,7 +71,10 @@ const VenueUsernameScreen = ({ navigation, route }) => {
 
   const handleFinish = async () => {
     if (!username || username.length < 3) {
-      Alert.alert("Invalid Username", "Username must be at least 3 characters long");
+      Alert.alert(
+        "Invalid Username",
+        "Username must be at least 3 characters long",
+      );
       return;
     }
 
@@ -93,7 +107,7 @@ const VenueUsernameScreen = ({ navigation, route }) => {
         throw new Error("Failed to create venue account");
       }
 
-      console.log('[VenueUsername] Signup successful, venue ID:', venue.id);
+      console.log("[VenueUsername] Signup successful, venue ID:", venue.id);
 
       // Navigate to venue home with reset
       navigation.reset({
@@ -102,7 +116,10 @@ const VenueUsernameScreen = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error("Error completing signup:", error);
-      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to complete signup. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -110,9 +127,15 @@ const VenueUsernameScreen = ({ navigation, route }) => {
 
   const getUsernameStatus = () => {
     if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
-    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textSecondary };
-    if (isAvailable === true) return { text: "✓ Username is available", color: COLORS.success };
-    if (isAvailable === false) return { text: "✗ Username is already taken", color: COLORS.error };
+    if (username.length < 3)
+      return {
+        text: "Username must be at least 3 characters",
+        color: COLORS.textSecondary,
+      };
+    if (isAvailable === true)
+      return { text: "✓ Username is available", color: COLORS.success };
+    if (isAvailable === false)
+      return { text: "✗ Username is already taken", color: COLORS.error };
     return { text: "", color: COLORS.textSecondary };
   };
 
@@ -131,7 +154,9 @@ const VenueUsernameScreen = ({ navigation, route }) => {
         <View style={styles.content}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={[styles.inputWrapper, isFocused && styles.inputFocused]}>
+            <View
+              style={[styles.inputWrapper, isFocused && styles.inputFocused]}
+            >
               <TextInput
                 style={styles.textInput}
                 value={username}
@@ -144,9 +169,7 @@ const VenueUsernameScreen = ({ navigation, route }) => {
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
               />
-              {isChecking && (
-                <SnooLoader size="small" color={COLORS.primary} />
-              )}
+              {isChecking && <SnooLoader size="small" color={COLORS.primary} />}
             </View>
             <Text style={[styles.statusText, { color: status.color }]}>
               {status.text}
@@ -156,7 +179,9 @@ const VenueUsernameScreen = ({ navigation, route }) => {
           <View style={styles.rulesContainer}>
             <Text style={styles.rulesTitle}>Username Rules:</Text>
             <Text style={styles.rule}>• 3-30 characters long</Text>
-            <Text style={styles.rule}>• Only letters, numbers, underscores, and dots</Text>
+            <Text style={styles.rule}>
+              • Only letters, numbers, underscores, and dots
+            </Text>
             <Text style={styles.rule}>• Must be unique across all users</Text>
           </View>
         </View>
@@ -164,15 +189,21 @@ const VenueUsernameScreen = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.nextButtonContainer,
-            (!username || username.length < 3 || !isAvailable || isSubmitting) && styles.nextButtonDisabled
+            (!username ||
+              username.length < 3 ||
+              !isAvailable ||
+              isSubmitting) &&
+              styles.nextButtonDisabled,
           ]}
           onPress={handleFinish}
-          disabled={!username || username.length < 3 || !isAvailable || isSubmitting}
+          disabled={
+            !username || username.length < 3 || !isAvailable || isSubmitting
+          }
         >
           <LinearGradient
             colors={
-              (!username || username.length < 3 || !isAvailable || isSubmitting) 
-                ? [COLORS.border, COLORS.border] 
+              !username || username.length < 3 || !isAvailable || isSubmitting
+                ? [COLORS.border, COLORS.border]
                 : COLORS.primaryGradient
             }
             start={{ x: 0, y: 0 }}
@@ -246,7 +277,8 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   statusText: {
-    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
   },

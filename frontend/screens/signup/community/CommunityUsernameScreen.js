@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert, Platform, StatusBar, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+  Alert,
+  Platform,
+  StatusBar,
+  Dimensions,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
@@ -280,9 +291,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                 autoCorrect={false}
                 maxLength={30}
               />
-              {isChecking && (
-                <SnooLoader size="small" color={COLORS.primary} />
-              )}
+              {isChecking && <SnooLoader size="small" color={COLORS.primary} />}
             </View>
             <Text style={[styles.statusText, { color: status.color }]}>
               {status.text}
@@ -411,6 +420,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   statusText: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     marginTop: 8,
     marginLeft: 4,

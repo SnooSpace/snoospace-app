@@ -233,7 +233,7 @@ const EmailInputScreen = ({ navigation }) => {
               {loading ? (
                 <SnooLoader color={COLORS.textInverted} />
               ) : (
-                <Text style={styles.buttonText}>
+                <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>
                   {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Get Code"}
                 </Text>
               )}
@@ -376,7 +376,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   // Modal Styles
   modalOverlay: {

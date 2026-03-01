@@ -158,7 +158,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
               {loading ? (
                 <SnooLoader color={COLORS.textInverted} />
               ) : (
-                <Text style={styles.buttonText}>Get Code</Text>
+                <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Get Code</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
@@ -256,7 +256,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

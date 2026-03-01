@@ -351,7 +351,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                   {isSubmittingReply ? (
                     <SnooLoader size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.sendReplyText}>Send</Text>
+                    <Text style={[styles.sendReplyText, { fontFamily: 'Manrope-Medium' }]}>Send</Text>
                   )}
                 </TouchableOpacity>
               </View>

@@ -531,7 +531,7 @@ const PromptPostCard = ({
                 {isSubmitting ? (
                   <SnooLoader size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitActionButtonText}>Submit</Text>
+                  <Text style={[styles.submitActionButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Submit</Text>
                 )}
               </TouchableOpacity>
             </View>

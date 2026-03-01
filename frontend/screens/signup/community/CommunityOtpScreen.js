@@ -278,7 +278,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Enter verification code</Text>
+          <Text style={{ fontFamily: 'Manrope-Medium' }} style={styles.title}>Enter verification code</Text>
           <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
           <View style={styles.inputContainer}>
@@ -457,7 +457,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   resendButton: {
     alignItems: "center",
@@ -467,7 +468,8 @@ const styles = StyleSheet.create({
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: "500",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   resendTextDisabled: {
     color: COLORS.textSecondary,

@@ -342,7 +342,7 @@ const CropScreen = ({ route, navigation }) => {
             {processing || !imageLoaded ? (
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.doneText}>Done</Text>
+              <Text style={[styles.doneText, { fontFamily: 'Manrope-SemiBold' }]}>Done</Text>
             )}
           </TouchableOpacity>
         </View>

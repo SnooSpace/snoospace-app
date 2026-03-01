@@ -59,7 +59,7 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
         <View style={styles.card}>
           <View style={styles.loadingContainer}>
             <SnooLoader size="small" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading post...</Text>
+            <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading post...</Text>
           </View>
         </View>
       </View>
@@ -437,6 +437,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 13,
     color: "#8E8E93",
+  
+    fontFamily: "Manrope-Regular",
   },
   errorCard: {
     padding: 40,

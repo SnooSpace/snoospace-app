@@ -216,7 +216,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
             {loading ? (
               <SnooLoader size="large" color={COLORS.primary} />
             ) : allPronouns.length === 0 ? (
-              <Text style={styles.subtitle}>No pronouns available</Text>
+              <Text style={[styles.subtitle, { fontFamily: 'Manrope-Medium' }]}>No pronouns available</Text>
             ) : (
               <>
                 {allPronouns.map((pronoun) => (
@@ -438,7 +438,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

@@ -180,7 +180,7 @@ export default function LocationPicker({
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Getting your location...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Getting your location...</Text>
         </View>
       </SafeAreaView>
     );
@@ -237,7 +237,7 @@ export default function LocationPicker({
           {isLoadingAddress && (
             <View style={styles.loadingAddressContainer}>
               <SnooLoader size="small" color={COLORS.primary} />
-              <Text style={styles.loadingAddressText}>Getting address...</Text>
+              <Text style={[styles.loadingAddressText, { fontFamily: 'Manrope-Medium' }]}>Getting address...</Text>
             </View>
           )}
 
@@ -298,6 +298,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: COLORS.textSecondary,
+  
+    fontFamily: "Manrope-Regular",
   },
   scrollView: {
     flex: 1,

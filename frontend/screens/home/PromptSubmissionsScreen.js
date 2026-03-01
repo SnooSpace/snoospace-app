@@ -255,7 +255,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             ) : (
               <>
                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                <Text style={styles.modButtonText}>Approve</Text>
+                <Text style={[styles.modButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Approve</Text>
               </>
             )}
           </TouchableOpacity>
@@ -381,7 +381,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
                     size={22}
                     color={"#FF9500"}
                   />
-                  <Text style={styles.optionText}>
+                  <Text style={[styles.optionText, { fontFamily: 'Manrope-Medium' }]}>
                     {selectedSubmission?.is_pinned
                       ? "Unpin response"
                       : "Pin response"}

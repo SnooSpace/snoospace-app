@@ -136,7 +136,7 @@ const VenueInterestScreen = ({ navigation, route }) => {
             {loading ? (
               <SnooLoader size="large" color={COLORS.primary} />
             ) : allInterests.length === 0 ? (
-              <Text style={styles.subtitle}>No interests available</Text>
+              <Text style={[styles.subtitle, { fontFamily: 'Manrope-Medium' }]}>No interests available</Text>
             ) : (
               allInterests.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
@@ -305,7 +305,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   backButton: {
     padding: 15,

@@ -234,7 +234,7 @@ export default function DiscoverGrid({
     return (
       <View style={styles.loadingContainer}>
         <SnooLoader size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Discovering content...</Text>
+        <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Discovering content...</Text>
       </View>
     );
   }
@@ -364,6 +364,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: COLORS.textSecondary,
+  
+    fontFamily: "Manrope-Regular",
   },
   emptyContainer: {
     flex: 1,

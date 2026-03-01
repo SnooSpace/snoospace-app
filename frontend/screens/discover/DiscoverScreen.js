@@ -365,7 +365,7 @@ export default function DiscoverScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
+        <Text style={[styles.headerTitle, { fontFamily: 'Manrope-Medium' }]}>Discover</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconButton}

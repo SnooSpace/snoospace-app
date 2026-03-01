@@ -366,7 +366,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           {isSubmitting ? (
             <SnooLoader size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Submit</Text>
+            <Text style={[styles.submitButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Submit</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -577,8 +577,9 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#FFFFFF",
+  
+    fontFamily: "Manrope-SemiBold",
   },
   keyboardView: {
     flex: 1,

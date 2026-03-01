@@ -1684,7 +1684,7 @@ const CreateEventModal = ({
                 />
               )}
               {!creating && (
-                <Text style={styles.floatingNextButtonText}>
+                <Text style={[styles.floatingNextButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                   {currentStep === 7 ? "Publish Event" : "Next"}
                 </Text>
               )}

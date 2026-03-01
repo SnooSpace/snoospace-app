@@ -304,7 +304,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
               ) : (
                 <>
                   <Ionicons name="star" size={20} color="#FFFFFF" />
-                  <Text style={styles.shortlistButtonText}>Shortlist</Text>
+                  <Text style={[styles.shortlistButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Shortlist</Text>
                 </>
               )}
             </LinearGradient>

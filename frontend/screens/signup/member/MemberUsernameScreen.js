@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert, Platform, StatusBar, Dimensions, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+  Alert,
+  Platform,
+  StatusBar,
+  Dimensions,
+  ScrollView,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
@@ -54,7 +66,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       if (!userData?.email && draftData?.email) {
         console.log(
           "[MemberUsernameScreen] Hydrating email from draft:",
-          draftData.email
+          draftData.email,
         );
         setHydratedEmail(draftData.email);
       }
@@ -110,7 +122,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     if (!username || username.length < 3) {
       Alert.alert(
         "Invalid Username",
-        "Username must be at least 3 characters long"
+        "Username must be at least 3 characters long",
       );
       return;
     }
@@ -221,7 +233,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       console.error("Error completing signup:", error);
       Alert.alert(
         "Error",
-        error?.message || "Failed to complete signup. Please try again."
+        error?.message || "Failed to complete signup. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -435,7 +447,8 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   statusText: {
-    fontSize: FONT_SIZES.small,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
   },

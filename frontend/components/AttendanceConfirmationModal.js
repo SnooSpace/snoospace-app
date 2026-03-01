@@ -66,7 +66,7 @@ export default function AttendanceConfirmationModal({
                     size={20}
                     color="#666"
                   />
-                  <Text style={styles.noButtonText}>No, I didn't attend</Text>
+                  <Text style={[styles.noButtonText, { fontFamily: 'Manrope-SemiBold' }]}>No, I didn't attend</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -87,7 +87,7 @@ export default function AttendanceConfirmationModal({
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                    <Text style={styles.yesButtonText}>Yes, I attended</Text>
+                    <Text style={[styles.yesButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Yes, I attended</Text>
                   </>
                 )}
               </LinearGradient>

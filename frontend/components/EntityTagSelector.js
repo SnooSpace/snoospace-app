@@ -194,7 +194,7 @@ const EntityTagSelector = ({
     if (searchResults.length === 0 && searchQuery.length > 0) {
       return (
         <View style={styles.resultsContainer}>
-          <Text style={styles.noResults}>No communities found</Text>
+          <Text style={[styles.noResults, { fontFamily: 'Manrope-Medium' }]}>No communities found</Text>
         </View>
       );
     }
@@ -254,7 +254,7 @@ const EntityTagSelector = ({
         <View style={styles.resultsContainer}>
           <View style={styles.emptyState}>
             <Ionicons name="trophy-outline" size={32} color="#CCC" />
-            <Text style={styles.noResults}>
+            <Text style={[styles.noResults, { fontFamily: 'Manrope-Medium' }]}>
               {challenges.length === 0
                 ? "No active challenges in this community"
                 : "No matching challenges"}

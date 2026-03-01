@@ -144,7 +144,7 @@ export default function QRScannerScreen({ route, navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>
           <Ionicons name="camera-outline" size={80} color={PRIMARY_COLOR} />
-          <Text style={styles.permissionTitle}>Camera Access Required</Text>
+          <Text style={[styles.permissionTitle, { fontFamily: 'Manrope-Medium' }]}>Camera Access Required</Text>
           <Text style={styles.permissionText}>
             We need camera access to scan ticket QR codes
           </Text>
@@ -220,7 +220,7 @@ export default function QRScannerScreen({ route, navigation }) {
         {processing && (
           <View style={styles.processingContainer}>
             <SnooLoader size="large" color="#FFFFFF" />
-            <Text style={styles.processingText}>Verifying...</Text>
+            <Text style={[styles.processingText, { fontFamily: 'Manrope-Medium' }]}>Verifying...</Text>
           </View>
         )}
 
@@ -483,6 +483,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: "#FFFFFF",
+  
+    fontFamily: "Manrope-Regular",
   },
   resultContainer: {
     flex: 1,

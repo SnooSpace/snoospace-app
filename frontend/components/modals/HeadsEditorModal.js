@@ -604,7 +604,7 @@ export default function HeadsEditorModal({
                     {saving ? (
                       <SnooLoader color="#fff" />
                     ) : (
-                      <Text style={styles.saveButtonText}>Save Changes</Text>
+                      <Text style={[styles.saveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Save Changes</Text>
                     )}
                   </TouchableOpacity>
 
@@ -651,7 +651,7 @@ export default function HeadsEditorModal({
                   autoCorrect={false}
                 />
                 {memberQuery.trim().length < 2 ? (
-                  <Text style={styles.linkHint}>
+                  <Text style={[styles.linkHint, { fontFamily: 'Manrope-Medium' }]}>
                     Type at least 2 characters to search
                   </Text>
                 ) : memberLoading ? (

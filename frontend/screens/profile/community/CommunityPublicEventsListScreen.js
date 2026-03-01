@@ -269,7 +269,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="calendar-outline" size={64} color="#E5E5EA" />
-              <Text style={styles.emptyText}>No {activeTab} events found</Text>
+              <Text style={[styles.emptyText, { fontFamily: 'Manrope-Medium' }]}>No {activeTab} events found</Text>
             </View>
           }
         />

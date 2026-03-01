@@ -205,7 +205,7 @@ export default function EmailChangeModal({
                         {sendingOtp ? (
                           <SnooLoader size="small" color="#FFFFFF" />
                         ) : (
-                          <Text style={styles.primaryButtonText}>
+                          <Text style={[styles.primaryButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                             Send verification code
                           </Text>
                         )}
@@ -277,7 +277,7 @@ export default function EmailChangeModal({
                           {loading ? (
                             <SnooLoader size="small" color="#FFFFFF" />
                           ) : (
-                            <Text style={styles.primaryButtonText}>
+                            <Text style={[styles.primaryButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                               Verify Email
                             </Text>
                           )}

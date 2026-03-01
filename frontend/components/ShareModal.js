@@ -213,7 +213,7 @@ const ShareModal = ({ visible, onClose, post }) => {
                 ) : (
                   <>
                     <Ionicons name="paper-plane" size={20} color="#FFF" />
-                    <Text style={styles.sendButtonText}>
+                    <Text style={[styles.sendButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                       Send to {selectedUsers.length}
                     </Text>
                   </>

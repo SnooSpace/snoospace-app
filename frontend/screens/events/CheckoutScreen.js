@@ -273,7 +273,7 @@ export default function CheckoutScreen({ route, navigation }) {
       {isReserving && (
         <View style={styles.reservingOverlay}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.reservingText}>Reserving your tickets...</Text>
+          <Text style={[styles.reservingText, { fontFamily: 'Manrope-Medium' }]}>Reserving your tickets...</Text>
         </View>
       )}
 
@@ -501,7 +501,7 @@ export default function CheckoutScreen({ route, navigation }) {
             {isLoading ? (
               <SnooLoader color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.confirmButtonText}>
+              <Text style={[styles.confirmButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                 {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}
               </Text>
             )}
@@ -794,6 +794,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: TEXT_COLOR,
-    fontWeight: "500",
+    
+    fontFamily: "Manrope-SemiBold",
   },
 });

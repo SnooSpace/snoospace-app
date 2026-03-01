@@ -342,7 +342,9 @@ export default function SponsorProfileScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+          <Text style={{ marginTop: 10, fontFamily: "Manrope-Medium" }}>
+            Loading profile...
+          </Text>
         </View>
       </SafeAreaView>
     );

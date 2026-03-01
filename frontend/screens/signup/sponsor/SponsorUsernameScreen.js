@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, StyleSheet, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+  Alert,
+} from "react-native";
 import { apiPost } from "../../../api/client";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import { Ionicons } from '@expo/vector-icons';
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import ProgressBar from "../../../components/Progressbar";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -53,7 +66,10 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
 
   const handleFinish = async () => {
     if (!username || username.length < 3) {
-      Alert.alert("Invalid Username", "Username must be at least 3 characters long");
+      Alert.alert(
+        "Invalid Username",
+        "Username must be at least 3 characters long",
+      );
       return;
     }
 
@@ -81,7 +97,10 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
         throw new Error("Failed to create sponsor account");
       }
 
-      console.log('[SponsorUsername] Signup successful, sponsor ID:', sponsor.id);
+      console.log(
+        "[SponsorUsername] Signup successful, sponsor ID:",
+        sponsor.id,
+      );
 
       // Navigate to sponsor home with reset
       navigation.reset({
@@ -90,7 +109,10 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error("Error completing signup:", error);
-      Alert.alert("Error", error?.message || "Failed to complete signup. Please try again.");
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to complete signup. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -98,9 +120,15 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
 
   const getUsernameStatus = () => {
     if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
-    if (username.length < 3) return { text: "Username must be at least 3 characters", color: COLORS.textSecondary };
-    if (isAvailable === true) return { text: "✓ Username is available", color: COLORS.success };
-    if (isAvailable === false) return { text: "✗ Username is already taken", color: COLORS.error };
+    if (username.length < 3)
+      return {
+        text: "Username must be at least 3 characters",
+        color: COLORS.textSecondary,
+      };
+    if (isAvailable === true)
+      return { text: "✓ Username is available", color: COLORS.success };
+    if (isAvailable === false)
+      return { text: "✗ Username is already taken", color: COLORS.error };
     return { text: "", color: COLORS.textSecondary };
   };
 
@@ -111,9 +139,13 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.headerContainer}>
-             <TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="Go back" style={styles.backButton}>
-                 <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-             </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            accessibilityLabel="Go back"
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
@@ -126,7 +158,13 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
         <View style={styles.content}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Username</Text>
-            <View style={[styles.inputWrapper, isFocused && styles.inputFocused, !isFocused && isAvailable === false && styles.inputError]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                isFocused && styles.inputFocused,
+                !isFocused && isAvailable === false && styles.inputError,
+              ]}
+            >
               <TextInput
                 style={styles.textInput}
                 value={username}
@@ -139,9 +177,7 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
               />
-              {isChecking && (
-                <SnooLoader size="small" color={COLORS.primary} />
-              )}
+              {isChecking && <SnooLoader size="small" color={COLORS.primary} />}
             </View>
             <Text style={[styles.statusText, { color: status.color }]}>
               {status.text}
@@ -151,7 +187,9 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
           <View style={styles.rulesContainer}>
             <Text style={styles.rulesTitle}>Username Rules:</Text>
             <Text style={styles.rule}>• 3-30 characters long</Text>
-            <Text style={styles.rule}>• Only letters, numbers, underscores, and dots</Text>
+            <Text style={styles.rule}>
+              • Only letters, numbers, underscores, and dots
+            </Text>
             <Text style={styles.rule}>• Must be unique across all users</Text>
           </View>
         </View>
@@ -159,10 +197,16 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.nextButtonContainer,
-            (!username || username.length < 3 || !isAvailable || isSubmitting) && styles.disabledButton
+            (!username ||
+              username.length < 3 ||
+              !isAvailable ||
+              isSubmitting) &&
+              styles.disabledButton,
           ]}
           onPress={handleFinish}
-          disabled={!username || username.length < 3 || !isAvailable || isSubmitting}
+          disabled={
+            !username || username.length < 3 || !isAvailable || isSubmitting
+          }
         >
           <LinearGradient
             colors={COLORS.primaryGradient}
@@ -171,7 +215,7 @@ const SponsorUsernameScreen = ({ navigation, route }) => {
             style={styles.nextButton}
           >
             <Text style={styles.nextButtonText}>
-                {isSubmitting ? "Setting Username..." : "Complete Signup"}
+              {isSubmitting ? "Setting Username..." : "Complete Signup"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -246,7 +290,8 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   statusText: {
-    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
   },

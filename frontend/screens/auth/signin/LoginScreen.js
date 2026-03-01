@@ -169,7 +169,7 @@ const LoginScreen = ({ navigation, route }) => {
                 />
               </Animated.View>
             ) : (
-              <Text style={styles.buttonText}>Send Login Code</Text>
+              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Send Login Code</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -243,7 +243,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   signupLink: {
     alignItems: "center",

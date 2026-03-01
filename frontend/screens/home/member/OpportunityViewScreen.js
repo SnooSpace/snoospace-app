@@ -77,7 +77,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading opportunity...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading opportunity...</Text>
         </View>
       </SafeAreaView>
     );
@@ -403,6 +403,8 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 15,
     color: COLORS.textLight,
+  
+    fontFamily: "Manrope-Regular",
   },
   errorContainer: {
     flex: 1,

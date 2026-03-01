@@ -101,7 +101,7 @@ export default function DiscoverFeedV2({
     return (
       <View style={styles.loadingContainer}>
         <SnooLoader size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading events...</Text>
+        <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading events...</Text>
       </View>
     );
   }
@@ -187,6 +187,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: COLORS.textSecondary,
+  
+    fontFamily: "Manrope-Regular",
   },
   errorContainer: {
     flex: 1,

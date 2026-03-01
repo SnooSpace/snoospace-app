@@ -304,7 +304,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                   color={COLORS.textInverted}
                   style={styles.buttonSpinner}
                 />
-                <Text style={styles.buttonText}>Uploading...</Text>
+                <Text style={[styles.buttonText, { fontFamily: 'Manrope-Medium' }]}>Uploading...</Text>
               </View>
             ) : (
               <Text style={styles.buttonText}>Next</Text>
@@ -456,7 +456,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "600",
+    
+    fontFamily: "Manrope-SemiBold",
   },
   buttonLoadingContainer: {
     flexDirection: "row",

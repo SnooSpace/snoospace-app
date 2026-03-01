@@ -377,7 +377,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
               ) : (
                 <Ionicons name="locate" size={22} color={COLORS.primary} />
               )}
-              <Text style={styles.gpsButtonText}>
+              <Text style={[styles.gpsButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                 {isLoadingGps
                   ? "Getting location..."
                   : "Use My Current Location"}
@@ -420,7 +420,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
             {isParsingUrl && (
               <View style={styles.validationRow}>
                 <SnooLoader size="small" color={COLORS.primary} />
-                <Text style={styles.parsingText}>Parsing location...</Text>
+                <Text style={[styles.parsingText, { fontFamily: 'Manrope-Medium' }]}>Parsing location...</Text>
               </View>
             )}
 
@@ -614,6 +614,8 @@ const styles = StyleSheet.create({
   parsingText: {
     fontSize: 14,
     color: COLORS.primary,
+  
+    fontFamily: "Manrope-Regular",
   },
   validText: {
     fontSize: 14,
@@ -664,8 +666,9 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     fontSize: 17,
-    fontWeight: "600",
     color: COLORS.textInverted,
+  
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

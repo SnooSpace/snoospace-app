@@ -88,7 +88,7 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={styles.loadingText}>Loading people...</Text>
+          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading people...</Text>
         </View>
       </SafeAreaView>
     );
@@ -161,6 +161,8 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
+  
+    fontFamily: "Manrope-Regular",
   },
   header: {
     flexDirection: "row",

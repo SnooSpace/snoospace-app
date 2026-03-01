@@ -475,7 +475,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
     return (
       <View style={[styles.container, styles.centered]}>
         <Ionicons name="alert-circle-outline" size={48} color={MUTED_TEXT} />
-        <Text style={styles.errorText}>{error || "Event not found"}</Text>
+        <Text style={[styles.errorText, { fontFamily: 'Manrope-Medium' }]}>{error || "Event not found"}</Text>
         <TouchableOpacity
           style={styles.retryButton}
           onPress={() => navigation.goBack()}
@@ -1134,7 +1134,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 {requestingInvite ? (
                   <SnooLoader color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.registerButtonText}>
+                  <Text style={[styles.registerButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                     {isRegistered
                       ? "View Your Ticket"
                       : inviteRequestStatus === "pending" && !isInvited
