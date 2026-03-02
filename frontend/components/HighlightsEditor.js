@@ -339,7 +339,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
           </View>
           <Text style={styles.sectionHeaderTitle}>
             Highlights{" "}
-            <Text style={styles.sectionHeaderOptional}>•(Optional)</Text>
+            <Text style={styles.sectionHeaderOptional}>• (Optional)</Text>
           </Text>
         </View>
         <Text style={styles.sectionHeaderCounter}>

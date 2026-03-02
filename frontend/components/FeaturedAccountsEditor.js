@@ -1,15 +1,74 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Modal, Image, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { uploadPerformerPhoto } from '../api/upload';
-import { searchAccounts as searchAccountsAPI } from '../api/search';
-import { COLORS, SHADOWS } from '../constants/theme';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  Modal,
+  Image,
+  Alert,
+  Animated,
+  Platform,
+  Keyboard,
+  ScrollView,
+} from "react-native";
+import {
+  Mic,
+  Music,
+  Briefcase,
+  Store,
+  MessageSquare,
+  User,
+  Trash2,
+  Plus,
+  X,
+  Search,
+  ChevronRight,
+  PenLine,
+  ArrowLeft,
+  Camera,
+  Sparkles,
+  Guitar,
+  Disc3,
+  MicVocal,
+  Ribbon,
+} from "lucide-react-native";
+import { useCrop } from "./MediaCrop";
+import { LinearGradient } from "expo-linear-gradient";
+import { uploadPerformerPhoto } from "../api/upload";
+import { searchAccounts as searchAccountsAPI } from "../api/search";
 import SnooLoader from "./ui/SnooLoader";
 
-const TEXT_COLOR = '#1C1C1E';
-const LIGHT_TEXT_COLOR = '#8E8E93';
+const TOKENS = {
+  primary: "#3565F2",
+  primaryGradient: ["#3565F2", "#2F56D6"],
+  surface: "#F5F8FF",
+  background: "#FFFFFF",
+  border: "#E6ECF8",
+  textPrimary: "#1F2937",
+  textSecondary: "#6B7280",
+  textMuted: "#9CA3AF",
+  error: "#EF4444",
+  success: "#10B981",
+  radius: { xs: 8, sm: 12, md: 14, lg: 16, xl: 24 },
+  shadow: {
+    sm: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+  },
+  fonts: {
+    regular: "Manrope-Regular",
+    medium: "Manrope-Medium",
+    semibold: "Manrope-SemiBold",
+    bold: "BasicCommercial-Bold",
+  },
+};
 
 /**
  * FeaturedAccountsEditor - Add performers, DJs, sponsors, vendors
@@ -18,32 +77,51 @@ const LIGHT_TEXT_COLOR = '#8E8E93';
 const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
   const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState(null); // 'search' or 'manual'
-  const [role, setRole] = useState('performer');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [role, setRole] = useState("performer");
+  const { pickAndCrop } = useCrop();
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  
+
   // Manual entry state
-  const [manualName, setManualName] = useState('');
-  const [manualDescription, setManualDescription] = useState('');
+  const [manualName, setManualName] = useState("");
+  const [manualDescription, setManualDescription] = useState("");
   const [manualPhoto, setManualPhoto] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const roles = [
-    { value: 'performer', label: 'Performer', icon: 'mic-outline' },
-    { value: 'dj', label: 'DJ', icon: 'musical-notes-outline' },
-    { value: 'sponsor', label: 'Sponsor', icon: 'briefcase-outline' },
-    { value: 'vendor', label: 'Vendor', icon: 'storefront-outline' },
-    { value: 'speaker', label: 'Speaker', icon: 'chatbubbles-outline' },
+    { value: "performer", label: "Performer", icon: Guitar },
+    { value: "dj", label: "DJ", icon: Disc3 },
+    { value: "sponsor", label: "Sponsor", icon: Briefcase },
+    { value: "vendor", label: "Vendor", icon: Store },
+    { value: "speaker", label: "Speaker", icon: MicVocal },
+    { value: "chief_guest", label: "Chief Guest", icon: Ribbon },
   ];
 
   const startAdd = () => {
     setShowModal(true);
     setMode(null);
-    setRole('performer');
-    setSearchQuery('');
+    setRole("performer");
+    setSearchQuery("");
     setSearchResults([]);
-    setManualName('');
-    setManualDescription('');
+    setManualName("");
+    setManualDescription("");
     setManualPhoto(null);
   };
 
@@ -56,13 +134,13 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
     setSearching(true);
     try {
       const response = await searchAccountsAPI(query);
-      
+
       if (response?.results) {
         setSearchResults(response.results);
       }
     } catch (error) {
-      console.error('Error searching accounts:', error);
-      Alert.alert('Error', 'Failed to search accounts');
+      console.error("Error searching accounts:", error);
+      Alert.alert("Error", "Failed to search accounts");
     } finally {
       setSearching(false);
     }
@@ -90,21 +168,19 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
   };
 
   const pickPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setManualPhoto(result.assets[0].uri);
+    try {
+      const result = await pickAndCrop("avatar");
+      if (result) {
+        setManualPhoto(result.uri);
+      }
+    } catch (e) {
+      console.log("Photo crop cancelled or failed", e);
     }
   };
 
   const addManual = async () => {
     if (!manualName.trim()) {
-      Alert.alert('Required', 'Please enter a name');
+      Alert.alert("Required", "Please enter a name");
       return;
     }
 
@@ -118,7 +194,7 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
         photoUrl = uploadResult?.url;
         cloudinaryId = uploadResult?.public_id;
       } catch (error) {
-        Alert.alert('Warning', 'Failed to upload photo, continuing without it');
+        Alert.alert("Warning", "Failed to upload photo, continuing without it");
       }
     }
 
@@ -138,22 +214,9 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
   };
 
   const removeAccount = (index) => {
-    Alert.alert(
-      'Remove',
-      'Remove this featured account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            const updated = accounts.filter((_, i) => i !== index);
-            const reordered = updated.map((a, i) => ({ ...a, order: i }));
-            onChange(reordered);
-          },
-        },
-      ]
-    );
+    const updated = accounts.filter((_, i) => i !== index);
+    const reordered = updated.map((a, i) => ({ ...a, order: i }));
+    onChange(reordered);
   };
 
   const renderAccount = ({ item, index }) => {
@@ -161,8 +224,10 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
     // 1. _accountData (set when adding new linked account in UI)
     // 2. account_name/account_photo (from database JOIN in getCommunityEvents)
     // 3. display_name/profile_photo_url (for manual entries)
-    const accountName = item._accountData?.name || item.account_name || item.display_name;
-    const accountPhoto = item._accountData?.photo || item.account_photo || item.profile_photo_url;
+    const accountName =
+      item._accountData?.name || item.account_name || item.display_name;
+    const accountPhoto =
+      item._accountData?.photo || item.account_photo || item.profile_photo_url;
     const isLinked = !!item.linked_account_id;
 
     return (
@@ -173,21 +238,24 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
           )}
           {!accountPhoto && (
             <View style={[styles.accountPhoto, styles.photoPlaceholder]}>
-              <Ionicons name="person-outline" size={24} color={LIGHT_TEXT_COLOR} />
+              <User size={24} color={TOKENS.textMuted} />
             </View>
           )}
-          
+
           <View style={styles.accountDetails}>
             <Text style={styles.accountName}>{accountName}</Text>
             <Text style={styles.accountRole}>
-              {roles.find(r => r.value === item.role)?.label}
-              {isLinked && ' • Linked Account'}
+              {roles.find((r) => r.value === item.role)?.label}
+              {isLinked && " • Linked Account"}
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity onPress={() => removeAccount(index)}>
-          <Ionicons name="close-circle" size={24} color="#FF3B30" />
+        <TouchableOpacity
+          onPress={() => removeAccount(index)}
+          style={styles.actionIconButton}
+        >
+          <Trash2 size={18} color={TOKENS.textSecondary} strokeWidth={2} />
         </TouchableOpacity>
       </View>
     );
@@ -195,10 +263,22 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Featured Accounts (Optional)</Text>
-        <Text style={styles.subtitle}>
-          {accounts.length} accounts • Performers, DJs, Sponsors, Vendors
+      {/* 2️⃣ Strengthen Section Header Hierarchy */}
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Sparkles size={24} color={TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>
+            Partners & Performers
+            <Text style={styles.sectionHeaderOptional}> • (Optional)</Text>
+          </Text>
+        </View>
+        <Text style={styles.sectionHeaderCounter}>
+          {accounts.length} added • Performers, DJs, Sponsors, Speakers, etc.
+        </Text>
+        <Text style={styles.sectionHeaderHelper}>
+          Highlight key people, performers, or contributors for your event.
         </Text>
       </View>
 
@@ -212,172 +292,270 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
         />
       )}
 
-      <TouchableOpacity style={styles.addButton} onPress={startAdd}>
-        <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
-        <Text style={styles.addButtonText}>Add Featured Account</Text>
-      </TouchableOpacity>
+      {accounts.length < 5 ? (
+        <TouchableOpacity
+          style={styles.actionTile}
+          onPress={startAdd}
+          activeOpacity={0.8}
+        >
+          <Plus size={22} color={TOKENS.primary} strokeWidth={2.5} />
+          <Text style={styles.actionTileTitle}>Add Person or Brand</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Add Account Modal */}
-      <Modal visible={showModal} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Featured Account</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={28} color={TEXT_COLOR} />
-            </TouchableOpacity>
-          </View>
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        statusBarTranslucent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                paddingBottom:
+                  Platform.OS === "ios"
+                    ? keyboardHeight + 40
+                    : keyboardHeight + 24,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Participant</Text>
+              <TouchableOpacity onPress={() => setShowModal(false)}>
+                <X size={28} color={TOKENS.textPrimary} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
 
-          {/* Role Selection */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Role *</Text>
-            <View style={styles.rolesGrid}>
-              {roles.map((r) => (
-                <TouchableOpacity
-                  key={r.value}
-                  style={[styles.roleButton, role === r.value && styles.roleButtonSelected]}
-                  onPress={() => setRole(r.value)}
-                >
-                  <Ionicons
-                    name={r.icon}
-                    size={20}
-                    color={role === r.value ? '#FFFFFF' : COLORS.primary}
-                  />
-                  <Text
-                    style={[styles.roleText, role === r.value && styles.roleTextSelected]}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Role Selection */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Role </Text>
+                <View style={styles.rolesGrid}>
+                  {roles.map((r) => {
+                    const IconComp = r.icon;
+                    return (
+                      <TouchableOpacity
+                        key={r.value}
+                        style={[
+                          styles.roleButton,
+                          role === r.value && styles.roleButtonSelected,
+                        ]}
+                        onPress={() => setRole(r.value)}
+                      >
+                        <IconComp
+                          size={18}
+                          color={role === r.value ? "#FFFFFF" : TOKENS.primary}
+                          strokeWidth={2}
+                        />
+                        <Text
+                          style={[
+                            styles.roleText,
+                            role === r.value && styles.roleTextSelected,
+                          ]}
+                        >
+                          {r.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Mode Selection */}
+              {!mode && (
+                <View style={styles.section}>
+                  <Text style={styles.label}>Add Method</Text>
+                  <TouchableOpacity
+                    style={styles.modeButton}
+                    onPress={() => setMode("search")}
                   >
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+                    <Search size={22} color={TOKENS.primary} strokeWidth={2} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modeTitle}>
+                        Link Existing Account
+                      </Text>
+                      <Text style={styles.modeSubtitle}>
+                        Search for DJs, sponsors, venues
+                      </Text>
+                    </View>
+                    <ChevronRight
+                      size={20}
+                      color={TOKENS.textMuted}
+                      strokeWidth={2}
+                    />
+                  </TouchableOpacity>
 
-          {/* Mode Selection */}
-          {!mode && (
-            <View style={styles.section}>
-              <Text style={styles.label}>Add Method</Text>
-              <TouchableOpacity
-                style={styles.modeButton}
-                onPress={() => setMode('search')}
-              >
-                <Ionicons name="search-outline" size={24} color={COLORS.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modeTitle}>Link Existing Account</Text>
-                  <Text style={styles.modeSubtitle}>Search for DJs, sponsors, venues</Text>
+                  <TouchableOpacity
+                    style={styles.modeButton}
+                    onPress={() => setMode("manual")}
+                  >
+                    <PenLine size={22} color={TOKENS.primary} strokeWidth={2} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modeTitle}>Manual Entry</Text>
+                      <Text style={styles.modeSubtitle}>
+                        For performers without accounts
+                      </Text>
+                    </View>
+                    <ChevronRight
+                      size={20}
+                      color={TOKENS.textMuted}
+                      strokeWidth={2}
+                    />
+                  </TouchableOpacity>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
-              </TouchableOpacity>
+              )}
 
-              <TouchableOpacity
-                style={styles.modeButton}
-                onPress={() => setMode('manual')}
-              >
-                <Ionicons name="create-outline" size={24} color={COLORS.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modeTitle}>Manual Entry</Text>
-                  <Text style={styles.modeSubtitle}>For performers without accounts</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-          )}
+              {/* Search Mode */}
+              {mode === "search" && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    onPress={() => setMode(null)}
+                    style={styles.backButton}
+                  >
+                    <ArrowLeft
+                      size={18}
+                      color={TOKENS.primary}
+                      strokeWidth={2.5}
+                    />
+                    <Text style={styles.backText}>Back</Text>
+                  </TouchableOpacity>
 
-          {/* Search Mode */}
-          {mode === 'search' && (
-            <View style={styles.section}>
-              <TouchableOpacity onPress={() => setMode(null)} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.label}>Search Accounts</Text>
-              <TextInput
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={(text) => {
-                  setSearchQuery(text);
-                  handleSearchAccounts(text);
-                }}
-                placeholder="Search by name or username..."
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-              />
-
-              {searching && <SnooLoader style={{ marginTop: 20 }} color={COLORS.primary} />}
-
-              {searchResults.map((result) => (
-                <TouchableOpacity
-                  key={`${result.type}-${result.id}`}
-                  style={styles.searchResult}
-                  onPress={() => linkAccount(result)}
-                >
-                  <Image
-                    source={{ uri: result.profile_photo_url || result.logo_url }}
-                    style={styles.resultPhoto}
+                  <Text style={styles.label}>Search Accounts</Text>
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={(text) => {
+                      setSearchQuery(text);
+                      handleSearchAccounts(text);
+                    }}
+                    placeholder="Search by name or username..."
+                    placeholderTextColor={TOKENS.textMuted}
                   />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.resultName}>
-                      {result.display_name || result.name}
-                    </Text>
-                    <Text style={styles.resultUsername}>@{result.username}</Text>
-                  </View>
-                  <Text style={styles.resultType}>{result.type}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
 
-          {/* Manual Mode */}
-          {mode === 'manual' && (
-            <View style={styles.section}>
-              <TouchableOpacity onPress={() => setMode(null)} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
+                  {searching && (
+                    <SnooLoader
+                      style={{ marginTop: 20 }}
+                      color={TOKENS.primary}
+                    />
+                  )}
 
-              <Text style={styles.label}>Photo (Optional)</Text>
-              <TouchableOpacity style={styles.photoUpload} onPress={pickPhoto}>
-                {manualPhoto ? (
-                  <Image source={{ uri: manualPhoto }} style={styles.uploadedPhoto} />
-                ) : (
-                  <>
-                    <Ionicons name="camera-outline" size={32} color={LIGHT_TEXT_COLOR} />
-                    <Text style={styles.uploadText}>Tap to upload photo</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                  {searchResults.map((result) => (
+                    <TouchableOpacity
+                      key={`${result.type}-${result.id}`}
+                      style={styles.searchResult}
+                      onPress={() => linkAccount(result)}
+                    >
+                      <Image
+                        source={{
+                          uri: result.profile_photo_url || result.logo_url,
+                        }}
+                        style={styles.resultPhoto}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.resultName}>
+                          {result.display_name || result.name}
+                        </Text>
+                        <Text style={styles.resultUsername}>
+                          @{result.username}
+                        </Text>
+                      </View>
+                      <Text style={styles.resultType}>{result.type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
-              <Text style={styles.label}>Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={manualName}
-                onChangeText={setManualName}
-                placeholder="Full name..."
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-              />
+              {/* Manual Mode */}
+              {mode === "manual" && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    onPress={() => setMode(null)}
+                    style={styles.backButton}
+                  >
+                    <ArrowLeft
+                      size={18}
+                      color={TOKENS.primary}
+                      strokeWidth={2.5}
+                    />
+                    <Text style={styles.backText}>Back</Text>
+                  </TouchableOpacity>
 
-              <Text style={styles.label}>Bio/Description (Optional)</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={manualDescription}
-                onChangeText={setManualDescription}
-                placeholder="Brief bio or description..."
-                placeholderTextColor={LIGHT_TEXT_COLOR}
-                multiline
-                numberOfLines={3}
-              />
+                  <Text style={styles.label}>Photo • (Optional)</Text>
+                  <TouchableOpacity
+                    style={styles.photoUpload}
+                    onPress={pickPhoto}
+                    activeOpacity={0.8}
+                  >
+                    {manualPhoto ? (
+                      <Image
+                        source={{ uri: manualPhoto }}
+                        style={styles.uploadedPhoto}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <User
+                          size={32}
+                          color={TOKENS.textMuted}
+                          strokeWidth={1.5}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.cameraIconBadge}>
+                      <Camera size={14} color="#FFFFFF" strokeWidth={2.5} />
+                    </View>
+                  </TouchableOpacity>
 
-              <TouchableOpacity style={styles.saveButton} onPress={addManual}>
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.saveButtonGradient}
-                >
-                  <Text style={styles.saveButtonText}>Add Account</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          )}
+                  <Text style={styles.label}>Name </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={manualName}
+                    onChangeText={setManualName}
+                    placeholder="Full name..."
+                    placeholderTextColor={TOKENS.textMuted}
+                  />
+
+                  <Text style={styles.label}>Description • (Optional)</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={manualDescription}
+                    onChangeText={setManualDescription}
+                    placeholder="Brief bio or description..."
+                    placeholderTextColor={TOKENS.textMuted}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={addManual}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={TOKENS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.saveButtonGradient}
+                    >
+                      <Text style={styles.saveButtonText}>Add Account</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -386,177 +564,249 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 15,
+    marginVertical: 4,
   },
-  header: {
-    marginBottom: 15,
+  sectionHeaderNew: {
+    marginBottom: 0,
   },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+  sectionHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+  sectionHeaderIconContainer: {
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionHeaderTitle: {
+    fontFamily: TOKENS.fonts.bold,
+    fontSize: 22,
+    color: TOKENS.textPrimary,
+  },
+  sectionHeaderCounter: {
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 13,
+    color: TOKENS.textPrimary,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  sectionHeaderHelper: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  surfaceContainer: {
+    backgroundColor: "#F4F7FB",
+    borderRadius: 24,
+    padding: 20,
+    marginTop: 16,
   },
   accountCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#E3F2FD',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#BBDEFB',
+    borderColor: "#E6ECF8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 2,
   },
   accountInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   accountPhoto: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 12,
   },
   photoPlaceholder: {
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   accountDetails: {
     flex: 1,
+    paddingRight: 12,
   },
   accountName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
   },
   accountRole: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: TOKENS.textSecondary,
     marginTop: 2,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: COLORS.primary,
-    borderRadius: 12,
-    backgroundColor: '#E3F2FD',
-  },
-  addButtonText: {
+  actionIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
   },
-  modalContainer: {
+  actionTile: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    height: 52,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#E6ECF8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+    marginTop: 12, // Gap from list to button if list is present
+  },
+  actionTileTitle: {
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: TOKENS.primary,
+    marginLeft: 8,
+  },
+  modalOverlay: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "rgba(17, 24, 39, 0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 40,
+    maxHeight: "95%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 28,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+    fontFamily: TOKENS.fonts.bold,
+    fontSize: 22,
+    color: "#111827",
+  },
+  sectionHeaderOptional: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#9CA3AF",
+  },
+  closeButton: {
+    padding: 4,
   },
   section: {
-    padding: 20,
+    // padding: 20, removed internal padding since modalContent already pads
   },
   label: {
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
-    marginBottom: 10,
+    color: "#374151",
+    marginBottom: 8,
+    marginTop: 20,
   },
   rolesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
   },
   roleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: "#E6ECF8",
+    backgroundColor: "#F9FAFB",
   },
   roleButtonSelected: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: TOKENS.primary,
+    borderColor: TOKENS.primary,
   },
   roleText: {
     marginLeft: 6,
+    fontFamily: TOKENS.fonts.medium,
     fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
+    color: TOKENS.textSecondary,
   },
   roleTextSelected: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
+    fontFamily: TOKENS.fonts.semibold,
   },
   modeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 12,
   },
   modeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
     marginLeft: 12,
   },
   modeSubtitle: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 13,
+    color: TOKENS.textSecondary,
     marginLeft: 12,
     marginTop: 2,
   },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 4,
   },
   backText: {
     marginLeft: 6,
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: TOKENS.primary,
   },
   searchInput: {
+    fontFamily: TOKENS.fonts.medium,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: TEXT_COLOR,
-    backgroundColor: '#FFFFFF',
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
+    backgroundColor: "#F9FAFB",
   },
   searchResult: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
     marginTop: 10,
   },
   resultPhoto: {
@@ -566,20 +816,22 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   resultName: {
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_COLOR,
+    color: TOKENS.textPrimary,
   },
   resultUsername: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 13,
+    color: TOKENS.textSecondary,
     marginTop: 2,
   },
   resultType: {
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 11,
-    color: COLORS.primary,
-    textTransform: 'capitalize',
-    backgroundColor: '#E3F2FD',
+    color: TOKENS.primary,
+    textTransform: "capitalize",
+    backgroundColor: "#E3F2FD",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -588,53 +840,66 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: LIGHT_TEXT_COLOR,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
     marginBottom: 20,
+    marginTop: 12,
   },
   uploadedPhoto: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-  uploadText: {
-    marginTop: 6,
-    fontSize: 11,
-    color: LIGHT_TEXT_COLOR,
+  cameraIconBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: TOKENS.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   input: {
+    fontFamily: TOKENS.fonts.medium,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: TEXT_COLOR,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 15,
+    borderColor: "#E5E7EB",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
+    backgroundColor: "#F9FAFB",
   },
   textArea: {
-    height: 80,
-    textAlignVertical: 'top',
+    height: 120,
+    textAlignVertical: "top",
+    paddingTop: 16,
   },
   saveButton: {
-    borderRadius: 30,
-    overflow: 'hidden',
-    marginTop: 10,
+    borderRadius: 16,
+    marginTop: 36,
   },
   saveButtonGradient: {
-    padding: 15,
-    borderRadius: 30,
-    alignItems: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   saveButtonText: {
-color: '#FFFFFF',
+    fontFamily: TOKENS.fonts.semibold,
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
   },
 });
 

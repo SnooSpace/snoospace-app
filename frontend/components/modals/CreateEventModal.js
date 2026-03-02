@@ -187,7 +187,7 @@ const STEP_TITLES = {
   2: "Media",
   3: "Description",
   4: "Highlights",
-  5: "Featured Accounts",
+  5: "Featured",
   6: "Things to Know",
   7: "Review",
 };
@@ -1480,24 +1480,6 @@ const CreateEventModal = ({
             style={styles.stepContent}
             contentContainerStyle={{ paddingBottom: 120 }}
           >
-            <View style={styles.sectionHeaderNew}>
-              <View style={styles.sectionHeaderTitleRow}>
-                <View style={styles.sectionHeaderIconContainer}>
-                  <Sparkles
-                    size={24}
-                    color={MODAL_TOKENS.primary}
-                    strokeWidth={2}
-                  />
-                </View>
-                <Text style={styles.sectionHeaderTitle}>
-                  Featured <Text style={styles.sectionHeaderOptional}></Text>
-                </Text>
-              </View>
-              <Text style={styles.sectionHeaderHelper}>
-                Highlight key people, performers, or contributors for your
-                event.
-              </Text>
-            </View>
             <FeaturedAccountsEditor
               accounts={featuredAccounts}
               onChange={setFeaturedAccounts}
@@ -1674,7 +1656,7 @@ const CreateEventModal = ({
               </View>
 
               <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Featured Accounts</Text>
+                <Text style={styles.reviewLabel}>Featured</Text>
                 {featuredAccounts.length > 0 ? (
                   featuredAccounts.map((a, idx) => (
                     <Text key={idx} style={styles.reviewValue}>
