@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
-  StyleSheet, View, Text, TouchableOpacity, RefreshControl, Alert, FlatList, Platform, Easing, Animated as RNAnimated } from "react-native";
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+  FlatList,
+  Platform,
+  Easing,
+  Animated as RNAnimated,
+} from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -10,7 +20,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { MessageSquare, Bell } from "lucide-react-native";
+import { MessageCircle, Bell } from "lucide-react-native";
 import { useNotifications } from "../context/NotificationsContext";
 import { useVideoContext, VideoProvider } from "../context/VideoContext";
 import { apiGet, apiPost, apiDelete } from "../api/client";
@@ -1079,7 +1089,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             }}
           />
           <HeaderIcon
-            IconComponent={MessageSquare}
+            IconComponent={MessageCircle}
             showDot={messageUnread > 0}
             onPress={() => {
               navigation.navigate("ConversationsList");

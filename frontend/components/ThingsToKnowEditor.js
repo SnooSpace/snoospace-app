@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,175 +9,259 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Platform,
+  StatusBar,
+  Keyboard,
+  Animated,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Users,
+  AlertTriangle,
+  CreditCard,
+  Smile,
+  Gift,
+  GraduationCap,
+  Heart,
+  Languages,
+  Globe,
+  Accessibility,
+  Hand,
+  Utensils,
+  Wine,
+  Coffee,
+  Beer,
+  Leaf,
+  Car,
+  Bus,
+  Home,
+  Sun,
+  Umbrella,
+  Droplets,
+  Wifi,
+  Smartphone,
+  Shirt,
+  XCircle,
+  Clock,
+  ArrowRightLeft,
+  CameraOff,
+  Dog,
+  Ban,
+  IdCard,
+  ShieldCheck,
+  BriefcaseMedical,
+  Shield,
+  Tag,
+  Hourglass,
+  Zap,
+  Ticket,
+  CheckCircle,
+  AlertCircle,
+  MapPin,
+  Calendar,
+  Info,
+  Plus,
+  X,
+  List,
+  Trash2,
+  PenLine,
+  Edit2,
+  RockingChair,
+} from "lucide-react-native";
 
-import { COLORS, FONTS } from "../constants/theme";
+import { COLORS, FONTS, SHADOWS } from "../constants/theme";
+import GradientButton from "./GradientButton";
 
-// Local constants removed in favor of theme constants
+// Typography constants
+const TOKENS = {
+  primary: "#3565F2",
+  textPrimary: "#1F2937",
+  textSecondary: "#6B7280",
+  textMuted: "#9CA3AF",
+  error: "#EF4444",
+  success: "#10B981",
+  fonts: {
+    regular: "Manrope-Regular",
+    medium: "Manrope-Medium",
+    semibold: "Manrope-SemiBold",
+    bold: "BasicCommercial-Bold",
+  },
+};
 
-// 40+ Presets across 7 categories
+const ICON_MAP = {
+  Users,
+  AlertTriangle,
+  CreditCard,
+  Smile,
+  Gift,
+  GraduationCap,
+  Heart,
+  Languages,
+  Globe,
+  Accessibility,
+  Hand,
+  Utensils,
+  Wine,
+  Coffee,
+  Beer,
+  Leaf,
+  Car,
+  Bus,
+  Home,
+  Sun,
+  Umbrella,
+  Droplets,
+  Wifi,
+  Smartphone,
+  Shirt,
+  XCircle,
+  Clock,
+  ArrowRightLeft,
+  CameraOff,
+  Dog,
+  Ban,
+  IdCard,
+  ShieldCheck,
+  BriefcaseMedical,
+  Shield,
+  Tag,
+  Hourglass,
+  Zap,
+  Ticket,
+  CheckCircle,
+  AlertCircle,
+  MapPin,
+  Calendar,
+  Info,
+  Plus,
+  X,
+  List,
+  Trash2,
+  PenLine,
+  Edit2,
+  RockingChair,
+};
+
 const PRESETS = {
   "Age & Entry": [
-    { id: "all-ages", label: "All ages allowed", icon: "people-outline" },
-    { id: "18-plus", label: "18+ only", icon: "warning-outline" },
-    { id: "21-plus", label: "21+ only (ID required)", icon: "card-outline" },
-    { id: "family-friendly", label: "Family-friendly", icon: "happy-outline" },
-    { id: "kids-free", label: "Kids under 12 free", icon: "gift-outline" },
+    { id: "all-ages", label: "All ages allowed", icon: "Users" },
+    { id: "18-plus", label: "18+ only", icon: "AlertTriangle" },
+    { id: "21-plus", label: "21+ only (ID required)", icon: "CreditCard" },
+    { id: "family-friendly", label: "Family-friendly", icon: "Smile" },
+    { id: "kids-free", label: "Kids under 12 free", icon: "Gift" },
     {
       id: "student-discount",
       label: "Student discount available",
-      icon: "school-outline",
+      icon: "GraduationCap",
     },
     {
       id: "senior-discount",
       label: "Senior discount available",
-      icon: "heart-outline",
+      icon: "Heart",
     },
   ],
   "Language & Accessibility": [
-    { id: "english", label: "English language", icon: "language-outline" },
-    {
-      id: "multilingual",
-      label: "Multilingual support",
-      icon: "globe-outline",
-    },
-    {
-      id: "wheelchair",
-      label: "Wheelchair accessible",
-      icon: "accessibility-outline",
-    },
-    {
-      id: "sign-language",
-      label: "Sign language interpreter",
-      icon: "hand-left-outline",
-    },
+    { id: "english", label: "English language", icon: "Languages" },
+    { id: "multilingual", label: "Multilingual support", icon: "Globe" },
+    { id: "wheelchair", label: "Wheelchair accessible", icon: "Accessibility" },
+    { id: "sign-language", label: "Sign language interpreter", icon: "Hand" },
   ],
   "Food & Beverages": [
-    { id: "food-included", label: "Food included", icon: "restaurant-outline" },
-    { id: "drinks-included", label: "Drinks included", icon: "wine-outline" },
+    { id: "food-included", label: "Food included", icon: "Utensils" },
+    { id: "drinks-included", label: "Drinks included", icon: "Wine" },
     {
       id: "food-available",
       label: "Food available for purchase",
-      icon: "fast-food-outline",
+      icon: "Coffee",
     },
-    { id: "byob", label: "BYOB allowed", icon: "beer-outline" },
-    {
-      id: "vegan-options",
-      label: "Vegan options available",
-      icon: "leaf-outline",
-    },
+    { id: "byob", label: "BYOB allowed", icon: "Beer" },
+    { id: "vegan-options", label: "Vegan options available", icon: "Leaf" },
   ],
   "Venue & Logistics": [
-    { id: "parking-free", label: "Free parking", icon: "car-outline" },
-    {
-      id: "parking-paid",
-      label: "Paid parking available",
-      icon: "card-outline",
-    },
-    {
-      id: "public-transit",
-      label: "Public transit nearby",
-      icon: "bus-outline",
-    },
-    { id: "indoor", label: "Indoor venue", icon: "home-outline" },
-    { id: "outdoor", label: "Outdoor venue", icon: "sunny-outline" },
-    { id: "covered", label: "Covered area", icon: "umbrella-outline" },
-    { id: "restrooms", label: "Restrooms available", icon: "water-outline" },
-    { id: "wifi", label: "WiFi available", icon: "wifi-outline" },
-    {
-      id: "charging",
-      label: "Phone charging stations",
-      icon: "phone-portrait-outline",
-    },
-    { id: "coat-check", label: "Coat check available", icon: "shirt-outline" },
+    { id: "parking-free", label: "Free parking", icon: "Car" },
+    { id: "parking-paid", label: "Paid parking available", icon: "CreditCard" },
+    { id: "public-transit", label: "Public transit nearby", icon: "Bus" },
+    { id: "indoor", label: "Indoor venue", icon: "Home" },
+    { id: "outdoor", label: "Outdoor venue", icon: "Sun" },
+    { id: "covered", label: "Covered area", icon: "Umbrella" },
+    { id: "restrooms", label: "Restrooms available", icon: "Droplets" },
+    { id: "wifi", label: "WiFi available", icon: "Wifi" },
+    { id: "charging", label: "Phone charging stations", icon: "Smartphone" },
+    { id: "coat-check", label: "Coat check available", icon: "Shirt" },
   ],
   Policies: [
-    { id: "no-refund", label: "No refunds", icon: "close-circle-outline" },
-    {
-      id: "refund-7days",
-      label: "Refund up to 7 days before",
-      icon: "time-outline",
-    },
+    { id: "no-refund", label: "No refunds", icon: "XCircle" },
+    { id: "refund-7days", label: "Refund up to 7 days before", icon: "Clock" },
     {
       id: "transferable",
       label: "Tickets are transferable",
-      icon: "swap-horizontal-outline",
+      icon: "ArrowRightLeft",
     },
     {
       id: "no-recording",
       label: "No photo/video recording",
-      icon: "camera-outline",
+      icon: "CameraOff",
     },
-    { id: "pets-allowed", label: "Pets allowed", icon: "paw-outline" },
-    { id: "no-pets", label: "No pets allowed", icon: "paw-outline" },
-    { id: "no-smoking", label: "No smoking", icon: "ban-outline" },
-    { id: "dress-code", label: "Dress code enforced", icon: "shirt-outline" },
-    { id: "bring-id", label: "Bring valid ID", icon: "id-card-outline" },
+    { id: "pets-allowed", label: "Pets allowed", icon: "Dog" },
+    { id: "no-pets", label: "No pets allowed", icon: "Ban" },
+    { id: "no-smoking", label: "No smoking", icon: "Ban" },
+    { id: "dress-code", label: "Dress code enforced", icon: "Shirt" },
+    { id: "bring-id", label: "Bring valid ID", icon: "IdCard" },
   ],
   "Safety & Health": [
-    {
-      id: "security",
-      label: "Security present",
-      icon: "shield-checkmark-outline",
-    },
-    { id: "first-aid", label: "First aid available", icon: "medical-outline" },
-    {
-      id: "sanitizer",
-      label: "Hand sanitizer stations",
-      icon: "hand-right-outline",
-    },
-    {
-      id: "masks-recommended",
-      label: "Masks recommended",
-      icon: "bandage-outline",
-    },
+    { id: "security", label: "Security present", icon: "ShieldCheck" },
+    { id: "first-aid", label: "First aid available", icon: "BriefcaseMedical" },
+    { id: "sanitizer", label: "Hand sanitizer stations", icon: "Droplets" },
+    { id: "masks-recommended", label: "Masks recommended", icon: "Shield" },
   ],
   Ticketing: [
-    { id: "ticket-required", label: "Ticket required", icon: "ticket-outline" },
-    { id: "free-entry", label: "Free entry", icon: "pricetag-outline" },
-    {
-      id: "limited-seats",
-      label: "Limited seating",
-      icon: "hourglass-outline",
-    },
-    { id: "early-bird", label: "Early bird pricing", icon: "flash-outline" },
-    {
-      id: "group-discount",
-      label: "Group discounts available",
-      icon: "people-outline",
-    },
+    { id: "ticket-required", label: "Ticket required", icon: "Ticket" },
+    { id: "free-entry", label: "Free entry", icon: "Tag" },
+    { id: "limited-seats", label: "Limited seating", icon: "Hourglass" },
+    { id: "early-bird", label: "Early bird pricing", icon: "Zap" },
+    { id: "group-discount", label: "Group discounts available", icon: "Users" },
   ],
 };
 
-/**
- * ThingsToKnowEditor - Select presets or add custom items (min 3 required)
- */
 const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
   const [showPresets, setShowPresets] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const [customLabel, setCustomLabel] = useState("");
-  const [customIcon, setCustomIcon] = useState("information-circle-outline");
+  const [customIcon, setCustomIcon] = useState("Info");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // Popular icons for custom items
   const popularIcons = [
-    { name: "information-circle-outline", label: "Info" },
-    { name: "checkmark-circle-outline", label: "Check" },
-    { name: "warning-outline", label: "Warning" },
-    { name: "alert-circle-outline", label: "Alert" },
-    { name: "star-outline", label: "Star" },
-    { name: "heart-outline", label: "Heart" },
-    { name: "gift-outline", label: "Gift" },
-    { name: "ticket-outline", label: "Ticket" },
-    { name: "time-outline", label: "Time" },
-    { name: "location-outline", label: "Location" },
-    { name: "people-outline", label: "People" },
-    { name: "calendar-outline", label: "Calendar" },
+    { name: "Info", label: "Info" },
+    { name: "RockingChair", label: "Seating" },
+    { name: "Shirt", label: "Dress Code" },
+    { name: "AlertTriangle", label: "Warning" },
+    { name: "Heart", label: "Heart" },
+    { name: "Gift", label: "Gift" },
+    { name: "Ticket", label: "Ticket" },
+    { name: "Clock", label: "Time" },
+    { name: "MapPin", label: "Location" },
+    { name: "Users", label: "People" },
+    { name: "Calendar", label: "Calendar" },
   ];
 
-  const addPresetItem = (preset, category) => {
+  const addPresetItem = (preset) => {
     // Check if already added
     if (items.some((item) => item.preset_id === preset.id)) {
       Alert.alert("Already Added", "This item is already in your list.");
@@ -210,7 +294,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
 
     onChange([...items, newItem]);
     setCustomLabel("");
-    setCustomIcon("information-circle-outline");
+    setCustomIcon("Info");
     setShowIconPicker(false);
     setShowCustom(false);
   };
@@ -221,81 +305,167 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
     onChange(reordered);
   };
 
-  const renderItem = ({ item, index }) => (
-    <View style={styles.item}>
-      <View style={styles.itemContent}>
-        <Ionicons name={item.icon_name} size={20} color={COLORS.primary} />
-        <Text style={styles.itemLabel}>{item.label}</Text>
+  // Render Card Item
+  const renderItem = ({ item, index }) => {
+    const IconCmp = ICON_MAP[item.icon_name] || Info;
+    return (
+      <View style={styles.cardItem}>
+        <View style={styles.cardItemLeft}>
+          <View style={styles.cardIconContainer}>
+            <IconCmp size={16} color={TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.cardItemLabel}>{item.label}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.cardItemAction}
+          onPress={() => removeItem(index)}
+        >
+          <Trash2 size={18} color={TOKENS.error} />
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => removeItem(index)}>
-        <Ionicons name="close-circle" size={20} color="#FF3B30" />
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   const isValid = items.length >= minItems;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Things to Know *</Text>
-        <Text style={[styles.subtitle, !isValid && styles.subtitleInvalid]}>
-          {items.length} items • Min {minItems} required
-        </Text>
+      <View style={styles.softContainer}>
+        {items.length === 0 ? (
+          // Empty State
+          <View style={styles.emptyState}>
+            <View style={styles.emptyStateIconContainer}>
+              <Info size={28} color={TOKENS.primary} strokeWidth={1.5} />
+            </View>
+            <Text style={styles.emptyStateTitle}>
+              Add important details for attendees
+            </Text>
+            <Text style={styles.emptyStateSubtitle}>
+              Dress code, age limits, arrival instructions, etc.
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "column",
+                gap: 10,
+                width: "100%",
+                marginBottom: 12,
+              }}
+            >
+              <GradientButton
+                title="Browse Presets"
+                onPress={() => setShowPresets(true)}
+                style={{ width: "100%", borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{ borderRadius: 16, paddingVertical: 14 }}
+                textStyle={{ fontFamily: TOKENS.fonts.semibold }}
+              />
+              <GradientButton
+                title="Add Custom"
+                onPress={() => setShowCustom(true)}
+                style={{
+                  width: "100%",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{
+                  borderRadius: 0,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                }}
+                colors={["transparent", "transparent"]}
+                textStyle={{
+                  fontFamily: TOKENS.fonts.medium,
+                  color: "#2962FF",
+                }}
+              />
+            </View>
+          </View>
+        ) : (
+          // Populated State
+          <View style={styles.populatedState}>
+            <FlatList
+              data={items}
+              renderItem={renderItem}
+              keyExtractor={(item, index) => index.toString()}
+              scrollEnabled={false}
+              style={styles.list}
+            />
+            <View style={{ flexDirection: "column", gap: 10, width: "100%" }}>
+              <GradientButton
+                title="Browse Presets"
+                icon={<List size={18} color="#FFFFFF" strokeWidth={2.5} />}
+                onPress={() => setShowPresets(true)}
+                style={{ width: "100%", borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{
+                  borderRadius: 16,
+                  paddingHorizontal: 10,
+                  paddingVertical: 14,
+                }}
+                textStyle={{ fontFamily: TOKENS.fonts.semibold, fontSize: 14 }}
+              />
+              <GradientButton
+                title="Add Custom"
+                icon={<Plus size={18} color="#2962FF" strokeWidth={2.5} />}
+                onPress={() => setShowCustom(true)}
+                style={{
+                  width: "100%",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{
+                  borderRadius: 0,
+                  paddingHorizontal: 10,
+                  paddingVertical: 14,
+                }}
+                colors={["transparent", "transparent"]}
+                textStyle={{
+                  fontFamily: TOKENS.fonts.medium,
+                  color: "#2962FF",
+                  fontSize: 14,
+                }}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Requirement Note below the content, inside container or outside? 
+            User Spec: "Requirement note at bottom of container in small caption." */}
+        <View style={styles.requirementContainer}>
+          <Text style={styles.requirementText}>
+            {isValid
+              ? `${items.length} items added`
+              : `Add at least ${minItems - items.length} item${minItems - items.length > 1 ? "s" : ""} to continue`}
+          </Text>
+        </View>
       </View>
-
-      {/* Items List */}
-      {items.length > 0 && (
-        <FlatList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={(item, index) => index.toString()}
-          scrollEnabled={false}
-          style={styles.list}
-        />
-      )}
-
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => setShowPresets(true)}
-        >
-          <Ionicons name="list-outline" size={20} color={COLORS.primary} />
-          <Text style={styles.actionButtonText}>Browse Presets</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => setShowCustom(true)}
-        >
-          <Ionicons
-            name="add-circle-outline"
-            size={20}
-            color={COLORS.primary}
-          />
-          <Text style={styles.actionButtonText}>Add Custom</Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isValid && (
-        <Text style={styles.helperText}>
-          Add at least {minItems - items.length} more item
-          {minItems - items.length > 1 ? "s" : ""}
-        </Text>
-      )}
 
       {/* Presets Modal */}
       <Modal
         visible={showPresets}
         animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPresets(false)}
         statusBarTranslucent={true}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select from Presets</Text>
             <TouchableOpacity onPress={() => setShowPresets(false)}>
-              <Ionicons name="close" size={28} color={COLORS.textPrimary} />
+              <X size={28} color={TOKENS.textPrimary} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
@@ -307,6 +477,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                   const isAdded = items.some(
                     (item) => item.preset_id === preset.id,
                   );
+                  const IconCmp = ICON_MAP[preset.icon] || Info;
                   return (
                     <TouchableOpacity
                       key={preset.id}
@@ -314,16 +485,24 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                         styles.presetItem,
                         isAdded && styles.presetItemAdded,
                       ]}
-                      onPress={() =>
-                        !isAdded && addPresetItem(preset, category)
-                      }
+                      onPress={() => !isAdded && addPresetItem(preset)}
                       disabled={isAdded}
+                      activeOpacity={0.7}
                     >
-                      <Ionicons
-                        name={preset.icon}
-                        size={20}
-                        color={isAdded ? COLORS.textSecondary : COLORS.primary}
-                      />
+                      <View
+                        style={[
+                          styles.presetIconContainer,
+                          isAdded && styles.presetIconContainerAdded,
+                        ]}
+                      >
+                        <IconCmp
+                          size={18}
+                          color={
+                            isAdded ? TOKENS.textSecondary : TOKENS.primary
+                          }
+                          strokeWidth={2}
+                        />
+                      </View>
                       <Text
                         style={[
                           styles.presetLabel,
@@ -333,10 +512,10 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                         {preset.label}
                       </Text>
                       {isAdded && (
-                        <Ionicons
-                          name="checkmark-circle"
+                        <CheckCircle
                           size={20}
-                          color="#34C759"
+                          color={TOKENS.success}
+                          strokeWidth={2}
                         />
                       )}
                     </TouchableOpacity>
@@ -353,14 +532,25 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
         visible={showCustom}
         transparent
         animationType="slide"
+        onRequestClose={() => setShowCustom(false)}
         statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.customModal}>
+          <Animated.View
+            style={[
+              styles.customModal,
+              {
+                paddingBottom:
+                  Platform.OS === "ios"
+                    ? keyboardHeight + 40
+                    : keyboardHeight + 24,
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Custom Item</Text>
               <TouchableOpacity onPress={() => setShowCustom(false)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <X size={24} color={TOKENS.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -369,49 +559,66 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
               style={styles.iconSelector}
               onPress={() => setShowIconPicker(!showIconPicker)}
             >
-              <Ionicons name={customIcon} size={32} color={COLORS.primary} />
+              {(() => {
+                const SelectedIcon = ICON_MAP[customIcon] || Info;
+                return (
+                  <SelectedIcon
+                    size={24}
+                    color={TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                );
+              })()}
               <Text style={styles.iconSelectorText}>Tap to change icon</Text>
             </TouchableOpacity>
 
             {showIconPicker && (
               <View style={styles.iconGrid}>
-                {popularIcons.map((icon) => (
-                  <TouchableOpacity
-                    key={icon.name}
-                    style={[
-                      styles.iconOption,
-                      customIcon === icon.name && styles.iconOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setCustomIcon(icon.name);
-                      setShowIconPicker(false);
-                    }}
-                  >
-                    <Ionicons
-                      name={icon.name}
-                      size={24}
-                      color={COLORS.primary}
-                    />
-                    <Text style={styles.iconLabel}>{icon.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {popularIcons.map((iconConfig) => {
+                  const IconCmp = ICON_MAP[iconConfig.name] || Info;
+                  return (
+                    <TouchableOpacity
+                      key={iconConfig.name}
+                      style={[
+                        styles.iconOption,
+                        customIcon === iconConfig.name &&
+                          styles.iconOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setCustomIcon(iconConfig.name);
+                        setShowIconPicker(false);
+                      }}
+                    >
+                      <IconCmp
+                        size={24}
+                        color={TOKENS.primary}
+                        strokeWidth={2}
+                      />
+                      <Text style={styles.iconLabel}>{iconConfig.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
-            <Text style={styles.label}>Label *</Text>
+            <Text style={styles.label}>Label</Text>
             <TextInput
               style={styles.input}
               value={customLabel}
               onChangeText={setCustomLabel}
               placeholder="e.g., 'Bring your own chair'"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={TOKENS.textMuted}
               maxLength={60}
             />
 
-            <TouchableOpacity style={styles.saveButton} onPress={addCustomItem}>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={addCustomItem}
+              activeOpacity={0.8}
+            >
               <Text style={styles.saveButtonText}>Add Item</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -420,87 +627,119 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 15,
+    marginVertical: 0,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  softContainer: {
+    backgroundColor: "#F4F6FA",
+    borderRadius: 24,
+    padding: 20,
+    marginTop: 10,
+  },
+  emptyState: {
     alignItems: "center",
-    marginBottom: 15,
+    paddingVertical: 10,
   },
-  title: {
+  emptyStateIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#E6ECF8",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    color: TOKENS.textPrimary,
+    textAlign: "center",
+    marginBottom: 6,
   },
-  subtitle: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  emptyStateSubtitle: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 14,
+    color: TOKENS.textSecondary,
+    textAlign: "center",
+    marginBottom: 24,
   },
-  subtitleInvalid: {
-    color: "#FF3B30",
+  populatedState: {
+    flex: 1,
+    marginTop: 8,
   },
   list: {
-    marginBottom: 15,
+    marginBottom: 16,
   },
-  item: {
+  cardItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F8F5FF",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#E5DBFF",
+    borderColor: "#E6ECF8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  itemContent: {
+  cardItemLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
-  itemLabel: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    marginLeft: 10,
-    flex: 1,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+  cardIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F4F6FA",
     justifyContent: "center",
-    padding: 12,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: COLORS.primary,
-    borderRadius: 12,
-    backgroundColor: "#F8F5FF",
+    alignItems: "center",
+    marginRight: 12,
   },
-  actionButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.primary,
+  cardItemLabel: {
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
+    flex: 1,
+    marginRight: 12,
   },
-  helperText: {
-    fontSize: 12,
-    color: "#FF3B30",
-    marginTop: 10,
+  cardItemAction: {
+    padding: 6,
+  },
+  requirementContainer: {
+    marginTop: 20,
+    alignItems: "center",
+  },
+  requirementText: {
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 13,
+    color: TOKENS.textSecondary,
+    textAlign: "center",
+  },
+  requirementInvalid: {
+    color: TOKENS.error,
   },
   modalContainer: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 44,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     justifyContent: "flex-end",
+  },
+  customModal: {
+    backgroundColor: "#FFFFFF",
+    width: "100%",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    ...SHADOWS.md,
   },
   modalHeader: {
     flexDirection: "row",
@@ -508,126 +747,132 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: "#F3F4F6",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: TOKENS.fonts.bold,
+    fontSize: 20,
+    color: "#111827",
   },
   category: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
+    borderBottomColor: "#F3F4F6",
   },
   categoryTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.primary,
-    marginBottom: 12,
+    fontFamily: TOKENS.fonts.bold,
+    fontSize: 13,
+    color: TOKENS.primary,
+    marginBottom: 16,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   presetItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    backgroundColor: "#F8F5FF",
-    borderRadius: 8,
+    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#E5DBFF",
+    borderColor: "#E6ECF8",
   },
   presetItemAdded: {
-    backgroundColor: "#F5F5F5",
-    borderColor: "#E5E5EA",
+    backgroundColor: "#F9FAFB",
+    borderColor: "#F3F4F6",
+    opacity: 0.7,
+  },
+  presetIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F4F6FA",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  presetIconContainerAdded: {
+    backgroundColor: "#E5E7EB",
   },
   presetLabel: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    marginLeft: 10,
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
     flex: 1,
   },
   presetLabelAdded: {
-    color: COLORS.textSecondary,
-  },
-  customModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    color: TOKENS.textSecondary,
   },
   label: {
+    fontFamily: TOKENS.fonts.semibold,
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginTop: 15,
+    color: "#374151",
+    marginTop: 20,
     marginBottom: 8,
-  },
-  iconPreview: {
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
   },
   iconSelector: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    padding: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: "#E6ECF8",
   },
   iconSelectorText: {
     marginLeft: 12,
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 15,
+    color: TOKENS.textSecondary,
   },
   iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 10,
-    gap: 10,
+    marginTop: 12,
+    gap: 8,
   },
   iconOption: {
     width: "22%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#F5F5F5",
+    borderRadius: 14,
+    backgroundColor: "#F9FAFB",
     borderWidth: 2,
     borderColor: "transparent",
   },
   iconOptionSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#F8F5FF",
+    borderColor: TOKENS.primary,
+    backgroundColor: "#F4F6FA",
   },
   iconLabel: {
-    fontSize: 10,
-    color: COLORS.textSecondary,
-    marginTop: 4,
+    fontFamily: TOKENS.fonts.medium,
+    fontSize: 11,
+    color: TOKENS.textSecondary,
+    marginTop: 6,
     textAlign: "center",
   },
   input: {
+    fontFamily: TOKENS.fonts.regular,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.textPrimary,
+    borderColor: "#E6ECF8",
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 15,
+    color: TOKENS.textPrimary,
+    backgroundColor: "#F9FAFB",
   },
   saveButton: {
-    backgroundColor: COLORS.primary,
-    padding: 15,
-    borderRadius: 12,
+    backgroundColor: TOKENS.primary,
+    paddingVertical: 16,
+    borderRadius: 24,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 28,
   },
   saveButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: TOKENS.fonts.semibold,
   },
 });
 
