@@ -15,6 +15,7 @@ import {
   Easing,
   TouchableHighlight,
   Image,
+  Linking,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
@@ -49,6 +50,8 @@ import {
   Sparkles,
   BookOpenCheck,
   Glasses,
+  Pencil,
+  MapPin,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
@@ -57,6 +60,7 @@ import CustomTimePicker from "../ui/CustomTimePicker";
 import PropTypes from "prop-types";
 import { createEvent } from "../../api/events";
 import { isValidGoogleMapsUrl } from "../../utils/validateGoogleMapsUrl";
+import { useLocationName } from "../../utils/locationNameCache";
 
 // Import our components
 import StepIndicator from "../StepIndicator";
@@ -300,6 +304,12 @@ const CreateEventModal = ({
   const dateDisplay = React.useMemo(() => {
     return formatEventDateRange(eventDate, endDate);
   }, [eventDate, endDate]);
+
+  // Decode Google Maps URL for review section display
+  const decodedLocationName = useLocationName(locationUrl, {
+    fallback: "View Location",
+  });
+  const displayLocationName = locationName || decodedLocationName;
 
   const resetForm = () => {
     setCurrentStep(1);
@@ -1543,15 +1553,34 @@ const CreateEventModal = ({
               </Text>
             </View>
 
-            <View style={styles.reviewCard}>
-              <View style={styles.reviewSection}>
+            {/* ── Card 1: Basics ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Basics</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(1)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Event Title</Text>
                 <Text style={styles.reviewValue}>
                   {title || "No title set"}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Date & Time</Text>
                 <Text style={styles.reviewValue}>
                   {eventDate.toLocaleDateString()} at{" "}
@@ -1574,32 +1603,53 @@ const CreateEventModal = ({
                 )}
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Event Type</Text>
                 <Text style={styles.reviewValue}>
                   {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
                 </Text>
               </View>
 
+              <View style={styles.reviewDivider} />
+
               {eventType !== "virtual" ? (
-                <View style={styles.reviewSection}>
+                <TouchableOpacity
+                  style={styles.reviewRow}
+                  onPress={() => locationUrl && Linking.openURL(locationUrl)}
+                  activeOpacity={locationUrl ? 0.7 : 1}
+                >
                   <Text style={styles.reviewLabel}>Location</Text>
-                  <Text style={styles.reviewValue} numberOfLines={2}>
-                    {locationUrl || "No location URL set"}
-                  </Text>
-                  {locationName ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MapPin
+                      size={16}
+                      color={MODAL_TOKENS.primary}
+                      strokeWidth={2}
+                    />
                     <Text
                       style={[
                         styles.reviewValue,
-                        { fontWeight: "600", marginTop: 4 },
+                        { color: MODAL_TOKENS.textPrimary, flex: 1 },
                       ]}
                     >
-                      Display Name: {locationName}
+                      {displayLocationName}
                     </Text>
-                  ) : null}
-                </View>
+                  </View>
+                  {locationUrl && (
+                    <Text style={styles.reviewLocationSubtitle}>
+                      Tap to open in Maps
+                    </Text>
+                  )}
+                </TouchableOpacity>
               ) : (
-                <View style={styles.reviewSection}>
+                <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Virtual Link</Text>
                   <Text style={styles.reviewValue} numberOfLines={2}>
                     {virtualLink || "No link set"}
@@ -1607,79 +1657,134 @@ const CreateEventModal = ({
                 </View>
               )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Ticket Tiers</Text>
-                {ticketTypes.map((t, idx) => (
-                  <Text key={idx} style={styles.reviewValue}>
-                    â€¢ {t.name}: â‚¹{t.base_price} ({t.total_quantity} qty)
-                  </Text>
-                ))}
+              {categories.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Categories</Text>
+                    <Text style={styles.reviewValue}>
+                      {categories.join(", ")}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* ── Card 2: Tickets ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Tickets</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(1)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Categories</Text>
-                <Text style={styles.reviewValue}>
-                  {categories.length > 0
-                    ? `${categories.length} categories selected`
-                    : "None selected"}
-                </Text>
+              {ticketTypes.map((t, idx) => (
+                <View key={idx} style={styles.ticketMiniCard}>
+                  <Text style={styles.ticketMiniName}>{t.name}</Text>
+                  <View style={styles.ticketMiniRow}>
+                    <Text style={styles.ticketMiniPrice}>
+                      {parseFloat(t.base_price) === 0
+                        ? "Free"
+                        : `₹${t.base_price}`}
+                    </Text>
+                    <Text style={styles.ticketMiniDot}>•</Text>
+                    <Text style={styles.ticketMiniQty}>
+                      {t.total_quantity} available
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* ── Card 3: Content ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Content</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(2)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Media</Text>
                 <Text style={styles.reviewValue}>
-                  {bannerCarousel.length} Banners, {gallery.length} Gallery
-                  images
+                  {bannerCarousel.length} Banner
+                  {bannerCarousel.length !== 1 ? "s" : ""}, {gallery.length}{" "}
+                  Gallery image{gallery.length !== 1 ? "s" : ""}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Description</Text>
-                <Text style={styles.reviewValue} numberOfLines={3}>
+                <Text style={styles.reviewDescriptionValue}>
                   {description
                     ? description.replace(/<[^>]*>?/gm, "")
                     : "No description"}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Highlights</Text>
-                {highlights.length > 0 ? (
-                  highlights.map((h, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      â€¢ {h.title}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {highlights.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Highlights</Text>
+                    {highlights.map((h, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {h.title}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Featured</Text>
-                {featuredAccounts.length > 0 ? (
-                  featuredAccounts.map((a, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      â€¢ {a.display_name || a.account_name} ({a.role})
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {featuredAccounts.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Featured</Text>
+                    {featuredAccounts.map((a, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {a.display_name || a.account_name} ({a.role})
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Things to Know</Text>
-                {thingsToKnow.length > 0 ? (
-                  thingsToKnow.map((item, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      â€¢ {item.label}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {thingsToKnow.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Things to Know</Text>
+                    {thingsToKnow.map((item, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {item.label}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
           </ScrollView>
         );
@@ -2567,6 +2672,116 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: MODAL_TOKENS.textSecondary,
     marginTop: 2,
+  },
+
+  // ── Review Section Styles ──
+  reviewCardGroup: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    ...MODAL_TOKENS.shadow.sm,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  reviewCardTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
+    fontSize: 16,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  reviewEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: MODAL_TOKENS.surface,
+  },
+  reviewEditText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 13,
+    color: MODAL_TOKENS.primary,
+  },
+  reviewRow: {
+    paddingVertical: 6,
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: MODAL_TOKENS.border,
+    marginVertical: 4,
+  },
+  reviewLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 12,
+    color: MODAL_TOKENS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  reviewValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 15,
+    color: MODAL_TOKENS.textPrimary,
+    lineHeight: 22,
+  },
+  reviewSubValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+    marginTop: 2,
+  },
+  reviewDescriptionValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    lineHeight: 22,
+  },
+  reviewLocationSubtitle: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.primary,
+    marginTop: 4,
+  },
+  ticketMiniCard: {
+    backgroundColor: MODAL_TOKENS.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+  },
+  ticketMiniName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 4,
+  },
+  ticketMiniRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  ticketMiniPrice: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  ticketMiniDot: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textMuted,
+  },
+  ticketMiniQty: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
   },
 });
 
