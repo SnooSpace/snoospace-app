@@ -13,21 +13,13 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withSequence,
-  withDelay,
   Easing,
-  interpolate,
 } from "react-native-reanimated";
 import Svg, {
   Defs,
-  LinearGradient as SvgLinearGradient,
+  LinearGradient,
   RadialGradient,
   Stop,
-  Filter,
-  FeGaussianBlur,
-  FeMerge,
-  FeMergeNode,
-  G,
   Circle,
   Path,
   Rect,
@@ -39,141 +31,127 @@ const { width } = Dimensions.get("window");
 
 const colors = {
   surface: "#F6F7F9",
-  surfaceElevated: "#FFFFFF",
-  borderSubtle: "rgba(15,23,42,0.06)",
-  borderInner: "rgba(255,255,255,0.8)",
   textPrimary: "#0F172A",
   textSecondary: "#64748B",
+  brand: "#3565F2",
   success: "#2E7D6B",
-  successTint: "#E8F3EF",
-  successGlow: "rgba(46,125,107,0.18)",
-  brand: "#1F3A8A",
-  brandShadow: "rgba(31,58,138,0.18)",
 };
-
-const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
   const navigation = useNavigation();
-  // Entrance
-  const appearScale = useSharedValue(0.92);
-  const appearOpacity = useSharedValue(0);
 
-  // Gentle float on ticket
-  const floatY = useSharedValue(0);
+  // Animations
+  const enterScale = useSharedValue(0.92);
+  const enterOpacity = useSharedValue(0);
 
-  // Soft radial pulse behind checkmark
-  const pulseScale = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0.5);
+  const glowOpacity = useSharedValue(0.85);
+  const ticketY = useSharedValue(0);
+  const badgeScale = useSharedValue(1);
 
-  // Sparkle dots (3 of them)
-  const spark1 = useSharedValue(0);
-  const spark2 = useSharedValue(0);
-  const spark3 = useSharedValue(0);
-
-  // Checkmark draw
-  const checkDash = useSharedValue(50);
-
-  // Pre-compute animated props
-  const checkmarkProps = useAnimatedStyle(() => ({
-    strokeDashoffset: checkDash.value,
-  }));
+  const accent1X = useSharedValue(0);
+  const accent1Y = useSharedValue(0);
+  const accent2X = useSharedValue(0);
+  const accent2Y = useSharedValue(0);
+  const accent3X = useSharedValue(0);
+  const accent3Y = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Entrance
-      appearScale.value = withTiming(1, {
-        duration: 420,
+      enterScale.value = withTiming(1, {
+        duration: 450,
         easing: Easing.out(Easing.cubic),
       });
-      appearOpacity.value = withTiming(1, { duration: 350 });
+      enterOpacity.value = withTiming(1, { duration: 350 });
 
-      // Draw checkmark after 300ms
-      checkDash.value = 50;
-      checkDash.value = withDelay(
-        300,
-        withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }),
-      );
-
-      // Gentle float — 4px up and down, 2.8s cycle
-      floatY.value = withRepeat(
-        withTiming(-4, { duration: 2800, easing: Easing.inOut(Easing.ease) }),
+      // Layer 1: Glow Breathing
+      glowOpacity.value = withRepeat(
+        withTiming(1, { duration: 2250, easing: Easing.inOut(Easing.ease) }),
         -1,
         true,
       );
 
-      // Soft pulse on glow ring
-      pulseScale.value = withRepeat(
-        withTiming(1.18, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true,
-      );
-      pulseOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.25, { duration: 2000 }),
-          withTiming(0.5, { duration: 2000 }),
-        ),
+      // Layer 2: Ticket Float
+      ticketY.value = withRepeat(
+        withTiming(-6, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
         -1,
         true,
       );
 
-      // Micro sparkles — staggered, each 2.5s cycle
-      const sparkLoop = (sv, delay) => {
-        sv.value = withRepeat(
-          withDelay(
-            delay,
-            withSequence(
-              withTiming(1, { duration: 600, easing: Easing.out(Easing.ease) }),
-              withTiming(0, { duration: 900, easing: Easing.in(Easing.ease) }),
-            ),
-          ),
+      // Layer 3: Badge Pulse
+      badgeScale.value = withRepeat(
+        withTiming(1.05, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true,
+      );
+
+      // Layer 4: Accents drift
+      const createDrift = (svX, svY, durationX, durationY, distance) => {
+        svX.value = withRepeat(
+          withTiming(distance, {
+            duration: durationX,
+            easing: Easing.inOut(Easing.ease),
+          }),
           -1,
-          false,
+          true,
+        );
+        svY.value = withRepeat(
+          withTiming(distance * 0.8, {
+            duration: durationY,
+            easing: Easing.inOut(Easing.ease),
+          }),
+          -1,
+          true,
         );
       };
-      sparkLoop(spark1, 0);
-      sparkLoop(spark2, 800);
-      sparkLoop(spark3, 1600);
+
+      createDrift(accent1X, accent1Y, 3200, 3500, 3);
+      createDrift(accent2X, accent2Y, 3600, 3100, -2.5);
+      createDrift(accent3X, accent3Y, 3400, 3800, 3);
     } else {
-      appearScale.value = 0.92;
-      appearOpacity.value = 0;
-      floatY.value = 0;
-      pulseScale.value = 1;
-      pulseOpacity.value = 0.5;
-      spark1.value = 0;
-      spark2.value = 0;
-      spark3.value = 0;
-      checkDash.value = 50;
+      enterScale.value = 0.92;
+      enterOpacity.value = 0;
+      glowOpacity.value = 0.85;
+      ticketY.value = 0;
+      badgeScale.value = 1;
+
+      accent1X.value = 0;
+      accent1Y.value = 0;
+      accent2X.value = 0;
+      accent2Y.value = 0;
+      accent3X.value = 0;
+      accent3Y.value = 0;
     }
   }, [visible]);
 
+  // Styles
   const containerStyle = useAnimatedStyle(() => ({
-    opacity: appearOpacity.value,
-    transform: [{ scale: appearScale.value }],
+    opacity: enterOpacity.value,
+    transform: [{ scale: enterScale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
   }));
 
   const ticketStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: floatY.value }],
+    transform: [{ translateY: ticketY.value }],
   }));
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
+  const badgeStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: badgeScale.value }],
   }));
 
-  const spark1Style = useAnimatedStyle(() => ({
-    opacity: spark1.value,
-    transform: [{ scale: interpolate(spark1.value, [0, 1], [0.4, 1]) }],
+  const accent1Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: accent1X.value }, { translateY: accent1Y.value }],
   }));
-  const spark2Style = useAnimatedStyle(() => ({
-    opacity: spark2.value,
-    transform: [{ scale: interpolate(spark2.value, [0, 1], [0.4, 1]) }],
+  const accent2Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: accent2X.value }, { translateY: accent2Y.value }],
   }));
-  const spark3Style = useAnimatedStyle(() => ({
-    opacity: spark3.value,
-    transform: [{ scale: interpolate(spark3.value, [0, 1], [0.4, 1]) }],
+  const accent3Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: accent3X.value }, { translateY: accent3Y.value }],
   }));
 
   if (!visible) return null;
@@ -187,119 +165,191 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
     >
       <View style={styles.overlay}>
         <Animated.View style={[styles.card, containerStyle]}>
-          {/* 1px inner highlight at top */}
-          <View style={styles.innerHighlight} />
+          <View style={styles.cardInnerHighlight} />
 
-          {/* Hero Animation Area */}
           <View style={styles.heroArea}>
-            {/* Soft radial glow behind ticket */}
-            <View style={styles.glowContainer}>
-              <Animated.View style={[styles.glowRing, pulseStyle]} />
-            </View>
-
-            {/* Floating confetti dots */}
-            <Animated.View style={[styles.spark, styles.spark1, spark1Style]} />
-            <Animated.View style={[styles.spark, styles.spark2, spark2Style]} />
-            <Animated.View style={[styles.spark, styles.spark3, spark3Style]} />
-
-            {/* 3D Ticket with gentle float */}
-            <Animated.View style={ticketStyle}>
-              <Svg viewBox="0 0 140 175" width={140} height={175}>
+            {/* Layer 1: Radial Glow */}
+            <Animated.View style={[styles.glowLayer, glowStyle]}>
+              <Svg width={240} height={240} viewBox="0 0 240 240">
                 <Defs>
-                  <Filter
-                    id="ticketShadow"
-                    x="-20%"
-                    y="-20%"
-                    width="140%"
-                    height="140%"
+                  <RadialGradient id="successGlow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0%" stopColor="rgba(46,125,107,0.14)" />
+                    <Stop offset="70%" stopColor="rgba(46,125,107,0.05)" />
+                    <Stop offset="100%" stopColor="rgba(46,125,107,0)" />
+                  </RadialGradient>
+                </Defs>
+                <Circle cx="120" cy="120" r="120" fill="url(#successGlow)" />
+              </Svg>
+            </Animated.View>
+
+            {/* Layer 4: Minimal Accents */}
+            <Animated.View
+              style={[styles.accent, { top: 40, left: 60 }, accent1Style]}
+            >
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: "rgba(46,125,107,0.4)",
+                    width: 8,
+                    height: 8,
+                  },
+                ]}
+              />
+            </Animated.View>
+            <Animated.View
+              style={[styles.accent, { bottom: 50, right: 60 }, accent2Style]}
+            >
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: "#64748B",
+                    width: 6,
+                    height: 6,
+                    opacity: 0.3,
+                  },
+                ]}
+              />
+            </Animated.View>
+            <Animated.View
+              style={[styles.accent, { top: 100, right: 50 }, accent3Style]}
+            >
+              <Svg width={12} height={12} viewBox="0 0 12 12">
+                <Path
+                  d="M 6 0 C 6 4 10 6 12 6 C 10 6 6 8 6 12 C 6 8 2 6 0 6 C 2 6 6 4 6 0 Z"
+                  fill="rgba(46,125,107,0.4)"
+                />
+              </Svg>
+            </Animated.View>
+
+            {/* Layer 2: Ticket Card */}
+            <Animated.View style={[styles.ticketContainer, ticketStyle]}>
+              <Svg width={140} height={190} viewBox="0 0 140 190">
+                <Defs>
+                  <LinearGradient
+                    id="ticketGrad"
+                    x1="0%"
+                    y1="0%"
+                    x2="0%"
+                    y2="100%"
                   >
-                    <FeGaussianBlur
-                      in="SourceGraphic"
-                      stdDeviation="3"
-                      result="blur"
-                    />
-                    <FeMerge>
-                      <FeMergeNode in="blur" />
-                      <FeMergeNode in="SourceGraphic" />
-                    </FeMerge>
-                  </Filter>
+                    <Stop offset="0%" stopColor="#FFFFFF" />
+                    <Stop offset="100%" stopColor="#F1F3F5" />
+                  </LinearGradient>
                 </Defs>
 
-                <G x={70} y={87}>
-                  {/* Ticket body */}
-                  <Path
-                    d="M-46,-80 C-46,-80 -42,-84 -38,-84 H38 C42,-84 46,-80 46,-80 V28 A6,6 0 0 0 46,40 V72 C46,76 42,80 38,80 H-38 C-42,80 -46,76 -46,72 V40 A6,6 0 0 0 -46,28 Z"
-                    fill={colors.surfaceElevated}
-                    stroke={colors.borderSubtle}
-                    strokeWidth="1"
-                    opacity={0.97}
-                  />
+                {/* Ticket Base */}
+                <Path
+                  d="M20,0 H120 A20,20 0 0,1 140,20 V130 A8,8 0 0,0 140,146 V170 A20,20 0 0,1 120,190 H20 A20,20 0 0,1 0,170 V146 A8,8 0 0,0 0,130 V20 A20,20 0 0,1 20,0 Z"
+                  fill="url(#ticketGrad)"
+                />
 
-                  {/* Perforation dashed line */}
-                  <Line
-                    x1="-46"
-                    y1="34"
-                    x2="46"
-                    y2="34"
-                    stroke={colors.borderSubtle}
-                    strokeWidth="1"
-                    strokeDasharray="3,4"
-                  />
+                {/* 1px inner highlight top edge */}
+                <Path
+                  d="M20,1 H120 A19,19 0 0,1 139,20"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.5"
+                />
 
-                  {/* Ticket header placeholder rows */}
-                  <Rect
-                    x="-28"
-                    y="-70"
-                    width="36"
-                    height="4"
-                    rx="2"
-                    fill={colors.borderSubtle}
-                    opacity="0.8"
-                  />
-                  <Rect
-                    x="-28"
-                    y="-62"
-                    width="22"
-                    height="3"
-                    rx="1.5"
-                    fill={colors.borderSubtle}
-                    opacity="0.5"
-                  />
+                {/* Header line placeholder */}
+                <Rect
+                  x="20"
+                  y="24"
+                  width="60"
+                  height="6"
+                  rx="3"
+                  fill="#0F172A"
+                  opacity="0.1"
+                />
 
-                  <Rect
-                    x="-28"
-                    y="-50"
-                    width="44"
-                    height="3"
-                    rx="1.5"
-                    fill={colors.borderSubtle}
-                    opacity="0.4"
-                  />
-                  <Rect
-                    x="-28"
-                    y="-42"
-                    width="30"
-                    height="3"
-                    rx="1.5"
-                    fill={colors.borderSubtle}
-                    opacity="0.3"
-                  />
+                {/* Muted detail lines */}
+                <Rect
+                  x="20"
+                  y="44"
+                  width="100"
+                  height="4"
+                  rx="2"
+                  fill="#64748B"
+                  opacity="0.12"
+                />
+                <Rect
+                  x="20"
+                  y="56"
+                  width="70"
+                  height="4"
+                  rx="2"
+                  fill="#64748B"
+                  opacity="0.12"
+                />
+                <Rect
+                  x="20"
+                  y="68"
+                  width="86"
+                  height="4"
+                  rx="2"
+                  fill="#64748B"
+                  opacity="0.12"
+                />
 
-                  {/* Success circle */}
-                  <Circle cx="0" cy="10" r="20" fill={colors.successTint} />
+                {/* Perforation dashes across the cutout center */}
+                <Line
+                  x1="12"
+                  y1="138"
+                  x2="128"
+                  y2="138"
+                  stroke="#64748B"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  opacity="0.25"
+                />
+              </Svg>
+            </Animated.View>
 
-                  {/* Checkmark */}
-                  <AnimatedPath
-                    d="M-9,10 L-3,16 L11,3"
-                    fill="none"
-                    stroke={colors.success}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeDasharray="50"
-                    animatedProps={checkmarkProps}
-                  />
-                </G>
+            {/* Layer 3: Floating Success Badge */}
+            <Animated.View style={[styles.badgeContainer, badgeStyle]}>
+              <Svg width={88} height={88} viewBox="0 0 88 88">
+                <Defs>
+                  <RadialGradient id="badgeGlowInner" cx="50%" cy="50%" r="50%">
+                    <Stop offset="40%" stopColor="rgba(46,125,107,0.25)" />
+                    <Stop offset="100%" stopColor="rgba(46,125,107,0)" />
+                  </RadialGradient>
+                  <LinearGradient
+                    id="badgeGrad"
+                    x1="0%"
+                    y1="0%"
+                    x2="0%"
+                    y2="100%"
+                  >
+                    <Stop offset="0%" stopColor="#3DB097" />
+                    <Stop offset="100%" stopColor="#2E7D6B" />
+                  </LinearGradient>
+                </Defs>
+
+                {/* Visual smooth glow behind badge */}
+                <Circle cx="44" cy="44" r="44" fill="url(#badgeGlowInner)" />
+
+                {/* Badge Body */}
+                <Circle cx="44" cy="44" r="26" fill="url(#badgeGrad)" />
+
+                {/* Inner top highlight (white 20%) */}
+                <Path
+                  d="M 19 44 A 25 25 0 0 1 69 44"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="1.5"
+                />
+
+                {/* Solid Checkmark */}
+                <Path
+                  d="M 36 44 L 42 50 L 52 38"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </Svg>
             </Animated.View>
           </View>
@@ -355,80 +405,59 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 28,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    // Subtle elevation
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.1,
-    shadowRadius: 28,
-    elevation: 12,
   },
-  innerHighlight: {
+  cardInnerHighlight: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(255,255,255,0.8)",
     zIndex: 10,
   },
   heroArea: {
-    height: 230,
+    height: 250,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "transparent",
     position: "relative",
-    overflow: "hidden",
   },
-  glowContainer: {
+  glowLayer: {
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
   },
-  glowRing: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.successGlow,
-  },
-  spark: {
+  ticketContainer: {
     position: "absolute",
-    borderRadius: 10,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 8,
   },
-  spark1: {
-    width: 7,
-    height: 7,
-    backgroundColor: colors.success,
-    top: 40,
-    left: "28%",
-    opacity: 0,
+  badgeContainer: {
+    position: "absolute",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  spark2: {
-    width: 5,
-    height: 5,
-    backgroundColor: "#699acd",
-    top: 60,
-    right: "24%",
-    opacity: 0,
+  accent: {
+    position: "absolute",
   },
-  spark3: {
-    width: 6,
-    height: 6,
-    backgroundColor: "#ffccaa",
-    bottom: 45,
-    left: "38%",
-    opacity: 0,
+  dot: {
+    borderRadius: 99,
   },
   contentArea: {
     paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 32,
+    paddingTop: 16,
+    paddingBottom: 28,
     alignItems: "center",
     backgroundColor: colors.surface,
   },
   title: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "BasicCommercial-Black",
     fontSize: 28,
     color: colors.textPrimary,
     letterSpacing: -0.3,
@@ -451,15 +480,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
-    // Brand shadow
-    shadowColor: colors.brand,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 6,
   },
   primaryButtonText: {
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
   },
@@ -468,7 +491,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   closeText: {
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     fontSize: 15,
     color: colors.textSecondary,
   },
