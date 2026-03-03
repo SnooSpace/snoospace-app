@@ -389,7 +389,7 @@ const CreateEventModal = ({
     gallery: gallery,
     description: description,
     highlights: highlights,
-    highlighted_accounts: featuredAccounts,
+    featured_accounts: featuredAccounts,
     things_to_know: thingsToKnow,
     access_type: accessType,
     invite_public_visibility: invitePublicVisibility,
