@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, FlatList, Image, Alert, Animated, Dimensions, Platform, Modal } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  Alert,
+  Animated,
+  Dimensions,
+  Platform,
+  Modal,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -256,6 +269,91 @@ export default function CommunityDashboardScreen({ navigation }) {
   const handleEventCreated = () => loadDashboard();
   const handleEventUpdated = () => loadDashboard();
 
+  // 3-dots menu handler for event cards in the dashboard
+  const handleEventLongPress = (event) => {
+    const options = [];
+
+    // Edit — always available for community events
+    options.push({
+      text: "Edit Event",
+      onPress: () => {
+        setModalConfig((prev) => ({ ...prev, visible: false }));
+        setTimeout(() => {
+          setSelectedEvent(event);
+          setShowEditEventModal(true);
+        }, 300);
+      },
+      style: "default",
+    });
+
+    // View Details
+    options.push({
+      text: "View Details",
+      onPress: () => {
+        setModalConfig((prev) => ({ ...prev, visible: false }));
+        handleEventPress(event);
+      },
+      style: "default",
+    });
+
+    // Cancel — only upcoming, non-cancelled
+    if (!event.is_past && !event.is_cancelled) {
+      options.push({
+        text: "Cancel Event",
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            setModalConfig({
+              visible: true,
+              title: "Cancel Event",
+              message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
+              actions: [
+                {
+                  text: "Yes, Cancel Event",
+                  style: "destructive",
+                  onPress: async () => {
+                    setModalConfig((prev) => ({ ...prev, visible: false }));
+                    try {
+                      const { cancelEvent } =
+                        await import("../../../api/events");
+                      await cancelEvent(event.id);
+                      loadDashboard();
+                    } catch (err) {
+                      Alert.alert(
+                        "Error",
+                        "Failed to cancel event. Please try again.",
+                      );
+                    }
+                  },
+                },
+                {
+                  text: "No",
+                  style: "cancel",
+                  onPress: () =>
+                    setModalConfig((prev) => ({ ...prev, visible: false })),
+                },
+              ],
+            });
+          }, 300);
+        },
+        style: "destructive",
+      });
+    }
+
+    options.push({
+      text: "Dismiss",
+      style: "cancel",
+      onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+    });
+
+    setModalConfig({
+      visible: true,
+      title: event.title,
+      message: "Choose an action",
+      actions: options,
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -412,7 +510,7 @@ export default function CommunityDashboardScreen({ navigation }) {
             {/* Create Opportunity - Primary */}
             <TouchableOpacity
               style={[styles.primaryActionCard, { flex: 1 }]}
-              onPress={() => Alert.alert("Coming Soon")}
+              onPress={() => navigation.navigate("CreateOpportunity")}
               activeOpacity={0.9}
             >
               <LinearGradient
@@ -437,7 +535,9 @@ export default function CommunityDashboardScreen({ navigation }) {
           <View style={[styles.actionGrid, { marginTop: 12 }]}>
             <TouchableOpacity
               style={styles.secondaryActionCard}
-              onPress={() => Alert.alert("Share Tickets")}
+              onPress={() =>
+                navigation.navigate("ShareTicket", { events: upcomingEvents })
+              }
             >
               <View style={styles.secondaryIconBg}>
                 <Ticket size={20} color="#1E3A8A" />

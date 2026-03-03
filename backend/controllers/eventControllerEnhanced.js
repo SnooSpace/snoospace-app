@@ -8,14 +8,16 @@ const pool = createPool();
  */
 const createEvent = async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
     // Only communities can create events
-    if (!userId || userType !== 'community') {
-      return res.status(403).json({ error: "Only communities can create events" });
+    if (!userId || userType !== "community") {
+      return res
+        .status(403)
+        .json({ error: "Only communities can create events" });
     }
 
     const {
@@ -23,45 +25,74 @@ const createEvent = async (req, res) => {
       title,
       description,
       event_date,
+      start_datetime,
       end_date,
+      end_datetime,
       gates_open_time,
+      has_gates,
       schedule_description,
+      // Location — frontend sends location_url
       location,
+      location_url,
+      location_name,
       max_attendees,
       categories,
       event_type,
       virtual_link,
       venue_id,
-      
+      // Visibility
+      access_type,
+      invite_public_visibility,
+
       // Media
-      banner_carousel, // Array of {url, cloudinary_public_id, order}
-      gallery, // Array of {url, cloudinary_public_id, order}
-      
+      banner_carousel,
+      gallery,
+
       // Content sections
-      highlights, // Array of {icon_name, title, description, order}
-      things_to_know, // Array of {preset_id?, icon_name, label, order}
-      featured_accounts, // Array of {linked_account_id?, linked_account_type?, display_name?, role, description?, profile_photo_url?, cloudinary_public_id?, order}
+      highlights,
+      things_to_know,
+      featured_accounts,
     } = req.body;
 
+    // Normalise: accept both location_url and legacy location
+    const resolvedLocation = location_url || location || null;
+    const resolvedStartDatetime = start_datetime || event_date;
+    const resolvedEndDatetime =
+      end_datetime || end_date || resolvedStartDatetime;
+    const resolvedGatesOpenTime = has_gates ? gates_open_time || null : null;
+
     // Validation
-    if (!title || !event_date) {
-      return res.status(400).json({ error: "Title and event date are required" });
+    if (!title || !resolvedStartDatetime) {
+      return res
+        .status(400)
+        .json({ error: "Title and event date are required" });
     }
 
     if (!description || description.length < 50) {
-      return res.status(400).json({ error: "Description must be at least 50 characters" });
+      return res
+        .status(400)
+        .json({ error: "Description must be at least 50 characters" });
     }
 
-    if (event_type === 'virtual' && !virtual_link) {
-      return res.status(400).json({ error: "Virtual link required for virtual events" });
+    if (event_type === "virtual" && !virtual_link) {
+      return res
+        .status(400)
+        .json({ error: "Virtual link required for virtual events" });
     }
 
-    if ((event_type === 'in-person' || event_type === 'hybrid') && !location) {
-      return res.status(400).json({ error: "Location required for in-person/hybrid events" });
+    if (
+      (event_type === "in-person" || event_type === "hybrid") &&
+      !resolvedLocation
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Location required for in-person/hybrid events" });
     }
 
     if (!things_to_know || things_to_know.length < 3) {
-      return res.status(400).json({ error: "At least 3 'Things to Know' items are required" });
+      return res
+        .status(400)
+        .json({ error: "At least 3 'Things to Know' items are required" });
     }
 
     if (banner_carousel && banner_carousel.length > 5) {
@@ -69,7 +100,9 @@ const createEvent = async (req, res) => {
     }
 
     if (gallery && gallery.length > 20) {
-      return res.status(400).json({ error: "Maximum 20 gallery images allowed" });
+      return res
+        .status(400)
+        .json({ error: "Maximum 20 gallery images allowed" });
     }
 
     if (highlights && highlights.length > 5) {
@@ -77,7 +110,7 @@ const createEvent = async (req, res) => {
     }
 
     // Start transaction
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     // 1. Insert main event
     const eventQuery = `
@@ -98,21 +131,21 @@ const createEvent = async (req, res) => {
       userId, // creator_id
       title,
       description,
-      event_date,
-      end_date || event_date,
-      gates_open_time || null,
+      resolvedStartDatetime,
+      resolvedEndDatetime,
+      resolvedGatesOpenTime,
       schedule_description || null,
-      location || null,
+      resolvedLocation,
       max_attendees || null,
       categories || null,
-      event_type || 'in-person',
+      event_type || "in-person",
       virtual_link || null,
       venue_id || null,
       primaryBanner?.url || null,
       primaryBanner?.cloudinary_public_id || null,
       !!(featured_accounts && featured_accounts.length > 0),
       true, // is_published
-      true  // is_editable
+      true, // is_editable
     ];
 
     const eventResult = await client.query(eventQuery, eventValues);
@@ -125,7 +158,7 @@ const createEvent = async (req, res) => {
         await client.query(
           `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) 
            VALUES ($1, $2, $3, $4)`,
-          [eventId, banner.url, banner.cloudinary_public_id || null, index]
+          [eventId, banner.url, banner.cloudinary_public_id || null, index],
         );
       }
     }
@@ -137,7 +170,12 @@ const createEvent = async (req, res) => {
         await client.query(
           `INSERT INTO event_gallery (event_id, image_url, cloudinary_public_id, image_order) 
            VALUES ($1, $2, $3, $4)`,
-          [eventId, image.url, image.cloudinary_public_id || null, startOrder + index]
+          [
+            eventId,
+            image.url,
+            image.cloudinary_public_id || null,
+            startOrder + index,
+          ],
         );
       }
     }
@@ -148,7 +186,13 @@ const createEvent = async (req, res) => {
         await client.query(
           `INSERT INTO event_highlights (event_id, icon_name, title, description, highlight_order) 
            VALUES ($1, $2, $3, $4, $5)`,
-          [eventId, highlight.icon_name, highlight.title, highlight.description || null, highlight.order || 0]
+          [
+            eventId,
+            highlight.icon_name,
+            highlight.title,
+            highlight.description || null,
+            highlight.order || 0,
+          ],
         );
       }
     }
@@ -159,7 +203,13 @@ const createEvent = async (req, res) => {
         await client.query(
           `INSERT INTO event_things_to_know (event_id, preset_id, icon_name, label, item_order) 
            VALUES ($1, $2, $3, $4, $5)`,
-          [eventId, item.preset_id || null, item.icon_name, item.label, item.order || 0]
+          [
+            eventId,
+            item.preset_id || null,
+            item.icon_name,
+            item.label,
+            item.order || 0,
+          ],
         );
       }
     }
@@ -181,14 +231,14 @@ const createEvent = async (req, res) => {
             account.description || null,
             account.profile_photo_url || null,
             account.cloudinary_public_id || null,
-            account.order || 0
-          ]
+            account.order || 0,
+          ],
         );
       }
     }
 
     // Commit transaction
-    await client.query('COMMIT');
+    await client.query("COMMIT");
 
     res.status(201).json({
       success: true,
@@ -198,21 +248,22 @@ const createEvent = async (req, res) => {
         gallery_count: gallery?.length || 0,
         highlights_count: highlights?.length || 0,
         things_to_know_count: things_to_know?.length || 0,
-        featured_accounts_count: featured_accounts?.length || 0
+        featured_accounts_count: featured_accounts?.length || 0,
       },
-      message: "Event created successfully"
+      message: "Event created successfully",
     });
-
   } catch (error) {
     // Rollback on error
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     console.error("Error creating event:", error);
-    res.status(500).json({ error: "Failed to create event", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to create event", details: error.message });
   } finally {
     client.release();
   }
 };
 
 module.exports = {
-  createEvent
+  createEvent,
 };

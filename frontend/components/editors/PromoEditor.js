@@ -1389,7 +1389,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E8E8E8",
-    ...SHADOWS.sm,
   },
   emptyIconWrapper: { marginBottom: 12 },
   emptyIconGradient: {

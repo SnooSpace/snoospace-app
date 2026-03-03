@@ -16,6 +16,7 @@ import {
   TouchableHighlight,
   Image,
   Linking,
+  Switch,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
@@ -61,6 +62,7 @@ import PropTypes from "prop-types";
 import { createEvent } from "../../api/events";
 import { isValidGoogleMapsUrl } from "../../utils/validateGoogleMapsUrl";
 import { useLocationName } from "../../utils/locationNameCache";
+import { getDiscoverCategories } from "../../api/categories";
 
 // Import our components
 import StepIndicator from "../StepIndicator";
@@ -73,6 +75,7 @@ import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
+import EventSuccessModal from "./EventSuccessModal";
 
 // Draft storage utilities
 import {
@@ -223,6 +226,10 @@ const CreateEventModal = ({
       duration: 300,
       useNativeDriver: false, // width doesn't support native driver
     }).start();
+    // Once the user reaches review, keep the button visible for quick return
+    if (currentStep === totalSteps) {
+      setHasReachedReview(true);
+    }
   }, [currentStep]);
   // Sliding Segment Control Logic
   const [tabWidth, setTabWidth] = useState(0);
@@ -241,6 +248,11 @@ const CreateEventModal = ({
   };
 
   const [creating, setCreating] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdEvent, setCreatedEvent] = useState(null);
+  const [showPublishSheet, setShowPublishSheet] = useState(false);
+  // Track whether the user has already completed the review step (step 7)
+  const [hasReachedReview, setHasReachedReview] = useState(false);
 
   // Form States
   const [title, setTitle] = useState("");
@@ -311,8 +323,25 @@ const CreateEventModal = ({
   });
   const displayLocationName = locationName || decodedLocationName;
 
+  // Category name lookup map (id → name) for review display
+  const categoryMapRef = useRef({});
+  useEffect(() => {
+    getDiscoverCategories()
+      .then((res) => {
+        if (res?.categories) {
+          const map = {};
+          res.categories.forEach((c) => {
+            map[c.id] = c.name;
+          });
+          categoryMapRef.current = map;
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const resetForm = () => {
     setCurrentStep(1);
+    setHasReachedReview(false);
     setTitle("");
     setEventDate(null);
     setEndDate(null);
@@ -715,16 +744,8 @@ const CreateEventModal = ({
     try {
       const response = await createEvent(getCurrentFormData());
       if (response?.event) {
-        Alert.alert("Success", "Event created successfully!", [
-          {
-            text: "OK",
-            onPress: () => {
-              resetForm();
-              onEventCreated?.(response.event);
-              onClose();
-            },
-          },
-        ]);
+        setCreatedEvent(response.event);
+        setShowSuccessModal(true);
       }
     } catch (error) {
       console.error(error);
@@ -1044,6 +1065,70 @@ const CreateEventModal = ({
                 }}
               />
             </Animated.View>
+
+            {/* Gates / Early Entry Section */}
+            <View style={styles.sectionBlock}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: hasGates ? 16 : 0,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>
+                    Gates / Early Entry{" "}
+                    <Text style={styles.sectionHeaderOptional}>
+                      • (Optional)
+                    </Text>
+                  </Text>
+                  <Text style={styles.sectionHeaderHelper}>
+                    Allow early access before the event starts.
+                  </Text>
+                </View>
+                <Switch
+                  value={hasGates}
+                  onValueChange={(val) => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setHasGates(val);
+                    if (!val) setGatesOpenTime(null);
+                  }}
+                  thumbColor="#FFFFFF"
+                  trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
+                  ios_backgroundColor="#D1D5DB"
+                />
+              </View>
+              {hasGates && (
+                <TouchableOpacity
+                  style={styles.dateCard}
+                  onPress={() => setShowGatesTimePicker(true)}
+                >
+                  <View style={styles.dateCardIconInfo}>
+                    <Clock size={16} color={MODAL_TOKENS.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.dateCardLabel}>Gates Open</Text>
+                    <Text style={styles.dateCardValue}>
+                      {gatesOpenTime
+                        ? gatesOpenTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Set time"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              <CustomTimePicker
+                visible={showGatesTimePicker}
+                onClose={() => setShowGatesTimePicker(false)}
+                time={gatesOpenTime || eventDate || new Date()}
+                onChange={(newTime) => setGatesOpenTime(newTime)}
+              />
+            </View>
 
             {/* Event Type Section (Sliding Gradient) */}
             <View style={styles.sectionBlock}>
@@ -1605,6 +1690,21 @@ const CreateEventModal = ({
 
               <View style={styles.reviewDivider} />
 
+              {hasGates && gatesOpenTime && (
+                <>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Gates Open</Text>
+                    <Text style={styles.reviewValue}>
+                      {gatesOpenTime.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewDivider} />
+                </>
+              )}
+
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Event Type</Text>
                 <Text style={styles.reviewValue}>
@@ -1663,7 +1763,9 @@ const CreateEventModal = ({
                   <View style={styles.reviewRow}>
                     <Text style={styles.reviewLabel}>Categories</Text>
                     <Text style={styles.reviewValue}>
-                      {categories.join(", ")}
+                      {categories
+                        .map((id) => categoryMapRef.current[id] || String(id))
+                        .join(", ")}
                     </Text>
                   </View>
                 </>
@@ -1688,22 +1790,107 @@ const CreateEventModal = ({
                 </TouchableOpacity>
               </View>
 
-              {ticketTypes.map((t, idx) => (
-                <View key={idx} style={styles.ticketMiniCard}>
-                  <Text style={styles.ticketMiniName}>{t.name}</Text>
-                  <View style={styles.ticketMiniRow}>
-                    <Text style={styles.ticketMiniPrice}>
-                      {parseFloat(t.base_price) === 0
-                        ? "Free"
-                        : `₹${t.base_price}`}
-                    </Text>
-                    <Text style={styles.ticketMiniDot}>•</Text>
-                    <Text style={styles.ticketMiniQty}>
-                      {t.total_quantity} available
-                    </Text>
+              {ticketTypes.map((t, idx) => {
+                // Find all promos that apply to this ticket
+                const applicablePromos = promos.filter((p) => {
+                  if (!p.discount_value || parseFloat(p.discount_value) <= 0)
+                    return false;
+                  if (p.applies_to === "all") return true;
+                  if (p.applies_to === "specific")
+                    return p.selected_tickets?.includes(t.name);
+                  return false;
+                });
+
+                // Compute the lowest discounted price across all applicable promos
+                const basePrice = parseFloat(t.base_price) || 0;
+                let lowestPrice = basePrice;
+                let bestPromo = null;
+                applicablePromos.forEach((p) => {
+                  const val = parseFloat(p.discount_value);
+                  const discounted =
+                    p.discount_type === "percentage"
+                      ? basePrice - (basePrice * Math.min(val, 100)) / 100
+                      : Math.max(0, basePrice - val);
+                  if (discounted < lowestPrice) {
+                    lowestPrice = discounted;
+                    bestPromo = p;
+                  }
+                });
+                const hasDiscount = bestPromo !== null && basePrice > 0;
+
+                return (
+                  <View key={idx} style={styles.ticketMiniCard}>
+                    {/* Name row + promo badges */}
+                    <View style={styles.ticketMiniNameRow}>
+                      <Text style={styles.ticketMiniName}>{t.name}</Text>
+                      {applicablePromos.map((p, pi) => (
+                        <View
+                          key={pi}
+                          style={[
+                            styles.ticketPromoBadge,
+                            p.offer_type === "promo_code"
+                              ? { backgroundColor: "#F0FDF4" }
+                              : { backgroundColor: "#FFF7ED" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.ticketPromoBadgeText,
+                              p.offer_type === "promo_code"
+                                ? { color: "#16A34A" }
+                                : { color: "#EA580C" },
+                            ]}
+                          >
+                            {p.offer_type === "promo_code"
+                              ? p.code || p.name
+                              : p.name || "Early Bird"}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Price row */}
+                    <View style={styles.ticketMiniRow}>
+                      {basePrice === 0 ? (
+                        <Text style={styles.ticketMiniPrice}>Free</Text>
+                      ) : hasDiscount ? (
+                        <>
+                          <Text style={styles.ticketMiniPriceStrike}>
+                            ₹{t.base_price}
+                          </Text>
+                          <Text style={styles.ticketMiniPriceDiscounted}>
+                            ₹{Math.round(lowestPrice)}
+                          </Text>
+                          <Text style={styles.ticketMiniDot}>•</Text>
+                          <Text
+                            style={[
+                              styles.ticketMiniQty,
+                              {
+                                color:
+                                  bestPromo.offer_type === "promo_code"
+                                    ? "#16A34A"
+                                    : "#EA580C",
+                              },
+                            ]}
+                          >
+                            {bestPromo.discount_type === "percentage"
+                              ? `${bestPromo.discount_value}% OFF`
+                              : `₹${bestPromo.discount_value} OFF`}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.ticketMiniPrice}>
+                          ₹{t.base_price}
+                        </Text>
+                      )}
+                      <Text style={styles.ticketMiniDot}>•</Text>
+                      <Text style={styles.ticketMiniQty}>
+                        {t.total_quantity} available
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
 
             {/* ── Card 3: Content ── */}
@@ -1816,7 +2003,17 @@ const CreateEventModal = ({
               />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Create Event</Text>
-            <View style={{ width: 40 }} />
+            {hasReachedReview && currentStep !== totalSteps ? (
+              <TouchableOpacity
+                style={styles.reviewJumpButton}
+                onPress={() => setCurrentStep(totalSteps)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.reviewJumpButtonText}>Review</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 40 }} />
+            )}
           </View>
 
           {/* Slim Animated Progress Bar */}
@@ -1883,7 +2080,9 @@ const CreateEventModal = ({
             )}
 
             <TouchableOpacity
-              onPress={currentStep === 7 ? handleCreate : handleNext}
+              onPress={
+                currentStep === 7 ? () => setShowPublishSheet(true) : handleNext
+              }
               style={[
                 styles.floatingNextButton,
                 creating && { opacity: 0.7 },
@@ -1994,6 +2193,73 @@ const CreateEventModal = ({
             </View>
           </View>
         </Modal>
+
+        {/* Publish Confirmation Bottom Sheet */}
+        <Modal
+          visible={showPublishSheet}
+          transparent
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={() => setShowPublishSheet(false)}
+        >
+          <TouchableOpacity
+            style={styles.sheetOverlay}
+            activeOpacity={1}
+            onPress={() => setShowPublishSheet(false)}
+          >
+            <View style={styles.publishSheetContainer}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.publishSheetTitle}>Ready to publish?</Text>
+              <Text style={styles.publishSheetSubtitle}>
+                Your event will go live immediately and be visible to your
+                community.
+              </Text>
+              <View style={styles.publishSheetActions}>
+                <TouchableOpacity
+                  style={styles.publishCancelButton}
+                  onPress={() => setShowPublishSheet(false)}
+                >
+                  <Text style={styles.publishCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.publishConfirmButton,
+                    creating && { opacity: 0.7 },
+                  ]}
+                  disabled={creating}
+                  onPress={async () => {
+                    setShowPublishSheet(false);
+                    await handleCreate();
+                  }}
+                >
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.publishConfirmGradient}
+                  >
+                    {creating ? (
+                      <SnooLoader color="#fff" />
+                    ) : (
+                      <Text style={styles.publishConfirmText}>Publish</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <EventSuccessModal
+          visible={showSuccessModal}
+          eventData={createdEvent}
+          onClose={() => {
+            setShowSuccessModal(false);
+            resetForm();
+            onEventCreated?.(createdEvent);
+            onClose();
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -2060,6 +2326,19 @@ const styles = StyleSheet.create({
     backgroundColor: MODAL_TOKENS.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  reviewJumpButton: {
+    backgroundColor: MODAL_TOKENS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reviewJumpButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    color: "#FFFFFF",
   },
   progressBarContainer: {
     height: 4,
@@ -2674,6 +2953,65 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  // Publish Confirmation Sheet
+  publishSheetContainer: {
+    backgroundColor: MODAL_TOKENS.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  publishSheetTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 8,
+  },
+  publishSheetSubtitle: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: MODAL_TOKENS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  publishSheetActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  publishCancelButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: MODAL_TOKENS.surface,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+  },
+  publishCancelText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  publishConfirmButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 26,
+    overflow: "hidden",
+    ...MODAL_TOKENS.shadow.md,
+  },
+  publishConfirmGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  publishConfirmText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+
   // ── Review Section Styles ──
   reviewCardGroup: {
     backgroundColor: "#FFFFFF",
@@ -2782,6 +3120,86 @@ const styles = StyleSheet.create({
     fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 13,
     color: MODAL_TOKENS.textSecondary,
+  },
+  ticketMiniNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
+  },
+  ticketPromoBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ticketPromoBadgeText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 10,
+    letterSpacing: 0.3,
+  },
+  ticketMiniPriceStrike: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textMuted,
+    textDecorationLine: "line-through",
+  },
+  ticketMiniPriceDiscounted: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+  },
+
+  // ── Review Discount Styles ──
+  reviewDiscountHeader: {
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  reviewDiscountSectionLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 12,
+    color: MODAL_TOKENS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  reviewDiscountRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: MODAL_TOKENS.border,
+  },
+  reviewDiscountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  reviewDiscountBadgeText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 10,
+    letterSpacing: 0.2,
+  },
+  reviewDiscountInfo: {
+    flex: 1,
+  },
+  reviewDiscountName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 2,
+  },
+  reviewDiscountValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+    marginBottom: 2,
+  },
+  reviewDiscountMeta: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.textMuted,
   },
 });
 

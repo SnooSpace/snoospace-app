@@ -1,14 +1,111 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableHighlight,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
+  Linking,
+  Switch,
+} from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import {
+  Calendar1 as Calendar,
+  Clock,
+  Flag,
+  Users,
+  Video,
+  Layers,
+  Earth,
+  Lock,
+  Check,
+  ArrowRight,
+  Info,
+  X,
+  NotebookPen,
+  Camera,
+  BookMarked,
+  BookOpenCheck,
+  Glasses,
+  Pencil,
+  MapPin,
+  AlertCircle,
+  Trash2,
+  Search,
+  CheckCircle,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { COLORS, SHADOWS, BORDER_RADIUS } from "../../constants/theme";
+import CustomDatePicker from "../ui/CustomDatePicker";
+import CustomTimePicker from "../ui/CustomTimePicker";
 import { updateEvent } from "../../api/events";
-import { COLORS, BORDER_RADIUS } from "../../constants/theme";
+import { getDiscoverCategories } from "../../api/categories";
+
+const MODAL_TOKENS = {
+  primary: "#3565F2",
+  primaryGradient: ["#3565F2", "#2F56D6"],
+  surface: "#F5F8FF",
+  background: "#F9F9F9",
+  border: "#E6ECF8",
+  textPrimary: "#1F2937",
+  textSecondary: "#6B7280",
+  textMuted: "#9CA3AF",
+  error: "#EF4444",
+  success: "#10B981",
+  radius: {
+    xs: 8,
+    sm: 12,
+    md: 14,
+    lg: 16,
+    xl: 24,
+  },
+  shadow: {
+    sm: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    md: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+  },
+  fonts: {
+    regular: "Manrope-Regular",
+    medium: "Manrope-Medium",
+    semibold: "Manrope-SemiBold",
+    bold: "BasicCommercial-Bold",
+  },
+};
+
+const STEP_TITLES = {
+  1: "Basic Information",
+  2: "Media",
+  3: "Description",
+  4: "Highlights",
+  5: "Featured",
+  6: "Things to Know",
+  7: "Review",
+};
 
 // Import our components
-import StepIndicator from "../StepIndicator";
 import ImageCarouselUpload from "../ImageCarouselUpload";
 import EventGalleryUpload from "../EventGalleryUpload";
 import RichTextEditor from "../RichTextEditor";
@@ -20,24 +117,71 @@ import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
 import SnooLoader from "../ui/SnooLoader";
 
-const PRIMARY_COLOR = COLORS.primary; // This should be your solid Blue
-const TEXT_COLOR = "#1F2937";
-const LIGHT_TEXT_COLOR = "#6B7280";
-const BORDER_COLOR = "#E5E7EB";
-
 export default function EditEventModal({
   visible,
   onClose,
   onEventUpdated,
   eventData,
 }) {
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 7;
+  const progressPercent = useRef(new Animated.Value(0)).current;
+  const [hasReachedReview, setHasReachedReview] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [tabWidth, setTabWidth] = useState(0);
+
+  // Enable LayoutAnimation on Android
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      if (UIManager.setLayoutAnimationEnabledExperimental) {
+        UIManager.setLayoutAnimationEnabledExperimental(true);
+      }
+    }
+  }, []);
+
+  // Animate progress bar on step change
+  useEffect(() => {
+    Animated.timing(progressPercent, {
+      toValue: currentStep / totalSteps,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    if (currentStep === totalSteps) setHasReachedReview(true);
+  }, [currentStep]);
+
+  const handleEventTypeChange = (type) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setEventType(type);
+  };
+
+  const getActiveTabLeft = () => {
+    let index = 0;
+    if (eventType === "virtual") index = 1;
+    else if (eventType === "hybrid") index = 2;
+    return 6 + index * tabWidth;
+  };
 
   // Scroll ref for auto-scrolling when category dropdown opens
   const scrollViewRef = useRef(null);
+
+  // Category name lookup map (id → name) for review display
+  const categoryMapRef = useRef({});
+  useEffect(() => {
+    getDiscoverCategories()
+      .then((res) => {
+        if (res?.categories) {
+          const map = {};
+          res.categories.forEach((c) => {
+            map[c.id] = c.name;
+          });
+          categoryMapRef.current = map;
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Step 1: Basic Info
   const [title, setTitle] = useState("");
@@ -71,16 +215,6 @@ export default function EditEventModal({
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
   const [hasEndTime, setHasEndTime] = useState(false);
-
-  const stepLabels = [
-    "Basic Info",
-    "Media",
-    "Description",
-    "Highlights",
-    "Featured",
-    "Know",
-    "Review",
-  ];
 
   useEffect(() => {
     if (eventData && visible) {
@@ -309,7 +443,9 @@ export default function EditEventModal({
         description: description.trim(),
         event_date: eventDate.toISOString(),
         start_datetime: eventDate.toISOString(),
+        has_time: true,
         end_datetime: hasEndTime ? endDate.toISOString() : null,
+        has_end_time: hasEndTime,
         gates_open_time:
           hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
         location_url: locationUrl.trim() || null,
@@ -411,358 +547,557 @@ export default function EditEventModal({
           <ScrollView
             ref={scrollViewRef}
             style={styles.stepContent}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
           >
-            <Text style={styles.stepTitle}>Basic Information</Text>
-            <Text style={styles.label}>Event Title *</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Enter event title..."
-              placeholderTextColor={LIGHT_TEXT_COLOR}
-            />
-
-            <Text style={styles.label}>Event Date *</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color={PRIMARY_COLOR}
-              />
-              <Text style={styles.dateButtonText}>
-                {eventDate.toLocaleDateString()}
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Event Time *</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Ionicons name="time-outline" size={20} color={PRIMARY_COLOR} />
-              <Text style={styles.dateButtonText}>
-                {eventDate.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </TouchableOpacity>
-
-            {/* End Time - Optional */}
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 10,
-                alignItems: "flex-end",
-                marginTop: 10,
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>End Time (Optional)</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowEndTimePicker(true)}
-                >
-                  <Ionicons
-                    name="time-outline"
-                    size={20}
-                    color={hasEndTime ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <BookMarked
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
                   />
-                  <Text
-                    style={[
-                      styles.dateButtonText,
-                      !hasEndTime && { color: LIGHT_TEXT_COLOR },
-                    ]}
-                  >
-                    {hasEndTime
-                      ? endDate.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Not set"}
-                  </Text>
-                </TouchableOpacity>
+                </View>
+                <Text style={styles.sectionHeaderTitle}>Event Details</Text>
               </View>
-              {hasEndTime && (
+              <Text style={styles.sectionHeaderHelper}>
+                Set the name, date, time, ticket and much more of your event.
+              </Text>
+            </View>
+
+            {/* Title */}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.label}>Event Title</Text>
+              <View style={styles.titleInputContainer}>
+                <TextInput
+                  style={styles.titleInput}
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Name your event"
+                  placeholderTextColor={MODAL_TOKENS.textMuted}
+                />
+              </View>
+            </View>
+
+            {/* Date & Time */}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.label}>Date &amp; Time</Text>
+              <View style={{ gap: 12 }}>
                 <TouchableOpacity
-                  style={{ paddingBottom: 15 }}
-                  onPress={() => {
-                    setHasEndTime(false);
-                    setEndDate(new Date(eventDate));
+                  style={[styles.dateCard, { width: "100%", flex: 0 }]}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <View style={styles.dateCardIconInfo}>
+                    <Calendar size={16} color={MODAL_TOKENS.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.dateCardLabel}>Date</Text>
+                    <Text style={styles.dateCardValue}>
+                      {eventDate ? eventDate.toLocaleDateString() : "Pick date"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <TouchableOpacity
+                    style={styles.dateCard}
+                    onPress={() => setShowTimePicker(true)}
+                  >
+                    <View style={styles.dateCardIconInfo}>
+                      <Clock size={16} color={MODAL_TOKENS.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.dateCardLabel}>Start Time</Text>
+                      <Text style={styles.dateCardValue}>
+                        {eventDate
+                          ? eventDate.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Pick time"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.dateCard}
+                    onPress={() => setShowEndTimePicker(true)}
+                  >
+                    <View
+                      style={[
+                        styles.dateCardIconInfo,
+                        hasEndTime && { backgroundColor: "#EEF2FF" },
+                      ]}
+                    >
+                      <Flag
+                        size={16}
+                        color={
+                          hasEndTime
+                            ? MODAL_TOKENS.primary
+                            : MODAL_TOKENS.textSecondary
+                        }
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.dateCardLabel}>End Time</Text>
+                      <Text
+                        style={[
+                          styles.dateCardValue,
+                          !hasEndTime && { color: MODAL_TOKENS.textMuted },
+                        ]}
+                      >
+                        {hasEndTime && endDate
+                          ? endDate.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Pick time"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <CustomDatePicker
+                visible={showDatePicker}
+                onClose={() => setShowDatePicker(false)}
+                startDate={eventDate}
+                endDate={
+                  endDate &&
+                  eventDate &&
+                  endDate.toDateString() !== eventDate.toDateString()
+                    ? endDate
+                    : null
+                }
+                minDate={new Date()}
+                onConfirm={({ startDate: newStart, endDate: newEnd }) => {
+                  const newEventDate = new Date(newStart);
+                  if (eventDate) {
+                    newEventDate.setHours(
+                      eventDate.getHours(),
+                      eventDate.getMinutes(),
+                      0,
+                      0,
+                    );
+                  }
+                  setEventDate(newEventDate);
+                  if (newEnd) {
+                    const newEndDate = new Date(newEnd);
+                    if (hasEndTime && endDate) {
+                      newEndDate.setHours(
+                        endDate.getHours(),
+                        endDate.getMinutes(),
+                        0,
+                        0,
+                      );
+                    }
+                    setEndDate(newEndDate);
+                  } else {
+                    setEndDate(null);
+                  }
+                }}
+              />
+
+              <CustomTimePicker
+                visible={showTimePicker}
+                onClose={() => setShowTimePicker(false)}
+                time={eventDate || new Date()}
+                onChange={(newTime) => {
+                  setEventDate(newTime);
+                  if (hasEndTime && endDate) {
+                    const minEnd = new Date(newTime.getTime() + 15 * 60 * 1000);
+                    if (endDate < minEnd) {
+                      const autoEnd = new Date(endDate);
+                      const oneHourLater = new Date(
+                        newTime.getTime() + 60 * 60 * 1000,
+                      );
+                      autoEnd.setHours(
+                        oneHourLater.getHours(),
+                        oneHourLater.getMinutes(),
+                        0,
+                        0,
+                      );
+                      setEndDate(autoEnd);
+                    }
+                  }
+                }}
+              />
+
+              <CustomTimePicker
+                visible={showEndTimePicker}
+                onClose={() => setShowEndTimePicker(false)}
+                time={endDate || eventDate || new Date()}
+                onChange={(newTime) => {
+                  setHasEndTime(true);
+                  const isSameDay =
+                    eventDate &&
+                    (!endDate ||
+                      endDate.toDateString() === eventDate.toDateString());
+                  const tooEarly =
+                    isSameDay &&
+                    eventDate &&
+                    newTime < new Date(eventDate.getTime() + 15 * 60 * 1000);
+                  if (tooEarly) {
+                    const corrected = new Date(newTime);
+                    corrected.setDate(corrected.getDate() + 1);
+                    setEndDate(corrected);
+                  } else {
+                    setEndDate(newTime);
+                  }
+                }}
+              />
+            </View>
+
+            {/* Gates */}
+            <View style={styles.sectionBlock}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: hasGates ? 16 : 0,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>
+                    Gates / Early Entry{" "}
+                    <Text style={styles.sectionHeaderOptional}>
+                      • (Optional)
+                    </Text>
+                  </Text>
+                  <Text style={styles.sectionHeaderHelper}>
+                    Allow early access before the event starts.
+                  </Text>
+                </View>
+                <Switch
+                  value={hasGates}
+                  onValueChange={(val) => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setHasGates(val);
+                    if (!val) setGatesOpenTime(null);
+                  }}
+                  thumbColor={hasGates ? "#FFFFFF" : "#FFFFFF"}
+                  trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
+                  ios_backgroundColor="#D1D5DB"
+                />
+              </View>
+              {hasGates && (
+                <TouchableOpacity
+                  style={styles.dateCard}
+                  onPress={() => setShowGatesTimePicker(true)}
+                >
+                  <View style={styles.dateCardIconInfo}>
+                    <Clock size={16} color={MODAL_TOKENS.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.dateCardLabel}>Gates Open</Text>
+                    <Text style={styles.dateCardValue}>
+                      {gatesOpenTime
+                        ? gatesOpenTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Set time"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              <CustomTimePicker
+                visible={showGatesTimePicker}
+                onClose={() => setShowGatesTimePicker(false)}
+                time={gatesOpenTime || eventDate || new Date()}
+                onChange={(newTime) => {
+                  setGatesOpenTime(newTime);
+                }}
+              />
+            </View>
+
+            {/* Event Type — Sliding Gradient Segment */}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.label}>Event Type</Text>
+              <View
+                style={styles.eventTypeRow}
+                onLayout={(e) => {
+                  const width = e.nativeEvent.layout.width;
+                  setTabWidth((width - 12) / 3);
+                }}
+              >
+                <Animated.View
+                  style={{
+                    position: "absolute",
+                    left: getActiveTabLeft(),
+                    top: 6,
+                    bottom: 6,
+                    width: tabWidth,
+                    borderRadius: 12,
+                    zIndex: 0,
                   }}
                 >
-                  <Ionicons
-                    name="close-circle"
-                    size={24}
-                    color={LIGHT_TEXT_COLOR}
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    style={{ flex: 1, borderRadius: 12 }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                   />
+                </Animated.View>
+
+                {[
+                  { id: "in-person", label: "In-Person", Icon: Users },
+                  { id: "virtual", label: "Virtual", Icon: Video },
+                  { id: "hybrid", label: "Hybrid", Icon: Layers },
+                ].map((item) => {
+                  const isSelected = eventType === item.id;
+                  return (
+                    <TouchableHighlight
+                      key={item.id}
+                      style={[styles.segmentedOption, { borderRadius: 12 }]}
+                      onPress={() => handleEventTypeChange(item.id)}
+                      underlayColor="rgba(53,101,242,0.08)"
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <item.Icon
+                          size={16}
+                          color={
+                            isSelected ? "rgba(255,255,255,0.9)" : "#6B7280"
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.segmentedText,
+                            isSelected && styles.segmentedTextActive,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </View>
+                    </TouchableHighlight>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Event Visibility */}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.label}>Event Visibility</Text>
+              <View style={styles.visibilityContainer}>
+                {[
+                  { value: "public", label: "Public", Icon: Earth },
+                  { value: "invite_only", label: "Invite Only", Icon: Lock },
+                ].map((opt) => {
+                  const isSelected = accessType === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.visibilityCard,
+                        isSelected && styles.visibilityCardActive,
+                      ]}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setAccessType(opt.value);
+                      }}
+                    >
+                      {isSelected && (
+                        <LinearGradient
+                          colors={MODAL_TOKENS.primaryGradient}
+                          style={[
+                            StyleSheet.absoluteFill,
+                            { borderRadius: MODAL_TOKENS.radius.md },
+                          ]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        />
+                      )}
+                      <View style={{ zIndex: 1, alignItems: "center", gap: 6 }}>
+                        <opt.Icon
+                          size={24}
+                          color={
+                            isSelected ? "#FFF" : MODAL_TOKENS.textSecondary
+                          }
+                        />
+                        <Text
+                          style={
+                            isSelected
+                              ? styles.visibilityTitleActive
+                              : styles.visibilityTitle
+                          }
+                        >
+                          {opt.label}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {accessType === "invite_only" && (
+                <TouchableOpacity
+                  style={styles.checkboxRow}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setInvitePublicVisibility(!invitePublicVisibility);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      invitePublicVisibility && styles.checkboxChecked,
+                    ]}
+                  >
+                    {invitePublicVisibility && <Check size={14} color="#fff" />}
+                  </View>
+                  <Text style={styles.checkboxLabel}>
+                    Show in discover feed (location hidden)
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
 
-            {(showDatePicker || showTimePicker) && (
-              <DateTimePicker
-                value={eventDate}
-                mode={showDatePicker ? "date" : "time"}
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(false);
-                  setShowTimePicker(false);
-                  if (selectedDate) {
-                    const combined = new Date(eventDate);
-                    if (showDatePicker) {
-                      combined.setFullYear(
-                        selectedDate.getFullYear(),
-                        selectedDate.getMonth(),
-                        selectedDate.getDate(),
-                      );
-                    } else {
-                      combined.setHours(
-                        selectedDate.getHours(),
-                        selectedDate.getMinutes(),
-                      );
-                    }
-                    setEventDate(combined);
-                    if (!hasEndTime) {
-                      setEndDate(combined);
-                    } else if (endDate < combined) {
-                      // If start moves past end, reset end to same as start
-                      setEndDate(combined);
-                    }
-                  }
-                }}
-              />
-            )}
-
-            {showEndTimePicker && (
-              <DateTimePicker
-                value={endDate}
-                mode="time"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowEndTimePicker(false);
-                  if (selectedDate) {
-                    // Start with the same date as eventDate
-                    const nextEndDate = new Date(eventDate);
-                    nextEndDate.setHours(
-                      selectedDate.getHours(),
-                      selectedDate.getMinutes(),
-                      0,
-                      0,
-                    );
-
-                    // If the selected time is earlier than the start time,
-                    // assume it's for the next day (e.g., 7 PM to 2 AM)
-                    if (nextEndDate < eventDate) {
-                      nextEndDate.setDate(nextEndDate.getDate() + 1);
-                    }
-
-                    setEndDate(nextEndDate);
-                    setHasEndTime(true);
-                  }
-                }}
-              />
-            )}
-
-            <View style={styles.toggleRow}>
-              <Text style={styles.label}>Has gates/early entry?</Text>
-              <TouchableOpacity
-                style={[styles.toggle, hasGates && styles.toggleActive]}
-                onPress={() => setHasGates(!hasGates)}
-              >
-                <Text
-                  style={[
-                    styles.toggleText,
-                    hasGates && styles.toggleTextActive,
-                  ]}
-                >
-                  {hasGates ? "Yes" : "No"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {hasGates && (
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowGatesTimePicker(true)}
-              >
-                <Ionicons name="time-outline" size={20} color={PRIMARY_COLOR} />
-                <Text style={styles.dateButtonText}>
-                  {gatesOpenTime
-                    ? gatesOpenTime.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "Set gates open time"}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <Text style={styles.label}>Event Type *</Text>
-            <View style={styles.eventTypeRow}>
-              {["in-person", "virtual", "hybrid"].map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.eventTypeButton,
-                    eventType === type && styles.eventTypeButtonActive,
-                  ]}
-                  onPress={() => setEventType(type)}
-                >
-                  <Text
-                    style={[
-                      styles.eventTypeText,
-                      eventType === type && styles.eventTypeTextActive,
-                    ]}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Event Visibility */}
-            <Text style={styles.label}>Event Visibility *</Text>
-            <View style={styles.eventTypeRow}>
-              {[
-                { value: "public", label: "Public", icon: "globe-outline" },
-                {
-                  value: "invite_only",
-                  label: "Invite Only",
-                  icon: "lock-closed-outline",
-                },
-              ].map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={styles.pillWrapper}
-                  onPress={() => setAccessType(opt.value)}
-                >
-                  {accessType === opt.value ? (
-                    <LinearGradient
-                      colors={COLORS.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={[
-                        styles.pillActive,
-                        { flexDirection: "row", alignItems: "center", gap: 6 },
-                      ]}
-                    >
-                      <Ionicons name={opt.icon} size={14} color="#fff" />
-                      <Text style={styles.pillTextActive}>{opt.label}</Text>
-                    </LinearGradient>
-                  ) : (
-                    <View
-                      style={[
-                        styles.pillInactive,
-                        { flexDirection: "row", alignItems: "center", gap: 6 },
-                      ]}
-                    >
-                      <Ionicons
-                        name={opt.icon}
-                        size={14}
-                        color={LIGHT_TEXT_COLOR}
-                      />
-                      <Text style={styles.pillText}>{opt.label}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Checkbox for invite-only: show in feeds with hidden location */}
-            {accessType === "invite_only" && (
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() =>
-                  setInvitePublicVisibility(!invitePublicVisibility)
-                }
-              >
+            {/* Location */}
+            {eventType !== "virtual" && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>Location</Text>
+                <View style={styles.locationCard}>
+                  <Search size={20} color={MODAL_TOKENS.primary} />
+                  <TextInput
+                    style={styles.locationInput}
+                    value={locationUrl}
+                    onChangeText={setLocationUrl}
+                    placeholder="Google Maps Link"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
                 <View
                   style={[
-                    styles.checkbox,
-                    invitePublicVisibility && styles.checkboxChecked,
+                    styles.locationCard,
+                    {
+                      backgroundColor: "transparent",
+                      borderWidth: 1,
+                      borderColor: MODAL_TOKENS.border,
+                      paddingVertical: 12,
+                    },
                   ]}
                 >
-                  {invitePublicVisibility && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  )}
+                  <TextInput
+                    style={[
+                      styles.locationInput,
+                      { marginLeft: 0, fontSize: 14 },
+                    ]}
+                    value={locationName}
+                    onChangeText={setLocationName}
+                    placeholder="Location Name (Optional, e.g. Room 302)"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                  />
                 </View>
-                <Text style={styles.checkboxLabel}>
-                  Show in discover feed (location hidden until invited)
+              </View>
+            )}
+
+            {/* Virtual Link */}
+            {(eventType === "virtual" || eventType === "hybrid") && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>
+                  {eventType === "hybrid" ? "Online Link" : "Virtual Link"}
                 </Text>
-              </TouchableOpacity>
+                <View style={styles.locationCard}>
+                  <Video size={20} color={MODAL_TOKENS.primary} />
+                  <TextInput
+                    style={styles.locationInput}
+                    value={virtualLink}
+                    onChangeText={setVirtualLink}
+                    placeholder="Paste meeting link (Zoom, Meet, Teams…)"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
             )}
 
-            {(eventType === "in-person" || eventType === "hybrid") && (
-              <>
-                <Text style={styles.label}>Location URL *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={locationUrl}
-                  onChangeText={setLocationUrl}
-                  placeholder="Paste Google Maps Link"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
+            {/* Ticketing */}
+            <View style={styles.sectionBlock}>
+              <TicketTypesEditor
+                ticketTypes={ticketTypes}
+                onChange={setTicketTypes}
+                pricingRules={promos
+                  .filter((p) => p.offer_type === "early_bird")
+                  .map((p) => ({
+                    name: p.name,
+                    rule_type:
+                      p.trigger === "by_sales"
+                        ? "early_bird_quantity"
+                        : "early_bird_time",
+                    discount_type: p.discount_type,
+                    discount_value: p.discount_value,
+                    valid_until: p.valid_until,
+                    quantity_threshold: p.quantity_threshold,
+                    is_active: p.is_active,
+                  }))}
+                eventStartDate={eventDate}
+                eventEndDate={endDate}
+              />
+              {ticketTypes.length > 0 && (
+                <PromoEditor
+                  promos={promos}
+                  onChange={setPromos}
+                  ticketTypes={ticketTypes}
+                  eventStartDate={eventDate}
                 />
-                <Text style={styles.label}>Location Name (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={locationName}
-                  onChangeText={setLocationName}
-                  placeholder="e.g. Ground Floor, Sector 5"
-                  placeholderTextColor={LIGHT_TEXT_COLOR}
-                />
-              </>
-            )}
+              )}
+            </View>
 
-            <TicketTypesEditor
-              ticketTypes={ticketTypes}
-              onChange={setTicketTypes}
-              pricingRules={promos
-                .filter((p) => p.offer_type === "early_bird")
-                .map((p) => ({
-                  name: p.name,
-                  rule_type:
-                    p.trigger === "by_sales"
-                      ? "early_bird_quantity"
-                      : "early_bird_time",
-                  discount_type: p.discount_type,
-                  discount_value: p.discount_value,
-                  valid_until: p.valid_until,
-                  quantity_threshold: p.quantity_threshold,
-                  is_active: p.is_active,
-                }))}
-              eventStartDate={eventDate}
-              eventEndDate={endDate}
-            />
-            <PromoEditor
-              promos={promos}
-              onChange={setPromos}
-              ticketTypes={ticketTypes}
-              eventStartDate={eventDate}
-            />
-
-            {/* Event Categories for Discover Feed */}
-            <CategorySelector
-              selectedCategories={categories}
-              onChange={setCategories}
-              maxCategories={3}
-              onExpand={() => {
-                // Auto-scroll down when dropdown opens so it's visible
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 100);
-              }}
-            />
+            {/* Categories */}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.label}>Categories</Text>
+              <CategorySelector
+                selectedCategories={categories}
+                onChange={setCategories}
+                maxCategories={4}
+                onExpand={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 100);
+                }}
+              />
+            </View>
           </ScrollView>
         );
       case 2:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Event Media</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <Camera
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>Media</Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Add photos to make your event look more appealing.
+              </Text>
+            </View>
             <ImageCarouselUpload
               images={bannerCarousel}
               onChange={setBannerCarousel}
@@ -777,20 +1112,41 @@ export default function EditEventModal({
         );
       case 3:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Description</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <NotebookPen
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>Description</Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Provide a detailed overview of your event to help people
+                understand what to expect.
+              </Text>
+            </View>
             <RichTextEditor
               value={description}
               onChange={setDescription}
               minLength={50}
-              maxLength={2000}
+              variant="minimal"
             />
           </ScrollView>
         );
       case 4:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Highlights</Text>
+          <ScrollView
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
             <HighlightsEditor
               highlights={highlights}
               onChange={setHighlights}
@@ -800,8 +1156,10 @@ export default function EditEventModal({
         );
       case 5:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Featured</Text>
+          <ScrollView
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
             <FeaturedAccountsEditor
               accounts={featuredAccounts}
               onChange={setFeaturedAccounts}
@@ -810,8 +1168,27 @@ export default function EditEventModal({
         );
       case 6:
         return (
-          <ScrollView style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Things to Know</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.stepContent}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <BookOpenCheck
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>Things to Know</Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Add important details like dress code, age limits, arrival
+                instructions and much more.
+              </Text>
+            </View>
             <ThingsToKnowEditor
               items={thingsToKnow}
               onChange={setThingsToKnow}
@@ -819,26 +1196,78 @@ export default function EditEventModal({
             />
           </ScrollView>
         );
-      case 7:
+      case 7: {
+        const displayLocationName =
+          locationName && locationName.trim() !== ""
+            ? locationName
+            : locationUrl
+              ? (() => {
+                  try {
+                    const u = new URL(locationUrl);
+                    return (
+                      u.searchParams.get("q") ||
+                      decodeURIComponent(locationUrl.split("q=")[1] || "")
+                        .split("&")[0]
+                        .replace(/\+/g, " ") ||
+                      "View Location"
+                    );
+                  } catch {
+                    return "View Location";
+                  }
+                })()
+              : "No location set";
+
         return (
           <ScrollView
             style={styles.stepContent}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 160 }}
           >
-            <Text style={styles.stepTitle}>Review Changes</Text>
-            <Text style={styles.reviewSubtitle}>
-              Verify your updates before saving
-            </Text>
+            <View style={styles.sectionHeaderNew}>
+              <View style={styles.sectionHeaderTitleRow}>
+                <View style={styles.sectionHeaderIconContainer}>
+                  <Glasses
+                    size={24}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.sectionHeaderTitle}>
+                  Review <Text style={styles.sectionHeaderOptional}></Text>
+                </Text>
+              </View>
+              <Text style={styles.sectionHeaderHelper}>
+                Verify your updates before saving.
+              </Text>
+            </View>
 
-            <View style={styles.reviewCard}>
-              <View style={styles.reviewSection}>
+            {/* ── Card 1: Basics ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Basics</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(1)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Event Title</Text>
                 <Text style={styles.reviewValue}>
                   {title || "No title set"}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Date & Time</Text>
                 <Text style={styles.reviewValue}>
                   {eventDate.toLocaleDateString()} at{" "}
@@ -861,32 +1290,68 @@ export default function EditEventModal({
                 )}
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              {hasGates && gatesOpenTime && (
+                <>
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Gates Open</Text>
+                    <Text style={styles.reviewValue}>
+                      {gatesOpenTime.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewDivider} />
+                </>
+              )}
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Event Type</Text>
                 <Text style={styles.reviewValue}>
                   {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
                 </Text>
               </View>
 
+              <View style={styles.reviewDivider} />
+
               {eventType !== "virtual" ? (
-                <View style={styles.reviewSection}>
+                <TouchableOpacity
+                  style={styles.reviewRow}
+                  onPress={() => locationUrl && Linking.openURL(locationUrl)}
+                  activeOpacity={locationUrl ? 0.7 : 1}
+                >
                   <Text style={styles.reviewLabel}>Location</Text>
-                  <Text style={styles.reviewValue} numberOfLines={2}>
-                    {locationUrl || "No location URL set"}
-                  </Text>
-                  {locationName ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MapPin
+                      size={16}
+                      color={MODAL_TOKENS.primary}
+                      strokeWidth={2}
+                    />
                     <Text
                       style={[
                         styles.reviewValue,
-                        { fontWeight: "600", marginTop: 4 },
+                        { color: MODAL_TOKENS.textPrimary, flex: 1 },
                       ]}
                     >
-                      Display Name: {locationName}
+                      {displayLocationName || "No location set"}
                     </Text>
-                  ) : null}
-                </View>
+                  </View>
+                  {locationUrl && (
+                    <Text style={styles.reviewLocationSubtitle}>
+                      Tap to open in Maps
+                    </Text>
+                  )}
+                </TouchableOpacity>
               ) : (
-                <View style={styles.reviewSection}>
+                <View style={styles.reviewRow}>
                   <Text style={styles.reviewLabel}>Virtual Link</Text>
                   <Text style={styles.reviewValue} numberOfLines={2}>
                     {virtualLink || "No link set"}
@@ -894,78 +1359,151 @@ export default function EditEventModal({
                 </View>
               )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Ticket Tiers</Text>
-                {ticketTypes.map((t, idx) => (
-                  <Text key={idx} style={styles.reviewValue}>
-                    • {t.name}: ₹{t.base_price} ({t.total_quantity} qty)
-                  </Text>
-                ))}
+              {categories.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Categories</Text>
+                    <Text style={styles.reviewValue}>
+                      {categories
+                        .map((id) => categoryMapRef.current[id] || String(id))
+                        .join(", ")}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* ── Card 2: Tickets ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Tickets</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(1)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.reviewSection}>
+              {ticketTypes.map((t, idx) => (
+                <View key={idx} style={styles.ticketMiniCard}>
+                  <Text style={styles.ticketMiniName}>{t.name}</Text>
+                  <View style={styles.ticketMiniRow}>
+                    <Text style={styles.ticketMiniPrice}>
+                      {parseFloat(t.base_price) === 0
+                        ? "Free"
+                        : `₹${t.base_price}`}
+                    </Text>
+                    <Text style={styles.ticketMiniDot}>•</Text>
+                    <Text style={styles.ticketMiniQty}>
+                      {t.total_quantity} available
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              {ticketTypes.length === 0 && (
+                <Text
+                  style={[
+                    styles.reviewValue,
+                    { fontStyle: "italic", color: MODAL_TOKENS.textSecondary },
+                  ]}
+                >
+                  No tickets added
+                </Text>
+              )}
+            </View>
+
+            {/* ── Card 3: Content ── */}
+            <View style={styles.reviewCardGroup}>
+              <View style={styles.reviewCardHeader}>
+                <Text style={styles.reviewCardTitle}>Content</Text>
+                <TouchableOpacity
+                  style={styles.reviewEditButton}
+                  onPress={() => setCurrentStep(2)}
+                  activeOpacity={0.7}
+                >
+                  <Pencil
+                    size={14}
+                    color={MODAL_TOKENS.primary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.reviewEditText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Media</Text>
                 <Text style={styles.reviewValue}>
-                  {bannerCarousel.length} Banners, {gallery.length} Gallery
-                  images
+                  {bannerCarousel.length} Banner
+                  {bannerCarousel.length !== 1 ? "s" : ""}, {gallery.length}{" "}
+                  Gallery image{gallery.length !== 1 ? "s" : ""}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
+              <View style={styles.reviewDivider} />
+
+              <View style={styles.reviewRow}>
                 <Text style={styles.reviewLabel}>Description</Text>
-                <Text style={styles.reviewValue} numberOfLines={3}>
+                <Text style={styles.reviewDescriptionValue}>
                   {description
                     ? description.replace(/<[^>]*>?/gm, "")
                     : "No description"}
                 </Text>
               </View>
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Highlights</Text>
-                {highlights.length > 0 ? (
-                  highlights.map((h, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      • {h.title}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {highlights.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Highlights</Text>
+                    {highlights.map((h, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {h.title}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Featured Accounts</Text>
-                {featuredAccounts.length > 0 ? (
-                  featuredAccounts.map((a, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      • {a.display_name || a.account_name} ({a.role})
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {featuredAccounts.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Featured</Text>
+                    {featuredAccounts.map((a, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {a.display_name || a.account_name} ({a.role})
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
 
-              <View style={styles.reviewSection}>
-                <Text style={styles.reviewLabel}>Things to Know</Text>
-                {thingsToKnow.length > 0 ? (
-                  thingsToKnow.map((item, idx) => (
-                    <Text key={idx} style={styles.reviewValue}>
-                      • {item.label}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.reviewValue}>None</Text>
-                )}
-              </View>
+              {thingsToKnow.length > 0 && (
+                <>
+                  <View style={styles.reviewDivider} />
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Things to Know</Text>
+                    {thingsToKnow.map((item, idx) => (
+                      <Text key={idx} style={styles.reviewValue}>
+                        • {item.label}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
 
             <View style={styles.infoBanner}>
-              <Ionicons
-                name="information-circle"
-                size={20}
-                color={PRIMARY_COLOR}
-              />
+              <Info size={20} color={MODAL_TOKENS.primary} />
               <Text style={styles.infoText}>
                 Attendees will be notified of key changes to date, title, or
                 location.
@@ -973,6 +1511,7 @@ export default function EditEventModal({
             </View>
           </ScrollView>
         );
+      }
       default:
         return null;
     }
@@ -986,100 +1525,124 @@ export default function EditEventModal({
       statusBarTranslucent={true}
     >
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleCloseAttempt}>
-            <Ionicons name="close" size={28} color={TEXT_COLOR} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Event</Text>
-          <TouchableOpacity
-            disabled={!hasChanges || loading}
-            onPress={handleSave}
-            style={[
-              styles.saveHeaderButton,
-              hasChanges && !loading && styles.saveHeaderButtonActive,
-              (!hasChanges || loading) && styles.saveHeaderDisabled,
-            ]}
-          >
-            {loading ? (
-              <SnooLoader size="small" color={COLORS.primary} />
-            ) : hasChanges ? (
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.saveHeaderGradient}
+        {/* Progress Bar Header */}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity
+              onPress={handleCloseAttempt}
+              style={styles.closeButton}
+            >
+              <X size={24} color={MODAL_TOKENS.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Edit Event</Text>
+            {hasChanges && !loading ? (
+              <TouchableOpacity
+                style={styles.saveQuickButton}
+                onPress={handleSave}
+                activeOpacity={0.8}
               >
-                <Text style={styles.saveHeaderTextActive}>Save</Text>
-              </LinearGradient>
+                <LinearGradient
+                  colors={MODAL_TOKENS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveQuickGradient}
+                >
+                  <Text style={styles.saveQuickText}>Save</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             ) : (
-              <Text style={styles.saveHeaderTextDisabled}>Save</Text>
+              <View style={{ width: 60 }} />
             )}
-          </TouchableOpacity>
-        </View>
+          </View>
 
-        <StepIndicator
-          currentStep={currentStep}
-          totalSteps={7}
-          hideProgressText
-        />
+          {/* Slim Animated Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <Animated.View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: progressPercent.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["0%", "100%"],
+                  }),
+                },
+              ]}
+            />
+          </View>
+
+          <View style={styles.stepLabelContainer}>
+            <Text style={styles.stepLabelText}>{STEP_TITLES[currentStep]}</Text>
+            <Text style={styles.percentageText}>
+              {Math.round((currentStep / totalSteps) * 100)}%
+            </Text>
+          </View>
+        </View>
 
         {renderStep()}
 
-        <View style={styles.footer}>
-          {currentStep > 1 && (
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
-              <Text style={styles.backButtonText}>Back</Text>
-            </TouchableOpacity>
-          )}
+        {/* Floating Pill CTA */}
+        <KeyboardStickyView
+          offset={{ opened: insets.bottom + 12, closed: 0 }}
+          style={styles.stickyFooter}
+        >
+          <View
+            style={[
+              styles.floatingFooter,
+              { paddingBottom: insets.bottom + 24 },
+            ]}
+          >
+            {currentStep > 1 && (
+              <TouchableOpacity
+                onPress={handleBack}
+                style={styles.floatingBackButton}
+                disabled={loading}
+              >
+                <Text style={styles.floatingBackButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
 
-          {currentStep < 7 ? (
             <TouchableOpacity
-              style={styles.nextButtonWrapper}
-              onPress={handleNext}
+              onPress={currentStep === 7 ? handleSave : handleNext}
+              style={[
+                styles.floatingNextButton,
+                loading && { opacity: 0.7 },
+                currentStep === 1 && { marginLeft: "auto" },
+              ]}
+              disabled={loading}
             >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.fullButtonGradient}
-              >
-                <Text style={styles.nextButtonText}>Next</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-              </LinearGradient>
+              {loading ? (
+                <SnooLoader color="#fff" />
+              ) : (
+                <LinearGradient
+                  colors={
+                    currentStep === 7 && !hasChanges
+                      ? ["#E5E7EB", "#D1D5DB"]
+                      : MODAL_TOKENS.primaryGradient
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              {!loading && (
+                <Text
+                  style={[
+                    styles.floatingNextButtonText,
+                    { fontFamily: "Manrope-SemiBold" },
+                  ]}
+                >
+                  {currentStep === 7 ? "Save Changes" : "Next"}
+                </Text>
+              )}
+              {!loading && currentStep !== 7 && (
+                <ArrowRight size={18} color="#fff" style={{ marginLeft: 8 }} />
+              )}
+              {!loading && currentStep === 7 && (
+                <CheckCircle size={18} color="#fff" style={{ marginLeft: 8 }} />
+              )}
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.nextButtonWrapper}
-              onPress={handleSave}
-              disabled={loading || !hasChanges}
-            >
-              <LinearGradient
-                colors={
-                  loading || !hasChanges
-                    ? ["#E5E7EB", "#D1D5DB"]
-                    : ["#34C759", "#2FB350"]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.fullButtonGradient}
-              >
-                {loading ? (
-                  <SnooLoader color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Text style={styles.nextButtonText}>Save Changes</Text>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color="#FFFFFF"
-                    />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        </KeyboardStickyView>
       </SafeAreaView>
 
       {/* Unsaved Changes Modal */}
@@ -1099,7 +1662,7 @@ export default function EditEventModal({
                 end={{ x: 1, y: 1 }}
                 style={styles.unsavedIconGradient}
               >
-                <Ionicons name="alert" size={28} color="#FFF" />
+                <AlertCircle size={28} color="#FFF" />
               </LinearGradient>
             </View>
 
@@ -1115,12 +1678,12 @@ export default function EditEventModal({
               onPress={handleSaveAndExit}
             >
               <LinearGradient
-                colors={COLORS.primaryGradient}
+                colors={MODAL_TOKENS.primaryGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.unsavedPrimaryBtn}
               >
-                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                <CheckCircle size={18} color="#FFF" />
                 <Text style={styles.unsavedPrimaryText}>Save & Exit</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -1133,7 +1696,7 @@ export default function EditEventModal({
                 onClose();
               }}
             >
-              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+              <Trash2 size={16} color="#EF4444" />
               <Text style={styles.unsavedSecondaryText}>Discard Changes</Text>
             </TouchableOpacity>
 
@@ -1152,200 +1715,490 @@ export default function EditEventModal({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+  container: {
+    flex: 1,
+    backgroundColor: MODAL_TOKENS.background,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: TEXT_COLOR },
-  stepContent: { flex: 1, padding: 20 },
-  scrollContent: { paddingBottom: 40 },
-  stepTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: TEXT_COLOR,
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    backgroundColor: "#F9FAFB",
-  },
-  dateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 12,
-    backgroundColor: "#F9FAFB",
-    gap: 10,
-  },
-  dateButtonText: { fontSize: 14, color: TEXT_COLOR },
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  toggle: {
+
+  // ── Header ──
+  headerContainer: {
     paddingHorizontal: 20,
+    paddingTop: 10,
+    backgroundColor: MODAL_TOKENS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: MODAL_TOKENS.surface,
+    paddingBottom: 16,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
+    fontSize: 20,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: MODAL_TOKENS.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveQuickButton: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  saveQuickGradient: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: BORDER_COLOR,
-    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  toggleActive: { borderColor: PRIMARY_COLOR, backgroundColor: PRIMARY_COLOR },
-  toggleText: { fontSize: 14, fontWeight: "600", color: TEXT_COLOR },
-  toggleTextActive: { color: "#FFFFFF" },
-  eventTypeRow: { flexDirection: "row", gap: 10 },
-  eventTypeButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+  saveQuickText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+
+  // ── Progress Bar ──
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: MODAL_TOKENS.surface,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: MODAL_TOKENS.primary,
+    borderRadius: 2,
+  },
+  stepLabelContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  eventTypeButtonActive: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#F0F9FF",
-  },
-  eventTypeText: { fontSize: 13, fontWeight: "500", color: LIGHT_TEXT_COLOR },
-  eventTypeTextActive: { color: PRIMARY_COLOR, fontWeight: "600" },
-  reviewSubtitle: {
+  stepLabelText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginBottom: 20,
+    color: MODAL_TOKENS.textPrimary,
   },
-  reviewCard: {
-    backgroundColor: "#F9FAFB",
+  percentageText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 12,
+    color: MODAL_TOKENS.textSecondary,
+  },
+
+  // ── Step Content ──
+  stepContent: {
+    flex: 1,
+    padding: 20,
+  },
+
+  // ── Section Headers ──
+  sectionHeaderNew: {
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  sectionHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  sectionHeaderIconContainer: {
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionHeaderTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
+    fontSize: 22,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  sectionHeaderHelper: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  sectionHeaderOptional: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: "#9CA3AF",
+  },
+
+  // ── Section Blocks ──
+  sectionBlock: {
+    marginBottom: 24,
+    backgroundColor: MODAL_TOKENS.surface,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    padding: 20,
+  },
+
+  // ── Labels & Inputs ──
+  label: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 12,
+  },
+  titleInputContainer: {
+    backgroundColor: MODAL_TOKENS.background,
+    borderRadius: MODAL_TOKENS.radius.md,
     padding: 16,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
   },
-  reviewSection: {
+  titleInput: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: MODAL_TOKENS.textPrimary,
+    padding: 0,
+  },
+
+  // ── Date Cards ──
+  dateCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: MODAL_TOKENS.radius.sm,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    backgroundColor: MODAL_TOKENS.background,
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  dateCardIconInfo: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: MODAL_TOKENS.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  dateCardLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  dateCardValue: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: "#111827",
+  },
+
+  // ── Toggle Pill (Gates) ──
+  togglePill: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: MODAL_TOKENS.border,
+    backgroundColor: MODAL_TOKENS.background,
+  },
+  togglePillActive: {
+    borderColor: MODAL_TOKENS.primary,
+    backgroundColor: MODAL_TOKENS.primary,
+  },
+  togglePillText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  togglePillTextActive: {
+    color: "#FFFFFF",
+  },
+
+  // ── Event Type Segmented ──
+  eventTypeRow: {
+    flexDirection: "row",
+    backgroundColor: "#F5F8FF",
+    borderRadius: 16,
+    height: 52,
+    padding: 6,
+    marginBottom: 0,
+    position: "relative",
+  },
+  segmentedOption: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  segmentedText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  segmentedTextActive: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+
+  // ── Visibility Cards ──
+  visibilityContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 0,
+  },
+  visibilityCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: MODAL_TOKENS.radius.md,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    backgroundColor: MODAL_TOKENS.background,
+    alignItems: "center",
+    gap: 8,
+  },
+  visibilityCardActive: {
+    borderColor: "transparent",
+  },
+  visibilityTitle: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  visibilityTitleActive: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+
+  // ── Checkbox ──
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: MODAL_TOKENS.border,
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: MODAL_TOKENS.surface,
+  },
+  checkboxChecked: {
+    backgroundColor: MODAL_TOKENS.primary,
+    borderColor: MODAL_TOKENS.primary,
+  },
+  checkboxLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    flex: 1,
+  },
+
+  // ── Location ──
+  locationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    borderRadius: MODAL_TOKENS.radius.md,
+    backgroundColor: MODAL_TOKENS.surface,
+    borderWidth: 1,
+    borderColor: "transparent",
+    marginBottom: 12,
+  },
+  locationInput: {
+    flex: 1,
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 15,
+    color: MODAL_TOKENS.textPrimary,
+    marginLeft: 12,
+  },
+
+  // ── Floating Footer ──
+  stickyFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  floatingFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  floatingBackButton: {
+    backgroundColor: MODAL_TOKENS.surface,
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    ...MODAL_TOKENS.shadow.sm,
+  },
+  floatingBackButtonText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 16,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  floatingNextButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 56,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    overflow: "hidden",
+    minWidth: 140,
+    ...MODAL_TOKENS.shadow.md,
+  },
+  floatingNextButtonText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 16,
+    color: "#ffffff",
+    zIndex: 1,
+  },
+
+  // ── Info Banner ──
+  infoBanner: {
+    flexDirection: "row",
+    backgroundColor: "#EEF2FF",
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+    alignItems: "flex-start",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  infoText: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: MODAL_TOKENS.textSecondary,
+    flex: 1,
+    lineHeight: 20,
+  },
+
+  // ── Review ──
+  reviewCardGroup: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    ...MODAL_TOKENS.shadow.sm,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    paddingBottom: 12,
+  },
+  reviewCardTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
+    fontSize: 16,
+    color: MODAL_TOKENS.textPrimary,
+  },
+  reviewEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: MODAL_TOKENS.surface,
+  },
+  reviewEditText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 13,
+    color: MODAL_TOKENS.primary,
+  },
+  reviewRow: {
+    paddingVertical: 6,
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: MODAL_TOKENS.border,
+    marginVertical: 4,
   },
   reviewLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 12,
-    fontWeight: "600",
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   reviewValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
     fontSize: 15,
-    fontWeight: "600",
-    color: TEXT_COLOR,
-    lineHeight: 20,
+    color: MODAL_TOKENS.textPrimary,
+    lineHeight: 22,
   },
   reviewSubValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textSecondary,
     marginTop: 2,
   },
-  infoBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#F0F9FF",
+  reviewDescriptionValue: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    lineHeight: 22,
+  },
+  reviewLocationSubtitle: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.primary,
+    marginTop: 4,
+  },
+  ticketMiniCard: {
+    backgroundColor: MODAL_TOKENS.surface,
+    borderRadius: 14,
     padding: 14,
-    borderRadius: 12,
-    gap: 10,
-    marginTop: 20,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
   },
-  infoText: { flex: 1, fontSize: 13, color: TEXT_COLOR, lineHeight: 18 },
-  footer: {
-    flexDirection: "row",
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
-    gap: 10,
+  ticketMiniName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    marginBottom: 4,
   },
-  backButton: {
-    flex: 1,
-    height: 50,
+  ticketMiniRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: "#FFFFFF",
-    gap: 8,
+    gap: 6,
   },
-  backButtonText: { fontSize: 16, fontWeight: "600", color: PRIMARY_COLOR },
-  nextButtonWrapper: {
-    flex: 1,
-    height: 50,
-    borderRadius: 30,
-    overflow: "hidden",
+  ticketMiniPrice: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
   },
-  fullButtonGradient: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  ticketMiniDot: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textMuted,
   },
-  nextButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-
-  // Header Save Button
-  saveHeaderButton: {
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  saveHeaderButtonActive: {
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveHeaderDisabled: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  saveHeaderGradient: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  saveHeaderTextActive: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  saveHeaderTextDisabled: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#9CA3AF",
+  ticketMiniQty: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
   },
 
-  // Unsaved Changes Modal
+  // ── Unsaved Changes Modal ──
   unsavedOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1377,12 +2230,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   unsavedTitle: {
+    fontFamily: MODAL_TOKENS.fonts.bold,
     fontSize: 20,
-    fontWeight: "700",
     color: "#1F2937",
     marginBottom: 8,
   },
   unsavedMessage: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
     fontSize: 14,
     color: "#6B7280",
     textAlign: "center",
@@ -1405,9 +2259,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unsavedPrimaryText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "600",
   },
   unsavedSecondaryBtn: {
     flexDirection: "row",
@@ -1416,76 +2270,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   unsavedSecondaryText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
     fontSize: 14,
     color: "#EF4444",
-    fontWeight: "600",
   },
   unsavedCancelBtn: {
     paddingVertical: 8,
   },
   unsavedCancelText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 14,
     color: "#6B7280",
-    fontWeight: "500",
-  },
-  // Pill styles for Event Visibility (matching CreateEventModal)
-  pillWrapper: {
-    flex: 1,
-    borderRadius: 30,
-    overflow: "hidden",
-  },
-  pillActive: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pillInactive: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pillText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    fontWeight: "500",
-  },
-  pillTextActive: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  // Checkbox styles for invite-only visibility option
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: BORDER_COLOR,
-    backgroundColor: "#FFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxChecked: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
-  },
-  checkboxLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    lineHeight: 20,
   },
 });
