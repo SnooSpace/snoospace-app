@@ -1228,7 +1228,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Community Heads</Text>
+              <Text style={styles.sectionTitle}>
+                {profile?.heads && profile.heads.length > 1
+                  ? "Meet the Hosts"
+                  : "Meet the Host"}
+              </Text>
             </View>
             {profile?.heads && profile.heads.length > 0 ? (
               <View style={{ paddingVertical: 4 }}>
@@ -1294,7 +1298,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 })}
               </View>
             ) : (
-              <Text style={styles.emptyText}>No heads listed</Text>
+              <Text style={styles.emptyText}>No hosts listed</Text>
             )}
           </View>
 

@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, Alert, Modal, FlatList, TextInput, Dimensions, KeyboardAvoidingView, Platform, RefreshControl, Animated } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Modal,
+  FlatList,
+  TextInput,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  Animated,
+} from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -1200,7 +1216,12 @@ export default function CommunityProfileScreen({ navigation }) {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Community Heads</Text>
+              <Text style={styles.sectionTitle}>
+                {profile.heads && profile.heads.length > 1
+                  ? "Meet the Hosts"
+                  : "Meet the Host"}
+              </Text>
+
               <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
                 <Pencil size={20} color={PRIMARY_COLOR} />
               </TouchableOpacity>
@@ -1270,7 +1291,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 })}
               </View>
             ) : (
-              <Text style={styles.emptyText}>No heads added yet</Text>
+              <Text style={styles.emptyText}>No hosts added yet</Text>
             )}
           </View>
 
