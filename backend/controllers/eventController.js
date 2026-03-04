@@ -30,6 +30,8 @@ const createEvent = async (req, res) => {
       event_date,
       start_datetime,
       end_datetime,
+      gates_open_time, // Gates / Early Access time
+      has_gates, // Whether gates toggle is enabled
       location_url, // Changed from 'location'
       location_name, // Optional custom location display name
       max_attendees,
@@ -85,13 +87,15 @@ const createEvent = async (req, res) => {
         ? banner_carousel[0].url
         : null;
 
+    const resolvedGatesOpenTime = has_gates ? gates_open_time || null : null;
+
     const query = `
       INSERT INTO events (
-        community_id, title, description, start_datetime, end_datetime, location_url,
+        community_id, title, description, start_datetime, end_datetime, gates_open_time, location_url,
         location_name, max_attendees, banner_url, event_type, virtual_link, venue_id,
         creator_id, is_published, ticket_price, access_type, invite_public_visibility, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
       RETURNING *
     `;
 
@@ -101,6 +105,7 @@ const createEvent = async (req, res) => {
       description || null,
       start_datetime || event_date,
       end_datetime || event_date,
+      resolvedGatesOpenTime,
       location_url || null,
       location_name || null, // New: custom location name
       max_attendees || null,
@@ -263,8 +268,9 @@ const createEvent = async (req, res) => {
           `INSERT INTO discount_codes (
             event_id, code, code_normalized, discount_type, discount_value,
             max_uses, max_uses_per_user, valid_from, valid_until,
-            min_cart_value, applicable_ticket_ids, is_active
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            min_cart_value, applicable_ticket_ids, is_active,
+            applies_to, selected_tickets
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             eventId,
             dc.code,
@@ -278,6 +284,8 @@ const createEvent = async (req, res) => {
             dc.min_cart_value || null,
             dc.applicable_ticket_ids || null,
             dc.is_active !== false,
+            dc.applies_to || "all",
+            JSON.stringify(dc.selected_tickets || []),
           ],
         ),
       );
@@ -294,8 +302,9 @@ const createEvent = async (req, res) => {
         pool.query(
           `INSERT INTO pricing_rules (
             event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
-            quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
+            applies_to, selected_tickets
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             eventId,
             rule.ticket_type_id || null,
@@ -309,6 +318,8 @@ const createEvent = async (req, res) => {
             rule.valid_until || null,
             rule.priority || 100,
             rule.is_active !== false,
+            rule.applies_to || "all",
+            JSON.stringify(rule.selected_tickets || []),
           ],
         ),
       );
@@ -519,7 +530,9 @@ const getCommunityEvents = async (req, res) => {
         const discountCodesResult = await pool.query(
           `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
                 max_uses_per_user, valid_from, valid_until, min_cart_value,
-                applicable_ticket_ids, is_active
+                applicable_ticket_ids, is_active,
+                COALESCE(applies_to, 'all') as applies_to,
+                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets
          FROM discount_codes 
          WHERE event_id = $1
          ORDER BY created_at ASC`,
@@ -529,7 +542,9 @@ const getCommunityEvents = async (req, res) => {
         // Fetch pricing rules
         const pricingRulesResult = await pool.query(
           `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
-                quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+                quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
+                COALESCE(applies_to, 'all') as applies_to,
+                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets
          FROM pricing_rules 
          WHERE event_id = $1
          ORDER BY priority ASC`,
@@ -1933,8 +1948,9 @@ const updateEvent = async (req, res) => {
             `INSERT INTO discount_codes (
               event_id, code, code_normalized, discount_type, discount_value,
               max_uses, max_uses_per_user, valid_from, valid_until,
-              min_cart_value, applicable_ticket_ids, is_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              min_cart_value, applicable_ticket_ids, is_active,
+              applies_to, selected_tickets
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
             [
               eventId,
               dc.code,
@@ -1948,6 +1964,8 @@ const updateEvent = async (req, res) => {
               dc.min_cart_value || null,
               dc.applicable_ticket_ids || null,
               dc.is_active !== false,
+              dc.applies_to || "all",
+              JSON.stringify(dc.selected_tickets || []),
             ],
           ),
         );
@@ -1973,8 +1991,9 @@ const updateEvent = async (req, res) => {
           pool.query(
             `INSERT INTO pricing_rules (
               event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
-              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
+              applies_to, selected_tickets
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
             [
               eventId,
               rule.ticket_type_id || null,
@@ -1988,6 +2007,8 @@ const updateEvent = async (req, res) => {
               rule.valid_until || null,
               rule.priority || 100,
               rule.is_active !== false,
+              rule.applies_to || "all",
+              JSON.stringify(rule.selected_tickets || []),
             ],
           ),
         );

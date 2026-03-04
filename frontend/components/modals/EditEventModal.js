@@ -52,6 +52,7 @@ import CustomDatePicker from "../ui/CustomDatePicker";
 import CustomTimePicker from "../ui/CustomTimePicker";
 import { updateEvent } from "../../api/events";
 import { getDiscoverCategories } from "../../api/categories";
+import { useLocationName } from "../../utils/locationNameCache";
 
 const MODAL_TOKENS = {
   primary: "#3565F2",
@@ -216,6 +217,12 @@ export default function EditEventModal({
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
   const [hasEndTime, setHasEndTime] = useState(false);
 
+  // Decode Google Maps URL for review section display
+  const decodedLocationName = useLocationName(locationUrl, {
+    fallback: "View Location",
+  });
+  const displayLocationName = locationName || decodedLocationName;
+
   useEffect(() => {
     if (eventData && visible) {
       setTitle(eventData.title || "");
@@ -260,6 +267,8 @@ export default function EditEventModal({
             ...dc,
             offer_type: "promo_code",
             name: dc.name || dc.code || "",
+            applies_to: dc.applies_to || "all",
+            selected_tickets: dc.selected_tickets || [],
           });
         });
       }
@@ -270,6 +279,8 @@ export default function EditEventModal({
             offer_type: "early_bird",
             trigger:
               pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
+            applies_to: pr.applies_to || "all",
+            selected_tickets: pr.selected_tickets || [],
           });
         });
       }
@@ -507,6 +518,8 @@ export default function EditEventModal({
                 valid_until: p.valid_until,
                 quantity_threshold: p.quantity_threshold,
                 is_active: p.is_active,
+                applies_to: p.applies_to,
+                selected_tickets: p.selected_tickets,
               }))
             : null;
         })(),
@@ -669,7 +682,6 @@ export default function EditEventModal({
                     ? endDate
                     : null
                 }
-                minDate={new Date()}
                 onConfirm={({ startDate: newStart, endDate: newEnd }) => {
                   const newEventDate = new Date(newStart);
                   if (eventDate) {
@@ -1033,6 +1045,7 @@ export default function EditEventModal({
               <TicketTypesEditor
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
+                promos={promos}
                 pricingRules={promos
                   .filter((p) => p.offer_type === "early_bird")
                   .map((p) => ({
@@ -1197,26 +1210,6 @@ export default function EditEventModal({
           </ScrollView>
         );
       case 7: {
-        const displayLocationName =
-          locationName && locationName.trim() !== ""
-            ? locationName
-            : locationUrl
-              ? (() => {
-                  try {
-                    const u = new URL(locationUrl);
-                    return (
-                      u.searchParams.get("q") ||
-                      decodeURIComponent(locationUrl.split("q=")[1] || "")
-                        .split("&")[0]
-                        .replace(/\+/g, " ") ||
-                      "View Location"
-                    );
-                  } catch {
-                    return "View Location";
-                  }
-                })()
-              : "No location set";
-
         return (
           <ScrollView
             style={styles.stepContent}
@@ -1392,22 +1385,107 @@ export default function EditEventModal({
                 </TouchableOpacity>
               </View>
 
-              {ticketTypes.map((t, idx) => (
-                <View key={idx} style={styles.ticketMiniCard}>
-                  <Text style={styles.ticketMiniName}>{t.name}</Text>
-                  <View style={styles.ticketMiniRow}>
-                    <Text style={styles.ticketMiniPrice}>
-                      {parseFloat(t.base_price) === 0
-                        ? "Free"
-                        : `₹${t.base_price}`}
-                    </Text>
-                    <Text style={styles.ticketMiniDot}>•</Text>
-                    <Text style={styles.ticketMiniQty}>
-                      {t.total_quantity} available
-                    </Text>
+              {ticketTypes.map((t, idx) => {
+                // Find all promos that apply to this ticket
+                const applicablePromos = promos.filter((p) => {
+                  if (!p.discount_value || parseFloat(p.discount_value) <= 0)
+                    return false;
+                  if (p.applies_to === "all") return true;
+                  if (p.applies_to === "specific")
+                    return p.selected_tickets?.includes(t.name);
+                  return false;
+                });
+
+                // Compute the lowest discounted price across all applicable promos
+                const basePrice = parseFloat(t.base_price) || 0;
+                let lowestPrice = basePrice;
+                let bestPromo = null;
+                applicablePromos.forEach((p) => {
+                  const val = parseFloat(p.discount_value);
+                  const discounted =
+                    p.discount_type === "percentage"
+                      ? basePrice - (basePrice * Math.min(val, 100)) / 100
+                      : Math.max(0, basePrice - val);
+                  if (discounted < lowestPrice) {
+                    lowestPrice = discounted;
+                    bestPromo = p;
+                  }
+                });
+                const hasDiscount = bestPromo !== null && basePrice > 0;
+
+                return (
+                  <View key={idx} style={styles.ticketMiniCard}>
+                    {/* Name row + promo badges */}
+                    <View style={styles.ticketMiniNameRow}>
+                      <Text style={styles.ticketMiniName}>{t.name}</Text>
+                      {applicablePromos.map((p, pi) => (
+                        <View
+                          key={pi}
+                          style={[
+                            styles.ticketPromoBadge,
+                            p.offer_type === "promo_code"
+                              ? { backgroundColor: "#F0FDF4" }
+                              : { backgroundColor: "#FFF7ED" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.ticketPromoBadgeText,
+                              p.offer_type === "promo_code"
+                                ? { color: "#16A34A" }
+                                : { color: "#EA580C" },
+                            ]}
+                          >
+                            {p.offer_type === "promo_code"
+                              ? p.code || p.name
+                              : p.name || "Early Bird"}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Price row */}
+                    <View style={styles.ticketMiniRow}>
+                      {basePrice === 0 ? (
+                        <Text style={styles.ticketMiniPrice}>Free</Text>
+                      ) : hasDiscount ? (
+                        <>
+                          <Text style={styles.ticketMiniPriceStrike}>
+                            ₹{t.base_price}
+                          </Text>
+                          <Text style={styles.ticketMiniPriceDiscounted}>
+                            ₹{Math.round(lowestPrice)}
+                          </Text>
+                          <Text style={styles.ticketMiniDot}>•</Text>
+                          <Text
+                            style={[
+                              styles.ticketMiniQty,
+                              {
+                                color:
+                                  bestPromo.offer_type === "promo_code"
+                                    ? "#16A34A"
+                                    : "#EA580C",
+                              },
+                            ]}
+                          >
+                            {bestPromo.discount_type === "percentage"
+                              ? `${bestPromo.discount_value}% OFF`
+                              : `₹${bestPromo.discount_value} OFF`}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.ticketMiniPrice}>
+                          ₹{t.base_price}
+                        </Text>
+                      )}
+                      <Text style={styles.ticketMiniDot}>•</Text>
+                      <Text style={styles.ticketMiniQty}>
+                        {t.total_quantity} available
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
 
               {ticketTypes.length === 0 && (
                 <Text
@@ -1535,20 +1613,13 @@ export default function EditEventModal({
               <X size={24} color={MODAL_TOKENS.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Edit Event</Text>
-            {hasChanges && !loading ? (
+            {hasChanges && currentStep !== totalSteps ? (
               <TouchableOpacity
-                style={styles.saveQuickButton}
-                onPress={handleSave}
+                style={styles.reviewJumpButton}
+                onPress={() => setCurrentStep(totalSteps)}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={MODAL_TOKENS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.saveQuickGradient}
-                >
-                  <Text style={styles.saveQuickText}>Save</Text>
-                </LinearGradient>
+                <Text style={styles.reviewJumpButtonText}>Review</Text>
               </TouchableOpacity>
             ) : (
               <View style={{ width: 60 }} />
@@ -1748,18 +1819,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  saveQuickButton: {
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  saveQuickGradient: {
-    paddingHorizontal: 16,
+  reviewJumpButton: {
+    backgroundColor: MODAL_TOKENS.primary,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
-  saveQuickText: {
+  reviewJumpButtonText: {
     fontFamily: MODAL_TOKENS.fonts.semibold,
     fontSize: 13,
     color: "#FFFFFF",
@@ -2175,7 +2243,23 @@ const styles = StyleSheet.create({
     fontFamily: MODAL_TOKENS.fonts.semibold,
     fontSize: 14,
     color: MODAL_TOKENS.textPrimary,
-    marginBottom: 4,
+  },
+  ticketMiniNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
+  },
+  ticketPromoBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ticketPromoBadgeText: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 10,
+    letterSpacing: 0.3,
   },
   ticketMiniRow: {
     flexDirection: "row",
@@ -2196,6 +2280,17 @@ const styles = StyleSheet.create({
     fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 13,
     color: MODAL_TOKENS.textSecondary,
+  },
+  ticketMiniPriceStrike: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textMuted,
+    textDecorationLine: "line-through",
+  },
+  ticketMiniPriceDiscounted: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
   },
 
   // ── Unsaved Changes Modal ──

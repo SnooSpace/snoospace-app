@@ -497,6 +497,20 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_pricing_rules_event ON pricing_rules(event_id);
       CREATE INDEX IF NOT EXISTS idx_pricing_rules_active ON pricing_rules(is_active, event_id);
 
+      -- Add applies_to and selected_tickets columns for promo-to-ticket mapping
+      DO $$ BEGIN
+        ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS applies_to TEXT DEFAULT 'all';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS selected_tickets JSONB DEFAULT '[]'::jsonb;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS applies_to TEXT DEFAULT 'all';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS selected_tickets JSONB DEFAULT '[]'::jsonb;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
       -- ============================================================
       -- Event Visibility & Ticket Gifting System
       -- ============================================================

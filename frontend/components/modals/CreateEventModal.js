@@ -376,6 +376,7 @@ const CreateEventModal = ({
     has_end_time: hasEndTime,
     gates_open_time: gatesOpenTime ? gatesOpenTime.toISOString() : null,
     has_gates: hasGates,
+    has_reached_review: hasReachedReview,
     event_type: eventType,
     location_url: locationUrl,
     location_name: locationName.trim(),
@@ -472,6 +473,11 @@ const CreateEventModal = ({
             ? draft.data.has_gates
             : draft.data.hasGates || false,
         );
+        // Restore gates open time
+        const gatesTimeStr = draft.data.gates_open_time;
+        if (gatesTimeStr) {
+          setGatesOpenTime(new Date(gatesTimeStr));
+        }
         setEventType(
           draft.data.event_type || draft.data.eventType || "in-person",
         );
@@ -525,6 +531,10 @@ const CreateEventModal = ({
           if (legacyPromos.length > 0) setPromos(legacyPromos);
         }
 
+        // Restore hasReachedReview so the Review shortcut button persists
+        if (draft.data.has_reached_review) {
+          setHasReachedReview(true);
+        }
         setCurrentStep(draft.currentStep || 1);
       }
     } catch (error) {
@@ -569,6 +579,8 @@ const CreateEventModal = ({
     title,
     eventDate,
     endDate,
+    gatesOpenTime,
+    hasGates,
     eventType,
     locationUrl,
     locationName,
@@ -2253,8 +2265,9 @@ const CreateEventModal = ({
         <EventSuccessModal
           visible={showSuccessModal}
           eventData={createdEvent}
-          onClose={() => {
+          onClose={async () => {
             setShowSuccessModal(false);
+            await deleteDraftData();
             resetForm();
             onEventCreated?.(createdEvent);
             onClose();

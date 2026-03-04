@@ -273,25 +273,29 @@ export default function CommunityDashboardScreen({ navigation }) {
   const handleEventLongPress = (event) => {
     const options = [];
 
-    // Edit — always available for community events
-    options.push({
-      text: "Edit Event",
-      onPress: () => {
-        setModalConfig((prev) => ({ ...prev, visible: false }));
-        setTimeout(() => {
-          setSelectedEvent(event);
-          setShowEditEventModal(true);
-        }, 300);
-      },
-      style: "default",
-    });
+    // Edit — only for upcoming (non-past) events
+    if (!event.is_past) {
+      options.push({
+        text: "Edit Event",
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            setSelectedEvent(event);
+            setShowEditEventModal(true);
+          }, 300);
+        },
+        style: "default",
+      });
+    }
 
     // View Details
     options.push({
       text: "View Details",
       onPress: () => {
         setModalConfig((prev) => ({ ...prev, visible: false }));
-        handleEventPress(event);
+        setTimeout(() => {
+          navigation.navigate("EventAttendees", { event });
+        }, 300);
       },
       style: "default",
     });

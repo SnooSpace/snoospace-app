@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { COLORS, SHADOWS } from "../../constants/theme";
+import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -49,7 +49,7 @@ export default function ActionModal({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <BlurView
-            intensity={20}
+            intensity={25}
             style={StyleSheet.absoluteFill}
             tint="dark"
           />
@@ -57,29 +57,35 @@ export default function ActionModal({
           <TouchableWithoutFeedback>
             <View style={styles.container}>
               <View style={styles.contentContainer}>
-                <View style={styles.textContainer}>
-                  {title && <Text style={styles.title}>{title}</Text>}
-                  {message && <Text style={styles.message}>{message}</Text>}
-                </View>
+                {(title || message) && (
+                  <View style={styles.textContainer}>
+                    {title && <Text style={styles.title}>{title}</Text>}
+                    {message && <Text style={styles.message}>{message}</Text>}
+                  </View>
+                )}
 
                 {sortedActions.map((action, index) => {
                   const isCancel = action.style === "cancel";
                   const isDestructive = action.style === "destructive";
 
-                  // Add separator if not the first item (text container is first)
-                  const showSeparator = true;
+                  // Add separator if it's not the first element, or if there's a header before it
+                  const needsTopBorder = index > 0 || title || message;
 
                   return (
                     <TouchableOpacity
                       key={index}
                       style={[
                         styles.actionButton,
-                        { borderTopWidth: 1, borderTopColor: "#F0F0F0" },
+                        needsTopBorder && {
+                          borderTopWidth: 1,
+                          borderTopColor: "rgba(0,0,0,0.06)",
+                        },
                         isCancel && styles.cancelButton,
                       ]}
                       onPress={() => {
                         action.onPress && action.onPress();
                       }}
+                      activeOpacity={0.7}
                     >
                       <Text
                         style={[
@@ -105,10 +111,10 @@ export default function ActionModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(15, 23, 42, 0.4)", // Darker, premium overlay
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: 36,
   },
   container: {
     width: "100%",
@@ -117,48 +123,50 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    ...SHADOWS.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24, // Modern large radius
+    ...SHADOWS.large,
     overflow: "hidden",
   },
   textContainer: {
-    padding: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
     alignItems: "center",
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#000000",
-    marginBottom: 8,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 6,
     textAlign: "center",
   },
   message: {
-    fontSize: 13,
-    color: "#666666",
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 14,
+    color: COLORS.textSecondary,
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 20,
   },
   actionButton: {
     width: "100%",
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
   },
   cancelButton: {
-    backgroundColor: "#1D1D1F",
+    backgroundColor: COLORS.textPrimary, // Almost black
+    borderTopWidth: 0,
   },
   actionText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive
     fontSize: 16,
-    fontWeight: "600",
-    color: "#007AFF",
+    color: COLORS.primary,
   },
   destructiveText: {
-    color: "#FF3B30",
+    color: COLORS.error,
   },
   cancelText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+    color: COLORS.surface,
   },
 });

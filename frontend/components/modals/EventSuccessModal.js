@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withSequence,
   Easing,
 } from "react-native-reanimated";
 import Svg, {
@@ -37,17 +38,31 @@ const colors = {
   success: "#2E7D6B",
 };
 
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedLine = Animated.createAnimatedComponent(Line);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+
 const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
   const navigation = useNavigation();
 
-  // Animations
+  // Entrance
   const enterScale = useSharedValue(0.92);
   const enterOpacity = useSharedValue(0);
 
+  // Layout Layers
   const glowOpacity = useSharedValue(0.85);
   const ticketY = useSharedValue(0);
+  const ticketRotateX = useSharedValue(0);
+  const ticketRotateY = useSharedValue(0);
   const badgeScale = useSharedValue(1);
 
+  // --- SVG DRAWING ANIMATIONS (5s LOOP) ---
+  const dashTicketPath = useSharedValue(600);
+  const dashPerforation = useSharedValue(160);
+  const dashCheckmark = useSharedValue(50);
+  const topHighlightBadge = useSharedValue(120);
+
+  // Accents drift
   const accent1X = useSharedValue(0);
   const accent1Y = useSharedValue(0);
   const accent2X = useSharedValue(0);
@@ -66,28 +81,72 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
       });
       enterOpacity.value = withTiming(1, { duration: 350 });
 
-      // Layer 1: Glow Breathing
+      // -- DRAWING ANIMATIONS -- (5000ms looping cycle)
+      dashTicketPath.value = withRepeat(
+        withTiming(0, { duration: 5000, easing: Easing.inOut(Easing.cubic) }),
+        -1,
+        false,
+      );
+
+      dashPerforation.value = withRepeat(
+        withTiming(0, { duration: 5000, easing: Easing.inOut(Easing.cubic) }),
+        -1,
+        false,
+      );
+
+      dashCheckmark.value = withRepeat(
+        withTiming(0, { duration: 5000, easing: Easing.inOut(Easing.cubic) }),
+        -1,
+        false,
+      );
+
+      topHighlightBadge.value = withRepeat(
+        withTiming(0, { duration: 5000, easing: Easing.inOut(Easing.cubic) }),
+        -1,
+        false,
+      );
+
+      // Layer 1: Glow Breathing (2.5s -> exactly halves the 5s loop)
       glowOpacity.value = withRepeat(
-        withTiming(1, { duration: 2250, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
         -1,
         true,
       );
 
-      // Layer 2: Ticket Float
+      // Layer 2: Ticket Float (2.5s)
       ticketY.value = withRepeat(
         withTiming(-6, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
         -1,
         true,
       );
 
-      // Layer 3: Badge Pulse
-      badgeScale.value = withRepeat(
-        withTiming(1.05, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+      // Layer 2: Ticket 3D Sway (5s loop full rotation cycle)
+      ticketRotateX.value = withRepeat(
+        withSequence(
+          withTiming(4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        ),
         -1,
         true,
       );
 
-      // Layer 4: Accents drift
+      ticketRotateY.value = withRepeat(
+        withSequence(
+          withTiming(-4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        true,
+      );
+
+      // Layer 3: Badge Pulse (2.5s)
+      badgeScale.value = withRepeat(
+        withTiming(1.05, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true,
+      );
+
+      // Layer 4: Accents drift (Sync'd slowly mapped to 5s loops)
       const createDrift = (svX, svY, durationX, durationY, distance) => {
         svX.value = withRepeat(
           withTiming(distance, {
@@ -107,15 +166,22 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
         );
       };
 
-      createDrift(accent1X, accent1Y, 3200, 3500, 3);
-      createDrift(accent2X, accent2Y, 3600, 3100, -2.5);
-      createDrift(accent3X, accent3Y, 3400, 3800, 3);
+      createDrift(accent1X, accent1Y, 5000, 5000, 3);
+      createDrift(accent2X, accent2Y, 5000, 5000, -2.5);
+      createDrift(accent3X, accent3Y, 5000, 5000, 3);
     } else {
       enterScale.value = 0.92;
       enterOpacity.value = 0;
       glowOpacity.value = 0.85;
       ticketY.value = 0;
+      ticketRotateX.value = 0;
+      ticketRotateY.value = 0;
       badgeScale.value = 1;
+
+      dashTicketPath.value = 600;
+      dashPerforation.value = 160;
+      dashCheckmark.value = 50;
+      topHighlightBadge.value = 120;
 
       accent1X.value = 0;
       accent1Y.value = 0;
@@ -125,6 +191,20 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
       accent3Y.value = 0;
     }
   }, [visible]);
+
+  // Animated Prop Maps
+  const propTicketPath = useAnimatedStyle(() => ({
+    strokeDashoffset: dashTicketPath.value,
+  }));
+  const propDashPerforation = useAnimatedStyle(() => ({
+    strokeDashoffset: dashPerforation.value,
+  }));
+  const propCheckmark = useAnimatedStyle(() => ({
+    strokeDashoffset: dashCheckmark.value,
+  }));
+  const propTopBadge = useAnimatedStyle(() => ({
+    strokeDashoffset: topHighlightBadge.value,
+  }));
 
   // Styles
   const containerStyle = useAnimatedStyle(() => ({
@@ -137,7 +217,12 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
   }));
 
   const ticketStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: ticketY.value }],
+    transform: [
+      { perspective: 800 },
+      { translateY: ticketY.value },
+      { rotateX: `${ticketRotateX.value}deg` },
+      { rotateY: `${ticketRotateY.value}deg` },
+    ],
   }));
 
   const badgeStyle = useAnimatedStyle(() => ({
@@ -239,10 +324,14 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
                   </LinearGradient>
                 </Defs>
 
-                {/* Ticket Base */}
-                <Path
+                {/* Ticket Base (Drawn) */}
+                <AnimatedPath
                   d="M20,0 H120 A20,20 0 0,1 140,20 V130 A8,8 0 0,0 140,146 V170 A20,20 0 0,1 120,190 H20 A20,20 0 0,1 0,170 V146 A8,8 0 0,0 0,130 V20 A20,20 0 0,1 20,0 Z"
                   fill="url(#ticketGrad)"
+                  stroke="#2E7D6B"
+                  strokeWidth="0.8"
+                  strokeDasharray="600"
+                  animatedProps={propTicketPath}
                 />
 
                 {/* 1px inner highlight top edge */}
@@ -293,16 +382,17 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
                   opacity="0.12"
                 />
 
-                {/* Perforation dashes across the cutout center */}
-                <Line
+                {/* Perforation dashes across the cutout center (Drawn) */}
+                <AnimatedLine
                   x1="12"
                   y1="138"
                   x2="128"
                   y2="138"
                   stroke="#64748B"
                   strokeWidth="1"
-                  strokeDasharray="4 4"
+                  strokeDasharray="4 4 160"
                   opacity="0.25"
+                  animatedProps={propDashPerforation}
                 />
               </Svg>
             </Animated.View>
@@ -333,22 +423,26 @@ const EventSuccessModal = ({ visible, onClose, onViewEvent, eventData }) => {
                 {/* Badge Body */}
                 <Circle cx="44" cy="44" r="26" fill="url(#badgeGrad)" />
 
-                {/* Inner top highlight (white 20%) */}
-                <Path
+                {/* Inner top highlight (white 20%) (Drawn) */}
+                <AnimatedPath
                   d="M 19 44 A 25 25 0 0 1 69 44"
                   fill="none"
                   stroke="rgba(255,255,255,0.2)"
                   strokeWidth="1.5"
+                  strokeDasharray="120"
+                  animatedProps={propTopBadge}
                 />
 
-                {/* Solid Checkmark */}
-                <Path
+                {/* Solid Checkmark (Drawn) */}
+                <AnimatedPath
                   d="M 36 44 L 42 50 L 52 38"
                   fill="none"
                   stroke="#FFFFFF"
                   strokeWidth="3.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeDasharray="50"
+                  animatedProps={propCheckmark}
                 />
               </Svg>
             </Animated.View>
