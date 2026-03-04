@@ -547,800 +547,841 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
   // Get progress bar color based on percentage
   const progressBarColor = getProgressBarColor(registrationProgress.percentage);
-
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <SnooLoader size="large" color={PRIMARY_COLOR} />
-      </View>
-    );
-  }
-
-  if (error || !event) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <AlertCircle size={48} color={MUTED_TEXT} />
-        <Text style={[styles.errorText, { fontFamily: "Manrope-Medium" }]}>
-          {error || "Event not found"}
-        </Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.retryButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   // Handle multiple possible banner field names from API
   const banners =
-    event.banner_carousel?.length > 0
+    event?.banner_carousel?.length > 0
       ? event.banner_carousel
-      : event.banners?.length > 0
+      : event?.banners?.length > 0
         ? event.banners
-        : event.banner_url
+        : event?.banner_url
           ? [{ image_url: event.banner_url, url: event.banner_url }]
           : [];
 
-  const categories = event.categories
+  const categories = event?.categories
     ? Array.isArray(event.categories)
       ? event.categories
       : [event.categories]
     : [];
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
-
-      {/* 🌟 Final Fixed Header System (Pinned Header with Scrim) */}
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: insets.top + (Platform.OS === "ios" ? 44 : 56),
-          zIndex: 1001,
-          pointerEvents: "box-none",
-        }}
-      >
-        {/* Header Background (Fades in) */}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: "rgba(255, 255, 255, 0.98)",
-              opacity: headerBgOpacity,
-              elevation: scrollY.interpolate({
-                inputRange: [0, 50],
-                outputRange: [0, 4],
-                extrapolate: "clamp",
-              }),
-            },
-          ]}
-        />
-
-        {/* Centered Title Layer (Absolute for perfect centering) */}
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              paddingTop: insets.top,
-              justifyContent: "center",
-              alignItems: "center",
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <Animated.Text
-            style={[styles.headerTitle, { opacity: headerTitleOpacity }]}
-            numberOfLines={1}
-          >
-            {event?.title}
-          </Animated.Text>
+    <>
+      <DynamicStatusBar style="dark-content" />
+      {loading ? (
+        <View style={[styles.container, styles.centered]}>
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
-
-        {/* Buttons Layer (Floating on top of scrim) */}
-        <View
-          style={[
-            styles.floatingHeader,
-            {
-              paddingTop: insets.top,
-              height: "100%",
-            },
-          ]}
-        >
+      ) : error || !event ? (
+        <View style={[styles.container, styles.centered]}>
+          <AlertCircle size={48} color={MUTED_TEXT} />
+          <Text style={[styles.errorText, { fontFamily: "Manrope-Medium" }]}>
+            {error || "Event not found"}
+          </Text>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={styles.retryButton}
             onPress={() => navigation.goBack()}
           >
-            <ArrowLeft size={24} color="#1D1D1F" strokeWidth={2} />
+            <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.container}>
+          {/* 🌟 Final Fixed Header System (Pinned Header with Scrim) */}
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: insets.top + (Platform.OS === "ios" ? 44 : 56),
+              zIndex: 1001,
+              pointerEvents: "box-none",
+            }}
+          >
+            {/* Header Background (Fades in) */}
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: "rgba(255, 255, 255, 0.98)",
+                  opacity: headerBgOpacity,
+                  elevation: scrollY.interpolate({
+                    inputRange: [0, 50],
+                    outputRange: [0, 4],
+                    extrapolate: "clamp",
+                  }),
+                },
+              ]}
+            />
 
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-              <ShareIcon size={22} color="#1D1D1F" strokeWidth={2} />
-            </TouchableOpacity>
-            {currentUser?.type === "member" && (
+            {/* Centered Title Layer (Absolute for perfect centering) */}
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  paddingTop: insets.top,
+                  justifyContent: "center",
+                  alignItems: "center",
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <Animated.Text
+                style={[styles.headerTitle, { opacity: headerTitleOpacity }]}
+                numberOfLines={1}
+              >
+                {event?.title}
+              </Animated.Text>
+            </View>
+
+            {/* Buttons Layer (Floating on top of scrim) */}
+            <View
+              style={[
+                styles.floatingHeader,
+                {
+                  paddingTop: insets.top,
+                  height: "100%",
+                },
+              ]}
+            >
               <TouchableOpacity
                 style={styles.headerButton}
-                onPress={handleBookmark}
-                disabled={bookmarkLoading}
+                onPress={() => navigation.goBack()}
               >
-                <Bookmark
-                  size={22}
-                  color="#1D1D1F"
-                  strokeWidth={2}
-                  fill={isInterested ? "#1D1D1F" : "transparent"}
-                />
+                <ArrowLeft size={24} color="#1D1D1F" strokeWidth={2} />
               </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </View>
 
-      <Animated.ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
-        scrollEventThrottle={16}
-      >
-        {/* Banner Section */}
-        <View style={styles.bannerContainer}>
-          {banners.length > 0 ? (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => {
-                const index = Math.round(
-                  e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
-                );
-                setCurrentBannerIndex(index);
-              }}
-            >
-              {banners.map((banner, index) => (
-                <View key={index}>
-                  <Image
-                    source={{ uri: banner.image_url || banner.url }}
+              <View style={styles.headerRight}>
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={handleShare}
+                >
+                  <ShareIcon size={22} color="#1D1D1F" strokeWidth={2} />
+                </TouchableOpacity>
+                {currentUser?.type === "member" && (
+                  <TouchableOpacity
+                    style={styles.headerButton}
+                    onPress={handleBookmark}
+                    disabled={bookmarkLoading}
+                  >
+                    <Bookmark
+                      size={22}
+                      color="#1D1D1F"
+                      strokeWidth={2}
+                      fill={isInterested ? "#1D1D1F" : "transparent"}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <Animated.ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: true },
+            )}
+            scrollEventThrottle={16}
+          >
+            {/* Banner Section */}
+            <View style={styles.bannerContainer}>
+              {banners.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e) => {
+                    const index = Math.round(
+                      e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
+                    );
+                    setCurrentBannerIndex(index);
+                  }}
+                >
+                  {banners.map((banner, index) => (
+                    <View key={index}>
+                      <Image
+                        source={{ uri: banner.image_url || banner.url }}
+                        style={styles.bannerImage}
+                        resizeMode="cover"
+                      />
+                      <LinearGradient
+                        colors={["rgba(0,0,0,0.5)", "transparent"]}
+                        locations={[0, 0.3]}
+                        style={StyleSheet.absoluteFillObject}
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View>
+                  <LinearGradient
+                    colors={getGradientForName(event.title)}
                     style={styles.bannerImage}
-                    resizeMode="cover"
                   />
                   <LinearGradient
-                    colors={["rgba(0,0,0,0.5)", "transparent"]}
-                    locations={[0, 0.3]}
+                    colors={[
+                      "rgba(0,0,0,0.6)",
+                      "transparent",
+                      "rgba(0,0,0,0.8)",
+                    ]}
+                    locations={[0, 0.4, 1]}
                     style={StyleSheet.absoluteFillObject}
                   />
                 </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <View>
-              <LinearGradient
-                colors={getGradientForName(event.title)}
-                style={styles.bannerImage}
-              />
-              <LinearGradient
-                colors={["rgba(0,0,0,0.6)", "transparent", "rgba(0,0,0,0.8)"]}
-                locations={[0, 0.4, 1]}
-                style={StyleSheet.absoluteFillObject}
-              />
-            </View>
-          )}
+              )}
 
-          {/* Banner Dots */}
-          {banners.length > 1 && (
-            <View style={styles.dotsContainer}>
-              {banners.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.dot,
-                    currentBannerIndex === index && styles.activeDot,
-                  ]}
-                />
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* 2️⃣ Sticky Action Section (Hero Information + Action) */}
-        <View
-          style={[
-            styles.stickyActionContainer,
-            { paddingTop: 24, paddingBottom: 24, marginTop: -24 },
-          ]}
-        >
-          {/* Status Chips and Category Row */}
-          <View style={{ marginBottom: 16 }}>
-            {/* Status Messages (Ended/Cancelled) */}
-            {eventState === EVENT_STATES.COMPLETED && !isRegistered && (
-              <View style={[styles.statusChip, { backgroundColor: "#F3F4F6" }]}>
-                <Text style={styles.statusText}>Event Ended</Text>
-              </View>
-            )}
-            {eventState === EVENT_STATES.CANCELLED && (
-              <View style={[styles.statusChip, { backgroundColor: "#FEF2F2" }]}>
-                <Text style={[styles.statusText, { color: "#DC2626" }]}>
-                  Cancelled
-                </Text>
-              </View>
-            )}
-
-            {/* Horizontal Scrollable Categories */}
-            {categories.length > 0 && (
-              <Animated.View
-                style={{
-                  opacity: categoriesAnim,
-                  transform: [
-                    {
-                      translateX: categoriesAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={[
-                    styles.categoriesScrollContent,
-                    categories.length <= 2 && {
-                      flex: 1,
-                      justifyContent: "center",
-                    },
-                  ]}
-                  style={styles.categoriesScroll}
-                >
-                  {categories.map((category, index) => (
-                    <View key={index} style={styles.categoryChip}>
-                      <Text style={styles.categoryText}>{category}</Text>
-                    </View>
+              {/* Banner Dots */}
+              {banners.length > 1 && (
+                <View style={styles.dotsContainer}>
+                  {banners.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.dot,
+                        currentBannerIndex === index && styles.activeDot,
+                      ]}
+                    />
                   ))}
-                </ScrollView>
-              </Animated.View>
-            )}
-          </View>
-
-          <Text
-            style={{
-              fontFamily: "BasicCommercialBlack",
-              fontSize: 28,
-              color: TEXT_COLOR,
-              marginBottom: 16,
-              lineHeight: 32,
-            }}
-            numberOfLines={3}
-          >
-            {event.title}
-          </Text>
-
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 8,
-            }}
-          >
-            <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
-            <Text
-              style={{
-                fontFamily: "Manrope-Medium",
-                fontSize: 15,
-                color: MUTED_TEXT,
-                marginLeft: 8,
-              }}
-            >
-              {formatDateTime(
-                event.start_datetime || event.event_date,
-                event.end_datetime,
+                </View>
               )}
-            </Text>
-          </View>
+            </View>
 
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 28,
-            }}
-          >
-            <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
-            <Text
-              style={{
-                fontFamily: "Manrope-Medium",
-                fontSize: 15,
-                color: MUTED_TEXT,
-                marginLeft: 8,
-              }}
-              numberOfLines={1}
-            >
-              {displayLocationName}
-            </Text>
-          </View>
-
-          {eventState === EVENT_STATES.COMPLETED && !isRegistered ? (
+            {/* 2️⃣ Sticky Action Section (Hero Information + Action) */}
             <View
-              style={{
-                backgroundColor: "#F9FAFB",
-                padding: 16,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "#F3F4F6",
-                alignItems: "center",
-              }}
+              style={[
+                styles.stickyActionContainer,
+                { paddingTop: 24, paddingBottom: 24, marginTop: -24 },
+              ]}
             >
+              {/* Status Chips and Category Row */}
+              <View style={{ marginBottom: 16 }}>
+                {/* Status Messages (Ended/Cancelled) */}
+                {eventState === EVENT_STATES.COMPLETED && !isRegistered && (
+                  <View
+                    style={[styles.statusChip, { backgroundColor: "#F3F4F6" }]}
+                  >
+                    <Text style={styles.statusText}>Event Ended</Text>
+                  </View>
+                )}
+                {eventState === EVENT_STATES.CANCELLED && (
+                  <View
+                    style={[styles.statusChip, { backgroundColor: "#FEF2F2" }]}
+                  >
+                    <Text style={[styles.statusText, { color: "#DC2626" }]}>
+                      Cancelled
+                    </Text>
+                  </View>
+                )}
+
+                {/* Horizontal Scrollable Categories */}
+                {categories.length > 0 && (
+                  <Animated.View
+                    style={{
+                      opacity: categoriesAnim,
+                      transform: [
+                        {
+                          translateX: categoriesAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={[
+                        styles.categoriesScrollContent,
+                        categories.length <= 2 && {
+                          flex: 1,
+                          justifyContent: "center",
+                        },
+                      ]}
+                      style={styles.categoriesScroll}
+                    >
+                      {categories.map((category, index) => (
+                        <View key={index} style={styles.categoryChip}>
+                          <Text style={styles.categoryText}>{category}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
+                )}
+              </View>
+
               <Text
                 style={{
-                  fontFamily: "Manrope-Medium",
-                  fontSize: 14,
-                  color: MUTED_TEXT,
-                  textAlign: "center",
+                  fontFamily: "BasicCommercial-Bold",
+                  fontSize: 28,
+                  color: TEXT_COLOR,
+                  marginBottom: 16,
+                  lineHeight: 32,
                 }}
+                numberOfLines={3}
               >
-                This event is no longer accepting registrations.
+                {event.title}
               </Text>
-            </View>
-          ) : eventState === EVENT_STATES.CANCELLED ? (
-            <View
-              style={{
-                backgroundColor: "#FEF2F2",
-                padding: 16,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "#FEE2E2",
-                alignItems: "center",
-              }}
-            >
-              <Text
+
+              <View
                 style={{
-                  fontFamily: "Manrope-Medium",
-                  fontSize: 14,
-                  color: "#DC2626",
-                  textAlign: "center",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
                 }}
               >
-                This event has been cancelled.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.stickyActionContent}>
-              <View style={styles.stickyPriceContainer}>
-                <Text style={styles.stickyPriceLabel}>Starting from</Text>
-                <Text style={styles.stickyPriceValue}>
-                  {(() => {
-                    const hasTicketTypes = event.ticket_types?.length > 0;
-                    const lowestPrice =
-                      event.min_price !== null && event.min_price !== undefined
-                        ? event.min_price
-                        : hasTicketTypes
-                          ? Math.min(
-                              ...event.ticket_types.map(
-                                (t) => parseFloat(t.base_price) || 0,
-                              ),
-                            )
-                          : event.ticket_price
-                            ? parseFloat(event.ticket_price)
-                            : 0;
-                    return lowestPrice === 0
-                      ? "Free"
-                      : "₹" + lowestPrice.toLocaleString("en-IN");
-                  })()}
+                <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Medium",
+                    fontSize: 15,
+                    color: MUTED_TEXT,
+                    marginLeft: 8,
+                  }}
+                >
+                  {formatDateTime(
+                    event.start_datetime || event.event_date,
+                    event.end_datetime,
+                  )}
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.stickyRegisterButton,
-                  isRestrictedRole &&
-                    !isInviteOnlyNotInvited &&
-                    styles.stickyRegisterButtonDisabled,
-                  isRegistered && styles.stickyRegisterButtonRegistered,
-                ]}
-                onPress={
-                  isInviteOnlyNotInvited && !inviteRequestStatus
-                    ? handleRequestInvite
-                    : handleRegister
-                }
-                activeOpacity={0.8}
-                disabled={
-                  requestingInvite || (!!inviteRequestStatus && !isInvited)
-                }
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 28,
+                }}
               >
-                {requestingInvite ? (
-                  <SnooLoader color="#FFFFFF" size="small" />
-                ) : (
-                  <Text
-                    style={[
-                      styles.stickyRegisterText,
-                      isRegistered && { color: "#FFFFFF" },
-                    ]}
-                  >
-                    {isRegistered
-                      ? "View Ticket"
-                      : inviteRequestStatus === "pending" && !isInvited
-                        ? "Requested"
-                        : isInviteOnlyNotInvited
-                          ? "Request Invite"
-                          : event.ticket_types?.length > 0 || event.ticket_price
-                            ? "Register Now"
-                            : "Register"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          {/* About Section */}
-          {event.description && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About Event</Text>
-              <Text
-                style={styles.description}
-                numberOfLines={descriptionExpanded ? undefined : 4}
-              >
-                {event.description}
-              </Text>
-              {event.description.length > 200 && (
-                <TouchableOpacity
-                  onPress={() => setDescriptionExpanded(!descriptionExpanded)}
+                <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Medium",
+                    fontSize: 15,
+                    color: MUTED_TEXT,
+                    marginLeft: 8,
+                  }}
+                  numberOfLines={1}
                 >
-                  <Text style={styles.readMore}>
-                    {descriptionExpanded ? "Show less" : "Read more"} ›
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+                  {displayLocationName}
+                </Text>
+              </View>
 
-          {/* Highlights Section */}
-          {event.highlights?.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Event Highlights</Text>
-              {event.highlights.map((highlight, index) => (
-                <View key={index} style={styles.highlightItem}>
-                  <Star size={20} color={PRIMARY_COLOR} strokeWidth={2} />
-                  <View style={styles.highlightContent}>
-                    <Text style={styles.highlightTitle}>{highlight.title}</Text>
-                    {highlight.description && (
-                      <Text style={styles.highlightDesc}>
-                        {highlight.description}
+              {eventState === EVENT_STATES.COMPLETED && !isRegistered ? (
+                <View
+                  style={{
+                    backgroundColor: "#F9FAFB",
+                    padding: 16,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: "#F3F4F6",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 14,
+                      color: MUTED_TEXT,
+                      textAlign: "center",
+                    }}
+                  >
+                    This event is no longer accepting registrations.
+                  </Text>
+                </View>
+              ) : eventState === EVENT_STATES.CANCELLED ? (
+                <View
+                  style={{
+                    backgroundColor: "#FEF2F2",
+                    padding: 16,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: "#FEE2E2",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 14,
+                      color: "#DC2626",
+                      textAlign: "center",
+                    }}
+                  >
+                    This event has been cancelled.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.stickyActionContent}>
+                  <View style={styles.stickyPriceContainer}>
+                    <Text style={styles.stickyPriceLabel}>Starting from</Text>
+                    <Text style={styles.stickyPriceValue}>
+                      {(() => {
+                        const hasTicketTypes = event.ticket_types?.length > 0;
+                        const lowestPrice =
+                          event.min_price !== null &&
+                          event.min_price !== undefined
+                            ? event.min_price
+                            : hasTicketTypes
+                              ? Math.min(
+                                  ...event.ticket_types.map(
+                                    (t) => parseFloat(t.base_price) || 0,
+                                  ),
+                                )
+                              : event.ticket_price
+                                ? parseFloat(event.ticket_price)
+                                : 0;
+                        return lowestPrice === 0
+                          ? "Free"
+                          : "₹" + lowestPrice.toLocaleString("en-IN");
+                      })()}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.stickyRegisterButton,
+                      isRestrictedRole &&
+                        !isInviteOnlyNotInvited &&
+                        styles.stickyRegisterButtonDisabled,
+                      isRegistered && styles.stickyRegisterButtonRegistered,
+                    ]}
+                    onPress={
+                      isInviteOnlyNotInvited && !inviteRequestStatus
+                        ? handleRequestInvite
+                        : handleRegister
+                    }
+                    activeOpacity={0.8}
+                    disabled={
+                      requestingInvite || (!!inviteRequestStatus && !isInvited)
+                    }
+                  >
+                    {requestingInvite ? (
+                      <SnooLoader color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.stickyRegisterText,
+                          isRegistered && { color: "#FFFFFF" },
+                        ]}
+                      >
+                        {isRegistered
+                          ? "View Ticket"
+                          : inviteRequestStatus === "pending" && !isInvited
+                            ? "Requested"
+                            : isInviteOnlyNotInvited
+                              ? "Request Invite"
+                              : event.ticket_types?.length > 0 ||
+                                  event.ticket_price
+                                ? "Register Now"
+                                : "Register"}
                       </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 </View>
-              ))}
-            </View>
-          )}
-
-          {/* Things to Know Section */}
-          {event.things_to_know?.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Things to Know</Text>
-              {event.things_to_know.slice(0, 3).map((item, index) => (
-                <View key={index} style={styles.thingRow}>
-                  <Info size={22} color={TEXT_COLOR} strokeWidth={2} />
-                  <Text style={styles.thingText}>{item.label}</Text>
-                </View>
-              ))}
-              {event.things_to_know.length > 3 && (
-                <TouchableOpacity>
-                  <Text style={styles.seeAll}>See all ›</Text>
-                </TouchableOpacity>
               )}
             </View>
-          )}
 
-          {/* Featured Accounts Section */}
-          {event.featured_accounts?.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Featured Performers</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {event.featured_accounts.map((account, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.featuredCard,
-                      account.linked_account_id && styles.featuredCardClickable,
-                    ]}
-                    onPress={() => handleFeaturedAccountPress(account)}
-                    disabled={!account.linked_account_id}
-                    activeOpacity={account.linked_account_id ? 0.7 : 1}
+            {/* Content Section */}
+            <View style={styles.contentContainer}>
+              {/* About Section */}
+              {event.description && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>About Event</Text>
+                  <Text
+                    style={styles.description}
+                    numberOfLines={descriptionExpanded ? undefined : 4}
                   >
-                    {account.profile_photo_url || account.account_photo ? (
+                    {event.description}
+                  </Text>
+                  {event.description.length > 200 && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        setDescriptionExpanded(!descriptionExpanded)
+                      }
+                    >
+                      <Text style={styles.readMore}>
+                        {descriptionExpanded ? "Show less" : "Read more"} ›
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Highlights Section */}
+              {event.highlights?.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Event Highlights</Text>
+                  {event.highlights.map((highlight, index) => (
+                    <View key={index} style={styles.highlightItem}>
+                      <Star size={20} color={PRIMARY_COLOR} strokeWidth={2} />
+                      <View style={styles.highlightContent}>
+                        <Text style={styles.highlightTitle}>
+                          {highlight.title}
+                        </Text>
+                        {highlight.description && (
+                          <Text style={styles.highlightDesc}>
+                            {highlight.description}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Things to Know Section */}
+              {event.things_to_know?.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Things to Know</Text>
+                  {event.things_to_know.slice(0, 3).map((item, index) => (
+                    <View key={index} style={styles.thingRow}>
+                      <Info size={22} color={TEXT_COLOR} strokeWidth={2} />
+                      <Text style={styles.thingText}>{item.label}</Text>
+                    </View>
+                  ))}
+                  {event.things_to_know.length > 3 && (
+                    <TouchableOpacity>
+                      <Text style={styles.seeAll}>See all ›</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Featured Accounts Section */}
+              {event.featured_accounts?.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Featured Performers</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {event.featured_accounts.map((account, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.featuredCard,
+                          account.linked_account_id &&
+                            styles.featuredCardClickable,
+                        ]}
+                        onPress={() => handleFeaturedAccountPress(account)}
+                        disabled={!account.linked_account_id}
+                        activeOpacity={account.linked_account_id ? 0.7 : 1}
+                      >
+                        {account.profile_photo_url || account.account_photo ? (
+                          <Image
+                            source={{
+                              uri:
+                                account.profile_photo_url ||
+                                account.account_photo,
+                            }}
+                            style={styles.featuredPhoto}
+                          />
+                        ) : (
+                          <LinearGradient
+                            colors={getGradientForName(
+                              account.display_name ||
+                                account.account_name ||
+                                "A",
+                            )}
+                            style={styles.featuredPhoto}
+                          >
+                            <Text style={styles.featuredInitials}>
+                              {getInitials(
+                                account.display_name ||
+                                  account.account_name ||
+                                  "A",
+                              )}
+                            </Text>
+                          </LinearGradient>
+                        )}
+                        <Text style={styles.featuredName} numberOfLines={1}>
+                          {account.display_name || account.account_name}
+                        </Text>
+                        <View style={styles.roleBadge}>
+                          <Text style={styles.featuredRole}>
+                            {account.role || "Performer"}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Organised By Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Organised By</Text>
+                <TouchableOpacity
+                  style={styles.hostCardPremium}
+                  onPress={handleViewCommunity}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.hostCardInner}>
+                    {event.community_logo ? (
                       <Image
-                        source={{
-                          uri:
-                            account.profile_photo_url || account.account_photo,
-                        }}
-                        style={styles.featuredPhoto}
+                        source={{ uri: event.community_logo }}
+                        style={styles.hostAvatarPremium}
                       />
                     ) : (
                       <LinearGradient
-                        colors={getGradientForName(
-                          account.display_name || account.account_name || "A",
-                        )}
-                        style={styles.featuredPhoto}
+                        colors={getGradientForName(event.community_name || "C")}
+                        style={styles.hostAvatarPremium}
                       >
-                        <Text style={styles.featuredInitials}>
-                          {getInitials(
-                            account.display_name || account.account_name || "A",
-                          )}
+                        <Text style={styles.hostInitials}>
+                          {getInitials(event.community_name || "C")}
                         </Text>
                       </LinearGradient>
                     )}
-                    <Text style={styles.featuredName} numberOfLines={1}>
-                      {account.display_name || account.account_name}
-                    </Text>
-                    <View style={styles.roleBadge}>
-                      <Text style={styles.featuredRole}>
-                        {account.role || "Performer"}
+                    <View style={styles.hostInfoPremium}>
+                      <Text style={styles.hostNamePremium} numberOfLines={1}>
+                        {event.community_name || "Community"}
                       </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Organised By Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Organised By</Text>
-            <TouchableOpacity
-              style={styles.hostCardPremium}
-              onPress={handleViewCommunity}
-              activeOpacity={0.8}
-            >
-              <View style={styles.hostCardInner}>
-                {event.community_logo ? (
-                  <Image
-                    source={{ uri: event.community_logo }}
-                    style={styles.hostAvatarPremium}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={getGradientForName(event.community_name || "C")}
-                    style={styles.hostAvatarPremium}
-                  >
-                    <Text style={styles.hostInitials}>
-                      {getInitials(event.community_name || "C")}
-                    </Text>
-                  </LinearGradient>
-                )}
-                <View style={styles.hostInfoPremium}>
-                  <Text style={styles.hostNamePremium} numberOfLines={1}>
-                    {event.community_name || "Community"}
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={styles.hostStatsPremium}>
-                      {event.community_events_count || "0"} Events •{" "}
-                    </Text>
-                    <BadgeCheck size={14} color={COLORS.primary} />
-                    <Text style={[styles.hostStatsPremium, { marginLeft: 4 }]}>
-                      Verified
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.hostCtaRow}>
-                <Text style={styles.hostCtaText}>View Profile</Text>
-                <MoveRight size={16} color={PRIMARY_COLOR} strokeWidth={2.5} />
-              </View>
-            </TouchableOpacity>
-
-            {/* Community Heads */}
-            {event.community_heads?.length > 0 && (
-              <View style={styles.headsContainer}>
-                <Text style={styles.headsTitle}>
-                  {event.community_heads?.length > 1
-                    ? "Meet the Hosts"
-                    : "Meet the Host"}
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {event.community_heads.map((head, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.headCard,
-                        head.member_id && styles.headCardClickable,
-                      ]}
-                      onPress={() => handleCommunityHeadPress(head)}
-                      disabled={!head.member_id}
-                      activeOpacity={head.member_id ? 0.7 : 1}
-                    >
-                      {head.profile_pic_url || head.profile_photo_url ? (
-                        <Image
-                          source={{
-                            uri: head.profile_pic_url || head.profile_photo_url,
-                          }}
-                          style={styles.headPhoto}
-                        />
-                      ) : (
-                        <LinearGradient
-                          colors={getGradientForName(head.name || "H")}
-                          style={styles.headPhoto}
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
+                        <Text style={styles.hostStatsPremium}>
+                          {event.community_events_count || "0"} Events •{" "}
+                        </Text>
+                        <BadgeCheck size={14} color={COLORS.primary} />
+                        <Text
+                          style={[styles.hostStatsPremium, { marginLeft: 4 }]}
                         >
-                          <Text style={styles.headInitials}>
-                            {getInitials(head.name || "H")}
-                          </Text>
-                        </LinearGradient>
-                      )}
-                      <Text style={styles.headName} numberOfLines={1}>
-                        {head.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Enhanced View Attendees Section - always visible for members */}
-          {viewAttendeesState.visible && (
-            <View style={styles.viewAttendeesSection}>
-              {/* View Attendees Button */}
-              <TouchableOpacity
-                style={[
-                  styles.viewAttendeesButton,
-                  viewAttendeesState.locked && styles.viewAttendeesButtonLocked,
-                ]}
-                onPress={
-                  viewAttendeesState.locked
-                    ? triggerLockedToast
-                    : handleViewAttendees
-                }
-                activeOpacity={0.7}
-              >
-                <View style={styles.viewAttendeesContent}>
-                  {viewAttendeesState.locked ? (
-                    <Lock size={20} color={MUTED_TEXT} strokeWidth={2} />
-                  ) : (
-                    <Users size={20} color={COLORS.primary} strokeWidth={2} />
-                  )}
-                  <Text
-                    style={[
-                      styles.viewAttendeesText,
-                      viewAttendeesState.locked && { color: MUTED_TEXT },
-                    ]}
-                  >
-                    View Attendees
-                  </Text>
-                </View>
-                <MoveRight size={20} color={MUTED_TEXT} strokeWidth={2.5} />
-              </TouchableOpacity>
-
-              {/* Registration Progress */}
-              <View style={styles.registrationProgress}>
-                {/* Badges */}
-                {registrationProgress.soldOut ? (
-                  <View
-                    style={[
-                      styles.progressBadge,
-                      { backgroundColor: "#FEE2E2" },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.progressBadgeText, { color: "#DC2626" }]}
-                    >
-                      Sold Out
-                    </Text>
+                          Verified
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                ) : registrationProgress.almostFull ? (
-                  <View
-                    style={[
-                      styles.progressBadge,
-                      { backgroundColor: "#FEF3C7" },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.progressBadgeText, { color: "#D97706" }]}
-                    >
-                      Almost Full
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Progress Text */}
-                <Text style={styles.progressText}>
-                  {registrationProgress.registered === 0
-                    ? "Be the first to join! 🎉"
-                    : registrationProgress.unlimited
-                      ? `${registrationProgress.registered} registered`
-                      : `${registrationProgress.registered} of ${registrationProgress.capacity} registered`}
-                </Text>
-
-                {/* Progress Bar - only show if not unlimited */}
-                {!registrationProgress.unlimited && (
-                  <View style={styles.progressBarContainer}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        {
-                          width: `${registrationProgress.percentage}%`,
-                          backgroundColor: progressBarColor,
-                        },
-                      ]}
+                  <View style={styles.hostCtaRow}>
+                    <Text style={styles.hostCtaText}>View Profile</Text>
+                    <MoveRight
+                      size={16}
+                      color={PRIMARY_COLOR}
+                      strokeWidth={2.5}
                     />
                   </View>
+                </TouchableOpacity>
+
+                {/* Community Heads */}
+                {event.community_heads?.length > 0 && (
+                  <View style={styles.headsContainer}>
+                    <Text style={styles.headsTitle}>
+                      {event.community_heads?.length > 1
+                        ? "Meet the Hosts"
+                        : "Meet the Host"}
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                    >
+                      {event.community_heads.map((head, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.headCard,
+                            head.member_id && styles.headCardClickable,
+                          ]}
+                          onPress={() => handleCommunityHeadPress(head)}
+                          disabled={!head.member_id}
+                          activeOpacity={head.member_id ? 0.7 : 1}
+                        >
+                          {head.profile_pic_url || head.profile_photo_url ? (
+                            <Image
+                              source={{
+                                uri:
+                                  head.profile_pic_url ||
+                                  head.profile_photo_url,
+                              }}
+                              style={styles.headPhoto}
+                            />
+                          ) : (
+                            <LinearGradient
+                              colors={getGradientForName(head.name || "H")}
+                              style={styles.headPhoto}
+                            >
+                              <Text style={styles.headInitials}>
+                                {getInitials(head.name || "H")}
+                              </Text>
+                            </LinearGradient>
+                          )}
+                          <Text style={styles.headName} numberOfLines={1}>
+                            {head.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
                 )}
               </View>
-            </View>
-          )}
 
-          {/* Gallery Section */}
-          {event.gallery?.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Gallery</Text>
-              <View style={styles.galleryGridContainer}>
-                {event.gallery.slice(0, 4).map((image, index) => {
-                  const isLast = index === 3 && event.gallery.length > 4;
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.galleryGridItem}
-                      activeOpacity={0.8}
-                    >
-                      <Image
-                        source={{ uri: image.image_url || image.url }}
-                        style={styles.galleryGridImage}
-                        resizeMode="cover"
-                      />
-                      {isLast && (
-                        <View style={styles.galleryOverlay}>
-                          <Text style={styles.galleryOverlayText}>
-                            +{event.gallery.length - 3} Photos
-                          </Text>
-                        </View>
+              {/* Enhanced View Attendees Section - always visible for members */}
+              {viewAttendeesState.visible && (
+                <View style={styles.viewAttendeesSection}>
+                  {/* View Attendees Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.viewAttendeesButton,
+                      viewAttendeesState.locked &&
+                        styles.viewAttendeesButtonLocked,
+                    ]}
+                    onPress={
+                      viewAttendeesState.locked
+                        ? triggerLockedToast
+                        : handleViewAttendees
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.viewAttendeesContent}>
+                      {viewAttendeesState.locked ? (
+                        <Lock size={20} color={MUTED_TEXT} strokeWidth={2} />
+                      ) : (
+                        <Users
+                          size={20}
+                          color={COLORS.primary}
+                          strokeWidth={2}
+                        />
                       )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                      <Text
+                        style={[
+                          styles.viewAttendeesText,
+                          viewAttendeesState.locked && { color: MUTED_TEXT },
+                        ]}
+                      >
+                        View Attendees
+                      </Text>
+                    </View>
+                    <MoveRight size={20} color={MUTED_TEXT} strokeWidth={2.5} />
+                  </TouchableOpacity>
+
+                  {/* Registration Progress */}
+                  <View style={styles.registrationProgress}>
+                    {/* Badges */}
+                    {registrationProgress.soldOut ? (
+                      <View
+                        style={[
+                          styles.progressBadge,
+                          { backgroundColor: "#FEE2E2" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.progressBadgeText,
+                            { color: "#DC2626" },
+                          ]}
+                        >
+                          Sold Out
+                        </Text>
+                      </View>
+                    ) : registrationProgress.almostFull ? (
+                      <View
+                        style={[
+                          styles.progressBadge,
+                          { backgroundColor: "#FEF3C7" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.progressBadgeText,
+                            { color: "#D97706" },
+                          ]}
+                        >
+                          Almost Full
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* Progress Text */}
+                    <Text style={styles.progressText}>
+                      {registrationProgress.registered === 0
+                        ? "Be the first to join! 🎉"
+                        : registrationProgress.unlimited
+                          ? `${registrationProgress.registered} registered`
+                          : `${registrationProgress.registered} of ${registrationProgress.capacity} registered`}
+                    </Text>
+
+                    {/* Progress Bar - only show if not unlimited */}
+                    {!registrationProgress.unlimited && (
+                      <View style={styles.progressBarContainer}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            {
+                              width: `${registrationProgress.percentage}%`,
+                              backgroundColor: progressBarColor,
+                            },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Gallery Section */}
+              {event.gallery?.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Gallery</Text>
+                  <View style={styles.galleryGridContainer}>
+                    {event.gallery.slice(0, 4).map((image, index) => {
+                      const isLast = index === 3 && event.gallery.length > 4;
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.galleryGridItem}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: image.image_url || image.url }}
+                            style={styles.galleryGridImage}
+                            resizeMode="cover"
+                          />
+                          {isLast && (
+                            <View style={styles.galleryOverlay}>
+                              <Text style={styles.galleryOverlayText}>
+                                +{event.gallery.length - 3} Photos
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Spacer for bottom bar */}
+              <View style={{ height: 100 }} />
             </View>
+          </Animated.ScrollView>
+
+          {/* Attendance Confirmation Modal */}
+          <AttendanceConfirmationModal
+            visible={showAttendanceModal}
+            eventTitle={event.title}
+            onConfirmAttendance={handleConfirmAttendance}
+            loading={attendanceLoading}
+          />
+
+          {/* Locked View Attendees Toast */}
+          {lockedToastVisible && (
+            <Animated.View
+              style={[
+                styles.lockedToast,
+                {
+                  opacity: lockedToastOpacity,
+                  transform: [{ translateY: lockedToastTranslateY }],
+                },
+              ]}
+            >
+              <Lock size={18} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.lockedToastText}>
+                Come back within 24 hours of the event to view attendees and
+                connect with them
+              </Text>
+            </Animated.View>
           )}
-
-          {/* Spacer for bottom bar */}
-          <View style={{ height: 100 }} />
         </View>
-      </Animated.ScrollView>
-
-      {/* Attendance Confirmation Modal */}
-      <AttendanceConfirmationModal
-        visible={showAttendanceModal}
-        eventTitle={event.title}
-        onConfirmAttendance={handleConfirmAttendance}
-        loading={attendanceLoading}
-      />
-
-      {/* Locked View Attendees Toast */}
-      {lockedToastVisible && (
-        <Animated.View
-          style={[
-            styles.lockedToast,
-            {
-              opacity: lockedToastOpacity,
-              transform: [{ translateY: lockedToastTranslateY }],
-            },
-          ]}
-        >
-          <Lock size={18} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.lockedToastText}>
-            Come back within 24 hours of the event to view attendees and connect
-            with them
-          </Text>
-        </Animated.View>
       )}
-    </View>
+    </>
   );
 };
 
@@ -1634,7 +1675,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
     textAlign: "center",
     paddingHorizontal: 80, // Prevent text from hitting buttons
@@ -1689,7 +1730,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
     marginBottom: 12,
   },
@@ -1715,7 +1756,7 @@ const styles = StyleSheet.create({
   },
   highlightTitle: {
     fontSize: 15,
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   highlightDesc: {
@@ -1817,7 +1858,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   headsTitle: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     color: TEXT_COLOR,
     marginBottom: 12,
