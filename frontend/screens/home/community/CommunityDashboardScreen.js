@@ -27,6 +27,10 @@ import {
   Calendar,
   Ticket,
   X,
+  Edit2,
+  FileText,
+  Trash2,
+  PauseCircle,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -278,6 +282,7 @@ export default function CommunityDashboardScreen({ navigation }) {
     if (!event.is_past) {
       options.push({
         text: "Edit Event",
+        icon: <Edit2 />,
         onPress: () => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
           setTimeout(() => {
@@ -285,20 +290,21 @@ export default function CommunityDashboardScreen({ navigation }) {
             setShowEditEventModal(true);
           }, 300);
         },
-        style: "default",
+        style: "primary",
       });
     }
 
     // View Details — always available
     options.push({
       text: "View Details",
+      icon: <FileText />,
       onPress: () => {
         setModalConfig((prev) => ({ ...prev, visible: false }));
         setTimeout(() => {
           navigation.navigate("EventAttendees", { event });
         }, 300);
       },
-      style: "default",
+      style: "secondary",
     });
 
     // --- Delete / Cancel logic ---
@@ -306,6 +312,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       // Past events: always allow delete
       options.push({
         text: "Delete Event",
+        icon: <Trash2 />,
         onPress: () => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
           setTimeout(() => {
@@ -350,6 +357,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         // No attendees: allow both cancel and delete
         options.push({
           text: "Cancel Event",
+          icon: <PauseCircle />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
@@ -360,7 +368,7 @@ export default function CommunityDashboardScreen({ navigation }) {
                 actions: [
                   {
                     text: "Yes, Cancel Event",
-                    style: "destructive",
+                    style: "warning",
                     onPress: async () => {
                       setModalConfig((prev) => ({ ...prev, visible: false }));
                       try {
@@ -386,11 +394,12 @@ export default function CommunityDashboardScreen({ navigation }) {
               });
             }, 300);
           },
-          style: "destructive",
+          style: "warning",
         });
 
         options.push({
           text: "Delete Event",
+          icon: <Trash2 />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
@@ -433,6 +442,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         // Has attendees: cancel only — cannot delete
         options.push({
           text: "Cancel Event",
+          icon: <PauseCircle />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
@@ -443,7 +453,7 @@ export default function CommunityDashboardScreen({ navigation }) {
                 actions: [
                   {
                     text: "Yes, Cancel Event",
-                    style: "destructive",
+                    style: "warning",
                     onPress: async () => {
                       setModalConfig((prev) => ({ ...prev, visible: false }));
                       try {
@@ -469,7 +479,7 @@ export default function CommunityDashboardScreen({ navigation }) {
               });
             }, 300);
           },
-          style: "destructive",
+          style: "warning",
         });
       }
     }
@@ -483,7 +493,7 @@ export default function CommunityDashboardScreen({ navigation }) {
     setModalConfig({
       visible: true,
       title: event.title,
-      message: "Choose an action",
+      message: "Manage this event",
       actions: options,
     });
   };

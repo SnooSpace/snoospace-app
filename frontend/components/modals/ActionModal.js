@@ -75,33 +75,51 @@ export default function ActionModal({
                     onPress={handleDismiss}
                     activeOpacity={0.7}
                   >
-                    <X size={20} color={COLORS.textSecondary} />
+                    <X size={23} color={COLORS.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Actions List */}
                 <View style={styles.actionsBox}>
                   {otherActions.map((action, index) => {
-                    const isDestructive = action.style === "destructive";
+                    const styleType = action.style || "secondary"; // default to secondary
+
+                    let buttonStyle = styles.secondaryButton;
+                    let textStyle = styles.secondaryText;
+                    let iconColor = "#1D1D1F";
+
+                    if (styleType === "primary") {
+                      buttonStyle = styles.primaryButton;
+                      textStyle = styles.primaryText;
+                      iconColor = "#FFFFFF";
+                    } else if (styleType === "warning") {
+                      buttonStyle = styles.warningButton;
+                      textStyle = styles.warningText;
+                      iconColor = "#FF9F0A";
+                    } else if (styleType === "destructive") {
+                      buttonStyle = styles.destructiveButton;
+                      textStyle = styles.destructiveText;
+                      iconColor = "#FF3B30";
+                    }
 
                     return (
                       <TouchableOpacity
                         key={index}
-                        style={[
-                          styles.actionButton,
-                          isDestructive && styles.destructiveButton,
-                        ]}
+                        style={[styles.actionButton, buttonStyle]}
                         onPress={() => {
                           action.onPress && action.onPress();
                         }}
                         activeOpacity={0.8}
                       >
-                        <Text
-                          style={[
-                            styles.actionText,
-                            isDestructive && styles.destructiveText,
-                          ]}
-                        >
+                        {action.icon && (
+                          <View style={styles.actionIcon}>
+                            {React.cloneElement(action.icon, {
+                              size: 20,
+                              color: iconColor,
+                            })}
+                          </View>
+                        )}
+                        <Text style={[styles.actionText, textStyle]}>
                           {action.text}
                         </Text>
                       </TouchableOpacity>
@@ -154,14 +172,11 @@ const styles = StyleSheet.create({
   },
   closeCircle: {
     position: "absolute",
-    top: 20,
-    right: 20,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    top: 24,
+    right: 24,
     alignItems: "center",
     justifyContent: "center",
+    padding: 8, // Increase touch target size without background
   },
   title: {
     fontFamily: "BasicCommercial-Bold", // Bold for section title
@@ -184,20 +199,41 @@ const styles = StyleSheet.create({
   actionButton: {
     width: "100%",
     height: 52,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F1F5F9", // Soft background for standard actions
+    flexDirection: "row",
   },
-  destructiveButton: {
-    backgroundColor: "rgba(239, 68, 68, 0.08)", // Soft red for destructive actions
+  actionIcon: {
+    marginRight: 10,
   },
   actionText: {
     fontFamily: "Manrope-SemiBold", // SemiBold for interactive
     fontSize: 16,
-    color: COLORS.textPrimary,
+  },
+  // Button Tier Styles
+  primaryButton: {
+    backgroundColor: "#1D1D1F",
+  },
+  primaryText: {
+    color: "#FFFFFF",
+  },
+  secondaryButton: {
+    backgroundColor: "#F2F2F7",
+  },
+  secondaryText: {
+    color: "#1D1D1F",
+  },
+  warningButton: {
+    backgroundColor: "#FFF6E5",
+  },
+  warningText: {
+    color: "#FF9F0A",
+  },
+  destructiveButton: {
+    backgroundColor: "#FFEAEA",
   },
   destructiveText: {
-    color: COLORS.error,
+    color: "#FF3B30",
   },
 });
