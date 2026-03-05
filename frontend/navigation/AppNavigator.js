@@ -22,6 +22,7 @@ import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
 import TicketViewScreen from "../screens/events/TicketViewScreen";
+import EventGalleryScreen from "../screens/events/EventGalleryScreen";
 import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
@@ -100,6 +101,15 @@ export default function AppNavigator({ initialRouteName }) {
         name="CategoryEvents"
         component={CategoryEventsScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EventGallery"
+        component={EventGalleryScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
       />
       <Stack.Screen
         name="MemberPublicProfile"

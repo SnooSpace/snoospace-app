@@ -30,7 +30,107 @@ import {
   AlertCircle,
   ImagePlus,
   BadgeCheck,
+  AlertTriangle,
+  CreditCard,
+  Smile,
+  Gift,
+  GraduationCap,
+  Heart,
+  Languages,
+  Globe,
+  Accessibility,
+  Hand,
+  Utensils,
+  Wine,
+  Coffee,
+  Beer,
+  Leaf,
+  Car,
+  Bus,
+  Home,
+  Sun,
+  Umbrella,
+  Droplets,
+  Wifi,
+  Smartphone,
+  Shirt,
+  ArrowRightLeft,
+  CameraOff,
+  Dog,
+  Ban,
+  IdCard,
+  ShieldCheck,
+  BriefcaseMedical,
+  Shield,
+  Tag,
+  Hourglass,
+  Zap,
+  CheckCircle,
+  RockingChair,
+  Trophy,
+  Music,
+  Sparkles,
+  Ribbon,
+  Megaphone,
+  DoorOpen,
+  ChevronRight,
 } from "lucide-react-native";
+
+// Icon map for Things to Know + Highlights items (keyed by icon_name string stored in DB)
+const THINGS_ICON_MAP = {
+  Users,
+  AlertTriangle,
+  CreditCard,
+  Smile,
+  Gift,
+  GraduationCap,
+  Heart,
+  Languages,
+  Globe,
+  Accessibility,
+  Hand,
+  Utensils,
+  Wine,
+  Coffee,
+  Beer,
+  Leaf,
+  Car,
+  Bus,
+  Home,
+  Sun,
+  Umbrella,
+  Droplets,
+  Wifi,
+  Smartphone,
+  Shirt,
+  XCircle,
+  Clock,
+  ArrowRightLeft,
+  CameraOff,
+  Dog,
+  Ban,
+  IdCard,
+  ShieldCheck,
+  BriefcaseMedical,
+  Shield,
+  Tag,
+  Hourglass,
+  Zap,
+  Ticket,
+  CheckCircle,
+  AlertCircle,
+  MapPin,
+  Calendar,
+  Info,
+  RockingChair,
+  // Highlight icons
+  Star,
+  Trophy,
+  Music,
+  Sparkles,
+  Ribbon,
+  Megaphone,
+};
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 
@@ -97,6 +197,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [requestingInvite, setRequestingInvite] = useState(false);
   const [inviteRequestStatus, setInviteRequestStatus] = useState(null); // null, 'pending', 'approved', 'rejected'
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [isMapLinkPressed, setIsMapLinkPressed] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   // Event state and attendance
   const [serverTime, setServerTime] = useState(null);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
@@ -755,19 +857,148 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 { paddingTop: 24, paddingBottom: 24, marginTop: -24 },
               ]}
             >
-              {/* Status Chips and Category Row */}
-              <View style={{ marginBottom: 16 }}>
+              <Text
+                style={{
+                  fontFamily: "BasicCommercial-Bold",
+                  fontSize: 28,
+                  color: TEXT_COLOR,
+                  marginBottom: 16,
+                  lineHeight: 32,
+                }}
+                numberOfLines={3}
+              >
+                {event.title}
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Medium",
+                    fontSize: 15,
+                    color: MUTED_TEXT,
+                    marginLeft: 8,
+                  }}
+                >
+                  {formatDateTime(
+                    event.start_datetime || event.event_date,
+                    event.end_datetime,
+                  )}
+                </Text>
+              </View>
+
+              {/* Gates Open Row */}
+              {!!formatGatesTime(event.gates_open_time) && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                  onPress={() => setShowScheduleModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <DoorOpen size={16} color={MUTED_TEXT} strokeWidth={2} />
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 15,
+                      color: MUTED_TEXT,
+                      marginLeft: 8,
+                      flex: 1,
+                    }}
+                  >
+                    Gates open at {formatGatesTime(event.gates_open_time)}
+                  </Text>
+                  <ChevronRight size={16} color={MUTED_TEXT} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+
+              <View style={{ marginBottom: 0 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 10, // Increased from 6
+                  }}
+                >
+                  <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 15,
+                      color: MUTED_TEXT,
+                      marginLeft: 8,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {displayLocationName}
+                  </Text>
+                </View>
+
+                {event?.location_url ? (
+                  <TouchableOpacity
+                    onPress={handleOpenLocation}
+                    onPressIn={() => setIsMapLinkPressed(true)}
+                    onPressOut={() => setIsMapLinkPressed(false)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginLeft: 24,
+                      marginBottom: 16,
+                    }}
+                    activeOpacity={1}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Manrope-SemiBold",
+                        fontSize: 13,
+                        lineHeight: 18, // Added lineHeight
+                        color: isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR,
+                        marginRight: 6,
+                      }}
+                    >
+                      View location on map
+                    </Text>
+                    <MoveRight
+                      size={15} // Increased slightly
+                      color={isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR}
+                      strokeWidth={2.5}
+                      style={{
+                        transform: [{ translateY: 0.5 }], // Optical center fix
+                      }}
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ marginBottom: 16 }} />
+                )}
+              </View>
+
+              {/* Status Chips and Category Row (Moved below location) */}
+              <View style={{ marginBottom: 20 }}>
                 {/* Status Messages (Ended/Cancelled) */}
                 {eventState === EVENT_STATES.COMPLETED && !isRegistered && (
                   <View
-                    style={[styles.statusChip, { backgroundColor: "#F3F4F6" }]}
+                    style={[
+                      styles.statusChip,
+                      { backgroundColor: "#F3F4F6", marginBottom: 12 },
+                    ]}
                   >
                     <Text style={styles.statusText}>Event Ended</Text>
                   </View>
                 )}
                 {eventState === EVENT_STATES.CANCELLED && (
                   <View
-                    style={[styles.statusChip, { backgroundColor: "#FEF2F2" }]}
+                    style={[
+                      styles.statusChip,
+                      { backgroundColor: "#FEF2F2", marginBottom: 12 },
+                    ]}
                   >
                     <Text style={[styles.statusText, { color: "#DC2626" }]}>
                       Cancelled
@@ -810,63 +1041,6 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     </ScrollView>
                   </Animated.View>
                 )}
-              </View>
-
-              <Text
-                style={{
-                  fontFamily: "BasicCommercial-Bold",
-                  fontSize: 28,
-                  color: TEXT_COLOR,
-                  marginBottom: 16,
-                  lineHeight: 32,
-                }}
-                numberOfLines={3}
-              >
-                {event.title}
-              </Text>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
-                <Text
-                  style={{
-                    fontFamily: "Manrope-Medium",
-                    fontSize: 15,
-                    color: MUTED_TEXT,
-                    marginLeft: 8,
-                  }}
-                >
-                  {formatDateTime(
-                    event.start_datetime || event.event_date,
-                    event.end_datetime,
-                  )}
-                </Text>
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 28,
-                }}
-              >
-                <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
-                <Text
-                  style={{
-                    fontFamily: "Manrope-Medium",
-                    fontSize: 15,
-                    color: MUTED_TEXT,
-                    marginLeft: 8,
-                  }}
-                  numberOfLines={1}
-                >
-                  {displayLocationName}
-                </Text>
               </View>
 
               {eventState === EVENT_STATES.COMPLETED && !isRegistered ? (
@@ -1014,21 +1188,29 @@ const EventDetailsScreen = ({ route, navigation }) => {
               {event.highlights?.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Event Highlights</Text>
-                  {event.highlights.map((highlight, index) => (
-                    <View key={index} style={styles.highlightItem}>
-                      <Star size={20} color={PRIMARY_COLOR} strokeWidth={2} />
-                      <View style={styles.highlightContent}>
-                        <Text style={styles.highlightTitle}>
-                          {highlight.title}
-                        </Text>
-                        {highlight.description && (
-                          <Text style={styles.highlightDesc}>
-                            {highlight.description}
+                  {event.highlights.map((highlight, index) => {
+                    const HighlightIcon =
+                      THINGS_ICON_MAP[highlight.icon_name] || Star;
+                    return (
+                      <View key={index} style={styles.highlightItem}>
+                        <HighlightIcon
+                          size={20}
+                          color={MUTED_TEXT}
+                          strokeWidth={2}
+                        />
+                        <View style={styles.highlightContent}>
+                          <Text style={styles.highlightTitle}>
+                            {highlight.title}
                           </Text>
-                        )}
+                          {highlight.description && (
+                            <Text style={styles.highlightDesc}>
+                              {highlight.description}
+                            </Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
 
@@ -1036,12 +1218,19 @@ const EventDetailsScreen = ({ route, navigation }) => {
               {event.things_to_know?.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Things to Know</Text>
-                  {event.things_to_know.slice(0, 3).map((item, index) => (
-                    <View key={index} style={styles.thingRow}>
-                      <Info size={22} color={TEXT_COLOR} strokeWidth={2} />
-                      <Text style={styles.thingText}>{item.label}</Text>
-                    </View>
-                  ))}
+                  {event.things_to_know.slice(0, 3).map((item, index) => {
+                    const ThingIcon = THINGS_ICON_MAP[item.icon_name] || Info;
+                    return (
+                      <View key={index} style={styles.thingRow}>
+                        <ThingIcon
+                          size={20}
+                          color={MUTED_TEXT}
+                          strokeWidth={2}
+                        />
+                        <Text style={styles.thingText}>{item.label}</Text>
+                      </View>
+                    );
+                  })}
                   {event.things_to_know.length > 3 && (
                     <TouchableOpacity>
                       <Text style={styles.seeAll}>See all ›</Text>
@@ -1328,6 +1517,13 @@ const EventDetailsScreen = ({ route, navigation }) => {
                           key={index}
                           style={styles.galleryGridItem}
                           activeOpacity={0.8}
+                          onPress={() =>
+                            navigation.navigate("EventGallery", {
+                              images: event.gallery,
+                              eventTitle: event.title,
+                              initialIndex: index,
+                            })
+                          }
                         >
                           <Image
                             source={{ uri: image.image_url || image.url }}
@@ -1345,6 +1541,25 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       );
                     })}
                   </View>
+
+                  {/* See all button */}
+                  {event.gallery.length > 4 && (
+                    <TouchableOpacity
+                      style={styles.seeAllGalleryBtn}
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        navigation.navigate("EventGallery", {
+                          images: event.gallery,
+                          eventTitle: event.title,
+                          initialIndex: 0,
+                        })
+                      }
+                    >
+                      <Text style={styles.seeAllGalleryText}>
+                        See all {event.gallery.length} photos
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
 
@@ -1352,6 +1567,212 @@ const EventDetailsScreen = ({ route, navigation }) => {
               <View style={{ height: 100 }} />
             </View>
           </Animated.ScrollView>
+
+          {/* Schedule and Timeline Modal */}
+          <Modal
+            visible={showScheduleModal}
+            transparent
+            animationType="slide"
+            statusBarTranslucent
+            onRequestClose={() => setShowScheduleModal(false)}
+          >
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                justifyContent: "flex-end",
+              }}
+              activeOpacity={1}
+              onPress={() => setShowScheduleModal(false)}
+            >
+              <TouchableOpacity activeOpacity={1}>
+                <View
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderTopLeftRadius: 24,
+                    borderTopRightRadius: 24,
+                    paddingTop: 20,
+                    paddingHorizontal: 24,
+                    paddingBottom: 48,
+                  }}
+                >
+                  {/* Handle bar */}
+                  <View
+                    style={{
+                      width: 36,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: "#E5E7EB",
+                      alignSelf: "center",
+                      marginBottom: 20,
+                    }}
+                  />
+
+                  {/* Header row */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 24,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "BasicCommercial-Bold",
+                        fontSize: 20,
+                        color: TEXT_COLOR,
+                        letterSpacing: -0.3,
+                      }}
+                    >
+                      Schedule and timeline
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowScheduleModal(false)}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <XCircle size={22} color={MUTED_TEXT} strokeWidth={2} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Date header */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 20,
+                    }}
+                  >
+                    <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
+                    <Text
+                      style={{
+                        fontFamily: "Manrope-Medium",
+                        fontSize: 14,
+                        color: MUTED_TEXT,
+                        marginLeft: 8,
+                      }}
+                    >
+                      {event.start_datetime || event.event_date
+                        ? new Date(
+                            event.start_datetime || event.event_date,
+                          ).toLocaleDateString("en-IN", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : ""}
+                    </Text>
+                  </View>
+
+                  {/* Timeline items */}
+                  {[
+                    event.gates_open_time
+                      ? { label: "Gates open", time: event.gates_open_time }
+                      : null,
+                    event.start_datetime || event.event_date
+                      ? {
+                          label: "Event starts",
+                          time: event.start_datetime || event.event_date,
+                        }
+                      : null,
+                    {
+                      label: "Event ends",
+                      // Treat end_datetime as absent if it equals start_datetime
+                      // (backend stores start == end when no end time is set)
+                      time:
+                        event.end_datetime &&
+                        event.end_datetime !== event.start_datetime &&
+                        event.end_datetime !== event.event_date
+                          ? event.end_datetime
+                          : null,
+                    },
+                  ]
+                    .filter(Boolean)
+                    .map((item, index, arr) => (
+                      <View
+                        key={index}
+                        style={{ flexDirection: "row", alignItems: "stretch" }}
+                      >
+                        {/* Left connector column */}
+                        <View
+                          style={{
+                            width: 24,
+                            alignItems: "center",
+                            marginRight: 14,
+                          }}
+                        >
+                          {/* Circle node */}
+                          <View
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 10,
+                              borderWidth: 2,
+                              borderColor: "#D1D5DB",
+                              backgroundColor: "#FFFFFF",
+                              marginTop: 14,
+                            }}
+                          />
+                          {/* Connector line (hide on last item) */}
+                          {index < arr.length - 1 && (
+                            <View
+                              style={{
+                                flex: 1,
+                                width: 2,
+                                backgroundColor: "#E5E7EB",
+                                marginTop: 2,
+                                marginBottom: 0,
+                              }}
+                            />
+                          )}
+                        </View>
+
+                        {/* Row content */}
+                        <View
+                          style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            paddingTop: 11,
+                            paddingBottom: index < arr.length - 1 ? 18 : 0,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: "Manrope-Regular",
+                              fontSize: 15,
+                              color: TEXT_COLOR,
+                            }}
+                          >
+                            {item.label}
+                          </Text>
+                          <Text
+                            style={{
+                              fontFamily: "Manrope-Medium",
+                              fontSize: 15,
+                              color: MUTED_TEXT,
+                            }}
+                          >
+                            {item.time
+                              ? new Date(item.time).toLocaleTimeString(
+                                  "en-IN",
+                                  {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  },
+                                )
+                              : "Not specified"}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
 
           {/* Attendance Confirmation Modal */}
           <AttendanceConfirmationModal
@@ -1474,6 +1895,21 @@ const styles = StyleSheet.create({
     fontFamily: "BasicCommercialBold",
     fontSize: 16,
   },
+  seeAllGalleryBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.15)",
+  },
+  seeAllGalleryText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#2962FF",
+  },
+
   eventEndedContainer: {
     backgroundColor: "#F3F4F6",
     borderRadius: 16,
@@ -1525,7 +1961,6 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 26,
     fontFamily: "BasicCommercialBlack",
-    color: "#FFFFFF",
     marginBottom: 8,
   },
   bannerMetaRow: {
@@ -1735,7 +2170,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   description: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: "Manrope-Regular",
     lineHeight: 22,
     color: MUTED_TEXT,
@@ -1755,14 +2190,15 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   highlightTitle: {
-    fontSize: 15,
-    fontFamily: "BasicCommercial-Bold",
-    color: TEXT_COLOR,
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    color: MUTED_TEXT,
+    lineHeight: 20,
   },
   highlightDesc: {
     fontSize: 13,
     fontFamily: "Manrope-Regular",
-    color: MUTED_TEXT,
+    color: TEXT_COLOR,
     marginTop: 4,
     lineHeight: 18,
   },
@@ -1772,9 +2208,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   thingText: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: "Manrope-Regular",
-    color: TEXT_COLOR,
+    color: MUTED_TEXT,
     marginLeft: 12,
     flex: 1,
   },

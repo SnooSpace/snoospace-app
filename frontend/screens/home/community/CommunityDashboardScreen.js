@@ -272,6 +272,7 @@ export default function CommunityDashboardScreen({ navigation }) {
   // 3-dots menu handler for event cards in the dashboard
   const handleEventLongPress = (event) => {
     const options = [];
+    const attendeeCount = parseInt(event.current_attendees || 0, 10);
 
     // Edit — only for upcoming (non-past) events
     if (!event.is_past) {
@@ -288,7 +289,7 @@ export default function CommunityDashboardScreen({ navigation }) {
       });
     }
 
-    // View Details
+    // View Details — always available
     options.push({
       text: "View Details",
       onPress: () => {
@@ -300,32 +301,33 @@ export default function CommunityDashboardScreen({ navigation }) {
       style: "default",
     });
 
-    // Cancel — only upcoming, non-cancelled
-    if (!event.is_past && !event.is_cancelled) {
+    // --- Delete / Cancel logic ---
+    if (event.is_past) {
+      // Past events: always allow delete
       options.push({
-        text: "Cancel Event",
+        text: "Delete Event",
         onPress: () => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
           setTimeout(() => {
             setModalConfig({
               visible: true,
-              title: "Cancel Event",
-              message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
+              title: "Delete Event",
+              message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
               actions: [
                 {
-                  text: "Yes, Cancel Event",
+                  text: "Yes, Delete",
                   style: "destructive",
                   onPress: async () => {
                     setModalConfig((prev) => ({ ...prev, visible: false }));
                     try {
-                      const { cancelEvent } =
+                      const { deleteEvent } =
                         await import("../../../api/events");
-                      await cancelEvent(event.id);
+                      await deleteEvent(event.id);
                       loadDashboard();
                     } catch (err) {
                       Alert.alert(
                         "Error",
-                        "Failed to cancel event. Please try again.",
+                        "Failed to delete event. Please try again.",
                       );
                     }
                   },
@@ -342,6 +344,134 @@ export default function CommunityDashboardScreen({ navigation }) {
         },
         style: "destructive",
       });
+    } else if (!event.is_cancelled) {
+      // Upcoming, non-cancelled events
+      if (attendeeCount === 0) {
+        // No attendees: allow both cancel and delete
+        options.push({
+          text: "Cancel Event",
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Cancel Event",
+                message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
+                actions: [
+                  {
+                    text: "Yes, Cancel Event",
+                    style: "destructive",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        const { cancelEvent } =
+                          await import("../../../api/events");
+                        await cancelEvent(event.id);
+                        loadDashboard();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to cancel event. Please try again.",
+                        );
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "destructive",
+        });
+
+        options.push({
+          text: "Delete Event",
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Delete Event",
+                message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
+                actions: [
+                  {
+                    text: "Yes, Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        const { deleteEvent } =
+                          await import("../../../api/events");
+                        await deleteEvent(event.id);
+                        loadDashboard();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to delete event. Please try again.",
+                        );
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "destructive",
+        });
+      } else {
+        // Has attendees: cancel only — cannot delete
+        options.push({
+          text: "Cancel Event",
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Cancel Event",
+                message: `"${event.title}" has ${attendeeCount} registered attendee${attendeeCount !== 1 ? "s" : ""}. Cancelling will notify all of them. Do you want to proceed?`,
+                actions: [
+                  {
+                    text: "Yes, Cancel Event",
+                    style: "destructive",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        const { cancelEvent } =
+                          await import("../../../api/events");
+                        await cancelEvent(event.id);
+                        loadDashboard();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to cancel event. Please try again.",
+                        );
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "destructive",
+        });
+      }
     }
 
     options.push({
@@ -403,9 +533,21 @@ export default function CommunityDashboardScreen({ navigation }) {
       item.event_date,
     );
 
-    // Mock Sales Data if not present
-    const ticketsSold = item.current_attendees || 0;
-    const ticketCapacity = item.capacity || 50;
+    // Compute real sold / capacity from ticket_types returned by the API
+    const tickets = item.ticket_types || [];
+    const ticketsSold =
+      tickets.length > 0
+        ? tickets.reduce((sum, t) => sum + (t.sold_count || 0), 0)
+        : parseInt(item.current_attendees || 0, 10);
+    const rawCapacity = tickets.reduce(
+      (sum, t) => (t.total_quantity != null ? sum + t.total_quantity : sum),
+      0,
+    );
+    // rawCapacity is 0 if all tickets are unlimited — fall back to max_attendees
+    const ticketCapacity =
+      rawCapacity > 0
+        ? rawCapacity
+        : parseInt(item.max_attendees || 0, 10) || null;
 
     return (
       <TouchableOpacity
@@ -453,7 +595,9 @@ export default function CommunityDashboardScreen({ navigation }) {
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.ticketMetricText}>
-                {ticketsSold}/{ticketCapacity} sold
+                {ticketCapacity != null
+                  ? `${ticketsSold}/${ticketCapacity} sold`
+                  : `${ticketsSold} sold`}
               </Text>
             </View>
           </View>

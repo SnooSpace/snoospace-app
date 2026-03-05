@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { X } from "lucide-react-native";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
@@ -31,22 +32,26 @@ export default function ActionModal({
 }) {
   if (!visible) return null;
 
-  // Sort actions to put cancel at the bottom
-  const sortedActions = [...(actions || [])].sort((a, b) => {
-    if (a.style === "cancel") return 1;
-    if (b.style === "cancel") return -1;
-    return 0;
-  });
+  const cancelAction = actions?.find((a) => a.style === "cancel");
+  const otherActions = actions?.filter((a) => a.style !== "cancel") || [];
+
+  const handleDismiss = () => {
+    if (cancelAction && cancelAction.onPress) {
+      cancelAction.onPress();
+    } else if (onClose) {
+      onClose();
+    }
+  };
 
   return (
     <Modal
       transparent
       visible={visible}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleDismiss}
       statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleDismiss}>
         <View style={styles.overlay}>
           <BlurView
             intensity={25}
@@ -57,48 +62,52 @@ export default function ActionModal({
           <TouchableWithoutFeedback>
             <View style={styles.container}>
               <View style={styles.contentContainer}>
-                {(title || message) && (
-                  <View style={styles.textContainer}>
-                    {title && <Text style={styles.title}>{title}</Text>}
-                    {message && <Text style={styles.message}>{message}</Text>}
-                  </View>
-                )}
+                {/* Header with Title and Dismiss Button */}
+                <View style={styles.headerContainer}>
+                  {(title || message) && (
+                    <View style={styles.headerTextContainer}>
+                      {title && <Text style={styles.title}>{title}</Text>}
+                      {message && <Text style={styles.message}>{message}</Text>}
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.closeCircle}
+                    onPress={handleDismiss}
+                    activeOpacity={0.7}
+                  >
+                    <X size={20} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
 
-                {sortedActions.map((action, index) => {
-                  const isCancel = action.style === "cancel";
-                  const isDestructive = action.style === "destructive";
+                {/* Actions List */}
+                <View style={styles.actionsBox}>
+                  {otherActions.map((action, index) => {
+                    const isDestructive = action.style === "destructive";
 
-                  // Add separator if it's not the first element, or if there's a header before it
-                  const needsTopBorder = index > 0 || title || message;
-
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.actionButton,
-                        needsTopBorder && {
-                          borderTopWidth: 1,
-                          borderTopColor: "rgba(0,0,0,0.06)",
-                        },
-                        isCancel && styles.cancelButton,
-                      ]}
-                      onPress={() => {
-                        action.onPress && action.onPress();
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text
+                    return (
+                      <TouchableOpacity
+                        key={index}
                         style={[
-                          styles.actionText,
-                          isDestructive && styles.destructiveText,
-                          isCancel && styles.cancelText,
+                          styles.actionButton,
+                          isDestructive && styles.destructiveButton,
                         ]}
+                        onPress={() => {
+                          action.onPress && action.onPress();
+                        }}
+                        activeOpacity={0.8}
                       >
-                        {action.text}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <Text
+                          style={[
+                            styles.actionText,
+                            isDestructive && styles.destructiveText,
+                          ]}
+                        >
+                          {action.text}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             </View>
           </TouchableWithoutFeedback>
@@ -111,10 +120,10 @@ export default function ActionModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.4)", // Darker, premium overlay
+    backgroundColor: "rgba(15, 23, 42, 0.5)", // Darker, premium overlay
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 36,
+    paddingHorizontal: 24,
   },
   container: {
     width: "100%",
@@ -124,49 +133,71 @@ const styles = StyleSheet.create({
   contentContainer: {
     width: "100%",
     backgroundColor: COLORS.surface,
-    borderRadius: 24, // Modern large radius
-    ...SHADOWS.large,
+    borderRadius: 28, // Modern large radius
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 8,
     overflow: "hidden",
+    paddingBottom: 24,
   },
-  textContainer: {
-    paddingVertical: 28,
+  headerContainer: {
+    paddingTop: 32,
     paddingHorizontal: 24,
+    paddingBottom: 20,
+    position: "relative",
+  },
+  headerTextContainer: {
     alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  closeCircle: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold", // Bold for section title
+    fontSize: 22,
     color: COLORS.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
     textAlign: "center",
   },
   message: {
-    fontFamily: FONTS.medium, // Manrope-Medium
-    fontSize: 14,
+    fontFamily: "Manrope-Regular", // Regular for helper text
+    fontSize: 15,
     color: COLORS.textSecondary,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+  actionsBox: {
+    paddingHorizontal: 24,
+    gap: 12,
   },
   actionButton: {
     width: "100%",
-    paddingVertical: 18,
+    height: 52,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.surface,
+    backgroundColor: "#F1F5F9", // Soft background for standard actions
   },
-  cancelButton: {
-    backgroundColor: COLORS.textPrimary, // Almost black
-    borderTopWidth: 0,
+  destructiveButton: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)", // Soft red for destructive actions
   },
   actionText: {
-    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive
+    fontFamily: "Manrope-SemiBold", // SemiBold for interactive
     fontSize: 16,
-    color: COLORS.primary,
+    color: COLORS.textPrimary,
   },
   destructiveText: {
     color: COLORS.error,
-  },
-  cancelText: {
-    color: COLORS.surface,
   },
 });
