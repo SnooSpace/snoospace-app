@@ -834,18 +834,18 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 </View>
               )}
 
-              {/* Banner Dots */}
+              {/* Banner Progress Bar */}
               {banners.length > 1 && (
-                <View style={styles.dotsContainer}>
-                  {banners.map((_, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.dot,
-                        currentBannerIndex === index && styles.activeDot,
-                      ]}
-                    />
-                  ))}
+                <View style={styles.bannerProgressContainer}>
+                  <View
+                    style={[
+                      styles.bannerProgressBarActive,
+                      {
+                        width: `${100 / banners.length}%`,
+                        left: `${(currentBannerIndex * 100) / banners.length}%`,
+                      },
+                    ]}
+                  />
                 </View>
               )}
             </View>
@@ -1993,19 +1993,19 @@ const styles = StyleSheet.create({
     flexDirection: "column",
   },
   stickyPriceLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
   },
   stickyPriceValue: {
-    fontSize: 20,
-    fontFamily: "BasicCommercialBold",
+    fontSize: 22,
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
     marginTop: 2,
   },
   stickyPriceValueCancelled: {
-    fontSize: 18,
-    fontFamily: "BasicCommercialBold",
+    fontSize: 20,
+    fontFamily: "Manrope-SemiBold",
     color: "#DC2626",
     marginTop: 2,
   },
@@ -2139,22 +2139,21 @@ const styles = StyleSheet.create({
     right: 0,
     height: BANNER_HEIGHT * 0.5,
   },
-  dotsContainer: {
+  bannerProgressContainer: {
     position: "absolute",
-    bottom: 20,
+    bottom: 40,
     alignSelf: "center",
-    flexDirection: "row",
+    width: 48,
+    height: 3,
+    backgroundColor: "#9CA3AF",
+    borderRadius: 999,
+    overflow: "hidden",
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: "#FFFFFF",
-    width: 24,
+  bannerProgressBarActive: {
+    position: "absolute",
+    height: "100%",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 999,
   },
   contentContainer: {
     paddingHorizontal: 20,

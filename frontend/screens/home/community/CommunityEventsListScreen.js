@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 import {
@@ -10,6 +10,7 @@ import {
   cancelEvent,
 } from "../../../api/events";
 import ActionModal from "../../../components/modals/ActionModal";
+import EditEventModal from "../../../components/modals/EditEventModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const PRIMARY_COLOR = "#007AFF";
@@ -24,12 +25,52 @@ export default function CommunityEventsListScreen({ navigation, route }) {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
   const [actionLoading, setActionLoading] = useState(null); // eventId of event being acted on
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [modalConfig, setModalConfig] = useState({
     visible: false,
     title: "",
     message: "",
     actions: [],
   });
+
+  // Tab underline animation
+  const tabUnderlineX = useRef(new Animated.Value(0)).current;
+  const tabUnderlineScale = useRef(new Animated.Value(0)).current;
+  const tabWidths = useRef({}).current;
+  const tabOffsets = useRef({}).current;
+
+  useEffect(() => {
+    // Underline sliding animation
+    if (tabOffsets[activeTab] !== undefined) {
+      Animated.parallel([
+        Animated.spring(tabUnderlineX, {
+          toValue: tabOffsets[activeTab],
+          useNativeDriver: false,
+          tension: 50,
+          friction: 8,
+        }),
+        Animated.spring(tabUnderlineScale, {
+          toValue: tabWidths[activeTab],
+          useNativeDriver: false,
+          tension: 50,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [activeTab]);
+
+  const handleTabLayout = (tab, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    tabOffsets[tab] = x;
+    tabWidths[tab] = width;
+
+    // Set initial position for active tab underline
+    if (tab === activeTab) {
+      tabUnderlineX.setValue(x);
+      tabUnderlineScale.setValue(width);
+    }
+  };
 
   useEffect(() => {
     loadEvents();
@@ -67,40 +108,261 @@ export default function CommunityEventsListScreen({ navigation, route }) {
 
   const handleEventLongPress = (event) => {
     const options = [];
+    const attendeeCount = parseInt(event.current_attendees || 0, 10);
 
-    // Can cancel upcoming events that aren't already cancelled
-    if (!event.is_past && !event.is_cancelled) {
+    // Edit — only for upcoming (non-past) events
+    if (!event.is_past) {
       options.push({
-        text: "Cancel Event",
+        text: "Edit Event",
+        icon: <Edit2 size={24} strokeWidth={2} />,
         onPress: () => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
-          setTimeout(() => confirmCancelEvent(event), 300);
+          setTimeout(() => {
+            setSelectedEvent(event);
+            setShowEditEventModal(true);
+          }, 300);
+        },
+        style: "primary",
+      });
+    }
+
+    // View Details — always available
+    options.push({
+      text: "View Details",
+      icon: <FileText size={24} strokeWidth={2} />,
+      onPress: () => {
+        setModalConfig((prev) => ({ ...prev, visible: false }));
+        setTimeout(() => {
+          navigation.navigate("EventAttendees", { event });
+        }, 300);
+      },
+      style: "secondary",
+    });
+
+    // --- Delete / Cancel logic ---
+    if (event.is_past) {
+      // Past events: always allow delete
+      options.push({
+        text: "Delete Event",
+        icon: <Trash2 size={24} strokeWidth={2} />,
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            setModalConfig({
+              visible: true,
+              title: "Delete Event",
+              message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
+              actions: [
+                {
+                  text: "Yes, Delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    setModalConfig((prev) => ({ ...prev, visible: false }));
+                    try {
+                      setActionLoading(event.id);
+                      await deleteEvent(event.id);
+                      loadEvents();
+                    } catch (err) {
+                      Alert.alert(
+                        "Error",
+                        "Failed to delete event. Please try again.",
+                      );
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  },
+                },
+                {
+                  text: "No",
+                  style: "cancel",
+                  onPress: () =>
+                    setModalConfig((prev) => ({ ...prev, visible: false })),
+                },
+              ],
+            });
+          }, 300);
+        },
+        style: "destructive",
+      });
+    } else if (!event.is_cancelled) {
+      // Upcoming, non-cancelled events
+      if (attendeeCount === 0) {
+        // No attendees: allow both cancel and delete
+        options.push({
+          text: "Cancel Event",
+          icon: <PauseCircle size={24} strokeWidth={2} />,
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Cancel Event",
+                message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
+                actions: [
+                  {
+                    text: "Yes, Cancel Event",
+                    style: "warning",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        setActionLoading(event.id);
+                        await cancelEvent(event.id);
+                        loadEvents();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to cancel event. Please try again.",
+                        );
+                      } finally {
+                        setActionLoading(null);
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "warning",
+        });
+
+        options.push({
+          text: "Delete Event",
+          icon: <Trash2 size={24} strokeWidth={2} />,
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Delete Event",
+                message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
+                actions: [
+                  {
+                    text: "Yes, Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        setActionLoading(event.id);
+                        await deleteEvent(event.id);
+                        loadEvents();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to delete event. Please try again.",
+                        );
+                      } finally {
+                        setActionLoading(null);
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "destructive",
+        });
+      } else {
+        // Has attendees: cancel only — cannot delete
+        options.push({
+          text: "Cancel Event",
+          icon: <PauseCircle size={24} strokeWidth={2} />,
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setModalConfig({
+                visible: true,
+                title: "Cancel Event",
+                message: `"${event.title}" has ${attendeeCount} registered attendee${attendeeCount !== 1 ? "s" : ""}. Cancelling will notify all of them. Do you want to proceed?`,
+                actions: [
+                  {
+                    text: "Yes, Cancel Event",
+                    style: "warning",
+                    onPress: async () => {
+                      setModalConfig((prev) => ({ ...prev, visible: false }));
+                      try {
+                        setActionLoading(event.id);
+                        await cancelEvent(event.id);
+                        loadEvents();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "Failed to cancel event. Please try again.",
+                        );
+                      } finally {
+                        setActionLoading(null);
+                      }
+                    },
+                  },
+                  {
+                    text: "No",
+                    style: "cancel",
+                    onPress: () =>
+                      setModalConfig((prev) => ({ ...prev, visible: false })),
+                  },
+                ],
+              });
+            }, 300);
+          },
+          style: "warning",
+        });
+      }
+    } else {
+      // Event is cancelled — only allow delete
+      options.push({
+        text: "Delete Event",
+        icon: <Trash2 size={24} strokeWidth={2} />,
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            setModalConfig({
+              visible: true,
+              title: "Delete Event",
+              message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
+              actions: [
+                {
+                  text: "Yes, Delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    setModalConfig((prev) => ({ ...prev, visible: false }));
+                    try {
+                      setActionLoading(event.id);
+                      await deleteEvent(event.id);
+                      loadEvents();
+                    } catch (err) {
+                      Alert.alert(
+                        "Error",
+                        "Failed to delete event. Please try again.",
+                      );
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  },
+                },
+                {
+                  text: "No",
+                  style: "cancel",
+                  onPress: () =>
+                    setModalConfig((prev) => ({ ...prev, visible: false })),
+                },
+              ],
+            });
+          }, 300);
         },
         style: "destructive",
       });
     }
-
-    // Can delete past events, or upcoming events without attendees, or cancelled events
-    const canDelete =
-      event.is_past ||
-      event.is_cancelled ||
-      parseInt(event.current_attendees || 0, 10) === 0;
-    options.push({
-      text: canDelete ? "Delete Event" : "Delete (after event ends)",
-      onPress: () => {
-        setModalConfig((prev) => ({ ...prev, visible: false }));
-        setTimeout(() => {
-          canDelete ? confirmDeleteEvent(event) : showDeleteRestriction(event);
-        }, 300);
-      },
-      style: canDelete ? "destructive" : "default",
-    });
-
-    options.push({
-      text: "Cancel",
-      style: "cancel",
-      onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
-    });
 
     setModalConfig({
       visible: true,
@@ -110,238 +372,136 @@ export default function CommunityEventsListScreen({ navigation, route }) {
     });
   };
 
-  const confirmCancelEvent = (event) => {
-    setModalConfig({
-      visible: true,
-      title: "Cancel Event",
-      message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
-      actions: [
-        {
-          text: "Yes, Cancel Event",
-          style: "destructive",
-          onPress: () => {
-            setModalConfig((prev) => ({ ...prev, visible: false }));
-            handleCancelEvent(event);
-          },
-        },
-        {
-          text: "No",
-          style: "cancel",
-          onPress: () =>
-            setModalConfig((prev) => ({ ...prev, visible: false })),
-        },
-      ],
-    });
-  };
+  // Helper for Date Formatting
+  const formatEventDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const confirmDeleteEvent = (event) => {
-    setModalConfig({
-      visible: true,
-      title: "Delete Event",
-      message: `Are you sure you want to permanently delete "${event.title}"? This cannot be undone.`,
-      actions: [
-        {
-          text: "Yes, Delete",
-          style: "destructive",
-          onPress: () => {
-            setModalConfig((prev) => ({ ...prev, visible: false }));
-            handleDeleteEvent(event);
-          },
-        },
-        {
-          text: "No",
-          style: "cancel",
-          onPress: () =>
-            setModalConfig((prev) => ({ ...prev, visible: false })),
-        },
-      ],
-    });
-  };
+    const isToday = date.toDateString() === now.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
-  const showDeleteRestriction = (event) => {
-    setModalConfig({
-      visible: true,
-      title: "Cannot Delete Yet",
-      message: `This event has ${event.current_attendees} registered attendees. You can only delete it after the event date has passed, or cancel it first.`,
-      actions: [
-        {
-          text: "OK",
-          style: "cancel",
-          onPress: () =>
-            setModalConfig((prev) => ({ ...prev, visible: false })),
-        },
-      ],
-    });
-  };
+    let dateLabel = date
+      .toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      .toUpperCase();
+    let isSpecial = false;
 
-  const handleCancelEvent = async (event) => {
-    try {
-      setActionLoading(event.id);
-      const result = await cancelEvent(event.id);
-
-      // Update local state
-      const updateEvents = (events) =>
-        events.map((e) =>
-          e.id === event.id ? { ...e, is_cancelled: true } : e
-        );
-      setUpcomingEvents(updateEvents);
-      setPastEvents(updateEvents);
-
-      setTimeout(() => {
-        setModalConfig({
-          visible: true,
-          title: "Event Cancelled",
-          message: `"${event.title}" has been cancelled. ${
-            result.notified_attendees || 0
-          } attendees have been notified.`,
-          actions: [
-            {
-              text: "OK",
-              style: "cancel",
-              onPress: () =>
-                setModalConfig((prev) => ({ ...prev, visible: false })),
-            },
-          ],
-        });
-      }, 100);
-    } catch (error) {
-      console.error("Error cancelling event:", error);
-      setTimeout(() => {
-        setModalConfig({
-          visible: true,
-          title: "Error",
-          message: error.message || "Failed to cancel event",
-          actions: [
-            {
-              text: "OK",
-              style: "cancel",
-              onPress: () =>
-                setModalConfig((prev) => ({ ...prev, visible: false })),
-            },
-          ],
-        });
-      }, 100);
-    } finally {
-      setActionLoading(null);
+    if (isToday) {
+      dateLabel = "TODAY";
+      isSpecial = true;
+    } else if (isTomorrow) {
+      dateLabel = "TOMORROW";
+      isSpecial = true;
     }
+
+    const timeLabel = date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return { dateLabel, timeLabel, isSpecial };
   };
 
-  const handleDeleteEvent = async (event) => {
-    try {
-      setActionLoading(event.id);
-      await deleteEvent(event.id);
+  const renderEventItem = ({ item }) => {
+    const { dateLabel, timeLabel, isSpecial } = formatEventDate(
+      item.event_date,
+    );
 
-      // Remove from local state
-      setUpcomingEvents((prev) => prev.filter((e) => e.id !== event.id));
-      setPastEvents((prev) => prev.filter((e) => e.id !== event.id));
+    // Compute real sold / capacity from ticket_types returned by the API
+    const tickets = item.ticket_types || [];
+    const ticketsSold =
+      tickets.length > 0
+        ? tickets.reduce((sum, t) => sum + (t.sold_count || 0), 0)
+        : parseInt(item.current_attendees || 0, 10);
+    const rawCapacity = tickets.reduce(
+      (sum, t) => (t.total_quantity != null ? sum + t.total_quantity : sum),
+      0,
+    );
+    // rawCapacity is 0 if all tickets are unlimited — fall back to max_attendees
+    const ticketCapacity =
+      rawCapacity > 0
+        ? rawCapacity
+        : parseInt(item.max_attendees || 0, 10) || null;
 
-      setTimeout(() => {
-        setModalConfig({
-          visible: true,
-          title: "Event Deleted",
-          message: `"${event.title}" has been permanently deleted.`,
-          actions: [
-            {
-              text: "OK",
-              style: "cancel",
-              onPress: () =>
-                setModalConfig((prev) => ({ ...prev, visible: false })),
-            },
-          ],
-        });
-      }, 100);
-    } catch (error) {
-      console.error("Error deleting event:", error);
-      setTimeout(() => {
-        setModalConfig({
-          visible: true,
-          title: "Error",
-          message: error.message || "Failed to delete event",
-          actions: [
-            {
-              text: "OK",
-              style: "cancel",
-              onPress: () =>
-                setModalConfig((prev) => ({ ...prev, visible: false })),
-            },
-          ],
-        });
-      }, 100);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const renderEventItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.eventCard, item.is_cancelled && styles.cancelledEventCard]}
-      onPress={() => handleEventPress(item)}
-      onLongPress={() => handleEventLongPress(item)}
-      activeOpacity={0.7}
-      disabled={actionLoading === item.id}
-    >
-      {actionLoading === item.id && (
-        <View style={styles.loadingOverlay}>
-          <SnooLoader size="small" color="#FFFFFF" />
-        </View>
-      )}
-      <View style={styles.eventImageContainer}>
-        <Image
-          source={{
-            uri:
-              item.banner_url ||
-              "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
-          }}
-          style={styles.eventImage}
-        />
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>
-            {new Date(item.event_date).toLocaleDateString(undefined, {
-              day: "numeric",
-              month: "short",
-            })}
-          </Text>
-        </View>
-        {item.is_cancelled && (
-          <View style={styles.cancelledBadge}>
-            <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
+    return (
+      <TouchableOpacity
+        style={[styles.ticketCard, item.is_cancelled && styles.cancelledEventCard]}
+        onPress={() => handleEventPress(item)}
+        onLongPress={() => handleEventLongPress(item)}
+        activeOpacity={0.8}
+        disabled={actionLoading === item.id}
+      >
+        {actionLoading === item.id && (
+          <View style={styles.loadingOverlay}>
+            <SnooLoader size="small" color="#FFFFFF" />
           </View>
         )}
-      </View>
-
-      <View style={styles.eventInfo}>
-        <Text style={styles.eventTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
-        <View style={styles.eventMeta}>
-          <Ionicons
-            name="location-outline"
-            size={14}
-            color={LIGHT_TEXT_COLOR}
+        <View style={{ position: "relative" }}>
+          <Image
+            source={{
+              uri:
+                item.banner_url ||
+                "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
+            }}
+            style={styles.ticketImage}
           />
-          <Text style={styles.eventMetaText} numberOfLines={1}>
-            {item.event_type === "virtual" ? "Virtual Event" : "In-person"}
-          </Text>
+          {item.is_cancelled && (
+            <View style={styles.cancelledBadge}>
+              <Text style={styles.cancelledBadgeText}>CANCELLED</Text>
+            </View>
+          )}
         </View>
-        <View style={styles.eventFooter}>
-          <Text style={styles.attendeesText}>
-            {item.current_attendees || 0} attendees
-          </Text>
-          <Text style={styles.priceText}>
-            {(() => {
-              if (!item.ticket_types?.length) return "Free";
-              const prices = item.ticket_types
-                .map((t) => parseFloat(t.base_price || t.price || 0))
-                .filter((p) => !isNaN(p));
-              if (prices.length === 0) return "Free";
-              const minPrice = Math.min(...prices);
-              return minPrice > 0 ? `₹${minPrice} onwards` : "Free";
-            })()}
-          </Text>
+
+        <View style={styles.ticketContent}>
+          <View style={styles.ticketTextSection}>
+            <View style={styles.ticketHeaderRow}>
+              <View
+                style={[
+                  styles.ticketDatePill,
+                  isSpecial && styles.ticketDatePillSpecial,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.ticketDateText,
+                    isSpecial && styles.ticketDateTextSpecial,
+                  ]}
+                >
+                  {dateLabel}
+                </Text>
+              </View>
+              <Text style={styles.ticketTimeText}>{timeLabel}</Text>
+            </View>
+
+            <Text style={styles.ticketTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+
+            <View style={styles.ticketFooterRow}>
+              <Ticket
+                size={14}
+                color="#6B7280"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.ticketMetricText}>
+                {ticketCapacity != null
+                  ? `${ticketsSold}/${ticketCapacity} sold`
+                  : `${ticketsSold} sold`}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.ticketMenuButton}
+            onPress={() => handleEventLongPress(item)}
+          >
+            <MoreHorizontal size={22} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -351,91 +511,87 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Events</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab("upcoming")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "upcoming" && styles.activeTabText,
-            ]}
+      <View style={styles.tabBar}>
+        {["upcoming", "past"].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={styles.tabItem}
+            onPress={() => setActiveTab(tab)}
+            onLayout={(e) => handleTabLayout(tab, e)}
           >
-            Upcoming
-          </Text>
-          {activeTab === "upcoming" && (
-            <LinearGradient
-              colors={["#00C6FF", "#007AFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.activeTabIndicator}
-            />
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab("past")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "past" && styles.activeTabText,
-            ]}
-          >
-            Past
-          </Text>
-          {activeTab === "past" && (
-            <LinearGradient
-              colors={["#00C6FF", "#007AFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.activeTabIndicator}
-            />
-          )}
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.tabTextActive,
+              ]}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        {/* Sliding indicator */}
+        <Animated.View
+          style={[
+            styles.activeTabIndicator,
+            {
+              transform: [{ translateX: tabUnderlineX }],
+              width: tabUnderlineScale,
+            },
+          ]}
+        />
       </View>
 
       {/* Content */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <SnooLoader size="large" color={PRIMARY_COLOR} />
-        </View>
-      ) : (
-        <FlatList
-          data={activeTab === "upcoming" ? upcomingEvents : pastEvents}
-          renderItem={renderEventItem}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={PRIMARY_COLOR}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={64} color="#E5E5EA" />
-              <Text style={styles.emptyText}>No {activeTab} events found</Text>
-            </View>
-          }
-        />
-      )}
+      <View style={styles.contentContainer}>
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <SnooLoader size="large" color={PRIMARY_COLOR} />
+          </View>
+        ) : (
+          <FlatList
+            data={activeTab === "upcoming" ? upcomingEvents : pastEvents}
+            renderItem={renderEventItem}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={PRIMARY_COLOR}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <CalendarDays size={64} color="#E5E5EA" strokeWidth={1.5} />
+                <Text style={styles.emptyText}>No {activeTab} events found</Text>
+              </View>
+            }
+          />
+        )}
+      </View>
       <ActionModal
         visible={modalConfig.visible}
         title={modalConfig.title}
         message={modalConfig.message}
         actions={modalConfig.actions}
         onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+      />
+      <EditEventModal
+        visible={showEditEventModal}
+        onClose={() => {
+          setShowEditEventModal(false);
+          setSelectedEvent(null);
+        }}
+        onEventUpdated={loadEvents}
+        eventData={selectedEvent}
       />
     </SafeAreaView>
   );
@@ -444,7 +600,11 @@ export default function CommunityEventsListScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB", // Light gray background
+    backgroundColor: "#FFFFFF", // White background to extend behind status bar
+  },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: "#F9FAFB", // Light gray background for inner content
   },
   header: {
     flexDirection: "row",
@@ -459,8 +619,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontFamily: "BasicCommercialBlack",
     color: TEXT_COLOR,
   },
   centerContainer: {
@@ -468,107 +628,117 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  tabsContainer: {
+  tabBar: {
     flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingHorizontal: 16,
-    // Removed border bottom line per user request
+    position: "relative",
   },
-  tab: {
+  tabItem: {
     flex: 1,
     paddingVertical: 14,
     alignItems: "center",
-    position: "relative",
+  },
+  tabText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: LIGHT_TEXT_COLOR,
+  },
+  tabTextActive: {
+    color: PRIMARY_COLOR,
+    fontFamily: "Manrope-SemiBold",
   },
   activeTabIndicator: {
     position: "absolute",
     bottom: 0,
-    height: 3,
-    width: "80%",
-    borderRadius: 3,
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: LIGHT_TEXT_COLOR,
-  },
-  activeTabText: {
-    color: PRIMARY_COLOR,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 1,
   },
   listContent: {
     padding: 16,
+    paddingBottom: 100, // Account for bottom tab bar
     gap: 16,
   },
-  eventCard: {
+  ticketCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    overflow: "hidden",
+    borderRadius: 28,
+    padding: 20,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    ...SHADOWS.sm, // Using theme shadow
+    borderColor: "#F0F0F0",
+    alignItems: "center",
+    height: 128,
   },
-  eventImageContainer: {
-    width: 110,
-    height: 110,
-    position: "relative",
+  ticketImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 16,
+    backgroundColor: "#F0F0F0",
   },
-  eventImage: {
-    width: "100%",
+  ticketContent: {
+    flex: 1,
+    marginLeft: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  ticketTextSection: {
+    flex: 1,
     height: "100%",
+    justifyContent: "space-between",
+    marginRight: 8,
   },
-  dateBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  ticketHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  ticketDatePill: {
+    backgroundColor: "#F3F4F6",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  dateBadgeText: {
+  ticketDatePillSpecial: {
+    backgroundColor: "#EDE7F6",
+  },
+  ticketDateText: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 10,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    color: "#6B7280",
   },
-  eventInfo: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "space-between",
+  ticketDateTextSpecial: {
+    color: PRIMARY_COLOR,
   },
-  eventTitle: {
+  ticketTimeText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  ticketTitle: {
+    fontFamily: "BasicCommercialBold",
     fontSize: 16,
-    fontWeight: "700",
     color: TEXT_COLOR,
-    lineHeight: 22,
-    marginBottom: 4,
+    lineHeight: 20,
   },
-  eventMeta: {
+  ticketFooterRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 8,
   },
-  eventMetaText: {
+  ticketMetricText: {
+    fontFamily: "Manrope-Medium",
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: "#6B7280",
   },
-  eventFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  ticketMenuButton: {
+    width: 32,
+    height: 32,
     alignItems: "center",
-    marginTop: "auto",
-  },
-  attendeesText: {
-    fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
-    fontWeight: "500",
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#34C759", // Green shade for price
+    justifyContent: "center",
+    backgroundColor: "#F7F8FA",
+    borderRadius: 12,
   },
   emptyContainer: {
     alignItems: "center",
@@ -578,7 +748,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
-    fontWeight: "500",
+    fontFamily: "Manrope-Medium",
   },
   cancelledEventCard: {
     opacity: 0.7,
@@ -593,6 +763,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 59, 48, 0.85)",
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 16,
   },
   cancelledBadgeText: {
     color: "#FFFFFF",
