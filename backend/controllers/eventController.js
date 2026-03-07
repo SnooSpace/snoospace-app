@@ -5189,6 +5189,167 @@ const releaseReservation = async (req, res) => {
   }
 };
 
+
+// ===================================================================
+// GET EVENT INSIGHTS (Community Organizer Dashboard)
+// ===================================================================
+const getEventInsights = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Community access required" });
+    }
+
+    // Verify this community owns the event
+    const ownerCheck = await pool.query(
+      "SELECT id FROM events WHERE id = $1 AND community_id = $2",
+      [eventId, userId]
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(403).json({ error: "You do not own this event" });
+    }
+
+    // 1. Revenue & tickets sold
+    const revenueResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT er.id)                 AS tickets_sold,
+        COALESCE(SUM(er.total_amount), 0)     AS total_revenue,
+        COALESCE(SUM(er.discount_amount), 0)  AS total_discounts
+      FROM event_registrations er
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+    `, [eventId]);
+
+    // 2. Interest / Bookmarks
+    const interestResult = await pool.query(
+      "SELECT COUNT(*) AS interested_count FROM event_interests WHERE event_id = $1",
+      [eventId]
+    );
+
+    // 3. Gender breakdown
+    const genderResult = await pool.query(`
+      SELECT
+        COALESCE(m.gender, 'Unknown') AS gender,
+        COUNT(*) AS count
+      FROM event_registrations er
+      INNER JOIN members m ON er.member_id = m.id
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      GROUP BY m.gender
+    `, [eventId]);
+
+    // 4. Ticket type breakdown
+    const ticketTypeResult = await pool.query(`
+      SELECT
+        COALESCE(tt.name, 'General') AS ticket_name,
+        COUNT(*) AS count,
+        COALESCE(AVG(tt.base_price), 0) AS avg_price
+      FROM event_registrations er
+      LEFT JOIN ticket_types tt ON er.ticket_type_id = tt.id
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      GROUP BY ticket_name, tt.base_price
+      ORDER BY count DESC
+    `, [eventId]);
+
+    // 5. Offers used
+    const offersResult = await pool.query(`
+      SELECT
+        dc.code, dc.discount_type, dc.discount_value,
+        COUNT(er.id) AS times_used,
+        COALESCE(SUM(er.discount_amount), 0) AS total_saved
+      FROM event_registrations er
+      INNER JOIN discount_codes dc ON er.discount_code_id = dc.id
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      GROUP BY dc.id, dc.code, dc.discount_type, dc.discount_value
+      ORDER BY times_used DESC
+    `, [eventId]);
+
+    // 6. Daily revenue trend (last 7 days)
+    const trendResult = await pool.query(`
+      WITH dates AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '6 days',
+          CURRENT_DATE,
+          '1 day'::interval
+        )::date AS day
+      ),
+      daily AS (
+        SELECT DATE(er.created_at) AS day, COUNT(er.id) AS tickets,
+               COALESCE(SUM(er.total_amount), 0) AS revenue
+        FROM event_registrations er
+        WHERE er.event_id = $1
+          AND er.registration_status IN ('registered', 'attended', 'confirmed')
+          AND er.created_at >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY DATE(er.created_at)
+      )
+      SELECT d.day, COALESCE(dl.tickets, 0) AS tickets, COALESCE(dl.revenue, 0) AS revenue
+      FROM dates d LEFT JOIN daily dl ON d.day = dl.day
+      ORDER BY d.day ASC
+    `, [eventId]);
+
+    // 7. Attendee list
+    const attendeeResult = await pool.query(`
+      SELECT m.id, m.name, m.username, m.profile_photo_url, m.gender,
+             EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::int AS age,
+             er.created_at AS registered_at,
+             er.total_amount, er.discount_amount,
+             tt.name AS ticket_name, er.ticket_type_id, er.registration_status
+      FROM event_registrations er
+      INNER JOIN members m ON er.member_id = m.id
+      LEFT JOIN ticket_types tt ON er.ticket_type_id = tt.id
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      ORDER BY er.created_at DESC
+    `, [eventId]);
+
+    const ticketsSold   = parseInt(revenueResult.rows[0].tickets_sold, 10) || 0;
+    const totalRevenue  = parseFloat(revenueResult.rows[0].total_revenue) || 0;
+    const totalDiscounts = parseFloat(revenueResult.rows[0].total_discounts) || 0;
+    const interestedCount = parseInt(interestResult.rows[0].interested_count, 10) || 0;
+    const conversionRate = interestedCount > 0
+      ? Math.round((ticketsSold / interestedCount) * 100) : 0;
+
+    res.json({
+      success: true,
+      insights: {
+        totalRevenue, totalDiscounts, ticketsSold, interestedCount, conversionRate,
+        dailyTrend: trendResult.rows.map((r) => ({
+          day: r.day, tickets: parseInt(r.tickets, 10), revenue: parseFloat(r.revenue),
+        })),
+        genderBreakdown: genderResult.rows.map((r) => ({
+          gender: r.gender, count: parseInt(r.count, 10),
+        })),
+        ticketTypeBreakdown: ticketTypeResult.rows.map((r) => ({
+          ticketName: r.ticket_name, count: parseInt(r.count, 10), avgPrice: parseFloat(r.avg_price),
+        })),
+        offersUsed: offersResult.rows.map((r) => ({
+          code: r.code, discountType: r.discount_type,
+          discountValue: parseFloat(r.discount_value),
+          timesUsed: parseInt(r.times_used, 10), totalSaved: parseFloat(r.total_saved),
+        })),
+        attendees: attendeeResult.rows.map((r) => ({
+          id: r.id, name: r.name, username: r.username,
+          profile_photo_url: r.profile_photo_url, gender: r.gender, age: r.age,
+          registered_at: r.registered_at,
+          totalPaid: parseFloat(r.total_amount) || 0,
+          discountUsed: parseFloat(r.discount_amount) || 0,
+          ticketName: r.ticket_name,
+          tickets: r.ticket_name ? [{ ticketName: r.ticket_name, quantity: 1 }] : [],
+          registration_status: r.registration_status,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching event insights:", error.message, error.stack);
+    res.status(500).json({ success: false, error: "Failed to fetch event insights" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -5228,4 +5389,6 @@ module.exports = {
   // Ticket reservations
   reserveTickets,
   releaseReservation,
+  // Event Insights
+  getEventInsights,
 };

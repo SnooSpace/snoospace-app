@@ -301,3 +301,15 @@ export async function releaseReservation(eventId, sessionId) {
     token,
   );
 }
+
+/**
+ * Get insights for an event (community organizers only)
+ * Returns revenue, ticket breakdown, gender demographics, offers used,
+ * daily revenue trend (last 7 days), and full attendee list
+ * @param {string|number} eventId - Event ID
+ * @returns {Promise<Object>} { success: boolean, insights: Object }
+ */
+export async function getEventInsights(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/events/${eventId}/insights`, 15000, token);
+}

@@ -1247,6 +1247,11 @@ router.get(
   EventController.getEventAttendeesForCommunity,
 );
 router.get(
+  "/events/:eventId/insights",
+  authMiddleware,
+  EventController.getEventInsights,
+);
+router.get(
   "/events/:eventId/my-ticket",
   authMiddleware,
   EventController.getMyTicket,
