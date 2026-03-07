@@ -41,13 +41,17 @@ const PARTICIPATION_ROLES = [
     id: "member",
     title: "People",
     subtitle: "Join events, discover communities, and connect with people nearby.",
+    quote: "Where every event is a chance to meet someone worth knowing.",
+    buttonText: "Start Exploring",
     animation: require("../../assets/animations/gossipers.json"),
     icon: Users,
   },
   {
     id: "community",
     title: "Community",
-    subtitle: "Host amazing events, manage venues, and grow your community presence.",
+    subtitle: "Host events, grow your audience, and track what's working.",
+    quote: "The people worth gathering are out there. Bring them in.",
+    buttonText: "Start Building",
     animation: require("../../assets/animations/Community svg.json"),
     icon: Building2,
   },
@@ -69,8 +73,8 @@ const AnimatedCard = memo(({
 
   const cardStyle = useAnimatedStyle(() => {
     // Determine the scale using a shared value approach or withTiming
-    const currentScale = withTiming(isOtherSelected ? 0.60 : 1, { duration: 350 });
-    const currentOpacity = withTiming(isOtherSelected ? 0.65 : 1, { duration: 350 });
+    const currentScale = withTiming(isOtherSelected ? 0.88 : 1, { duration: 350 });
+    const currentOpacity = withTiming(isOtherSelected ? 0.75 : 1, { duration: 350 });
     const currentHeight = withTiming(isSelected ? cardBaseHeight + 130 : cardBaseHeight, { duration: 420 });
 
     return {
@@ -138,13 +142,17 @@ const AnimatedCard = memo(({
             {/* Expanded area – only mounted when selected, fades in on tap */}
             {isSelected && (
               <Animated.View style={expandedAreaStyle}>
-                <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
+                {item.quote ? (
+                  <Text style={styles.cardQuoteExpanded}>{item.quote}</Text>
+                ) : (
+                  <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
+                )}
                 <TouchableOpacity
                   activeOpacity={0.82}
                   onPress={onContinue}
                   style={styles.cardContinueButton}
                 >
-                  <Text style={styles.cardContinueButtonText}>Continue as {item.title}</Text>
+                  <Text style={styles.cardContinueButtonText}>{item.buttonText}</Text>
                   <ArrowRight size={18} color={COLORS.surface} strokeWidth={2.5} />
                 </TouchableOpacity>
               </Animated.View>
@@ -153,7 +161,7 @@ const AnimatedCard = memo(({
 
           {/* Blur overlay for de-emphasised cards */}
           {isOtherSelected && Platform.OS !== "web" && (
-            <BlurView intensity={18} style={StyleSheet.absoluteFill} tint="light" />
+            <BlurView intensity={4} style={StyleSheet.absoluteFill} tint="light" />
           )}
         </View>
       </Pressable>
@@ -235,7 +243,7 @@ const LandingScreen = ({ navigation }) => {
             <Text style={{ color: COLORS.textPrimary }}>Welcome to{"\n"}</Text>
             <Text style={{ color: COLORS.primary }}>SnooSpace</Text>
           </Text>
-          <Text style={styles.headerSubtitle}>Choose how you want to participate</Text>
+          <Text style={styles.headerSubtitle}>Step into your experience</Text>
         </View>
 
         {/* ── Carousel ── */}
@@ -413,7 +421,16 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.9)",
     lineHeight: 22,
     marginTop: 8,
+    marginBottom: 8,
+  },
+  cardQuoteExpanded: {
+    fontFamily: FONTS.regular, // Body Text Rule (same as subtitle)
+    fontSize: 15,
+    fontStyle: "italic",
+    color: "rgba(255,255,255,0.9)", // Same color as standard subtitle
+    marginTop: 8,
     marginBottom: 16,
+    lineHeight: 22,
   },
   cardContinueButton: {
     backgroundColor: COLORS.primary,
