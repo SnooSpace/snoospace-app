@@ -13,12 +13,11 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import CropOverlay from "./CropOverlay";
 import { calculateBounds, calculateInitialScale, clamp } from "./CropUtils";
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
-const AnimatedVideo = Animated.createAnimatedComponent(Video);
 
 // Spring configuration for smooth animations
 const SPRING_CONFIG = {
@@ -63,6 +62,16 @@ const CropView = ({
   mediaType = "image",
 }) => {
   const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+
+  // expo-video player for video media type
+  const videoPlayer = useVideoPlayer(
+    mediaType === "video" && imageUri ? { uri: imageUri } : null,
+    (p) => {
+      p.muted = true;
+      p.loop = true;
+      p.play();
+    }
+  );
 
   // Calculate frame dimensions based on aspect ratio and screen size
   const padding = 40;
@@ -418,8 +427,8 @@ const CropView = ({
         <GestureDetector gesture={composedGestures}>
           <Animated.View style={styles.imageWrapper}>
             {mediaType === "video" ? (
-              <AnimatedVideo
-                source={{ uri: imageUri }}
+              <VideoView
+                player={videoPlayer}
                 style={[
                   animatedImageStyle,
                   displayDimensions.width > 0
@@ -432,11 +441,16 @@ const CropView = ({
                         height: "100%",
                       },
                 ]}
-                onLoad={handleImageLoad}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay={true}
-                isLooping={true}
-                isMuted={true}
+                contentFit="cover"
+                nativeControls={false}
+                allowsFullscreen={false}
+                allowsPictureInPicture={false}
+                onFirstFrameRender={() => {
+                  // Use fixed HD dimensions as fallback for crop view
+                  if (handleImageLoad) {
+                    handleImageLoad({ isLoaded: true });
+                  }
+                }}
               />
             ) : (
               <AnimatedImage

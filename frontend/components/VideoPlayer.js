@@ -7,20 +7,19 @@
  * - Manual loop control for proper resource cleanup
  * - Aggressive off-screen unloading to prevent memory issues
  * - Global coordination via VideoContext
+ *
+ * Migrated from expo-av → expo-video (SDK 55)
  */
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import { View, TouchableOpacity, StyleSheet, Dimensions, Text, Image } from "react-native";
-import { Video, ResizeMode } from "expo-av";
-import { Ionicons } from "@expo/vector-icons";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { RotateCcw } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useVideoContext } from "../context/VideoContext";
 import SnooLoader from "./ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// How long to wait before unloading off-screen video (ms)
-// Reduced to 5s for better memory management while allowing quick scroll-backs
-// Memory impact: ~1-2 videos max in memory at once
 const UNLOAD_DELAY_MS = 5000;
 
 const VideoPlayer = ({
@@ -29,97 +28,131 @@ const VideoPlayer = ({
   aspectRatio = 1,
   autoplay = true,
   muted = true,
-  loop = true, // For feed: controlled manually. For fullscreen: native loop
+  loop = true,
   showControls = true,
-  isVisible = true, // Parent manages via viewability
-  isScreenFocused = true, // Parent manages via screen focus (navigation)
-  isFullscreen = false, // True when playing in fullscreen modal
+  isVisible = true,
+  isScreenFocused = true,
+  isFullscreen = false,
   onLoad,
   onError,
-  onPress, // Callback when video is tapped
-  onVideoEnd, // Callback when video finishes (for external handling)
+  onPress,
+  onVideoEnd,
   containerWidth = SCREEN_WIDTH,
   cropMetadata,
-  // Qualified view tracking
   onUnmute,
   onPlaybackStart,
   onFullscreen,
-  postId, // For VideoContext registration
-  // HLS streaming support (new)
-  thumbnailUrl: propThumbnailUrl, // Pre-generated thumbnail from API
+  postId,
+  thumbnailUrl: propThumbnailUrl,
 }) => {
-  const videoRef = useRef(null);
   const { isVideoActive, registerVideo } = useVideoContext();
 
-  // Core playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(muted);
   const [isLoading, setIsLoading] = useState(true);
-  const [shouldLoad, setShouldLoad] = useState(true); // Controls if video is loaded
-  const [hasStartedPlaying, setHasStartedPlaying] = useState(false); // Track if video has ever played
-  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false); // Track if first video frame is visible
-
-  // "Watch Again" state - only for feed view (non-fullscreen)
+  const [shouldLoad, setShouldLoad] = useState(true);
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
+  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
   const [showWatchAgainOverlay, setShowWatchAgainOverlay] = useState(false);
-
-  // Play button state (for non-autoplay or paused state)
   const [showPlayButton, setShowPlayButton] = useState(!autoplay);
 
-  // Tracking refs
   const hasNotifiedPlaybackRef = useRef(false);
   const unloadTimeoutRef = useRef(null);
   const isUnmountingRef = useRef(false);
-  const hasScrolledAwayWhileFinishedRef = useRef(false); // Tracks if user left while video was finished
-
-  // CRITICAL: Refs for values that need to be checked inside setTimeout
-  // This prevents stale closure bugs where setTimeout sees old values
+  const hasScrolledAwayWhileFinishedRef = useRef(false);
   const isVisibleRef = useRef(isVisible);
   const videoFinishedRef = useRef(videoFinished);
 
-  // Keep refs in sync with state
-  useEffect(() => {
-    isVisibleRef.current = isVisible;
-  }, [isVisible]);
+  useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
+  useEffect(() => { videoFinishedRef.current = videoFinished; }, [videoFinished]);
 
-  useEffect(() => {
-    videoFinishedRef.current = videoFinished;
-  }, [videoFinished]);
+  // expo-video player
+  const player = useVideoPlayer(
+    shouldLoad && source ? (typeof source === "string" ? { uri: source } : source) : null,
+    (p) => {
+      p.muted = isMuted;
+      p.loop = false; // manual loop
+    }
+  );
 
-  // Register with VideoContext for cleanup tracking
+  const videoRef = useRef(null);
+
+  // Register with VideoContext
   useEffect(() => {
     if (postId) {
       return registerVideo(postId, videoRef);
     }
   }, [postId, registerVideo]);
 
-  // CRITICAL: Cleanup on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isUnmountingRef.current = true;
       clearTimeout(unloadTimeoutRef.current);
-      if (videoRef.current) {
-        videoRef.current.unloadAsync().catch(() => {});
-      }
     };
   }, []);
 
-  // SCREEN FOCUS HANDLING: Full reset when navigating away from screen
-  // This ensures clean, fresh playback when the user returns
+  // Subscribe to player status events
   useEffect(() => {
-    if (!isScreenFocused && !isFullscreen) {
-      // Screen lost focus - IMMEDIATELY unload and reset everything
-      console.log("[VideoPlayer] Screen lost focus, fully resetting:", postId);
+    if (!player) return;
 
-      // Stop any pending unload
-      clearTimeout(unloadTimeoutRef.current);
+    const statusSub = player.addListener("statusChange", (status) => {
+      if (status.status === "readyToPlay") {
+        setIsLoading(false);
+        setHasFirstFrameRendered(true);
+        if (onLoad) onLoad(status);
+      } else if (status.status === "error") {
+        setIsLoading(false);
+        if (onError) onError(status.error);
+      }
+    });
 
-      // Unload the video immediately
-      if (videoRef.current) {
-        videoRef.current.unloadAsync().catch(() => {});
+    const playingSub = player.addListener("playingChange", (isNowPlaying) => {
+      setIsPlaying(isNowPlaying);
+
+      if (isNowPlaying && !hasStartedPlaying) {
+        setHasStartedPlaying(true);
       }
 
-      // Reset ALL state for fresh playback on return
+      if (isNowPlaying && !hasNotifiedPlaybackRef.current) {
+        hasNotifiedPlaybackRef.current = true;
+        onPlaybackStart?.(true);
+      } else if (!isNowPlaying && hasNotifiedPlaybackRef.current) {
+        onPlaybackStart?.(false);
+      }
+    });
+
+    return () => {
+      statusSub?.remove();
+      playingSub?.remove();
+    };
+  }, [player, hasStartedPlaying, onLoad, onError, onPlaybackStart]);
+
+  // Subscribe to playback end
+  useEffect(() => {
+    if (!player) return;
+
+    const endedSub = player.addListener("playToEnd", () => {
+      if (!hasStartedPlaying) return;
+      onVideoEnd?.();
+
+      if (isFullscreen) {
+        player.replay();
+      } else {
+        setVideoFinished(true);
+        setShowWatchAgainOverlay(true);
+        setShowPlayButton(false);
+      }
+    });
+
+    return () => endedSub?.remove();
+  }, [player, hasStartedPlaying, isFullscreen, onVideoEnd]);
+
+  // Screen focus handling
+  useEffect(() => {
+    if (!isScreenFocused && !isFullscreen) {
+      clearTimeout(unloadTimeoutRef.current);
       setShouldLoad(false);
       setHasFirstFrameRendered(false);
       setVideoFinished(false);
@@ -130,243 +163,100 @@ const VideoPlayer = ({
       hasNotifiedPlaybackRef.current = false;
       hasScrolledAwayWhileFinishedRef.current = false;
     } else if (isScreenFocused && !shouldLoad && !isUnmountingRef.current) {
-      // Screen regained focus - reload the video fresh
-      console.log(
-        "[VideoPlayer] Screen regained focus, reloading fresh:",
-        postId,
-      );
       setShouldLoad(true);
       setIsLoading(true);
     }
-  }, [isScreenFocused, isFullscreen, postId, shouldLoad]);
+  }, [isScreenFocused, isFullscreen]);
 
-  // Handle visibility changes with aggressive off-screen unloading
+  // Visibility / autoplay handling
   useEffect(() => {
-    // Clear any pending unload when visibility changes
+    if (!player) return;
     clearTimeout(unloadTimeoutRef.current);
 
     if (isVisible && shouldLoad) {
-      // Visible - always restart from beginning (Instagram behavior)
-      // This handles both: returning from scroll AND returning from different screen
-      if (autoplay && videoRef.current && hasStartedPlaying) {
-        // Video was previously playing - restart from beginning
-        console.log("[VideoPlayer] Restarting video from beginning:", postId);
-
-        // Reset all playback state
+      if (autoplay && hasStartedPlaying) {
         setVideoFinished(false);
         setShowWatchAgainOverlay(false);
         hasScrolledAwayWhileFinishedRef.current = false;
-
-        // Seek to beginning and play
-        videoRef.current
-          .setStatusAsync({ positionMillis: 0 })
-          .then(() => {
-            if (videoRef.current) {
-              return videoRef.current.playAsync();
-            }
-          })
-          .then(() => {
-            console.log("[VideoPlayer] Restart complete:", postId);
-          })
-          .catch((err) => {
-            console.log("[VideoPlayer] Restart error:", err);
-          });
-      } else if (autoplay && videoRef.current && !hasStartedPlaying) {
-        // First time playing - just start
-        videoRef.current.playAsync().catch(() => {});
+        player.currentTime = 0;
+        player.play();
+      } else if (autoplay && !hasStartedPlaying) {
+        player.play();
       }
     } else if (!isVisible) {
-      // Off-screen - pause immediately (keep video loaded for quick resume)
-      if (videoRef.current) {
-        videoRef.current.pauseAsync().catch(() => {});
-      }
+      player.pause();
 
-      // Track if we're leaving while video is finished (for auto-restart on return)
       if (videoFinished) {
         hasScrolledAwayWhileFinishedRef.current = true;
-        console.log(
-          "[VideoPlayer] Scrolled away while finished, will auto-restart on return:",
-          postId,
-        );
       }
 
-      // Schedule unload after delay (only for feed, not fullscreen)
       if (!isFullscreen) {
         unloadTimeoutRef.current = setTimeout(() => {
-          // CRITICAL FIX: Use refs to get CURRENT values, not stale closure values
-          // This prevents unloading videos that became visible again during the delay
-          // Also prevents unloading videos showing "Watch Again" overlay
           if (
             !isUnmountingRef.current &&
-            videoRef.current &&
-            !isVisibleRef.current && // Check CURRENT visibility via ref
-            !videoFinishedRef.current // Don't unload if showing Watch Again
+            !isVisibleRef.current &&
+            !videoFinishedRef.current
           ) {
-            console.log("[VideoPlayer] Unloading off-screen video:", postId);
-            videoRef.current.unloadAsync().catch(() => {});
             setShouldLoad(false);
-            setHasFirstFrameRendered(false); // Reset thumbnail only when actually unloading
-          } else {
-            console.log(
-              "[VideoPlayer] Skipping unload - video is visible or showing Watch Again:",
-              postId,
-            );
+            setHasFirstFrameRendered(false);
           }
         }, UNLOAD_DELAY_MS);
       }
     }
 
     return () => clearTimeout(unloadTimeoutRef.current);
-  }, [
-    isVisible,
-    autoplay,
-    videoFinished,
-    isFullscreen,
-    shouldLoad,
-    postId,
-    hasStartedPlaying,
-  ]);
+  }, [isVisible, autoplay, videoFinished, isFullscreen, shouldLoad, postId, hasStartedPlaying, player]);
 
-  // Re-load video when becoming visible again after unload
+  // Re-load after off-screen unload
   useEffect(() => {
     if (isVisible && !shouldLoad && !isUnmountingRef.current) {
-      console.log(
-        "[VideoPlayer] Re-loading video after off-screen unload:",
-        postId,
-      );
       setShouldLoad(true);
       setIsLoading(true);
-      setHasFirstFrameRendered(false); // Reset so thumbnail shows until first frame
-      // Reset all playback state for fresh start
+      setHasFirstFrameRendered(false);
       setVideoFinished(false);
       setShowWatchAgainOverlay(false);
-      setHasStartedPlaying(false); // Reset so didJustFinish check works correctly
-      hasNotifiedPlaybackRef.current = false; // Reset playback notification
+      setHasStartedPlaying(false);
+      hasNotifiedPlaybackRef.current = false;
     }
-  }, [isVisible, shouldLoad, postId]);
+  }, [isVisible, shouldLoad]);
 
-  // Handle playback status updates - MANUAL LOOP CONTROL
-  const handlePlaybackStatusUpdate = useCallback(
-    (status) => {
-      if (!status.isLoaded) return;
+  // Sync mute state to player
+  useEffect(() => {
+    if (player) player.muted = isMuted;
+  }, [player, isMuted]);
 
-      setIsLoading(false);
-      setIsPlaying(status.isPlaying);
-
-      // Mark that video has started playing at least once
-      if (status.isPlaying && !hasStartedPlaying) {
-        setHasStartedPlaying(true);
-      }
-
-      // Notify parent of playback state for qualified view tracking
-      if (status.isPlaying && !hasNotifiedPlaybackRef.current) {
-        hasNotifiedPlaybackRef.current = true;
-        onPlaybackStart?.(true);
-      } else if (!status.isPlaying && hasNotifiedPlaybackRef.current) {
-        onPlaybackStart?.(false);
-      }
-
-      // CRITICAL: Handle video completion - MANUAL LOOP
-      // SAFEGUARD: Only process didJustFinish if this VideoPlayer instance
-      // actually played the video (hasStartedPlaying). This prevents stale
-      // "finished" events from expo-av's cached position when a different
-      // instance (e.g., Profile screen) finished the same video.
-      if (status.didJustFinish && hasStartedPlaying) {
-        console.log(
-          "[VideoPlayer] Video finished, isFullscreen:",
-          isFullscreen,
-        );
-        onVideoEnd?.();
-
-        if (isFullscreen) {
-          // Fullscreen: Auto-loop by replaying
-          videoRef.current?.replayAsync().catch(() => {});
-        } else {
-          // Feed view: Show "Watch Again" overlay
-          setVideoFinished(true);
-          setShowWatchAgainOverlay(true);
-          setShowPlayButton(false);
-        }
-      }
-    },
-    [onPlaybackStart, onVideoEnd, isFullscreen, hasStartedPlaying],
-  );
-
-  const handleLoad = useCallback(
-    (status) => {
-      setIsLoading(false);
-      if (onLoad) onLoad(status);
-    },
-    [onLoad],
-  );
-
-  const handleError = useCallback(
-    (error) => {
-      console.error("[VideoPlayer] Error loading video:", error);
-      setIsLoading(false);
-      if (onError) onError(error);
-    },
-    [onError],
-  );
-
-  // Watch Again handler
   const handleWatchAgain = useCallback(async () => {
-    if (!videoRef.current) return;
-
-    try {
-      console.log("[VideoPlayer] Watch Again triggered");
-      setShowWatchAgainOverlay(false);
-      setVideoFinished(false);
-      // NOTE: Don't set loading state - video is already loaded, just seeking to beginning
-      // Setting isLoading here caused unnecessary UI flash and perceived delay
-
-      // Replay from beginning
-      await videoRef.current.setPositionAsync(0);
-      await videoRef.current.playAsync();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error("[VideoPlayer] Watch Again error:", error);
-    }
-  }, []);
+    if (!player) return;
+    setShowWatchAgainOverlay(false);
+    setVideoFinished(false);
+    player.currentTime = 0;
+    player.play();
+    setIsPlaying(true);
+  }, [player]);
 
   const togglePlayPause = useCallback(async () => {
-    if (!videoRef.current) return;
-
-    try {
-      const status = await videoRef.current.getStatusAsync();
-      if (status.isPlaying) {
-        await videoRef.current.pauseAsync();
-        setIsPlaying(false);
-        setShowPlayButton(true);
-      } else {
-        // If video finished, restart from beginning
-        if (videoFinished) {
-          await videoRef.current.setPositionAsync(0);
-          setVideoFinished(false);
-          setShowWatchAgainOverlay(false);
-        }
-        await videoRef.current.playAsync();
-        setIsPlaying(true);
-        setShowPlayButton(false);
+    if (!player) return;
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+      setShowPlayButton(true);
+    } else {
+      if (videoFinished) {
+        player.currentTime = 0;
+        setVideoFinished(false);
+        setShowWatchAgainOverlay(false);
       }
-    } catch (error) {
-      console.error("[VideoPlayer] Toggle play/pause error:", error);
+      player.play();
+      setIsPlaying(true);
+      setShowPlayButton(false);
     }
-  }, [videoFinished]);
+  }, [player, isPlaying, videoFinished]);
 
   const toggleMute = useCallback(async () => {
-    if (!videoRef.current) return;
-
-    try {
-      const newMuted = !isMuted;
-      await videoRef.current.setIsMutedAsync(newMuted);
-      setIsMuted(newMuted);
-
-      if (!newMuted) {
-        onUnmute?.();
-      }
-    } catch (error) {
-      console.error("[VideoPlayer] Toggle mute error:", error);
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (!newMuted) {
+      onUnmute?.();
     }
   }, [isMuted, onUnmute]);
 
@@ -376,64 +266,29 @@ const VideoPlayer = ({
   }, [onFullscreen, onPress]);
 
   const handleOverlayPress = useCallback(() => {
-    // If Watch Again overlay is showing, trigger replay
     if (showWatchAgainOverlay) {
       handleWatchAgain();
       return;
     }
-
-    // If paused, play
     if (!isPlaying || showPlayButton) {
       togglePlayPause();
     } else if (onPress) {
-      // If playing, execute custom onPress (e.g., fullscreen)
       onPress();
     } else {
       togglePlayPause();
     }
-  }, [
-    showWatchAgainOverlay,
-    handleWatchAgain,
-    isPlaying,
-    showPlayButton,
-    togglePlayPause,
-    onPress,
-  ]);
+  }, [showWatchAgainOverlay, handleWatchAgain, isPlaying, showPlayButton, togglePlayPause, onPress]);
 
-  const videoHeight = containerWidth / aspectRatio;
-
-  // Calculate video transform based on cropMetadata
-
-  // Helper function to generate thumbnail URL from video URL
   const getThumbnailUrl = (videoSource) => {
     if (typeof videoSource !== "string") return null;
-
-    // For Cloudinary videos, we can generate thumbnail by appending transformation
     if (videoSource.includes("cloudinary.com")) {
-      // Extract the video URL and insert transformation to get first frame
-      // Format: /upload/so_0/ gets the frame at 0 seconds
-      const transformedUrl = videoSource.replace(
-        "/upload",
-        "/upload/so_0,f_jpg,q_auto",
-      );
-      return transformedUrl;
+      return videoSource.replace("/upload", "/upload/so_0,f_jpg,q_auto");
     }
-
-    // For other sources, we'll use a generic approach - return the video URL
-    // The poster frame will be extracted by the native video player
     return videoSource;
   };
 
-  // Apply optimizations to the video source
-  // Source may be HLS URL (.m3u8) or fallback MP4
-  const optimizedSource = source;
-
-  // Use prop thumbnail if provided, otherwise generate from source
-  // Prop thumbnail is preferred (optimized by backend)
   const thumbnailUrl = propThumbnailUrl || getThumbnailUrl(source);
 
-  // CRITICAL FIX: Only apply transforms when user actually panned/zoomed
-  // Check for hasUserCrop flag OR detect non-default values
   const hasUserCrop =
     cropMetadata?.hasUserCrop ||
     (cropMetadata &&
@@ -441,7 +296,6 @@ const VideoPlayer = ({
         Math.abs(cropMetadata.translateX || 0) > 0.5 ||
         Math.abs(cropMetadata.translateY || 0) > 0.5));
 
-  // Only apply transforms if user actually modified the crop
   const videoTransform = hasUserCrop
     ? [
         { scale: cropMetadata.scale || 1 },
@@ -450,36 +304,19 @@ const VideoPlayer = ({
       ]
     : [];
 
-  // Use CONTAIN for all videos to prevent cropping (especially for tall 9:16 videos)
-  // COVER would crop tall videos to fill the container width, cutting off top/bottom
-  // CONTAIN shows the full video within the container bounds
-  const videoResizeMode = ResizeMode.CONTAIN;
+  const videoHeight = containerWidth / aspectRatio;
 
-  // Show thumbnail when video is unloaded (Instagram-style)
+  // Show thumbnail when unloaded
   if (!shouldLoad) {
     return (
-      <View
-        style={[
-          styles.container,
-          { width: containerWidth, height: videoHeight },
-          style,
-        ]}
-      >
-        {/* Show thumbnail image instead of loading the full video */}
+      <View style={[styles.container, { width: containerWidth, height: videoHeight }, style]}>
         {thumbnailUrl ? (
-          <>
-            <Image
-              source={{ uri: thumbnailUrl }}
-              style={[
-                styles.video,
-                hasUserCrop && { transform: videoTransform },
-              ]}
-              resizeMode="contain"
-            />
-            {/* Clean thumbnail without play icon - Instagram style */}
-          </>
+          <Image
+            source={{ uri: thumbnailUrl }}
+            style={[styles.video, hasUserCrop && { transform: videoTransform }]}
+            resizeMode="contain"
+          />
         ) : (
-          // Fallback: show black background
           <View style={styles.thumbnailFallback} />
         )}
       </View>
@@ -487,72 +324,38 @@ const VideoPlayer = ({
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        { width: containerWidth, height: videoHeight },
-        style,
-      ]}
-    >
-      <Video
+    <View style={[styles.container, { width: containerWidth, height: videoHeight }, style]}>
+      <VideoView
         ref={videoRef}
-        source={typeof source === "string" ? { uri: source } : source}
+        player={player}
         style={[styles.video, hasUserCrop && { transform: videoTransform }]}
-        resizeMode={videoResizeMode}
-        isLooping={false} // MANUAL LOOP - handled in handlePlaybackStatusUpdate
-        isMuted={isMuted}
-        shouldPlay={autoplay && isVisible && !videoFinished}
-        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-        onLoad={handleLoad}
-        onError={handleError}
-        useNativeControls={false}
-        // CRITICAL OPTIMIZATIONS for faster loading
-        progressUpdateIntervalMillis={250} // More frequent updates
-        usePoster={false} // Don't wait for poster
-        posterSource={thumbnailUrl ? { uri: thumbnailUrl } : undefined} // Show thumbnail immediately
-        posterStyle={{ resizeMode: "contain" }}
-        // Preload video content aggressively for smoother playback
-        // This is especially important for tall videos which have more data
-        preferredForwardBufferDuration={5} // Buffer 5 seconds ahead (default is 0)
-        onReadyForDisplay={() => {
-          // CRITICAL: Video's first frame is now rendered and visible
-          // Only NOW should we hide the thumbnail overlay
-          console.log(
-            "[VideoPlayer] Ready for display (first frame rendered):",
-            postId,
-          );
+        contentFit="contain"
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+        onFirstFrameRender={() => {
           setHasFirstFrameRendered(true);
-          setIsLoading(false); // Hide spinner as soon as first frame is ready
+          setIsLoading(false);
         }}
       />
 
-      {/* Thumbnail Overlay - remains visible until first video frame renders */}
-      {/* This prevents black frame flash during decoder warmup */}
+      {/* Thumbnail overlay until first frame renders */}
       {shouldLoad && thumbnailUrl && !hasFirstFrameRendered && (
         <Image
           source={{ uri: thumbnailUrl }}
-          style={[
-            styles.thumbnailOverlay,
-            hasUserCrop && { transform: videoTransform },
-          ]}
+          style={[styles.thumbnailOverlay, hasUserCrop && { transform: videoTransform }]}
           resizeMode="contain"
         />
       )}
 
       {/* Tap overlay */}
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={handleOverlayPress}
-      >
-        {/* Loading indicator - only show when actively loading (not just waiting) */}
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleOverlayPress}>
         {isLoading && (
           <View style={styles.loadingContainer}>
             <SnooLoader size="large" color="#fff" />
           </View>
         )}
 
-        {/* Play button (shown when paused, not when Watch Again visible) */}
         {showPlayButton && !isLoading && !showWatchAgainOverlay && (
           <View style={styles.playButtonContainer}>
             <View style={styles.playButton}>
@@ -561,7 +364,6 @@ const VideoPlayer = ({
           </View>
         )}
 
-        {/* Watch Again Overlay - Instagram-style */}
         {showWatchAgainOverlay && !isLoading && (
           <View style={styles.watchAgainOverlay}>
             <View style={styles.watchAgainButton}>
@@ -572,20 +374,15 @@ const VideoPlayer = ({
         )}
       </TouchableOpacity>
 
-      {/* Controls overlay */}
+      {/* Controls */}
       {showControls && !showWatchAgainOverlay && (
         <View style={styles.controlsContainer}>
-          {/* Mute button */}
           <TouchableOpacity
             style={styles.muteButton}
             onPress={toggleMute}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
-              name={isMuted ? "volume-mute" : "volume-high"}
-              size={20}
-              color="#fff"
-            />
+            <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
@@ -640,7 +437,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // Watch Again Overlay Styles
   watchAgainOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -664,23 +460,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.3,
   },
-  // Thumbnail overlay - covers video surface until first frame renders
   thumbnailOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1, // Above video, below controls
-  },
-  thumbnailPlayIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingLeft: 6,
+    zIndex: 1,
   },
   thumbnailFallback: {
     flex: 1,
@@ -688,5 +474,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// Memoize to prevent unnecessary re-renders
 export default memo(VideoPlayer);

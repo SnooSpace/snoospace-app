@@ -29,7 +29,7 @@ import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 import { VideoProvider } from "./context/VideoContext";
-import SnooLoader from "./components/ui/SnooLoader";
+import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -69,6 +69,8 @@ function AppContent() {
 }
 
 export default function App() {
+  const [isSplashAnimationComplete, setAnimationComplete] = useState(false);
+
   // Load custom fonts
   const [fontsLoaded] = useFonts({
     "BasicCommercial-Bold": require("./assets/fonts/BasicCommercialLT-Bold.ttf"),
@@ -81,13 +83,9 @@ export default function App() {
   // Auto-refresh tokens when app comes to foreground
   useTokenRefresh();
 
-  // Show loading screen while fonts are loading
+  // The native splash screen stays visible until SplashScreen.hideAsync() is called in AnimatedSplashScreen
   if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <SnooLoader size="large" color="#1976D2" />
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -99,6 +97,12 @@ export default function App() {
               <NotificationsProvider>
                 <VideoProvider>
                   <AppContent />
+                  
+                  {!isSplashAnimationComplete && (
+                    <AnimatedSplashScreen
+                      onAnimationComplete={() => setAnimationComplete(true)}
+                    />
+                  )}
                 </VideoProvider>
               </NotificationsProvider>
             </AuthStateProvider>
@@ -114,6 +118,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FAF9F7",
+    backgroundColor: "#F9F9F9",
   },
 });

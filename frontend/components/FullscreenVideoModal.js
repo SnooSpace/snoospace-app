@@ -16,7 +16,8 @@ import {
   Image,
   SafeAreaView,
 } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
+
 import { Ionicons } from "@expo/vector-icons"; // For back arrow
 import {
   Heart,
@@ -68,8 +69,17 @@ const FullscreenVideoModal = ({
   currentUserId,
 }) => {
   const insets = useSafeAreaInsets();
-  const videoRef = useRef(null);
   const lastTap = useRef(null); // For double tap detection
+
+  // expo-video player
+  const player = useVideoPlayer(
+    visible && source ? (typeof source === "string" ? { uri: source } : source) : null,
+    (p) => {
+      p.muted = initialMuted;
+      p.loop = true;
+      if (visible) p.play();
+    }
+  );
 
   // Local state for interactions (optimistic updates)
   const [isPlaying, setIsPlaying] = useState(true);
@@ -169,22 +179,36 @@ const FullscreenVideoModal = ({
     }
   };
 
-  // Lifecycle & Cleanup
+  // Lifecycle
   useEffect(() => {
     if (visible) startHideControlsTimer();
     return () => {
-      if (videoRef.current) videoRef.current.unloadAsync();
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
   }, [visible]);
 
-  const handlePlaybackStatusUpdate = (status) => {
-    if (status.isLoaded) {
-      setDuration(status.durationMillis || 0);
-      if (!isSeeking) setPosition(status.positionMillis || 0);
-      setIsPlaying(status.isPlaying);
+  // Play/pause with modal visibility
+  useEffect(() => {
+    if (!player) return;
+    if (visible) {
+      player.play();
+    } else {
+      player.pause();
     }
-  };
+  }, [visible, player]);
+
+  // Track progress
+  useEffect(() => {
+    if (!player) return;
+    const interval = setInterval(() => {
+      if (!isSeeking && player.duration > 0) {
+        setDuration(player.duration * 1000);
+        setPosition(player.currentTime * 1000);
+        setIsPlaying(player.playing);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [player, isSeeking]);
 
   // Only compute transforms when user actually modified crop
   const videoTransform = hasUserCrop
@@ -209,9 +233,8 @@ const FullscreenVideoModal = ({
         {/* Video Surface */}
         <TouchableWithoutFeedback onPress={handlePress}>
           <View style={styles.videoContainer}>
-            <Video
-              ref={videoRef}
-              source={typeof source === "string" ? { uri: source } : source}
+            <VideoView
+              player={player}
               style={[
                 styles.video,
                 {
@@ -221,13 +244,10 @@ const FullscreenVideoModal = ({
                 },
                 hasUserCrop && { transform: videoTransform },
               ]}
-              resizeMode={resizeMode}
-              shouldPlay={visible}
-              isLooping
-              isMuted={isMuted}
-              useNativeControls={false}
-              progressUpdateIntervalMillis={100}
-              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+              contentFit="contain"
+              nativeControls={false}
+              allowsFullscreen={false}
+              allowsPictureInPicture={false}
             />
 
             {/* Double Tap Heart Animation */}
@@ -379,8 +399,9 @@ const FullscreenVideoModal = ({
                 maximumTrackTintColor="rgba(255,255,255,0.3)"
                 thumbTintColor="transparent" // Clean look, tap to seek usually
                 onSlidingComplete={async (val) => {
-                  if (videoRef.current)
-                    await videoRef.current.setPositionAsync(val * duration);
+                  if (player) {
+                    player.currentTime = (val * duration) / 1000;
+                  }
                 }}
               />
             </View>

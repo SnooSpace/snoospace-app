@@ -12,7 +12,7 @@ import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import FullscreenVideoModal from "../../components/FullscreenVideoModal";
 import RemovalRequestsModal from "../../components/RemovalRequestsModal";
-import { Video, ResizeMode } from "expo-av";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveAccount } from "../../utils/accountManager";
 import SnooLoader from "../../components/ui/SnooLoader";

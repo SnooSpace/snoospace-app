@@ -1,152 +1,75 @@
 // screens/LandingScreen.js
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   useWindowDimensions,
+  Animated,
   Platform,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import Ionicons from "react-native-vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import LottieView from "lottie-react-native";
+import { ArrowRight, Users, Building2 } from "lucide-react-native";
+import { SvgXml } from "react-native-svg";
+import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
-import GradientSafeArea from "../../components/GradientSafeArea";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
 
-const FONT_SIZES = {
-  header: 32,
-  subtext: 16,
-  small: 14,
-};
+// Icon_Light.svg as string
+const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M66.667 0.5C103.181 0.500189 132.833 31.9995 132.833 70.9219C132.833 109.844 103.181 141.344 66.667 141.344C30.1528 141.344 0.5 109.844 0.5 70.9219C0.500058 31.9993 30.1529 0.5 66.667 0.5Z" fill="#3565F2" stroke="#3D79F2"/>
+<ellipse cx="133.333" cy="129.078" rx="66.6667" ry="70.922" fill="#CEF2F2"/>
+<path d="M132.257 58.1671C132.963 62.3048 133.334 66.5674 133.334 70.9219C133.334 109.709 104.065 141.222 67.7419 141.833C67.0355 137.695 66.6667 133.433 66.6667 129.078C66.6667 90.2916 95.9342 58.779 132.257 58.1671Z" fill="#6BB3F2"/>
+</svg>`;
 
-// --- Graphic Header ---
-const GraphicHeader = () => {
-  const { width } = useWindowDimensions();
-  const height = Math.round(width * 0.65); // Taller, more impressive header
+const PARTICIPATION_ROLES = [
+  {
+    id: "member",
+    title: "People",
+    subtitle: "Discover events and connect with others in meaningful ways.",
+    animation: require("../../assets/animations/gossipers.json"),
+    icon: Users,
+  },
+  {
+    id: "community",
+    title: "Community",
+    subtitle: "Host amazing events and grow your community presence.",
+    animation: require("../../assets/animations/Community svg.json"),
+    icon: Building2,
+  },
+];
 
-  return (
-    <View style={[styles.graphicHeaderContainer, { height }]}>
-      <LinearGradient
-        colors={COLORS.primaryGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.graphicGradient}
-      >
-        {/* Abstract Fluid Shapes */}
-        <View
-          style={[
-            styles.abstractCircle,
-            {
-              width: width * 0.8,
-              height: width * 0.8,
-              top: -width * 0.2,
-              left: -width * 0.2,
-              backgroundColor: "rgba(255, 255, 255, 0.1)",
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.abstractCircle,
-            {
-              width: width * 0.6,
-              height: width * 0.6,
-              bottom: -width * 0.1,
-              right: -width * 0.1,
-              backgroundColor: "rgba(255, 255, 255, 0.15)",
-            },
-          ]}
-        />
-        {/* Decorative "Star" or "Sparkle" to imply excitement */}
-        <Ionicons
-          name="sparkles"
-          size={40}
-          color="rgba(255,255,255,0.3)"
-          style={{ position: "absolute", top: "30%", right: "20%" }}
-        />
-      </LinearGradient>
-    </View>
-  );
-};
-
-// --- Selection Item ---
-const SelectionItem = ({ title, subtitle, isSelected, onPress }) => (
-  <TouchableOpacity
-    style={[
-      styles.selectionItem,
-      isSelected && styles.primarySelectionItem, // Border highlight
-      // Add shadow to all items for depth
-      SHADOWS.sm,
-    ]}
-    onPress={() => {
-      // Trigger haptic selection feedback
-      HapticsService.triggerSelection();
-      onPress();
-    }}
-    activeOpacity={0.8}
-  >
-    <View style={{ flex: 1, marginRight: 10 }}>
-      <Text
-        style={[
-          styles.selectionTitle,
-          isSelected && styles.primarySelectionText,
-        ]}
-      >
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.selectionSubtitle,
-          isSelected && styles.primarySelectionText,
-        ]}
-      >
-        {subtitle}
-      </Text>
-    </View>
-    <Ionicons
-      name="chevron-forward"
-      size={22}
-      // Use Primary Blue for the icon as requested (closest to gradient)
-      color={isSelected ? COLORS.primary : COLORS.primary}
-    />
-  </TouchableOpacity>
-);
-
-// --- Landing Screen ---
-const LandingScreen = ({ navigation, route }) => {
-  const [selectedRole, setSelectedRole] = useState(null);
+const LandingScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { fromSwitcher } = route?.params || {};
-  const isSmallWidth = width < 360;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
-  const handleSelection = (role) => {
-    setSelectedRole(role);
-    console.log(`Selected role: ${role}`);
-    // Navigate to role-specific signup form after short delay to feel selection?
-    // Or instant. Implementing instant as per original design.
-    switch (role) {
+  // The cards should take up roughly 85% of screen width
+  const CARD_WIDTH = width * 0.85;
+  const CARD_SPACING = 16;
+  const ITEM_SIZE = CARD_WIDTH + CARD_SPACING;
+
+  const handleSelection = () => {
+    const roleConfig = PARTICIPATION_ROLES[activeIndex];
+    const roleId = roleConfig.id;
+    HapticsService.triggerImpactLight();
+
+    switch (roleId) {
       case "member":
-        navigation.navigate("MemberSignup", { selectedRole: role });
+        navigation.navigate("MemberSignup", { selectedRole: roleId });
         break;
       case "community":
-        navigation.navigate("CommunitySignup", { selectedRole: role });
-        break;
-      case "sponsor":
-        navigation.navigate("SponsorSignup", { selectedRole: role });
-        break;
-      case "venue":
-        navigation.navigate("VenueSignup", { selectedRole: role });
+        navigation.navigate("CommunitySignup", { selectedRole: roleId });
         break;
       default:
-        console.log("Unknown role:", role);
+        console.log("Unknown role:", roleId);
     }
   };
 
@@ -155,85 +78,168 @@ const LandingScreen = ({ navigation, route }) => {
     navigation.navigate("Login");
   };
 
+  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setActiveIndex(viewableItems[0].index);
+      HapticsService.triggerSelection();
+    }
+  }, []);
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const renderCard = ({ item }) => {
+    const IconComponent = item.icon;
+
+    return (
+      <View
+        style={[
+          styles.cardContainer,
+          { width: CARD_WIDTH, marginHorizontal: CARD_SPACING / 2 },
+        ]}
+      >
+        <View style={styles.cardInner}>
+          <LottieView
+            source={item.animation}
+            autoPlay
+            loop
+            style={[
+              styles.lottieAnimation,
+              item.id === "member" && styles.gossipersAnimation,
+            ]}
+            resizeMode="cover"
+          />
+
+          {/* Gradient Overlay for Text Readability */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.8)"]}
+            style={styles.cardGradientOverlay}
+          />
+
+          <View style={styles.cardContent}>
+            <View style={styles.cardIconContainer}>
+              <IconComponent size={22} color={COLORS.surface} strokeWidth={2} />
+            </View>
+            <Text style={styles.cardTitle}>{item.title}</Text>
+            <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.screenContainer}>
-      {/* Dynamic Status Bar */}
-      <DynamicStatusBar style="light-content" />
+      <DynamicStatusBar style="dark-content" />
+      <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
+        {/* Header Section */}
+        <View style={styles.headerContainer}>
+          <View style={styles.logoContainer}>
+            <SvgXml xml={SnooSpaceIconSvg} width={48} height={48} />
+          </View>
+          <Text style={styles.headerTitle}>
+            <Text style={{ color: COLORS.textPrimary }}>Welcome to{"\n"}</Text>
+            <Text style={{ color: COLORS.primary }}>SnooSpace</Text>
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            Choose how you want to participate
+          </Text>
+        </View>
 
-      {/* Gradient overlay for status bar – only visible at top, gradient already handles visual */}
-      <GradientSafeArea variant="primary" height={100} />
+        {/* Carousel Section */}
+        <View style={styles.carouselContainer}>
+          <Animated.FlatList
+            data={PARTICIPATION_ROLES}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCard}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={ITEM_SIZE}
+            decelerationRate="fast"
+            bounces={false}
+            contentContainerStyle={{
+              paddingHorizontal: (width - ITEM_SIZE) / 2, // Centers first and last item
+            }}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              { useNativeDriver: false },
+            )}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+          />
+        </View>
 
-      {fromSwitcher && (
-        <TouchableOpacity
-          style={[styles.backButton, { top: Math.max(insets.top, 20) + 10 }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={26} color="#FFF" />
-        </TouchableOpacity>
-      )}
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-      >
-        <GraphicHeader />
+        {/* Pagination Dots */}
+        <View style={styles.paginationContainer}>
+          {PARTICIPATION_ROLES.map((_, index) => {
+            const opacity = scrollX.interpolate({
+              inputRange: [
+                (index - 1) * ITEM_SIZE,
+                index * ITEM_SIZE,
+                (index + 1) * ITEM_SIZE,
+              ],
+              outputRange: [0.3, 1, 0.3],
+              extrapolate: "clamp",
+            });
+            const dotWidth = scrollX.interpolate({
+              inputRange: [
+                (index - 1) * ITEM_SIZE,
+                index * ITEM_SIZE,
+                (index + 1) * ITEM_SIZE,
+              ],
+              outputRange: [8, 24, 8],
+              extrapolate: "clamp",
+            });
+            const backgroundColor = scrollX.interpolate({
+              inputRange: [
+                (index - 1) * ITEM_SIZE,
+                index * ITEM_SIZE,
+                (index + 1) * ITEM_SIZE,
+              ],
+              outputRange: [COLORS.textMuted, COLORS.primary, COLORS.textMuted],
+              extrapolate: "clamp",
+            });
 
-        <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
-          <View style={styles.contentContainer}>
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.mainTitle}>Welcome to SnooSpace</Text>
-              <Text style={styles.subTitle}>
-                Choose how you want to join our universe.
-              </Text>
-            </View>
-
-            <View style={styles.selectionList}>
-              <SelectionItem
-                title="People"
-                subtitle="Join events and connect"
-                isSelected={selectedRole === "member"}
-                onPress={() => handleSelection("member")}
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.dot,
+                  { width: dotWidth, opacity, backgroundColor },
+                ]}
               />
-              <SelectionItem
-                title="Community"
-                subtitle="Host events and grow"
-                isSelected={selectedRole === "community"}
-                onPress={() => handleSelection("community")}
-              />
-              <SelectionItem
-                title="Sponsor"
-                subtitle="Support communities"
-                isSelected={selectedRole === "sponsor"}
-                onPress={() => handleSelection("sponsor")}
-              />
-              <SelectionItem
-                title="Venue"
-                subtitle="Host amazing events"
-                isSelected={selectedRole === "venue"}
-                onPress={() => handleSelection("venue")}
-              />
-            </View>
+            );
+          })}
+        </View>
 
-            <View style={styles.spacer} />
+        {/* Footer Actions */}
+        <View style={styles.footerContainer}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleSelection}
+            style={[
+              styles.continueButton,
+              { marginBottom: Platform.OS === "ios" ? 10 : 20 },
+            ]}
+          >
+            <Text style={styles.continueButtonText}>Continue</Text>
+            <ArrowRight size={20} color={COLORS.surface} strokeWidth={2.5} />
+          </TouchableOpacity>
 
+          <View style={styles.loginPromptContainer}>
+            <Text style={styles.loginPromptText}>
+              Already have an account?{" "}
+            </Text>
             <TouchableOpacity
-              activeOpacity={0.8}
               onPress={handleLoginPress}
-              style={styles.loginButtonContainer}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.loginButton}
-              >
-                <Text style={styles.loginButtonText}>LOGIN</Text>
-              </LinearGradient>
+              <Text style={styles.loginLinkText}>Sign In</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </ScrollView>
+        </View>
+      </SafeAreaView>
     </View>
   );
 };
@@ -241,125 +247,149 @@ const LandingScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background, // Off-white
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 30, // Bottom padding
-  },
-  graphicHeaderContainer: {
-    width: "100%",
-    overflow: "hidden",
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    marginBottom: 20,
-    backgroundColor: COLORS.background,
-    // Add a shadow to the header curve itself for depth
-    ...SHADOWS.md,
-    shadowColor: COLORS.primary, // Tinted shadow
-    elevation: 10,
-  },
-  graphicGradient: {
-    width: "100%",
-    height: "100%",
-    position: "relative",
-  },
-  abstractCircle: {
-    position: "absolute",
-    borderRadius: 999,
-  },
-  contentContainer: {
-    paddingHorizontal: 24,
+  safeArea: {
     flex: 1,
+    justifyContent: "space-between",
   },
-  headerTextContainer: {
-    marginBottom: 30,
+  // Header
+  headerContainer: {
     alignItems: "center",
+    paddingTop: 24,
+    paddingHorizontal: 24,
   },
-  mainTitle: {
-    fontSize: FONT_SIZES.header,
-    fontWeight: "800",
-    color: COLORS.textPrimary,
-    marginBottom: 8,
+  logoContainer: {
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontFamily: FONTS.black, // Authority Rule: Used only once
+    fontSize: 34,
     textAlign: "center",
+    lineHeight: 38,
+    marginBottom: 12,
     letterSpacing: -0.5,
   },
-  subTitle: {
-    fontSize: FONT_SIZES.subtext,
+  headerSubtitle: {
+    fontFamily: FONTS.regular, // Body Text Rule
+    fontSize: 16,
     color: COLORS.textSecondary,
     textAlign: "center",
-    lineHeight: 22,
+    marginTop: 4,
   },
-  selectionList: {
-    gap: 12,
-  },
-  selectionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    borderRadius: BORDER_RADIUS.pill, // Fully rounded pill shape
-    backgroundColor: COLORS.surface,
-    // Soft subtle shadow
-    ...SHADOWS.sm,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    borderWidth: 1,
-    borderColor: "transparent", // Default border
-  },
-  primarySelectionItem: {
-    borderColor: COLORS.primary, // Highlight border color
-    backgroundColor: "#F0F8FF", // Very subtle blue tint background on active
-  },
-  selectionTitle: {
-    fontSize: 16, // Slightly larger
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  selectionSubtitle: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    fontWeight: "500",
-  },
-  primarySelectionText: {
-    color: COLORS.primary, // Text turns blue when selected
-  },
-  spacer: {
+
+  // Carousel
+  carouselContainer: {
     flex: 1,
-    minHeight: 40,
+    marginVertical: 24,
   },
-  loginButtonContainer: {
+  cardContainer: {
+    height: "100%",
+  },
+  cardInner: {
+    flex: 1,
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    overflow: "hidden",
+    position: "relative",
+    // Premium soft shadow
+    ...SHADOWS.md,
+  },
+  lottieAnimation: {
     width: "100%",
-    // Apply Glow effect to the container
-    ...SHADOWS.primaryGlow,
-    shadowOpacity: 0.4, // Make it pop
-  },
-  loginButton: {
-    paddingVertical: 18,
-    borderRadius: BORDER_RADIUS.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loginButtonText: {
-    color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  backButton: {
+    height: "100%",
     position: "absolute",
-    left: 20,
-    zIndex: 100,
+  },
+  gossipersAnimation: {
+    transform: [{ scale: 1.3 }], // Zoom in to remove empty space
+    marginTop: -40, // Shift up slightly
+  },
+  cardGradientOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "60%",
+  },
+  cardContent: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 24,
+  },
+  cardIconContainer: {
     width: 44,
     height: 44,
+    borderRadius: 16, // Consistent rounded square
+    backgroundColor: "rgba(255, 255, 255, 0.25)", // Soft tinted background (Glassmorphism)
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    marginBottom: 16,
+    ...SHADOWS.sm,
+  },
+  cardTitle: {
+    fontFamily: FONTS.primary, // Structural Rule: Major card titles use Bold
+    fontSize: 28,
+    color: COLORS.surface,
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  cardSubtitle: {
+    fontFamily: FONTS.regular, // Body Text Rule
+    fontSize: 15,
+    color: "rgba(255,255,255,0.85)",
+    lineHeight: 22,
+  },
+
+  // Pagination
+  paginationContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
+  },
+
+  // Footer Actions
+  footerContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
+  continueButton: {
+    backgroundColor: COLORS.primary, // Brand Primary Instead of Orange
+    borderRadius: BORDER_RADIUS.pill,
+    height: 56,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    ...SHADOWS.md, // Glow/Shadow
+    shadowColor: COLORS.primary,
+  },
+  continueButtonText: {
+    fontFamily: FONTS.semiBold, // Functional UI Rule
+    fontSize: 18,
+    color: COLORS.surface,
+    marginRight: 8,
+  },
+  loginPromptContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loginPromptText: {
+    fontFamily: FONTS.regular, // Body Text Rule
+    fontSize: 15,
+    color: COLORS.textSecondary,
+  },
+  loginLinkText: {
+    fontFamily: FONTS.semiBold, // Functional UI Rule
+    fontSize: 15,
+    color: COLORS.primary,
   },
 });
 
