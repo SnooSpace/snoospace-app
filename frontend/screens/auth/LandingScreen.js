@@ -1,13 +1,13 @@
 // screens/LandingScreen.js
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, memo } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
-  Animated,
   Platform,
+  Pressable,
 } from "react-native";
 import {
   SafeAreaView,
@@ -17,6 +17,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
 import { ArrowRight, Users, Building2 } from "lucide-react-native";
 import { SvgXml } from "react-native-svg";
+import { BlurView } from "expo-blur";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+  useAnimatedScrollHandler,
+} from "react-native-reanimated";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
@@ -32,108 +40,189 @@ const PARTICIPATION_ROLES = [
   {
     id: "member",
     title: "People",
-    subtitle: "Discover events and connect with others in meaningful ways.",
+    subtitle: "Join events, discover communities, and connect with people nearby.",
     animation: require("../../assets/animations/gossipers.json"),
     icon: Users,
   },
   {
     id: "community",
     title: "Community",
-    subtitle: "Host amazing events and grow your community presence.",
+    subtitle: "Host amazing events, manage venues, and grow your community presence.",
     animation: require("../../assets/animations/Community svg.json"),
     icon: Building2,
   },
 ];
 
-const LandingScreen = ({ navigation }) => {
-  const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const [activeIndex, setActiveIndex] = useState(0);
-  const scrollX = useRef(new Animated.Value(0)).current;
+// ─── Animated Card ────────────────────────────────────────────────────────────
+const AnimatedCard = memo(({
+  item,
+  index,
+  cardBaseHeight,
+  selectedIndex,
+  onSelect,
+  onContinue,
+  cardWidth,
+}) => {
+  const isSelected = selectedIndex === index;
+  const isOtherSelected = selectedIndex !== -1 && selectedIndex !== index;
+  const IconComponent = item.icon;
 
-  // The cards should take up roughly 85% of screen width
+  const cardStyle = useAnimatedStyle(() => {
+    // Determine the scale using a shared value approach or withTiming
+    const currentScale = withTiming(isOtherSelected ? 0.60 : 1, { duration: 350 });
+    const currentOpacity = withTiming(isOtherSelected ? 0.65 : 1, { duration: 350 });
+    const currentHeight = withTiming(isSelected ? cardBaseHeight + 130 : cardBaseHeight, { duration: 420 });
+
+    return {
+      transform: [{ scale: currentScale }],
+      opacity: currentOpacity,
+      height: currentHeight,
+      // Lift the selected card above others
+      zIndex: isSelected ? 10 : 1,
+    };
+  });
+
+  const expandedAreaStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(isSelected ? 1 : 0, { duration: 280, easing: Easing.out(Easing.quad) }),
+    transform: [{
+      translateY: withTiming(isSelected ? 0 : 16, { duration: 380, easing: Easing.out(Easing.cubic) }),
+    }],
+    height: withTiming(isSelected ? 140 : 0, { duration: 420, easing: Easing.bezier(0.33, 1, 0.68, 1) }),
+    overflow: "hidden",
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.cardContainer,
+        { width: cardWidth, marginHorizontal: 8 },
+        cardStyle,
+      ]}
+    >
+      <Pressable onPress={() => onSelect(index)} style={styles.cardPressable}>
+        <View style={styles.cardInner}>
+          {/* Lottie Background */}
+          <LottieView
+            source={item.animation}
+            autoPlay
+            loop
+            style={[styles.lottieAnimation, item.id === "member" && styles.gossipersAnimation]}
+            resizeMode="cover"
+          />
+
+          {/* Gradient */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.88)"]}
+            style={styles.cardGradientOverlay}
+          />
+
+          {/* Card Content */}
+          <View style={styles.cardContent}>
+            {/* Header Row: Icon + Title */}
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardIconContainer}>
+                <IconComponent size={20} color={COLORS.surface} strokeWidth={2.2} />
+              </View>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+            </View>
+
+            {/* Collapsed subtitle – always visible, 1 line */}
+            {!isSelected && (
+              <Text style={styles.cardSubtitleCollapsed} numberOfLines={1}>
+                {item.subtitle}
+              </Text>
+            )}
+
+            {/* Expanded area – fades in on tap */}
+            <Animated.View style={expandedAreaStyle}>
+              <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
+              <TouchableOpacity
+                activeOpacity={0.82}
+                onPress={onContinue}
+                style={styles.cardContinueButton}
+              >
+                <Text style={styles.cardContinueButtonText}>Continue as {item.title}</Text>
+                <ArrowRight size={18} color={COLORS.surface} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {/* Blur overlay for de-emphasised cards */}
+          {isOtherSelected && Platform.OS !== "web" && (
+            <BlurView intensity={18} style={StyleSheet.absoluteFill} tint="light" />
+          )}
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+const LandingScreen = ({ navigation }) => {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const scrollX = useSharedValue(0);
+  const flatListRef = useRef(null);
+
   const CARD_WIDTH = width * 0.85;
   const CARD_SPACING = 16;
   const ITEM_SIZE = CARD_WIDTH + CARD_SPACING;
 
-  const handleSelection = () => {
-    const roleConfig = PARTICIPATION_ROLES[activeIndex];
-    const roleId = roleConfig.id;
-    HapticsService.triggerImpactLight();
+  // Base card height: proportional to screen, same as the old flex layout gave
+  const CARD_BASE_HEIGHT = height * 0.42;
 
-    switch (roleId) {
-      case "member":
-        navigation.navigate("MemberSignup", { selectedRole: roleId });
-        break;
-      case "community":
-        navigation.navigate("CommunitySignup", { selectedRole: roleId });
-        break;
-      default:
-        console.log("Unknown role:", roleId);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x;
+    },
+  });
+
+  const handleSelect = useCallback((index) => {
+    HapticsService.triggerImpactLight();
+    setSelectedIndex((prev) => {
+      if (prev === index) return -1;
+      // Scroll to centre the card when expanding
+      flatListRef.current?.scrollToOffset({ offset: index * ITEM_SIZE, animated: true });
+      return index;
+    });
+  }, [ITEM_SIZE]);
+
+  const handleContinue = useCallback(() => {
+    if (selectedIndex === -1) return;
+    const roleId = PARTICIPATION_ROLES[selectedIndex].id;
+    HapticsService.triggerImpactLight();
+    if (roleId === "member") {
+      navigation.navigate("MemberSignup", { selectedRole: roleId });
+    } else {
+      navigation.navigate("CommunitySignup", { selectedRole: roleId });
     }
-  };
+  }, [selectedIndex, navigation]);
 
   const handleLoginPress = () => {
     HapticsService.triggerImpactLight();
     navigation.navigate("Login");
   };
 
-  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
-    if (viewableItems.length > 0) {
-      setActiveIndex(viewableItems[0].index);
-      HapticsService.triggerSelection();
-    }
-  }, []);
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
-  const renderCard = ({ item }) => {
-    const IconComponent = item.icon;
-
-    return (
-      <View
-        style={[
-          styles.cardContainer,
-          { width: CARD_WIDTH, marginHorizontal: CARD_SPACING / 2 },
-        ]}
-      >
-        <View style={styles.cardInner}>
-          <LottieView
-            source={item.animation}
-            autoPlay
-            loop
-            style={[
-              styles.lottieAnimation,
-              item.id === "member" && styles.gossipersAnimation,
-            ]}
-            resizeMode="cover"
-          />
-
-          {/* Gradient Overlay for Text Readability */}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.8)"]}
-            style={styles.cardGradientOverlay}
-          />
-
-          <View style={styles.cardContent}>
-            <View style={styles.cardIconContainer}>
-              <IconComponent size={22} color={COLORS.surface} strokeWidth={2} />
-            </View>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
-          </View>
-        </View>
-      </View>
-    );
-  };
+  const renderCard = useCallback(({ item, index }) => (
+    <AnimatedCard
+      key={item.id}
+      item={item}
+      index={index}
+      cardBaseHeight={CARD_BASE_HEIGHT}
+      selectedIndex={selectedIndex}
+      onSelect={handleSelect}
+      onContinue={handleContinue}
+      cardWidth={CARD_WIDTH}
+    />
+  ), [selectedIndex, CARD_BASE_HEIGHT, CARD_WIDTH, handleSelect, handleContinue]);
 
   return (
     <View style={styles.screenContainer}>
       <DynamicStatusBar style="dark-content" />
       <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
-        {/* Header Section */}
+
+        {/* ── Header ── */}
         <View style={styles.headerContainer}>
           <View style={styles.logoContainer}>
             <SvgXml xml={SnooSpaceIconSvg} width={48} height={48} />
@@ -142,14 +231,13 @@ const LandingScreen = ({ navigation }) => {
             <Text style={{ color: COLORS.textPrimary }}>Welcome to{"\n"}</Text>
             <Text style={{ color: COLORS.primary }}>SnooSpace</Text>
           </Text>
-          <Text style={styles.headerSubtitle}>
-            Choose how you want to participate
-          </Text>
+          <Text style={styles.headerSubtitle}>Choose how you want to participate</Text>
         </View>
 
-        {/* Carousel Section */}
+        {/* ── Carousel ── */}
         <View style={styles.carouselContainer}>
           <Animated.FlatList
+            ref={flatListRef}
             data={PARTICIPATION_ROLES}
             keyExtractor={(item) => item.id}
             renderItem={renderCard}
@@ -157,80 +245,38 @@ const LandingScreen = ({ navigation }) => {
             showsHorizontalScrollIndicator={false}
             snapToInterval={ITEM_SIZE}
             decelerationRate="fast"
-            bounces={false}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
             contentContainerStyle={{
-              paddingHorizontal: (width - ITEM_SIZE) / 2, // Centers first and last item
+              paddingHorizontal: (width - ITEM_SIZE) / 2,
+              alignItems: "center", // vertically centre cards
+              overflow: "visible",
             }}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-              { useNativeDriver: false },
-            )}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
+            style={{ overflow: "visible" }}
           />
         </View>
 
-        {/* Pagination Dots */}
+        {/* ── Pagination Dots ── */}
         <View style={styles.paginationContainer}>
-          {PARTICIPATION_ROLES.map((_, index) => {
-            const opacity = scrollX.interpolate({
-              inputRange: [
-                (index - 1) * ITEM_SIZE,
-                index * ITEM_SIZE,
-                (index + 1) * ITEM_SIZE,
-              ],
-              outputRange: [0.3, 1, 0.3],
-              extrapolate: "clamp",
+          {PARTICIPATION_ROLES.map((_, i) => {
+            // eslint-disable-next-line react-hooks/rules-of-hooks
+            const dotStyle = useAnimatedStyle(() => {
+              const progress = scrollX.value / ITEM_SIZE;
+              const distanceFromActive = Math.abs(progress - i);
+              const dotWidth = withTiming(distanceFromActive < 0.5 ? 24 : 8, { duration: 250 });
+              const opacity = withTiming(distanceFromActive < 0.5 ? 1 : 0.3, { duration: 250 });
+              const backgroundColor = distanceFromActive < 0.5 ? COLORS.primary : COLORS.textMuted;
+              return { width: dotWidth, opacity, backgroundColor };
             });
-            const dotWidth = scrollX.interpolate({
-              inputRange: [
-                (index - 1) * ITEM_SIZE,
-                index * ITEM_SIZE,
-                (index + 1) * ITEM_SIZE,
-              ],
-              outputRange: [8, 24, 8],
-              extrapolate: "clamp",
-            });
-            const backgroundColor = scrollX.interpolate({
-              inputRange: [
-                (index - 1) * ITEM_SIZE,
-                index * ITEM_SIZE,
-                (index + 1) * ITEM_SIZE,
-              ],
-              outputRange: [COLORS.textMuted, COLORS.primary, COLORS.textMuted],
-              extrapolate: "clamp",
-            });
-
-            return (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.dot,
-                  { width: dotWidth, opacity, backgroundColor },
-                ]}
-              />
-            );
+            return <Animated.View key={i} style={[styles.dot, dotStyle]} />;
           })}
         </View>
 
-        {/* Footer Actions */}
-        <View style={styles.footerContainer}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleSelection}
-            style={[
-              styles.continueButton,
-              { marginBottom: Platform.OS === "ios" ? 10 : 20 },
-            ]}
-          >
-            <Text style={styles.continueButtonText}>Continue</Text>
-            <ArrowRight size={20} color={COLORS.surface} strokeWidth={2.5} />
-          </TouchableOpacity>
 
+        {/* ── Footer ── */}
+        <View style={[styles.footerContainer, { bottom: insets.bottom > 0 ? insets.bottom + 32 : 56 }]}>
           <View style={styles.loginPromptContainer}>
-            <Text style={styles.loginPromptText}>
-              Already have an account?{" "}
-            </Text>
+            <Text style={styles.loginPromptText}>Already have an account? </Text>
             <TouchableOpacity
               onPress={handleLoginPress}
               hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
@@ -239,20 +285,22 @@ const LandingScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
+
       </SafeAreaView>
     </View>
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: COLORS.background, // Off-white
+    backgroundColor: COLORS.background,
   },
   safeArea: {
     flex: 1,
-    justifyContent: "space-between",
   },
+
   // Header
   headerContainer: {
     alignItems: "center",
@@ -263,7 +311,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerTitle: {
-    fontFamily: FONTS.black, // Authority Rule: Used only once
+    fontFamily: FONTS.black, // Authority Rule: used only once
     fontSize: 34,
     textAlign: "center",
     lineHeight: 38,
@@ -275,71 +323,107 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
     textAlign: "center",
-    marginTop: 4,
   },
 
   // Carousel
   carouselContainer: {
-    flex: 1,
-    marginVertical: 24,
+    justifyContent: "center",
+    marginTop: 44,
   },
   cardContainer: {
-    height: "100%",
+    // Height is set dynamically via useAnimatedStyle
+    backgroundColor: "transparent",
+  },
+  cardPressable: {
+    flex: 1,
   },
   cardInner: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 32,
     backgroundColor: COLORS.surface,
     overflow: "hidden",
-    position: "relative",
-    // Premium soft shadow
-    ...SHADOWS.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 5,
   },
   lottieAnimation: {
+    position: "absolute",
     width: "100%",
     height: "100%",
-    position: "absolute",
   },
   gossipersAnimation: {
-    transform: [{ scale: 1.3 }], // Zoom in to remove empty space
-    marginTop: -40, // Shift up slightly
+    transform: [{ scale: 1.1 }],
+    marginTop: -20,
   },
   cardGradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: "60%",
+    height: "100%",
   },
   cardContent: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
+    padding: 22,
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
   },
   cardIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 16, // Consistent rounded square
-    backgroundColor: "rgba(255, 255, 255, 0.25)", // Soft tinted background (Glassmorphism)
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    ...SHADOWS.sm,
+    marginRight: 12,
   },
   cardTitle: {
     fontFamily: FONTS.primary, // Structural Rule: Major card titles use Bold
-    fontSize: 28,
+    fontSize: 26,
     color: COLORS.surface,
-    marginBottom: 8,
     letterSpacing: -0.5,
   },
-  cardSubtitle: {
+  cardSubtitleCollapsed: {
+    fontFamily: FONTS.regular, // Body Text Rule
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 4,
+  },
+  cardSubtitleExpanded: {
     fontFamily: FONTS.regular, // Body Text Rule
     fontSize: 15,
-    color: "rgba(255,255,255,0.85)",
+    color: "rgba(255,255,255,0.9)",
     lineHeight: 22,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  cardContinueButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.pill,
+    height: 50,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  cardContinueButtonText: {
+    fontFamily: FONTS.semiBold, // Functional UI Rule
+    fontSize: 16,
+    color: COLORS.surface,
+    marginRight: 8,
   },
 
   // Pagination
@@ -347,7 +431,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginTop: 12,
+    marginBottom: 8,
   },
   dot: {
     height: 8,
@@ -355,26 +440,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
 
-  // Footer Actions
+  // Footer
   footerContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  continueButton: {
-    backgroundColor: COLORS.primary, // Brand Primary Instead of Orange
-    borderRadius: BORDER_RADIUS.pill,
-    height: 56,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    ...SHADOWS.md, // Glow/Shadow
-    shadowColor: COLORS.primary,
-  },
-  continueButtonText: {
-    fontFamily: FONTS.semiBold, // Functional UI Rule
-    fontSize: 18,
-    color: COLORS.surface,
-    marginRight: 8,
   },
   loginPromptContainer: {
     flexDirection: "row",
