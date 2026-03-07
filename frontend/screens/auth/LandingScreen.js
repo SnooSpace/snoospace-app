@@ -128,23 +128,27 @@ const AnimatedCard = memo(({
 
             {/* Collapsed subtitle – always visible, 1 line */}
             {!isSelected && (
-              <Text style={styles.cardSubtitleCollapsed} numberOfLines={1}>
-                {item.subtitle}
-              </Text>
+              <View style={styles.cardSubtitleClipContainer}>
+                <Text style={styles.cardSubtitleCollapsed} numberOfLines={2} ellipsizeMode="tail">
+                  {item.subtitle}
+                </Text>
+              </View>
             )}
 
-            {/* Expanded area – fades in on tap */}
-            <Animated.View style={expandedAreaStyle}>
-              <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
-              <TouchableOpacity
-                activeOpacity={0.82}
-                onPress={onContinue}
-                style={styles.cardContinueButton}
-              >
-                <Text style={styles.cardContinueButtonText}>Continue as {item.title}</Text>
-                <ArrowRight size={18} color={COLORS.surface} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </Animated.View>
+            {/* Expanded area – only mounted when selected, fades in on tap */}
+            {isSelected && (
+              <Animated.View style={expandedAreaStyle}>
+                <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.82}
+                  onPress={onContinue}
+                  style={styles.cardContinueButton}
+                >
+                  <Text style={styles.cardContinueButtonText}>Continue as {item.title}</Text>
+                  <ArrowRight size={18} color={COLORS.surface} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </View>
 
           {/* Blur overlay for de-emphasised cards */}
@@ -391,11 +395,17 @@ const styles = StyleSheet.create({
     color: COLORS.surface,
     letterSpacing: -0.5,
   },
+  cardSubtitleClipContainer: {
+    marginTop: 4,
+    overflow: "hidden",
+    height: 42,
+    width: "100%",
+  },
   cardSubtitleCollapsed: {
     fontFamily: FONTS.regular, // Body Text Rule
     fontSize: 14,
     color: "rgba(255,255,255,0.7)",
-    marginTop: 4,
+    width: "100%",
   },
   cardSubtitleExpanded: {
     fontFamily: FONTS.regular, // Body Text Rule
