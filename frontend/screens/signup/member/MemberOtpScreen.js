@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Platform, StatusBar, Animated, ScrollView, Pressable, ImageBackground } from "react-native";
+import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Reanimated, { ZoomIn } from "react-native-reanimated";
-import { useRef } from "react";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
@@ -21,11 +20,8 @@ import {
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-// Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
-const { width } = Dimensions.get("window");
 
-// Helper for Gradient Text
 const GradientText = (props) => {
   return (
     <MaskedView maskElement={<Text {...props} />}>
@@ -40,7 +36,7 @@ const GradientText = (props) => {
   );
 };
 
-const VerificationScreen = ({ route, navigation }) => {
+const MemberOtpScreen = ({ route, navigation }) => {
   const { email } = route.params || {};
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,19 +45,17 @@ const VerificationScreen = ({ route, navigation }) => {
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [showGoBackModal, setShowGoBackModal] = useState(false);
+  const inputRef = useRef(null);
 
-  // Account Picker Modal state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [accountPickerLoading, setAccountPickerLoading] = useState(false);
   const [verificationResult, setVerificationResult] = useState(null);
   const insets = useSafeAreaInsets();
 
-  // Button feedback state
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState(false);
 
-  // Toast state
   const [showResendToast, setShowResendToast] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(20)).current;
@@ -83,29 +77,20 @@ const VerificationScreen = ({ route, navigation }) => {
     setError("");
 
     try {
-      // Use V2 endpoint for OTP verification
       const result = await sessionManager.verifyOtp(email, otp);
-
-      // Success Feedback
       setLoading(false);
       setIsSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Store verification result for later use
       setVerificationResult(result);
 
-      // Delay to show animation
       setTimeout(async () => {
         setIsSuccess(false);
         await clearPendingOtp();
 
-        // Check if accounts exist for this email
         if (result.accounts && result.accounts.length > 0) {
-          // Show account picker modal
           setAccounts(result.accounts);
           setShowAccountPicker(true);
         } else {
-          // No accounts - proceed to signup
           let accessToken = null;
           let refreshToken = null;
 
@@ -117,24 +102,12 @@ const VerificationScreen = ({ route, navigation }) => {
             }
           }
 
-          // Create client-side draft for crash resume (NOT a backend record)
           try {
-            console.log(
-              "[MemberOtpScreen] 🆕 Creating client-side draft for:",
-              email,
-            );
             const activeAccount = await accountManager.getActiveAccount();
             const originAccountId = activeAccount?.id || null;
             await createSignupDraft(email, originAccountId);
-            console.log(
-              "[MemberOtpScreen] ✅ Draft created, origin account:",
-              originAccountId,
-            );
           } catch (draftError) {
-            console.log(
-              "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
-              draftError.message,
-            );
+            console.log("[MemberOtpScreen] Draft creation failed (non-critical)");
           }
 
           navigation.navigate("MemberName", {
@@ -148,32 +121,20 @@ const VerificationScreen = ({ route, navigation }) => {
       setLoading(false);
       setIsError(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-
-      // Show checkmark/X then reset
       setTimeout(() => setIsError(false), 2000);
-
-      if (e.message && e.message.includes("timed out")) {
-        setError(
-          "Request timed out. Please check your internet connection and try again.",
-        );
-      } else {
-        setError(e.message || "Verification failed");
-      }
+      setError(e.message || "Verification failed");
     }
   };
 
-  // Handle selecting an existing account from the picker
   const handleSelectAccount = async (account) => {
     setAccountPickerLoading(true);
     try {
-      // Create session for the selected account
       const result = await sessionManager.createSession(
         account.id,
         account.type,
         account.email || email,
       );
 
-      // Save to account manager (matching LoginOtpScreen behavior)
       await accountManager.addAccount({
         id: result.user.id,
         type: result.user.type,
@@ -186,20 +147,15 @@ const VerificationScreen = ({ route, navigation }) => {
         isLoggedIn: true,
       });
 
-      // Set legacy auth session for API client compatibility
       await setAuthSession(
         result.session.accessToken,
         result.user.email || email,
         result.session.refreshToken,
       );
 
-      // Clear pending OTP
       await clearPendingOtp();
-
       setShowAccountPicker(false);
 
-      // Navigate to the appropriate home screen based on account type
-      // Use getParent() to access root AppNavigator from nested MemberSignupNavigator
       const rootNav = navigation.getParent() || navigation;
       const homeScreen =
         result.user.type === "member"
@@ -223,7 +179,6 @@ const VerificationScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle creating a new profile
   const handleCreateNewProfile = async () => {
     setShowAccountPicker(false);
 
@@ -238,27 +193,14 @@ const VerificationScreen = ({ route, navigation }) => {
       }
     }
 
-    // Create client-side draft for crash resume (NOT a backend record)
     try {
-      console.log(
-        "[MemberOtpScreen] 🆕 Creating client-side draft for new profile:",
-        email,
-      );
       const activeAccount = await accountManager.getActiveAccount();
       const originAccountId = activeAccount?.id || null;
       await createSignupDraft(email, originAccountId);
-      console.log(
-        "[MemberOtpScreen] ✅ Draft created, origin account:",
-        originAccountId,
-      );
     } catch (draftError) {
-      console.log(
-        "[MemberOtpScreen] ⚠️ Draft creation failed (non-critical):",
-        draftError.message,
-      );
+      console.log("[MemberOtpScreen] Draft creation failed (non-critical)");
     }
 
-    // Navigate to signup flow
     navigation.navigate("MemberName", {
       email,
       accessToken,
@@ -272,12 +214,9 @@ const VerificationScreen = ({ route, navigation }) => {
     setResendLoading(true);
     setError("");
     try {
-      // Use V2 endpoint for sending OTP
       await sessionManager.sendOtp(email);
-      // Show custom toast instead of Alert
       setShowResendToast(true);
 
-      // Animate In
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -291,7 +230,6 @@ const VerificationScreen = ({ route, navigation }) => {
         }),
       ]).start();
 
-      // Auto hide after 5 seconds
       setTimeout(() => {
         Animated.parallel([
           Animated.timing(fadeAnim, {
@@ -316,237 +254,323 @@ const VerificationScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <SignupHeader onBack={() => setShowGoBackModal(true)} />
+    <ImageBackground 
+      source={require("../../../assets/wave.png")} 
+      style={styles.backgroundImage}
+      imageStyle={{ transform: [{ scaleX: -1 }] }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader onBack={() => setShowGoBackModal(true)} />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, isFocused && styles.inputFocused]}
-            placeholder="000000"
-            placeholderTextColor={COLORS.textSecondary}
-            value={otp}
-            onChangeText={setOtp}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            keyboardType="number-pad"
-            maxLength={6}
-            textAlign="center"
-          />
-        </View>
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[
-            styles.buttonContainer,
-            (loading || isSuccess || isError) && styles.buttonDisabled,
-          ]}
-          onPress={handleVerify}
-          disabled={loading || isSuccess || isError}
-          activeOpacity={0.8}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={
-              isSuccess
-                ? ["#34C759", "#2FB350"]
-                : isError
-                  ? [COLORS.error, COLORS.error]
-                  : COLORS.primaryGradient
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.button}
-          >
-            {loading ? (
-              <SnooLoader color={COLORS.textInverted} />
-            ) : isSuccess ? (
-              <Reanimated.View entering={ZoomIn}>
-                <Ionicons
-                  name="checkmark"
-                  size={24}
-                  color={COLORS.textInverted}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Enter verification code</Text>
+            <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
+
+            <View style={styles.card}>
+              <Pressable 
+                onPress={() => inputRef.current?.focus()}
+                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+              >
+                {otp.length === 0 && (
+                  <View style={styles.placeholderContainer} pointerEvents="none">
+                    {[...Array(6)].map((_, i) => (
+                      <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
+                    ))}
+                  </View>
+                )}
+                <TextInput
+                  ref={inputRef}
+                  style={[
+                    styles.input,
+                    otp.length === 0 && styles.inputTransparentText,
+                  ]}
+                  placeholder=""
+                  placeholderTextColor="transparent"
+                  underlineColorAndroid="transparent"
+                  value={otp}
+                  onChangeText={setOtp}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  textAlign="center"
                 />
-              </Reanimated.View>
-            ) : isError ? (
-              <Reanimated.View entering={ZoomIn}>
-                <Ionicons name="close" size={24} color={COLORS.textInverted} />
-              </Reanimated.View>
-            ) : (
-              <Text style={styles.buttonText}>Verify</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+              </Pressable>
 
-        <TouchableOpacity
-          style={styles.resendButton}
-          onPress={handleResendCode}
-          disabled={resendTimer > 0 || resendLoading}
-        >
-          {resendLoading ? (
-            <SnooLoader color={COLORS.primary} size="small" />
-          ) : (
-            <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {/* Modern Go Back Modal */}
-      <Modal
-        visible={showGoBackModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowGoBackModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Go Back?</Text>
-                <Text style={styles.modalMessage}>
-                  You'll need to request a new code if you go back.
-                </Text>
+              <TouchableOpacity
+                style={[
+                  styles.buttonContainer,
+                  (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
+                  (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                ]}
+                onPress={handleVerify}
+                disabled={loading || isSuccess || isError || otp.length !== 6}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={
+                    isSuccess
+                      ? ["#34C759", "#2FB350"]
+                      : isError
+                        ? [COLORS.error, COLORS.error]
+                        : COLORS.primaryGradient
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.button}
+                >
+                  {loading ? (
+                    <SnooLoader color={COLORS.textInverted} />
+                  ) : isSuccess ? (
+                    <Reanimated.View entering={ZoomIn}>
+                      <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                    </Reanimated.View>
+                  ) : isError ? (
+                    <Reanimated.View entering={ZoomIn}>
+                      <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                    </Reanimated.View>
+                  ) : (
+                    <Text style={styles.buttonText}>Verify</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
 
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalSecondaryButton}
-                    onPress={() => setShowGoBackModal(false)}
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendCode}
+                disabled={resendTimer > 0 || resendLoading}
+              >
+                {resendLoading ? (
+                  <SnooLoader color={COLORS.primary} size="small" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.resendText,
+                      resendTimer > 0 && styles.resendTextDisabled,
+                    ]}
                   >
-                    <Text style={styles.modalSecondaryButtonText}>Stay</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.modalVerticalDivider} />
-
-                  <TouchableOpacity
-                    style={styles.modalPrimaryButton}
-                    onPress={() => {
-                      setShowGoBackModal(false);
-                      navigation.goBack();
-                    }}
-                  >
-                    <GradientText style={styles.modalPrimaryButtonText}>
-                      Change Email
-                    </GradientText>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
+                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        </ScrollView>
 
-      {/* Resend Success Toast */}
-      {showResendToast && (
-        <Animated.View
-          style={[
-            styles.toastContainer,
-            {
-              bottom: 50 + insets.bottom,
-              opacity: fadeAnim,
-              transform: [{ translateY: translateYAnim }],
-            },
-          ]}
+        <AccountPickerModal
+          visible={showAccountPicker}
+          onClose={() => setShowAccountPicker(false)}
+          accounts={accounts}
+          onSelectAccount={handleSelectAccount}
+          onCreateNewProfile={handleCreateNewProfile}
+          loading={accountPickerLoading}
+          email={email}
+        />
+
+        <Modal
+          visible={showGoBackModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowGoBackModal(false)}
+          statusBarTranslucent={true}
         >
-          <Ionicons name="checkmark-circle" size={24} color="#fff" />
-          <Text style={styles.toastText}>Code resent to {email}</Text>
-        </Animated.View>
-      )}
+          <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Go Back?</Text>
+                  <Text style={styles.modalMessage}>
+                    You'll need to request a new code if you go back.
+                  </Text>
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.modalSecondaryButton}
+                      onPress={() => setShowGoBackModal(false)}
+                    >
+                      <Text style={styles.modalSecondaryButtonText}>Stay</Text>
+                    </TouchableOpacity>
+                    <View style={styles.modalVerticalDivider} />
+                    <TouchableOpacity
+                      style={styles.modalPrimaryButton}
+                      onPress={() => {
+                        setShowGoBackModal(false);
+                        navigation.goBack();
+                      }}
+                    >
+                      <GradientText style={styles.modalPrimaryButtonText}>
+                        Change Email
+                      </GradientText>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
 
-      {/* Account Picker Modal */}
-      <AccountPickerModal
-        visible={showAccountPicker}
-        onClose={() => setShowAccountPicker(false)}
-        accounts={accounts}
-        onSelectAccount={handleSelectAccount}
-        onCreateNewProfile={handleCreateNewProfile}
-        loading={accountPickerLoading}
-        email={email}
-      />
-    </SafeAreaView>
+        {showResendToast && (
+          <Animated.View
+            style={[
+              styles.toastContainer,
+              {
+                bottom: 50 + insets.bottom,
+                opacity: fadeAnim,
+                transform: [{ translateY: translateYAnim }],
+              },
+            ]}
+          >
+            <Check size={24} color="#fff" strokeWidth={2.5} />
+            <Text style={styles.toastText}>Code resent to {email}</Text>
+          </Animated.View>
+        )}
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  content: {
+  backgroundImage: {
     flex: 1,
-    paddingHorizontal: 25,
+    width: "100%",
+    height: "100%",
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+  },
+  contentContainer: {
     paddingTop: 30,
+    flex: 0,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 34,
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginBottom: 40,
+    lineHeight: 24,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 15,
   },
   inputContainer: {
-    marginBottom: 20,
+    height: 56,
+    marginBottom: 4,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F2F5",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    borderRadius: BORDER_RADIUS.l,
+  },
+  placeholderContainer: {
+    position: "absolute",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    zIndex: 1,
+    gap: 8,
+  },
+  asteriskIcon: {
+    opacity: 0.8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.m,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    fontFamily: "Manrope-Medium",
     fontSize: 24,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     letterSpacing: 4,
+    textAlign: "center",
     color: COLORS.textPrimary,
+    backgroundColor: "transparent",
+    zIndex: 2,
   },
-  inputFocused: {
+  inputTransparentText: {
+    color: "transparent",
+  },
+  inputFocusedContainer: {
     borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    ...SHADOWS.sm,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
   },
   buttonContainer: {
-    marginTop: 20,
-    borderRadius: BORDER_RADIUS.pill,
+    height: 56,
+    borderRadius: BORDER_RADIUS.l,
     ...SHADOWS.primaryGlow,
+    marginTop: 20,
+    marginBottom: 10,
   },
   button: {
     paddingVertical: 16,
-    borderRadius: BORDER_RADIUS.pill,
+    borderRadius: BORDER_RADIUS.l,
     alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    flexDirection: "row",
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+  },
+  buttonInactive: {
+    elevation: 0,
+    shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
   resendButton: {
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 16,
+    paddingVertical: 10,
   },
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    
     fontFamily: "Manrope-SemiBold",
+  },
+  resendTextDisabled: {
+    color: COLORS.textMuted,
   },
   errorText: {
     color: COLORS.error,
     fontSize: 14,
-    marginTop: 10,
+    fontFamily: "Manrope-Medium",
+    marginBottom: 16,
     textAlign: "center",
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -564,14 +588,14 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Bold",
     color: "#000",
     marginBottom: 8,
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
   },
   modalMessage: {
     fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: "#444",
     textAlign: "center",
     marginBottom: 24,
@@ -593,7 +617,7 @@ const styles = StyleSheet.create({
   modalSecondaryButtonText: {
     fontSize: 16,
     color: "#000",
-    fontWeight: "400",
+    fontFamily: "Manrope-SemiBold",
   },
   modalVerticalDivider: {
     width: 1,
@@ -607,35 +631,27 @@ const styles = StyleSheet.create({
   },
   modalPrimaryButtonText: {
     fontSize: 16,
-    fontWeight: "600",
-    // Color handled by GradientText
+    fontFamily: "Manrope-SemiBold",
   },
   toastContainer: {
     position: "absolute",
     left: 20,
     right: 20,
-    backgroundColor: COLORS.success || "#34C759", // Green color
+    backgroundColor: COLORS.success,
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    ...SHADOWS.md,
     zIndex: 1000,
   },
   toastText: {
     color: "#fff",
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 10,
     flex: 1,
   },
 });
 
-export default VerificationScreen;
+export default MemberOtpScreen;

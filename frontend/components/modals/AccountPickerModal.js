@@ -4,19 +4,42 @@
  * User can select one, multiple, or all accounts to log into
  */
 import React, { useState, useEffect } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Platform } from "react-native";
+import { Check, User, Users, Briefcase, MapPin, Plus, ChevronRight, CheckCircle2, MoveRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import PropTypes from "prop-types";
-import { COLORS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { COLORS, BORDER_RADIUS, SHADOWS, FONTS, SPACING } from "../../constants/theme";
+import MaskedView from "@react-native-masked-view/masked-view";
 import SnooLoader from "../ui/SnooLoader";
 
 // Type badges and colors
 const TYPE_CONFIG = {
-  member: { label: "Member", color: "#5f27cd", icon: "person" },
-  community: { label: "Community", color: "#00d2d3", icon: "people" },
-  sponsor: { label: "Sponsor", color: "#ff9f43", icon: "business" },
-  venue: { label: "Venue", color: "#10ac84", icon: "location" },
+  member: { label: "Member", color: "#64748B", icon: User },
+  community: { label: "Community", color: "#00d2d3", icon: Users },
+  sponsor: { label: "Sponsor", color: "#ff9f43", icon: Briefcase },
+  venue: { label: "Venue", color: "#10ac84", icon: MapPin },
+};
+
+const GradientText = (props) => {
+  return (
+    <View style={props.style}>
+      <MaskedView
+        style={StyleSheet.absoluteFill}
+        maskElement={
+          <Text {...props} style={[props.style, { flex: 0, marginLeft: 0, marginTop: 0, marginBottom: 0, marginRight: 0 }]} />
+        }
+      >
+        <LinearGradient
+          colors={COLORS.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ flex: 1 }}
+        >
+          <Text {...props} style={[props.style, { opacity: 0, flex: 0, marginLeft: 0, marginTop: 0, marginBottom: 0, marginRight: 0 }]} />
+        </LinearGradient>
+      </MaskedView>
+    </View>
+  );
 };
 
 // Generate gradient colors from name (same logic as AvatarGenerator)
@@ -52,17 +75,16 @@ function getInitials(name) {
 export default function AccountPickerModal({
   visible,
   onClose,
-  accounts,
+  accounts = [],
   onSelectAccount,
-  onSelectMultiple, // New prop for multi-select
-  onCreateNewProfile, // New prop for creating a new profile
+  onSelectMultiple,
+  onCreateNewProfile,
   loading,
   email,
-  loggedInAccountIds = [], // IDs of already logged-in accounts
+  loggedInAccountIds = [],
 }) {
   const [selectedAccounts, setSelectedAccounts] = useState([]);
 
-  // Reset selection when modal opens or accounts change
   useEffect(() => {
     if (visible) {
       setSelectedAccounts([]);
@@ -81,13 +103,12 @@ export default function AccountPickerModal({
 
   const isSelected = (account) => {
     return selectedAccounts.some(
-      (a) => `${a.type}_${a.id}` === `${account.type}_${account.id}`
+      (a) => `${a.type}_${account.id}` === `${account.type}_${account.id}`
     );
   };
 
   const selectAll = () => {
-    // Only select accounts that are NOT already logged in
-    const selectableAccounts = accounts.filter(
+    const selectableAccounts = (accounts || []).filter(
       (acc) => !loggedInAccountIds.includes(`${acc.type}_${acc.id}`)
     );
     setSelectedAccounts([...selectableAccounts]);
@@ -119,23 +140,20 @@ export default function AccountPickerModal({
         onPress={() => toggleAccountSelection(item)}
         disabled={loading || isAlreadyLoggedIn}
       >
-        {/* Selection checkbox - hide if already logged in */}
         {!isAlreadyLoggedIn && (
           <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
             {selected && (
-              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+              <Check size={14} color="#FFFFFF" strokeWidth={3} />
             )}
           </View>
         )}
 
-        {/* Logged in indicator */}
         {isAlreadyLoggedIn && (
           <View style={styles.loggedInIndicator}>
-            <Ionicons name="checkmark-circle" size={20} color="#8E8E93" />
+            <CheckCircle2 size={22} color={COLORS.textMuted} strokeWidth={2} />
           </View>
         )}
 
-        {/* Avatar */}
         <LinearGradient
           colors={gradient}
           style={[styles.avatar, isAlreadyLoggedIn && styles.avatarDisabled]}
@@ -147,7 +165,6 @@ export default function AccountPickerModal({
           </Text>
         </LinearGradient>
 
-        {/* Account info */}
         <View style={styles.accountInfo}>
           <Text
             style={[
@@ -169,16 +186,15 @@ export default function AccountPickerModal({
           </Text>
         </View>
 
-        {/* Type badge or Logged in badge */}
         {isAlreadyLoggedIn ? (
           <View style={styles.loggedInBadge}>
             <Text style={styles.loggedInBadgeText}>Already logged in</Text>
           </View>
         ) : (
           <View
-            style={[styles.typeBadge, { backgroundColor: config.color + "20" }]}
+            style={[styles.typeBadge, { backgroundColor: config.color + "15" }]}
           >
-            <Ionicons name={config.icon} size={12} color={config.color} />
+            <config.icon size={12} color={config.color} strokeWidth={2.5} />
             <Text style={[styles.typeBadgeText, { color: config.color }]}>
               {config.label}
             </Text>
@@ -206,71 +222,63 @@ export default function AccountPickerModal({
           style={styles.modalContent}
           onPress={(e) => e.stopPropagation()}
         >
-          {/* Handle bar */}
           <View style={styles.handleBar} />
 
-          {/* Title */}
           <Text style={styles.title}>Multiple Accounts Detected</Text>
           <Text style={styles.subtitle}>
             Select the account(s) you want to log into
           </Text>
 
-          {/* Loading indicator */}
           {loading && (
             <View style={styles.loadingContainer}>
-              <SnooLoader size="large" color="#5f27cd" />
-              <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Logging in...</Text>
+              <SnooLoader size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Logging in...</Text>
             </View>
           )}
 
-          {/* Account list */}
           {!loading && (
             <>
-              {/* Login to All button */}
-              {accounts.length > 1 && (
+              {(accounts || []).length > 1 && (
                 <TouchableOpacity
                   style={styles.loginAllButton}
                   onPress={selectAll}
                 >
-                  <Ionicons
-                    name="checkmark-done"
-                    size={18}
-                    color={COLORS.primary}
-                  />
+                  <Check size={18} color={COLORS.primary} strokeWidth={2.5} />
                   <Text style={styles.loginAllText}>
-                    Select All ({accounts.length} accounts)
+                    Select All ({(accounts || []).length} accounts)
                   </Text>
                 </TouchableOpacity>
               )}
 
               <FlatList
-                data={accounts}
+                data={accounts || []}
                 renderItem={renderAccountItem}
-                keyExtractor={(item, index) =>
-                  `${item.type}_${item.id}_${index}`
-                }
+                keyExtractor={(item, index) => `${item.type}_${item.id}_${index}`}
                 style={styles.accountList}
                 showsVerticalScrollIndicator={false}
               />
 
-              {/* Create new profile button */}
               {onCreateNewProfile && (
                 <TouchableOpacity
                   style={styles.createNewButton}
                   onPress={onCreateNewProfile}
                   disabled={loading}
                 >
-                  <View style={styles.createNewIcon}>
-                    <Ionicons name="add" size={20} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.createNewText}>Create a new profile</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+                  <LinearGradient
+                    colors={["#E9F2FF", "#F5F9FF"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.createNewIcon}
+                  >
+                    <Plus size={20} color={COLORS.primary} strokeWidth={2.5} />
+                  </LinearGradient>
+                  <GradientText style={styles.createNewText}>Create a new profile</GradientText>
+                  <MoveRight size={20} color={COLORS.primary} strokeWidth={2} />
                 </TouchableOpacity>
               )}
             </>
           )}
 
-          {/* Action buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -299,10 +307,7 @@ export default function AccountPickerModal({
                 style={styles.loginButtonGradient}
               >
                 <Text style={styles.loginButtonText}>
-                  Login
-                  {selectedAccounts.length > 1
-                    ? ` (${selectedAccounts.length})`
-                    : ""}
+                  Login{selectedAccounts.length > 1 ? ` (${selectedAccounts.length})` : ""}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -320,12 +325,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    maxHeight: "80%",
+    width: "100%",
+    backgroundColor: "#F8FAFC",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    maxHeight: "90%",
   },
   handleBar: {
     width: 40,
@@ -337,17 +344,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1D1D1F",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 24,
+    color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#8E8E93",
+    fontFamily: "Manrope-Regular",
+    fontSize: 15,
+    color: COLORS.textSecondary,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   loadingContainer: {
     alignItems: "center",
@@ -356,41 +365,40 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: "#8E8E93",
-  
-    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    fontFamily: "Manrope-Medium",
   },
   loginAllButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
-    marginBottom: 8,
+    marginBottom: 12,
     backgroundColor: COLORS.primary + "10",
-    borderRadius: 12,
+    borderRadius: 14,
   },
   loginAllText: {
     color: COLORS.primary,
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 8,
   },
   accountList: {
-    maxHeight: 280,
+    maxHeight: 320,
   },
   accountItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    marginBottom: 4,
-    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 1.5,
     borderColor: "transparent",
   },
   accountItemSelected: {
-    backgroundColor: COLORS.primary + "08",
-    borderColor: COLORS.primary + "30",
+    backgroundColor: COLORS.primary + "06",
+    borderColor: COLORS.primary + "20",
   },
   checkbox: {
     width: 22,
@@ -406,85 +414,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  accountInfo: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-  },
-  accountName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1D1D1F",
-    marginBottom: 2,
-  },
-  accountUsername: {
-    fontSize: 13,
-    color: "#8E8E93",
-  },
-  typeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  typeBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    marginTop: 16,
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderRadius: BORDER_RADIUS.pill,
-    backgroundColor: "#F2F2F7",
-  },
-  cancelButtonText: {
-    color: "#8E8E93",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  loginButton: {
-    flex: 1,
-    borderRadius: BORDER_RADIUS.pill,
-    overflow: "hidden",
-  },
-  loginButtonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonGradient: {
-    paddingVertical: 14,
-    alignItems: "center",
-    borderRadius: BORDER_RADIUS.pill,
-  },
-  loginButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Styles for already logged-in accounts
-  accountItemDisabled: {
-    opacity: 0.6,
-    backgroundColor: "#F5F5F5",
-  },
   loggedInIndicator: {
     width: 22,
     height: 22,
@@ -492,49 +421,130 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   avatarDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
+  },
+  avatarText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontFamily: "Manrope-Bold",
+  },
+  accountInfo: {
+    flex: 1,
+    marginLeft: 14,
+    marginRight: 8,
+  },
+  accountName: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 17,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  accountUsername: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
   textDisabled: {
-    color: "#AEAEB2",
+    color: COLORS.textMuted,
+  },
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  typeBadgeText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
+    marginLeft: 4,
   },
   loggedInBadge: {
-    backgroundColor: "#8E8E93" + "20",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: "#F2F2F7",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
   },
   loggedInBadgeText: {
-    fontSize: 11,
-    color: "#8E8E93",
-    fontWeight: "500",
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontFamily: "Manrope-Medium",
   },
-  // Create new profile button styles
   createNewButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    marginTop: 12,
-    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.primary + "30",
-    borderStyle: "dashed",
+    borderColor: "#E2E8F0",
+    backgroundColor: COLORS.surface,
   },
   createNewIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + "15",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
   },
   createNewText: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.primary,
+    marginLeft: 16,
+    fontSize: 17,
+    fontFamily: "Manrope-Bold",
+    height: 24,
+    justifyContent: 'center',
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    marginTop: 24,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BORDER_RADIUS.pill,
+    backgroundColor: "#F2F2F7",
+  },
+  cancelButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textSecondary,
+    fontSize: 16,
+  },
+  loginButton: {
+    flex: 1,
+    height: 54,
+    borderRadius: BORDER_RADIUS.pill,
+    overflow: "hidden",
+  },
+  loginButtonDisabled: {
+    opacity: 0.5,
+  },
+  loginButtonGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BORDER_RADIUS.pill,
+  },
+  loginButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textInverted,
+    fontSize: 16,
+  },
+  accountItemDisabled: {
+    opacity: 0.7,
+    backgroundColor: "#F9FAFB",
   },
 });
 
@@ -548,13 +558,4 @@ AccountPickerModal.propTypes = {
   loading: PropTypes.bool,
   email: PropTypes.string,
   loggedInAccountIds: PropTypes.array,
-};
-
-AccountPickerModal.defaultProps = {
-  accounts: [],
-  onSelectMultiple: null,
-  onCreateNewProfile: null,
-  loading: false,
-  email: "",
-  loggedInAccountIds: [],
 };

@@ -8,8 +8,9 @@ import {
   StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import GlassBackButton from "./GlassBackButton";
-import { COLORS } from "../constants/theme";
+import { COLORS, BORDER_RADIUS } from "../constants/theme";
 
 /**
  * SignupHeader - Reusable header component for signup and auth screens
@@ -18,12 +19,14 @@ import { COLORS } from "../constants/theme";
  * @param {function} onCancel - Optional. Callback when cancel button is pressed. If provided, shows cancel button
  * @param {boolean} showCancel - Optional. Force show/hide cancel button (default: true if onCancel provided)
  * @param {string} cancelText - Optional. Custom text for cancel button (default: "Cancel")
+ * @param {string} role - Optional. Displays a role badge (e.g., "Community" or "People") in the center
  */
 const SignupHeader = ({
   onBack,
   onCancel,
   showCancel = true,
   cancelText = "Cancel",
+  role,
 }) => {
   const insets = useSafeAreaInsets();
   const showCancelButton = showCancel && onCancel;
@@ -41,6 +44,14 @@ const SignupHeader = ({
       ]}
     >
       <GlassBackButton onPress={onBack} />
+
+      {role && (
+        <BlurView intensity={70} tint="light" style={styles.roleBadgeContainer}>
+          <View style={styles.roleBadgeInner}>
+            <Text style={styles.roleText}>{role}</Text>
+          </View>
+        </BlurView>
+      )}
 
       {showCancelButton ? (
         <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
@@ -72,6 +83,29 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 44, // Same width as GlassBackButton for alignment
+  },
+  roleBadgeContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    overflow: "hidden", // Ensures blur doesn't bleed outside the pill shape
+    // Premium shadow for the entire glassy pill
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  roleBadgeInner: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.4)", // White tint to make the text readable over dark waves
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: COLORS.primary,
+    letterSpacing: 0.5,
   },
 });
 

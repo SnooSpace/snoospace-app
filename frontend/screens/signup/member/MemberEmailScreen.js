@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Modal, TouchableWithoutFeedback, Dimensions } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Modal, TouchableWithoutFeedback, Pressable, ImageBackground } from "react-native";
+import { Mail } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import MaskedView from "@react-native-masked-view/masked-view";
 
 import {
@@ -15,14 +13,10 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-
 import { apiPost } from "../../../api/client";
-import { setPendingOtp, checkEmailExists } from "../../../api/auth";
+import { setPendingOtp } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-const { width } = Dimensions.get("window");
-
-// Helper for Gradient Text
 const GradientText = (props) => {
   return (
     <MaskedView maskElement={<Text {...props} />}>
@@ -37,17 +31,16 @@ const GradientText = (props) => {
   );
 };
 
-const EmailInputScreen = ({ navigation }) => {
+const MemberEmailScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [isValidEmail, setIsValidEmail] = useState(false);
-  const [touched, setTouched] = useState(false); // track if user has typed
+  const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
-  const [showAccountExistsModal, setShowAccountExistsModal] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const insets = useSafeAreaInsets();
+  const inputRef = useRef(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -59,10 +52,7 @@ const EmailInputScreen = ({ navigation }) => {
     let interval;
     if (resendTimer > 0) {
       interval = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) return 0;
-          return prev - 1;
-        });
+        setResendTimer((prev) => (prev <= 1 ? 0 : prev - 1));
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -75,11 +65,7 @@ const EmailInputScreen = ({ navigation }) => {
         const lastTime = parseInt(lastTimeStr, 10);
         const elapsed = Math.floor((Date.now() - lastTime) / 1000);
         const remaining = 60 - elapsed;
-        if (remaining > 0) {
-          setResendTimer(remaining);
-        } else {
-          setResendTimer(0);
-        }
+        setResendTimer(remaining > 0 ? remaining : 0);
       }
     } catch (e) {
       console.error("Error checking resend timer:", e);
@@ -93,21 +79,17 @@ const EmailInputScreen = ({ navigation }) => {
     setIsValidEmail(emailRegex.test(text));
   };
 
-  // Send OTP and navigate to OTP screen
   const sendOtpAndNavigate = async () => {
     setLoading(true);
     setError("");
 
     try {
-      // Use V2 endpoint which supports multi-account
       const response = await apiPost("/auth/v2/send-otp", { email }, 15000);
       await setPendingOtp("signup_member", email, 600);
 
-      // Only navigate if we get a successful response
       if (response) {
-        console.log("OTP sent successfully, navigating to OTP screen");
         await AsyncStorage.setItem("last_otp_timestamp", Date.now().toString());
-        setRetryCount(0); // Reset retry count on success
+        setRetryCount(0);
         navigation.navigate("MemberOtp", { email });
       } else {
         setError("Failed to send verification code. Please try again.");
@@ -115,30 +97,16 @@ const EmailInputScreen = ({ navigation }) => {
     } catch (e) {
       console.error("OTP send error:", e);
       const msg = (e.message || "").toLowerCase();
-
       if (msg.includes("timeout") || msg.includes("timed out")) {
         setRetryCount((prev) => prev + 1);
         if (retryCount < 2) {
           setError(`Request timed out. Retrying... (${retryCount + 1}/3)`);
-          // Auto retry after 2 seconds
-          setTimeout(() => {
-            if (retryCount < 2) {
-              sendOtpAndNavigate();
-            }
-          }, 2000);
+          setTimeout(() => { if (retryCount < 2) sendOtpAndNavigate(); }, 2000);
         } else {
-          setError(
-            "Request timed out after multiple attempts. Please check your internet connection and try again."
-          );
+          setError("Request timed out after multiple attempts. Please check your connection.");
         }
-      } else if (msg.includes("network") || msg.includes("fetch")) {
-        setError(
-          "Network error. Please check your internet connection and try again."
-        );
       } else {
-        setError(
-          e.message || "Failed to send verification code. Please try again."
-        );
+        setError(e.message || "Failed to send verification code. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -150,299 +118,216 @@ const EmailInputScreen = ({ navigation }) => {
       Alert.alert("Error", "Please enter a valid email address.");
       return;
     }
-
-    // Multi-Account System: Skip email existence check
-    // Account selection happens AFTER OTP verification, not before
-    // This allows users to create multiple profiles with the same email
-    console.log("[MemberEmailScreen] Proceeding to send OTP for:", email);
     await sendOtpAndNavigate();
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader onBack={() => navigation.goBack()} />
+    <ImageBackground 
+      source={require("../../../assets/wave.png")} 
+      style={styles.backgroundImage}
+      imageStyle={{ transform: [{ scaleY: -1 }] }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader onBack={() => navigation.goBack()} role="People" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>What's your email?</Text>
-          <Text style={styles.subtitle}>
-            We'll use it to keep you updated on events.
-          </Text>
-
-          <TextInput
-            style={[styles.input, isFocused && styles.inputFocused]}
-            onChangeText={validateEmail}
-            value={email}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder="Enter your email"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            textContentType="emailAddress"
-            autoComplete="email"
-          />
-
-          {/* Error message if invalid */}
-          {touched && email.length > 0 && !isValidEmail && (
-            <Text style={styles.errorText}>
-              Please enter a valid email address
-            </Text>
-          )}
-
-          <Text style={styles.infoText}>
-            Email will be used to send code for your login.
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <KeyboardStickyView
-        offset={{
-          closed: 0,
-          opened: 0,
-        }}
-        style={styles.stickyFooter}
-      >
-        <View
-          style={[
-            styles.footer,
-            { paddingBottom: 60 + (Platform.OS === "ios" ? 0 : 0) },
-          ]}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity
-            style={[
-              styles.continueButtonContainer,
-              (!isValidEmail || loading || resendTimer > 0) &&
-                styles.disabledButton,
-            ]}
-            onPress={handleContinue}
-            disabled={!isValidEmail || loading || resendTimer > 0}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.continueButton}
-            >
-              {loading ? (
-                <SnooLoader color={COLORS.textInverted} />
-              ) : (
-                <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Get Code"}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>What's your email?</Text>
+            <Text style={styles.subtitle}>
+              We'll use it to send you a verification code.
+            </Text>
+
+            <View style={styles.card}>
+              <Text style={styles.inputLabel}>Email address</Text>
+              <Pressable 
+                onPress={() => inputRef.current?.focus()}
+                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+              >
+                <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  placeholder="name@example.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={email}
+                  onChangeText={validateEmail}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  autoComplete="off"
+                />
+              </Pressable>
+
+              {touched && email.length > 0 && !isValidEmail && (
+                <Text style={styles.validationErrorText}>
+                  Please enter a valid email address.
                 </Text>
               )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </KeyboardStickyView>
 
-      {/* Account Exists Modal */}
-      <Modal
-        visible={showAccountExistsModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAccountExistsModal(false)}
-      >
-        <TouchableWithoutFeedback
-          onPress={() => setShowAccountExistsModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Account Exists</Text>
-                <Text style={styles.modalMessage}>
-                  An account with this email already exists. Would you like to
-                  create a new account with the same email or use a different
-                  email?
-                </Text>
+              {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
 
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalSecondaryButton}
-                    onPress={() => setShowAccountExistsModal(false)}
-                  >
-                    <Text style={styles.modalSecondaryButtonText}>
-                      Use Different Email
+              <TouchableOpacity
+                style={[
+                  styles.buttonContainer,
+                  (!isValidEmail || loading || resendTimer > 0) && styles.buttonDisabled,
+                ]}
+                onPress={handleContinue}
+                disabled={!isValidEmail || loading || resendTimer > 0}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.button}
+                >
+                  {loading ? (
+                    <SnooLoader color={COLORS.textInverted} />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Send Code"}
                     </Text>
-                  </TouchableOpacity>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
 
-                  <View style={styles.modalVerticalDivider} />
-
-                  <TouchableOpacity
-                    style={styles.modalPrimaryButton}
-                    onPress={() => {
-                      setShowAccountExistsModal(false);
-                      sendOtpAndNavigate();
-                    }}
-                  >
-                    <GradientText style={styles.modalPrimaryButtonText}>
-                      Continue Anyway
-                    </GradientText>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
+              
+            </View>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
-// --- Styles ---
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 120,
   },
   contentContainer: {
+    paddingTop: 30,
     flex: 0,
-    marginTop: 50,
-    paddingHorizontal: 5,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 34,
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginBottom: 40,
+    lineHeight: 24,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  inputLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F2F5",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    borderRadius: BORDER_RADIUS.l,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 16,
+  },
+  inputFocusedContainer: {
+    borderColor: COLORS.primary,
+    ...SHADOWS.sm,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    height: 50,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 10,
-    paddingHorizontal: 15,
+    flex: 1,
+    fontFamily: "Manrope-Medium",
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     color: COLORS.textPrimary,
+    height: "100%",
+    backgroundColor: "transparent",
   },
-  inputFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
-  },
-  errorText: {
-    fontSize: 12,
+  validationErrorText: {
+    fontFamily: "Manrope-Medium",
     color: COLORS.error,
-    marginTop: 5,
-    marginLeft: 5,
-  },
-  infoText: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-    marginLeft: 5,
+    marginTop: -8,
+    marginBottom: 16,
+    marginLeft: 4,
   },
-  stickyFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+  apiErrorText: {
+    fontFamily: "Manrope-Medium",
+    color: COLORS.error,
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "center",
   },
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-  },
-  continueButtonContainer: {
+  buttonContainer: {
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
+    marginBottom: 20,
   },
-  continueButton: {
-    paddingVertical: 15,
+  button: {
+    paddingVertical: 16,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
+    flexDirection: "row",
   },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  modalContent: {
-    width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingTop: 24,
-    alignItems: "center",
-    ...SHADOWS.md,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold", // Using bold to simulate the look, can use serif if font available
-    color: "#000",
-    marginBottom: 8,
+  infoText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: COLORS.textMuted,
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", // Attempting to match the serif look from image
-  },
-  modalMessage: {
-    fontSize: 15,
-    color: "#444",
-    textAlign: "center",
-    marginBottom: 24,
-    paddingHorizontal: 20,
-    lineHeight: 22,
-  },
-  modalActions: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-    width: "100%",
-    height: 50,
-  },
-  modalSecondaryButton: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalSecondaryButtonText: {
-    fontSize: 16,
-    color: "#000",
-    fontWeight: "400",
-  },
-  modalVerticalDivider: {
-    width: 1,
-    height: "100%",
-    backgroundColor: "#eee",
-  },
-  modalPrimaryButton: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalPrimaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    // Color is handled by GradientText components
+    marginTop: 4,
   },
 });
 
-export default EmailInputScreen;
+export default MemberEmailScreen;

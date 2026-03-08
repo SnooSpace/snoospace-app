@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";
+import { Mail } from "lucide-react-native";
 import { apiPost } from "../../../api/client";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,7 +10,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityEmailScreen = ({ navigation, route }) => {
@@ -93,78 +93,84 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header Section */}
-        <View style={styles.header}>
-          <GlassBackButton
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          />
-        </View>
+    <ImageBackground 
+      source={require("../../../assets/wave.png")} 
+      style={styles.backgroundImage}
+      imageStyle={{ transform: [{ scaleY: -1 }] }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader onBack={() => navigation.goBack()} role="Community" />
 
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Enter your email</Text>
-          <Text style={styles.subtitle}>
-            We'll send you a verification code to confirm your email.
-          </Text>
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[styles.input, isFocused && styles.inputFocused]}
-              placeholder="Enter your email"
-              placeholderTextColor={COLORS.textSecondary}
-              value={email}
-              onChangeText={validateEmail}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              textContentType="emailAddress"
-              autoComplete="email"
-            />
-          </View>
-
-          {/* Inline error message for invalid email when touched */}
-          {touched && email.length > 0 && !isValidEmail && (
-            <Text style={styles.validationErrorText}>
-              Please enter a valid email address.
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Enter your email</Text>
+            <Text style={styles.subtitle}>
+              We'll send you a verification code to confirm your email.
             </Text>
-          )}
 
-          {/* API/Network Error display */}
-          {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
+            <View style={styles.card}>
+              <Text style={styles.inputLabel}>Email address</Text>
+              <View style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}>
+                <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="name@example.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={email}
+                  onChangeText={validateEmail}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  autoComplete="off"
+                />
+              </View>
 
-          <TouchableOpacity
-            style={[
-              styles.buttonContainer,
-              (!isValidEmail || loading) && styles.buttonDisabled,
-            ]}
-            onPress={handleContinue}
-            disabled={!isValidEmail || loading}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.button}
-            >
-              {loading ? (
-                <SnooLoader color={COLORS.textInverted} />
-              ) : (
-                <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Get Code</Text>
+              {/* Inline error message for invalid email when touched */}
+              {touched && email.length > 0 && !isValidEmail && (
+                <Text style={styles.validationErrorText}>
+                  Please enter a valid email address.
+                </Text>
               )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+              {/* API/Network Error display */}
+              {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.buttonContainer,
+                  (!isValidEmail || loading) && styles.buttonDisabled,
+                ]}
+                onPress={handleContinue}
+                disabled={!isValidEmail || loading}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.button}
+                >
+                  {loading ? (
+                    <SnooLoader color={COLORS.textInverted} />
+                  ) : (
+                    <Text style={styles.buttonText}>Send Code</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
@@ -172,92 +178,124 @@ const CommunityEmailScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 15,
-  },
-  backButton: {
-    paddingRight: 15,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    paddingHorizontal: 20,
   },
   contentContainer: {
     paddingTop: 30,
     flex: 0,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 34,
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginBottom: 40,
+    lineHeight: 24,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: 24,
+    // Deep 3D foreground shadow — pushes background illustration back visually
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  inputLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
   },
   inputContainer: {
-    marginBottom: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F2F5", // Premium greyish background
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    borderRadius: BORDER_RADIUS.l,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 16,
+  },
+  inputFocusedContainer: {
+    borderColor: COLORS.primary,
+    ...SHADOWS.sm,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    flex: 1,
+    fontFamily: "Manrope-Medium",
     fontSize: 16,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     color: COLORS.textPrimary,
-  },
-  inputFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    height: "100%",
+    backgroundColor: "transparent",
   },
   validationErrorText: {
+    fontFamily: "Manrope-Medium",
     color: COLORS.error,
     fontSize: 12,
-    marginTop: 5,
-    marginLeft: 5,
+    marginTop: -8,
+    marginBottom: 16,
+    marginLeft: 4,
   },
   apiErrorText: {
+    fontFamily: "Manrope-Medium",
     color: COLORS.error,
     fontSize: 14,
-    marginTop: 15,
+    marginBottom: 16,
     textAlign: "center",
   },
   buttonContainer: {
-    marginTop: 150,
-    marginBottom: 20,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
+    marginBottom: 20,
   },
   button: {
     paddingVertical: 16,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
+    flexDirection: "row",
   },
   buttonDisabled: {
-    opacity: 0.6,
-    shadowOpacity: 0,
+    opacity: 0.5,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
+  },
+  infoText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginTop: 4,
   },
 });
 

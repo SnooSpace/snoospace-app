@@ -22,6 +22,7 @@
     "@shopify/react-native-skia": "2.4.18",
     "axios": "^1.12.2",
     "cloudinary-react-native": "^1.3.0",
+    "eslint": "^10.0.3",
     "eventemitter3": "^5.0.1",
     "expo": "^55.0.5",
     "expo-blur": "~55.0.8",
