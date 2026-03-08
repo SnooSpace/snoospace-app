@@ -24,6 +24,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#eaedf2', // Fallback color while loading
+    backgroundColor: '#eef1f5', // Fallback color while loading
   },
 });

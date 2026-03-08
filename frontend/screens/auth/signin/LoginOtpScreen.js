@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated } from "react-native";
-import { useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated, Pressable } from "react-native";
+import { Mail, Check, SquareAsterisk } from "lucide-react-native";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +21,8 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import GrainyGradientBackground from "../../../components/ui/GrainyGradientBackground";
+import WavyIllustration from "../../../components/ui/WavyIllustration";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -47,6 +49,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const inputRef = useRef(null);
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -428,81 +431,105 @@ const LoginOtpScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <SignupHeader onBack={() => setShowGoBackModal(true)} />
+    <GrainyGradientBackground>
+      <WavyIllustration position="topRight" stripeCount={7} scale={0.85} animated={false} />
+      <SafeAreaView style={styles.container}>
+        <SignupHeader onBack={() => setShowGoBackModal(true)} />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Enter verification code</Text>
-        <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
+        <View style={styles.content}>
+          <Text style={styles.title}>Enter verification code</Text>
+          <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, isFocused && styles.inputFocused]}
-            placeholder="000000"
-            placeholderTextColor={COLORS.textSecondary}
-            value={otp}
-            onChangeText={setOtp}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            keyboardType="number-pad"
-            maxLength={6}
-            textAlign="center"
-          />
+          <View style={styles.card}>
+            <Pressable 
+              onPress={() => inputRef.current?.focus()}
+              style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+            >
+              {otp.length === 0 && (
+                <View style={styles.placeholderContainer} pointerEvents="none">
+                  {[...Array(6)].map((_, i) => (
+                    <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
+                  ))}
+                </View>
+              )}
+              <TextInput
+                ref={inputRef}
+                style={[
+                  styles.input,
+                  otp.length === 0 && styles.inputTransparentText,
+                ]}
+                placeholder=""
+                placeholderTextColor="transparent"
+                underlineColorAndroid="transparent"
+                value={otp}
+                onChangeText={setOtp}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                keyboardType="number-pad"
+                maxLength={6}
+                textAlign="center"
+              />
+            </Pressable>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[
+                styles.buttonContainer,
+                (loading || otp.length !== 6) && styles.buttonDisabled,
+                (!loading && otp.length !== 6) && styles.buttonInactive,
+              ]}
+              onPress={handleVerify}
+              disabled={loading || otp.length !== 6}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.button}
+              >
+                {loading ? (
+                  <SnooLoader color={COLORS.textInverted} />
+                ) : (
+                  <Text style={styles.buttonText}>Verify</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.resendButton}
+              onPress={handleResendCode}
+              disabled={resendTimer > 0 || resendLoading}
+            >
+              {resendLoading ? (
+                <SnooLoader color={COLORS.primary} size="small" />
+              ) : (
+                <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[styles.buttonContainer, loading && styles.buttonDisabled]}
-          onPress={handleVerify}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.button}
-          >
-            {loading ? (
-              <SnooLoader color={COLORS.textInverted} />
-            ) : (
-              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Login</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.resendButton}
-          onPress={handleResendCode}
-          disabled={resendTimer > 0 || resendLoading}
-        >
-          {resendLoading ? (
-            <SnooLoader color={COLORS.primary} size="small" />
-          ) : (
-            <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <AccountPickerModal
-        visible={showAccountPicker}
-        onClose={() => setShowAccountPicker(false)}
-        accounts={accounts}
-        onSelectAccount={handleAccountSelected}
-        onSelectMultiple={handleMultipleAccountsSelected}
-        loading={pickerLoading}
-        email={email}
-        loggedInAccountIds={loggedInAccountIds}
-      />
+        <AccountPickerModal
+          visible={showAccountPicker}
+          onClose={() => setShowAccountPicker(false)}
+          accounts={accounts}
+          onSelectAccount={handleAccountSelected}
+          onSelectMultiple={handleMultipleAccountsSelected}
+          loading={pickerLoading}
+          email={email}
+          loggedInAccountIds={loggedInAccountIds}
+        />
 
       {/* Modern Go Back Modal */}
       <Modal
         visible={showGoBackModal}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setShowGoBackModal(false)}
       >
         <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
@@ -559,13 +586,18 @@ const LoginOtpScreen = ({ navigation, route }) => {
         </Animated.View>
       )}
     </SafeAreaView>
+    </GrainyGradientBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: "#eef1f5",
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   content: {
@@ -574,50 +606,91 @@ const styles = StyleSheet.create({
     paddingTop: 30,
   },
   title: {
+    fontFamily: "BasicCommercial-Black",
     fontSize: 28,
-    fontWeight: "bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginBottom: 40,
+    lineHeight: 24,
   },
+  
   inputContainer: {
-    marginBottom: 20,
+    height: 56,
+    marginBottom: 24,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0F2F5",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    borderRadius: BORDER_RADIUS.l,
+  },
+  placeholderContainer: {
+    position: "absolute",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    zIndex: 1,
+    gap: 8,
+  },
+  asteriskIcon: {
+    opacity: 0.8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.m,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    fontFamily: "Manrope-Medium",
     fontSize: 24,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     letterSpacing: 4,
+    textAlign: "center",
     color: COLORS.textPrimary,
+    backgroundColor: "transparent",
+    zIndex: 2,
   },
-  inputFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+  inputTransparentText: {
+    color: "transparent",
+  },
+  inputFocusedContainer: {
+     borderColor: COLORS.primary,
+    ...SHADOWS.sm,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
   },
   buttonContainer: {
     marginTop: 20,
-    borderRadius: BORDER_RADIUS.pill,
+    borderRadius: BORDER_RADIUS.l,
     ...SHADOWS.primaryGlow,
+    height: 56,
+    overflow: "visible",
   },
   button: {
-    paddingVertical: 16,
-    borderRadius: BORDER_RADIUS.pill,
+    flex: 1,
+    justifyContent: "center",
+    flexDirection: "row",
+    
+    borderRadius: BORDER_RADIUS.l,
     alignItems: "center",
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+  },
+  buttonInactive: {
+    elevation: 0,
+    shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
+    fontSize: 16,
     
     fontFamily: "Manrope-SemiBold",
   },
@@ -634,12 +707,13 @@ const styles = StyleSheet.create({
   errorText: {
     color: COLORS.error,
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     marginTop: 10,
     textAlign: "center",
   },
   // Modal Styles
   modalOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -655,14 +729,14 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Bold",
     color: "#000",
     marginBottom: 8,
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
   },
   modalMessage: {
     fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: "#444",
     textAlign: "center",
     marginBottom: 24,
@@ -684,7 +758,7 @@ const styles = StyleSheet.create({
   modalSecondaryButtonText: {
     fontSize: 16,
     color: "#000",
-    fontWeight: "400",
+    fontFamily: "Manrope-SemiBold",
   },
   modalVerticalDivider: {
     width: 1,
@@ -698,7 +772,7 @@ const styles = StyleSheet.create({
   },
   modalPrimaryButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     // Color handled by GradientText
   },
   toastContainer: {

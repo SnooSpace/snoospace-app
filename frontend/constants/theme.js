@@ -28,7 +28,7 @@ export const COLORS = {
   },
 
   // Functional
-  error: "#FF3B30",
+  error: "#CE3E3E", // Premium rich red (less harsh than system red)
   success: "#34C759",
   border: "#E5E5EA",
 

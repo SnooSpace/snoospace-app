@@ -14,6 +14,8 @@ import {
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import GrainyGradientBackground from "../../../components/ui/GrainyGradientBackground";
+import WavyIllustration from "../../../components/ui/WavyIllustration";
+import { LinearGradient } from "expo-linear-gradient";
 
 // Removed local constants in favor of theme constants
 
@@ -109,8 +111,11 @@ const LoginScreen = ({ navigation, route }) => {
     }
   };
 
+  const isValidEmailOrUsername = emailOrUsername.includes('@');
+
   return (
     <GrainyGradientBackground>
+      <WavyIllustration position="topLeft" stripeCount={7} scale={1.0} animated={false} />
       <SafeAreaView style={styles.container}>
         <SignupHeader
           onBack={() => {
@@ -138,7 +143,7 @@ const LoginScreen = ({ navigation, route }) => {
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder="name@company.com"
+                placeholder="name@example.com"
                 placeholderTextColor={COLORS.textMuted}
                 value={emailOrUsername}
                 onChangeText={setEmailOrUsername}
@@ -147,6 +152,8 @@ const LoginScreen = ({ navigation, route }) => {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                importantForAutofill="no"
+                autoComplete="off"
               />
             </Pressable>
 
@@ -154,32 +161,40 @@ const LoginScreen = ({ navigation, route }) => {
 
             <TouchableOpacity
               style={[
-                styles.button,
-                (loading || isSuccess) && styles.buttonDisabled,
-                isSuccess && styles.buttonSuccess,
+                styles.buttonContainer,
+                (loading || isSuccess || !isValidEmailOrUsername) && styles.buttonDisabled,
+                isSuccess && styles.buttonSuccessContainer,
+                (!loading && !isSuccess && !isValidEmailOrUsername) && styles.buttonInactive,
               ]}
               onPress={handleLogin}
-              disabled={loading || isSuccess}
+              disabled={loading || isSuccess || !isValidEmailOrUsername}
               activeOpacity={0.8}
             >
-              {loading ? (
-                <SnooLoader color={COLORS.textInverted} />
-              ) : isSuccess ? (
-                <Animated.View entering={ZoomIn}>
-                  <Check
-                    size={24}
-                    color={COLORS.textInverted}
-                    strokeWidth={2.5}
-                  />
-                </Animated.View>
-              ) : (
-                <Text style={styles.buttonText}>Send Login Code</Text>
-              )}
+              <LinearGradient
+                colors={isSuccess ? [COLORS.success, COLORS.success] : COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.buttonGradient}
+              >
+                {loading ? (
+                  <SnooLoader color={COLORS.textInverted} />
+                ) : isSuccess ? (
+                  <Animated.View entering={ZoomIn}>
+                    <Check
+                      size={24}
+                      color={COLORS.textInverted}
+                      strokeWidth={2.5}
+                    />
+                  </Animated.View>
+                ) : (
+                  <Text style={styles.buttonText}>Send Login Code</Text>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
             <View style={styles.signupLinkContainer}>
               <Text style={styles.signupText}>New here? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Landing")}>
-                <Text style={styles.signupLinkText}>Create an account</Text>
+                <Text style={styles.signupLinkText}> Create an account</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -192,7 +207,7 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F6F9", // Explicit match to mock background
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   content: {
@@ -218,8 +233,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.xl,
     padding: 24,
-    ...SHADOWS.md,
-    shadowOpacity: 0.04, // Very subtle, premium shadow
+    // Deep 3D foreground shadow — pushes background illustration back visually
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 15,
   },
   inputLabel: {
     fontFamily: "Manrope-Medium",
@@ -262,19 +281,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginTop: -8,
   },
-  button: {
-    backgroundColor: COLORS.primary,
+  buttonContainer: {
     height: 56,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.pill,
+    ...SHADOWS.primaryGlow,
+    overflow: "visible",
+  },
+  buttonGradient: {
+    flex: 1,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    ...SHADOWS.primaryGlow,
+    flexDirection: "row",
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
-  buttonSuccess: {
-    backgroundColor: COLORS.success,
+  buttonInactive: {
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  buttonSuccessContainer: {
     shadowColor: COLORS.success,
   },
   buttonText: {
