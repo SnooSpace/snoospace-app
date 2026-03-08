@@ -28,6 +28,7 @@ import Animated, {
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
+import GrainyGradientBackground from "../../components/ui/GrainyGradientBackground";
 
 // Icon_Light.svg as string
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -230,9 +231,10 @@ const LandingScreen = ({ navigation }) => {
   ), [selectedIndex, CARD_BASE_HEIGHT, CARD_WIDTH, handleSelect, handleContinue]);
 
   return (
-    <View style={styles.screenContainer}>
-      <DynamicStatusBar style="dark-content" />
-      <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
+    <GrainyGradientBackground>
+      <View style={styles.screenContainer}>
+        <DynamicStatusBar style="dark-content" />
+        <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
 
         {/* ── Header ── */}
         <View style={styles.headerContainer}>
@@ -299,7 +301,8 @@ const LandingScreen = ({ navigation }) => {
         </View>
 
       </SafeAreaView>
-    </View>
+      </View>
+    </GrainyGradientBackground>
   );
 };
 
@@ -307,7 +310,7 @@ const LandingScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
   },
   safeArea: {
     flex: 1,
@@ -368,6 +371,7 @@ const styles = StyleSheet.create({
   gossipersAnimation: {
     transform: [{ scale: 1.1 }],
     marginTop: -20,
+    marginLeft: 145,
   },
   cardGradientOverlay: {
     position: "absolute",

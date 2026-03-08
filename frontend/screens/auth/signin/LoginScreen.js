@@ -1,9 +1,8 @@
-import React, { useState } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useState, useRef } from "react";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, Pressable } from "react-native";
+import { Mail, Check } from "lucide-react-native";
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, { ZoomIn } from "react-native-reanimated";
 import {
@@ -14,6 +13,7 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import GrainyGradientBackground from "../../../components/ui/GrainyGradientBackground";
 
 // Removed local constants in favor of theme constants
 
@@ -24,6 +24,7 @@ const LoginScreen = ({ navigation, route }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef(null);
 
   const handleLogin = async () => {
     if (!emailOrUsername) {
@@ -109,161 +110,195 @@ const LoginScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.navigate("Landing");
-          }
-        }}
-      />
+    <GrainyGradientBackground>
+      <SafeAreaView style={styles.container}>
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("Landing");
+            }
+          }}
+        />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Welcome back!</Text>
-        <Text style={styles.subtitle}>
-          Enter your email or username to receive a login code.
-        </Text>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, isFocused && styles.inputFocused]}
-            placeholder="Email or username"
-            placeholderTextColor={COLORS.textSecondary}
-            value={emailOrUsername}
-            onChangeText={setEmailOrUsername}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[
-            styles.buttonContainer,
-            (loading || isSuccess) && styles.buttonDisabled,
-          ]}
-          onPress={handleLogin}
-          disabled={loading || isSuccess}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={isSuccess ? ["#34C759", "#2FB350"] : COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.button}
-          >
-            {loading ? (
-              <SnooLoader color={COLORS.textInverted} />
-            ) : isSuccess ? (
-              <Animated.View entering={ZoomIn}>
-                <Ionicons
-                  name="checkmark"
-                  size={24}
-                  color={COLORS.textInverted}
-                />
-              </Animated.View>
-            ) : (
-              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Send Login Code</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.signupLink}
-          onPress={() => navigation.navigate("Landing")}
-        >
-          <Text style={styles.signupText}>
-            Don't have an account?{" "}
-            <Text style={styles.signupLinkText}>Sign up</Text>
+        <View style={styles.content}>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>
+            Enter your email or username to receive a login code
           </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+
+          <View style={styles.card}>
+            <Text style={styles.inputLabel}>Email or username</Text>
+            <Pressable 
+              onPress={() => inputRef.current?.focus()}
+              style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+            >
+              <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                placeholder="name@company.com"
+                placeholderTextColor={COLORS.textMuted}
+                value={emailOrUsername}
+                onChangeText={setEmailOrUsername}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </Pressable>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                (loading || isSuccess) && styles.buttonDisabled,
+                isSuccess && styles.buttonSuccess,
+              ]}
+              onPress={handleLogin}
+              disabled={loading || isSuccess}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <SnooLoader color={COLORS.textInverted} />
+              ) : isSuccess ? (
+                <Animated.View entering={ZoomIn}>
+                  <Check
+                    size={24}
+                    color={COLORS.textInverted}
+                    strokeWidth={2.5}
+                  />
+                </Animated.View>
+              ) : (
+                <Text style={styles.buttonText}>Send Login Code</Text>
+              )}
+            </TouchableOpacity>
+            <View style={styles.signupLinkContainer}>
+              <Text style={styles.signupText}>New here? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Landing")}>
+                <Text style={styles.signupLinkText}>Create an account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </SafeAreaView>
+    </GrainyGradientBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#F4F6F9", // Explicit match to mock background
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingTop: 30,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 34,
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: "Manrope-Regular",
     fontSize: 16,
     color: COLORS.textSecondary,
     marginBottom: 40,
+    lineHeight: 24,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: 24,
+    ...SHADOWS.md,
+    shadowOpacity: 0.04, // Very subtle, premium shadow
+  },
+  inputLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
   },
   inputContainer: {
-    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F2F5", // Premium greyish background
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    borderRadius: BORDER_RADIUS.l,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 24,
+  },
+  inputFocusedContainer: {
+    borderColor: COLORS.primary,
+    ...SHADOWS.sm,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.m,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    flex: 1,
+    fontFamily: "Manrope-Medium",
     fontSize: 16,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
     color: COLORS.textPrimary,
-  },
-  inputFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
-  },
-  buttonContainer: {
-    marginTop: 20,
-    borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
-  },
-  button: {
-    paddingVertical: 16,
-    borderRadius: BORDER_RADIUS.pill,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.textInverted,
-    fontSize: 18,
-    
-    fontFamily: "Manrope-SemiBold",
-  },
-  signupLink: {
-    alignItems: "center",
-    marginTop: 30,
-  },
-  signupText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-  },
-  signupLinkText: {
-    color: COLORS.primary,
-    fontWeight: "600",
+    height: "100%",
+    backgroundColor: "transparent",
   },
   errorText: {
     color: COLORS.error,
+    fontFamily: "Manrope-Medium",
     fontSize: 14,
-    marginTop: 10,
-    textAlign: "center",
+    marginBottom: 16,
+    marginTop: -8,
   },
+  button: {
+    backgroundColor: COLORS.primary,
+    height: 56,
+    borderRadius: BORDER_RADIUS.l,
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.primaryGlow,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonSuccess: {
+    backgroundColor: COLORS.success,
+    shadowColor: COLORS.success,
+  },
+  buttonText: {
+    color: COLORS.textInverted,
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+  },
+  signupLinkContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  signupText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  signupLinkText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: COLORS.primary, // Used COLORS.primary for consistent blue
+  },
+
 });
 
 export default LoginScreen;

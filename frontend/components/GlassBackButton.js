@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, TouchableOpacity, Platform, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "../constants/theme";
@@ -8,7 +8,8 @@ import { COLORS } from "../constants/theme";
 const GlassBackButton = ({
   onPress,
   style,
-  iconName = "arrow-back-outline",
+  iconName, // Left for backward compatibility if ever passed but unused mostly
+  IconComponent = ArrowLeft,
 }) => {
   const handlePress = () => {
     if (Platform.OS !== "web") {
@@ -25,7 +26,7 @@ const GlassBackButton = ({
     >
       <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
       <View style={styles.iconContainer}>
-        <Ionicons name={iconName} size={24} color="#000" />
+        <IconComponent size={24} color="#000" strokeWidth={2} />
       </View>
     </TouchableOpacity>
   );
