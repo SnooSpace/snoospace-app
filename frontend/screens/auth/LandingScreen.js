@@ -29,6 +29,7 @@ import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
 import GrainyGradientBackground from "../../components/ui/GrainyGradientBackground";
+import WavyIllustration from "../../components/ui/WavyIllustration";
 
 // Icon_Light.svg as string
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,6 +37,16 @@ const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fi
 <ellipse cx="133.333" cy="129.078" rx="66.6667" ry="70.922" fill="#CEF2F2"/>
 <path d="M132.257 58.1671C132.963 62.3048 133.334 66.5674 133.334 70.9219C133.334 109.709 104.065 141.222 67.7419 141.833C67.0355 137.695 66.6667 133.433 66.6667 129.078C66.6667 90.2916 95.9342 58.779 132.257 58.1671Z" fill="#6BB3F2"/>
 </svg>`;
+
+const LANDING_WAVE_COLORS = [
+  "#1e6fd1", // Darkest / Outermost
+  "#2f83e0",
+  "#4296eb",
+  "#57a7f4",
+  "#6eb7fa",
+  "#8bc6fc",
+  "#a9d7fd", // Lightest / Innermost
+];
 
 const PARTICIPATION_ROLES = [
   {
@@ -232,6 +243,15 @@ const LandingScreen = ({ navigation }) => {
 
   return (
     <GrainyGradientBackground>
+      <WavyIllustration 
+        position="center" 
+        direction="horizontal" 
+        stripeCount={7} 
+        scale={1.2} 
+        opacity={0.45} 
+        animated={true}
+        customColors={LANDING_WAVE_COLORS} 
+      />
       <View style={styles.screenContainer}>
         <DynamicStatusBar style="dark-content" />
         <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>

@@ -15,7 +15,8 @@ import Animated, {
  * with 3D depth effect: BlurView + low opacity + oversized canvas.
  *
  * Props:
- *  position    — "topLeft" | "topRight" | "bottomLeft" | "bottomRight"
+ *  position    — "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "center"
+ *  direction   — "vertical" | "horizontal" (default "vertical")
  *  stripeCount — number of stripes (default 7, max 7)
  *  scale       — overall scale multiplier (default 1.0)
  *  animated    — subtle breathing/drift animation (default false)
@@ -37,8 +38,9 @@ const DEFAULT_COLORS = [
   "#eef7ff",
 ];
 
-// SVG canvas: slightly wider than screen for the "oversized background" 3D effect
-const CANVAS = 380;
+// Reference canvas sizes
+const CANVAS_V = 380;
+const CANVAS_H = 800;
 
 /**
  * Build a beautifully smooth, continuous, flowing S-curve stripe.
@@ -69,21 +71,55 @@ function buildStripePath(offset) {
   return `M ${startX} ${startY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${midX} ${midY} S ${cp4X} ${cp4Y}, ${endX} ${endY}`;
 }
 
+/**
+ * Build a horizontal flowing wave for the Landing Screen.
+ * Traces a long S-curve sweeping from center-left, dipping down, and rising to the center-right.
+ */
+function buildHorizontalStripePath(offset) {
+  const o = offset;
+
+  // Start well off-screen middle-left (moved down to middle of screen)
+  const startX = -100 + o * 0.8;
+  const startY = 450 + o * 1.2;
+
+  // First curve: Sweeps slightly down and into the center
+  const cp1X = 150 + o * 0.9;
+  const cp1Y = 500 + o * 0.8;
+  const cp2X = 300 + o * 1.1;
+  const cp2Y = 650 + o * 1.1; // Deep dip into the middle
+  const midX = 450 + o * 1.0; 
+  const midY = 550 + o * 1.0;
+
+  // Second curve: Sweeps back up and out to the right
+  const cp4X = 600 + o * 0.8;
+  const cp4Y = 450 + o * 0.9;
+  const endX = 950 + o * 0.9;
+  const endY = 350 + o * 1.2; // Exits middle-right, sweeping up
+
+  return `M ${startX} ${startY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${midX} ${midY} S ${cp4X} ${cp4Y}, ${endX} ${endY}`;
+}
+
 const AnimatedView = Animated.createAnimatedComponent(View);
 
 export default function WavyIllustration({
   position = "topLeft",
+  direction = "vertical",
   stripeCount = 7,
   scale = 1.0,
   animated = false,
   colorShift,
+  customColors,
   opacity = 0.25,
   blurIntensity = 18,
 }) {
   const count = Math.min(Math.max(stripeCount, 1), 7);
-  const colors = colorShift
-    ? DEFAULT_COLORS.map(() => colorShift)
-    : DEFAULT_COLORS;
+  let colors = DEFAULT_COLORS;
+  
+  if (customColors && customColors.length > 0) {
+    colors = customColors;
+  } else if (colorShift) {
+    colors = DEFAULT_COLORS.map(() => colorShift);
+  }
 
   // Thicknesses (outermost → innermost)
   const STROKE_WIDTHS = [58, 52, 46, 40, 34, 28, 24];
@@ -121,19 +157,31 @@ export default function WavyIllustration({
   const flipX = position === "topRight" || position === "bottomRight";
   const flipY = position === "bottomLeft" || position === "bottomRight";
 
-  // Oversized canvas: 1.15× screen width for the "pushed-back" 3D feel
-  const svgWidth = SCREEN_WIDTH * 1.15 * scale;
-  // Height: now covers 100% of the screen height to fill the empty bottom space
-  const svgHeight = SCREEN_HEIGHT * 1.0 * scale;
+  const isHorizontal = direction === "horizontal";
+  const baseCanvasW = isHorizontal ? CANVAS_H : CANVAS_V;
+
+  // Sizing dimensions
+  const svgWidth = isHorizontal
+    ? SCREEN_WIDTH * 1.5 * scale
+    : SCREEN_WIDTH * 1.15 * scale;
+  const svgHeight = isHorizontal
+    ? SCREEN_HEIGHT * 0.8 * scale
+    : SCREEN_HEIGHT * 1.0 * scale;
+
   // viewBox maps to the CANVAS coordinate space
-  const viewBoxH = (CANVAS * 2 * svgHeight) / svgWidth;
+  const viewBoxH = isHorizontal
+    ? (baseCanvasW * svgHeight) / svgWidth
+    : (baseCanvasW * 2 * svgHeight) / svgWidth;
 
   const containerStyle = [
     StyleSheet.absoluteFill,
     {
       overflow: "hidden",
       zIndex: 0,
-      // Anchor to corner — absoluteFill covers whole screen, blur clips correctly
+    },
+    position === "center" && {
+      justifyContent: "center",
+      alignItems: "center",
     },
   ];
 
@@ -159,7 +207,7 @@ export default function WavyIllustration({
           <Svg
             width={svgWidth}
             height={svgHeight}
-            viewBox={`0 0 ${CANVAS} ${viewBoxH}`}
+            viewBox={`0 0 ${baseCanvasW} ${viewBoxH}`}
             style={{
               transform: [
                 { scaleX: flipX ? -1 : 1 },
@@ -170,7 +218,7 @@ export default function WavyIllustration({
             {Array.from({ length: count }).map((_, i) => (
               <Path
                 key={i}
-                d={buildStripePath(OFFSETS[i])}
+                d={isHorizontal ? buildHorizontalStripePath(OFFSETS[i]) : buildStripePath(OFFSETS[i])}
                 stroke={colors[i]}
                 strokeWidth={STROKE_WIDTHS[i]}
                 strokeLinecap="round"
