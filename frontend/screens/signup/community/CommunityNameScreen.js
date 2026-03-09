@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   nextButtonContainer: {
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.pill,
     shadowColor: "#74adf2",
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     height: 56,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },

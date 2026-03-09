@@ -198,6 +198,9 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         <View style={styles.contentContainer}>
           <Text style={styles.title}>Add your Community Logo</Text>
 
+          <View style={styles.card}>
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={styles.cardContent}>
           {/* Profile Picture Upload Area */}
           <TouchableOpacity
             style={styles.photoUploadArea}
@@ -227,35 +230,37 @@ const CommunityLogoScreen = ({ navigation, route }) => {
               )}
             </View>
           </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Next Button Moved Outside Card */}
+          <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
+            <TouchableOpacity
+              style={[
+                styles.nextButtonContainer,
+                { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                isButtonDisabled && styles.disabledButton,
+              ]}
+              onPress={handleNext}
+              disabled={isButtonDisabled}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.nextButton}
+              >
+                {isLoading ? (
+                  <SnooLoader color={COLORS.textInverted} size="small" />
+                ) : (
+                  <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            {/* 👈 Display ActivityIndicator when loading, otherwise display text */}
-            {isLoading ? (
-              <SnooLoader color={COLORS.textInverted} size="small" />
-            ) : (
-              <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
 
       {/* Cancel Confirmation Modal */}
       <CancelSignupModal
@@ -272,11 +277,18 @@ const CommunityLogoScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: 'transparent',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 40,
   },
 
   // Adjusted header structure for consistency
@@ -311,10 +323,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
-    marginBottom: 50,
+    fontSize: 34,
+    fontFamily: 'BasicCommercial-Black',
+    color: '#1a2d4a',
+    marginBottom: 40,
+    letterSpacing: -0.5,
+  },
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 24,
+    ...Platform.select({
+      ios: { ...SHADOWS.xl, shadowOpacity: 0.1, shadowRadius: 24 },
+      android: { elevation: 0 }
+    }),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    overflow: 'hidden',
+    width: '100%',
+  },
+  cardContent: {
+    padding: 24,
+    alignItems: 'center',
   },
 
   // --- Photo Upload Area Styles ---
@@ -342,7 +371,7 @@ const styles = StyleSheet.create({
   uploadText: {
     marginTop: 5,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: 'Manrope-SemiBold',
     color: COLORS.primary,
   },
   profileImage: {
@@ -383,3 +412,7 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityLogoScreen;
+
+
+
+

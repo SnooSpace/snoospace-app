@@ -132,25 +132,30 @@ const NameInputScreen = ({ navigation, route }) => {
                   />
                 </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.nextButtonContainer,
-                    isButtonDisabled && styles.disabledButton,
-                  ]}
-                  onPress={handleNext}
-                  disabled={isButtonDisabled}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.nextButton}
-                  >
-                    <Text style={styles.buttonText}>Next</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Next Button Moved Outside Card */}
+            <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  isButtonDisabled && styles.disabledButton,
+                ]}
+                onPress={handleNext}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -237,7 +242,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   nextButtonContainer: {
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.pill,
     shadowColor: "#74adf2",
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -245,7 +250,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     height: 56,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Image, Alert, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
+import { BlurView } from "expo-blur";
+import { ImageBackground } from "react-native";
 import { useCrop } from "../../../components/MediaCrop";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -190,22 +192,30 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberName", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={require("../../../assets/wave.png")}
+      style={styles.backgroundImage}
+      imageStyle={{ transform: [{ rotate: "180deg" }], opacity: 0.3 }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberName", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+          role="People"
+        />
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -218,14 +228,17 @@ const ProfilePictureScreen = ({ navigation, route }) => {
             People are more likely to connect with you when they can see you.
           </Text>
 
-          {/* Animated Profile Picture Upload Area */}
-          <Animated.View
-            style={[
-              {
-                transform: [{ scale: bounceAnim }],
-              },
-            ]}
-          >
+          <View style={styles.card}>
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={styles.cardContent}>
+              {/* Animated Profile Picture Upload Area */}
+              <Animated.View
+                style={[
+                  {
+                    transform: [{ scale: bounceAnim }],
+                  },
+                ]}
+              >
             {/* Pulsing Ring Background */}
             <Animated.View
               style={[
@@ -277,14 +290,16 @@ const ProfilePictureScreen = ({ navigation, route }) => {
               {HINTS[currentHintIndex]}
             </Animated.Text>
           </View>
-        </View>
-      </ScrollView>
 
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
+        </View>
+      </View>
+
+      {/* Next Button Moved Outside Card */}
+      <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
         <TouchableOpacity
           style={[
             styles.nextButtonContainer,
+            { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
             isButtonDisabled && styles.disabledButton,
           ]}
           onPress={handleNext}
@@ -312,14 +327,17 @@ const ProfilePictureScreen = ({ navigation, route }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+    </View>
+  </ScrollView>
 
-      {/* Cancel Confirmation Modal */}
+  {/* Cancel Confirmation Modal */}
       <CancelSignupModal
         visible={showCancelModal}
         onKeepEditing={() => setShowCancelModal(false)}
         onDiscard={handleCancel}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
@@ -328,12 +346,19 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: 'transparent',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   headerRow: {
     flexDirection: "row",
@@ -352,19 +377,36 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 30,
     paddingHorizontal: 25,
-    alignItems: "center", // Center content horizontally
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
+    fontSize: 34,
+    fontFamily: 'BasicCommercial-Black',
+    color: '#1a2d4a',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 24,
+    ...Platform.select({
+      ios: { ...SHADOWS.xl, shadowOpacity: 0.1, shadowRadius: 24 },
+      android: { elevation: 0 }
+    }),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    overflow: 'hidden',
+    width: '100%',
+  },
+  cardContent: {
+    padding: 24,
+    alignItems: 'center',
   },
   subtitle: {
     fontSize: 16,
-    padding: 20,
-    paddingLeft: 25,
+    fontFamily: 'Manrope-Regular',
     color: COLORS.textSecondary,
-    marginBottom: 50,
+    marginBottom: 40,
+    lineHeight: 24,
   },
   // --- Photo Upload Area Styles ---
   photoUploadArea: {
@@ -408,7 +450,7 @@ const styles = StyleSheet.create({
   uploadText: {
     marginTop: 8,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: 'Manrope-SemiBold',
     color: COLORS.primary,
   },
   imagePlaceholderText: {
@@ -428,9 +470,9 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 14,
-    color: "#8E8E93", // Subtle gray for "tiny hint" feel
-    fontWeight: "500",
-    textAlign: "center",
+    color: '#8E8E93',
+    fontFamily: 'Manrope-Regular',
+    textAlign: 'center',
   },
 
   // --- Footer/Button Styles ---
@@ -470,3 +512,8 @@ const styles = StyleSheet.create({
 });
 
 export default ProfilePictureScreen;
+
+
+
+
+
