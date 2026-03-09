@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Modal, TouchableWithoutFeedback, Pressable, ImageBackground } from "react-native";
+import { BlurView } from "expo-blur";
 import { Mail } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -125,8 +126,9 @@ const MemberEmailScreen = ({ navigation }) => {
     <ImageBackground 
       source={require("../../../assets/wave.png")} 
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ scaleY: -1 }] }}
+      imageStyle={{ transform: [{ scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
+      blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader onBack={() => navigation.goBack()} role="People" />
@@ -142,63 +144,64 @@ const MemberEmailScreen = ({ navigation }) => {
             </Text>
 
             <View style={styles.card}>
-              <Text style={styles.inputLabel}>Email address</Text>
-              <Pressable 
-                onPress={() => inputRef.current?.focus()}
-                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-              >
-                <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
-                <TextInput
-                  ref={inputRef}
-                  style={styles.input}
-                  placeholder="name@example.com"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={email}
-                  onChangeText={validateEmail}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  importantForAutofill="no"
-                  autoComplete="off"
-                />
-              </Pressable>
-
-              {touched && email.length > 0 && !isValidEmail && (
-                <Text style={styles.validationErrorText}>
-                  Please enter a valid email address.
-                </Text>
-              )}
-
-              {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
-
-              <TouchableOpacity
-                style={[
-                  styles.buttonContainer,
-                  (!isValidEmail || loading || resendTimer > 0) && styles.buttonDisabled,
-                ]}
-                onPress={handleContinue}
-                disabled={!isValidEmail || loading || resendTimer > 0}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.button}
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.cardContent}>
+                <Text style={styles.inputLabel}>Email address</Text>
+                <Pressable 
+                  onPress={() => inputRef.current?.focus()}
+                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
                 >
-                  {loading ? (
-                    <SnooLoader color={COLORS.textInverted} />
-                  ) : (
-                    <Text style={styles.buttonText}>
-                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Send Code"}
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Mail size={20} color="#8AADC4" style={styles.inputIcon} strokeWidth={2.5} />
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.input}
+                    placeholder="name@example.com"
+                    placeholderTextColor="#8AADC4"
+                    value={email}
+                    onChangeText={validateEmail}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    importantForAutofill="no"
+                    autoComplete="off"
+                  />
+                </Pressable>
 
-              
+                {touched && email.length > 0 && !isValidEmail && (
+                  <Text style={styles.validationErrorText}>
+                    Please enter a valid email address.
+                  </Text>
+                )}
+
+                {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
+
+                <TouchableOpacity
+                  style={[
+                    styles.buttonContainer,
+                    (!isValidEmail || loading || resendTimer > 0) && styles.buttonDisabled,
+                  ]}
+                  onPress={handleContinue}
+                  disabled={!isValidEmail || loading || resendTimer > 0}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.button}
+                  >
+                    {loading ? (
+                      <SnooLoader color={COLORS.textInverted} />
+                    ) : (
+                      <Text style={styles.buttonText}>
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Send Code"}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -217,6 +220,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
+    backgroundColor: COLORS.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -241,14 +245,24 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.10,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 15,
   },
   inputLabel: {
     fontFamily: "Manrope-Medium",
@@ -259,9 +273,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F2F5",
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(180, 210, 245, 0.6)",
     borderRadius: BORDER_RADIUS.l,
     paddingHorizontal: 16,
     height: 56,
@@ -302,7 +316,10 @@ const styles = StyleSheet.create({
   buttonContainer: {
     height: 56,
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
     marginBottom: 20,
   },
   button: {

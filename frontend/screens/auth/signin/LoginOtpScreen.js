@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated, Pressable } from "react-native";
+import { BlurView } from "expo-blur";
 import { Mail, Check, SquareAsterisk } from "lucide-react-native";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -441,75 +442,78 @@ const LoginOtpScreen = ({ navigation, route }) => {
           <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
           <View style={styles.card}>
-            <Pressable 
-              onPress={() => inputRef.current?.focus()}
-              style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-            >
-              {otp.length === 0 && (
-                <View style={styles.placeholderContainer} pointerEvents="none">
-                  {[...Array(6)].map((_, i) => (
-                    <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
-                  ))}
-                </View>
-              )}
-              <TextInput
-                ref={inputRef}
-                style={[
-                  styles.input,
-                  otp.length === 0 && styles.inputTransparentText,
-                ]}
-                placeholder=""
-                placeholderTextColor="transparent"
-                underlineColorAndroid="transparent"
-                value={otp}
-                onChangeText={setOtp}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                keyboardType="number-pad"
-                maxLength={6}
-                textAlign="center"
-              />
-            </Pressable>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <TouchableOpacity
-              style={[
-                styles.buttonContainer,
-                (loading || otp.length !== 6) && styles.buttonDisabled,
-                (!loading && otp.length !== 6) && styles.buttonInactive,
-              ]}
-              onPress={handleVerify}
-              disabled={loading || otp.length !== 6}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.button}
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={styles.cardContent}>
+              <Pressable 
+                onPress={() => inputRef.current?.focus()}
+                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
               >
-                {loading ? (
-                  <SnooLoader color={COLORS.textInverted} />
-                ) : (
-                  <Text style={styles.buttonText}>Verify</Text>
+                {otp.length === 0 && (
+                  <View style={styles.placeholderContainer} pointerEvents="none">
+                    {[...Array(6)].map((_, i) => (
+                      <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
+                    ))}
+                  </View>
                 )}
-              </LinearGradient>
-            </TouchableOpacity>
+                <TextInput
+                  ref={inputRef}
+                  style={[
+                    styles.input,
+                    otp.length === 0 && styles.inputTransparentText,
+                  ]}
+                  placeholder=""
+                  placeholderTextColor="transparent"
+                  underlineColorAndroid="transparent"
+                  value={otp}
+                  onChangeText={setOtp}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  textAlign="center"
+                />
+              </Pressable>
 
-            <TouchableOpacity
-              style={styles.resendButton}
-              onPress={handleResendCode}
-              disabled={resendTimer > 0 || resendLoading}
-            >
-              {resendLoading ? (
-                <SnooLoader color={COLORS.primary} size="small" />
-              ) : (
-                <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-                </Text>
-              )}
-            </TouchableOpacity>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.buttonContainer,
+                  (loading || otp.length !== 6) && styles.buttonDisabled,
+                  (!loading && otp.length !== 6) && styles.buttonInactive,
+                ]}
+                onPress={handleVerify}
+                disabled={loading || otp.length !== 6}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.button}
+                >
+                  {loading ? (
+                    <SnooLoader color={COLORS.textInverted} />
+                  ) : (
+                    <Text style={styles.buttonText}>Verify</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendCode}
+                disabled={resendTimer > 0 || resendLoading}
+              >
+                {resendLoading ? (
+                  <SnooLoader color={COLORS.primary} size="small" />
+                ) : (
+                  <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
+                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -618,6 +622,26 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 40,
     lineHeight: 24,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.10,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   
   inputContainer: {

@@ -14,9 +14,9 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { UserPlus, Users } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, FONTS, SHADOWS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -40,11 +40,11 @@ export default function DraftRecoveryModal({
         <View style={styles.modalContainer}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons
-              name={isCommunity ? "people-outline" : "person-add-outline"}
-              size={48}
-              color={COLORS.primary}
-            />
+            {isCommunity ? (
+              <Users size={36} color={COLORS.primary} strokeWidth={2} />
+            ) : (
+              <UserPlus size={36} color={COLORS.primary} strokeWidth={2} />
+            )}
           </View>
 
           {/* Title */}
@@ -93,46 +93,44 @@ export default function DraftRecoveryModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
   },
   modalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: BORDER_RADIUS.xl || 20,
+    borderRadius: BORDER_RADIUS.xl,
     padding: 28,
     width: width - 48,
     maxWidth: 360,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...SHADOWS.large,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: `${COLORS.primary}15`,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary || "#1D1D1F",
+    fontSize: 22,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 12,
+    letterSpacing: -0.3,
   },
   description: {
     fontSize: 15,
-    color: COLORS.textSecondary || "#8E8E93",
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 28,
+    marginBottom: 32,
   },
   actions: {
     flexDirection: "row",
@@ -141,28 +139,31 @@ const styles = StyleSheet.create({
   },
   discardButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.m || 12,
-    backgroundColor: "#F2F2F7",
+    height: 54,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#F0F2F5",
     alignItems: "center",
+    justifyContent: "center",
   },
   discardText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textSecondary || "#8E8E93",
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
   },
   continueButton: {
     flex: 1,
-    borderRadius: BORDER_RADIUS.m || 12,
+    height: 54,
+    borderRadius: BORDER_RADIUS.m,
     overflow: "hidden",
   },
   continueGradient: {
-    paddingVertical: 14,
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   continueText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
 });

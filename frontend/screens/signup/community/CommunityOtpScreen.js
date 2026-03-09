@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, Pressable, ImageBackground } from "react-native";
+import { BlurView } from "expo-blur";
 import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Reanimated, { ZoomIn } from "react-native-reanimated";
@@ -228,8 +229,9 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     <ImageBackground 
       source={require("../../../assets/wave.png")} 
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ scaleX: -1 }] }}
+      imageStyle={{ transform: [{ scaleX: -1 }], opacity: 0.3 }}
       resizeMode="cover"
+      blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader 
@@ -246,94 +248,97 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
             <View style={styles.card}>
-              <Pressable 
-                onPress={() => inputRef.current?.focus()}
-                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-              >
-                {otp.length === 0 && (
-                  <View style={styles.placeholderContainer} pointerEvents="none">
-                    {[...Array(6)].map((_, i) => (
-                      <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
-                    ))}
-                  </View>
-                )}
-                <TextInput
-                  ref={inputRef}
-                  style={[
-                    styles.input,
-                    otp.length === 0 && styles.inputTransparentText,
-                  ]}
-                  placeholder=""
-                  placeholderTextColor="transparent"
-                  underlineColorAndroid="transparent"
-                  value={otp}
-                  onChangeText={setOtp}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  textAlign="center"
-                />
-              </Pressable>
-
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <TouchableOpacity
-                style={[
-                  styles.buttonContainer,
-                  (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
-                  (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
-                ]}
-                onPress={handleVerify}
-                disabled={loading || isSuccess || isError || otp.length !== 6}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={
-                    isSuccess
-                      ? ["#34C759", "#2FB350"]
-                      : isError
-                        ? [COLORS.error, COLORS.error]
-                        : COLORS.primaryGradient
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.button}
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.cardContent}>
+                <Pressable 
+                  onPress={() => inputRef.current?.focus()}
+                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
                 >
-                  {loading ? (
-                    <SnooLoader color={COLORS.textInverted} />
-                  ) : isSuccess ? (
-                    <Reanimated.View entering={ZoomIn}>
-                      <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                    </Reanimated.View>
-                  ) : isError ? (
-                    <Reanimated.View entering={ZoomIn}>
-                      <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                    </Reanimated.View>
-                  ) : (
-                    <Text style={styles.buttonText}>Verify</Text>
+                  {otp.length === 0 && (
+                    <View style={styles.placeholderContainer} pointerEvents="none">
+                      {[...Array(6)].map((_, i) => (
+                        <SquareAsterisk key={i} size={20} color="#8AADC4" strokeWidth={2} style={styles.asteriskIcon} />
+                      ))}
+                    </View>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.resendButton}
-                onPress={handleResendCode}
-                disabled={resendTimer > 0 || resendLoading}
-              >
-                {resendLoading ? (
-                  <SnooLoader color={COLORS.primary} size="small" />
-                ) : (
-                  <Text
+                  <TextInput
+                    ref={inputRef}
                     style={[
-                      styles.resendText,
-                      resendTimer > 0 && styles.resendTextDisabled,
+                      styles.input,
+                      otp.length === 0 && styles.inputTransparentText,
                     ]}
+                    placeholder=""
+                    placeholderTextColor="transparent"
+                    underlineColorAndroid="transparent"
+                    value={otp}
+                    onChangeText={setOtp}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    textAlign="center"
+                  />
+                </Pressable>
+
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                <TouchableOpacity
+                  style={[
+                    styles.buttonContainer,
+                    (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
+                    (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                  ]}
+                  onPress={handleVerify}
+                  disabled={loading || isSuccess || isError || otp.length !== 6}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={
+                      isSuccess
+                        ? ["#34C759", "#2FB350"]
+                        : isError
+                          ? [COLORS.error, COLORS.error]
+                          : COLORS.primaryGradient
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.button}
                   >
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                    {loading ? (
+                      <SnooLoader color={COLORS.textInverted} />
+                    ) : isSuccess ? (
+                      <Reanimated.View entering={ZoomIn}>
+                        <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                      </Reanimated.View>
+                    ) : isError ? (
+                      <Reanimated.View entering={ZoomIn}>
+                        <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                      </Reanimated.View>
+                    ) : (
+                      <Text style={styles.buttonText}>Verify</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.resendButton}
+                  onPress={handleResendCode}
+                  disabled={resendTimer > 0 || resendLoading}
+                >
+                  {resendLoading ? (
+                    <SnooLoader color={COLORS.primary} size="small" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.resendText,
+                        resendTimer > 0 && styles.resendTextDisabled,
+                      ]}
+                    >
+                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -404,6 +409,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
+    backgroundColor: COLORS.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -428,14 +434,24 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.10,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 15,
   },
   inputContainer: {
     height: 56,
@@ -443,9 +459,9 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F0F2F5",
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(180, 210, 245, 0.6)",
     borderRadius: BORDER_RADIUS.l,
   },
   placeholderContainer: {
@@ -486,7 +502,10 @@ const styles = StyleSheet.create({
   buttonContainer: {
     height: 56,
     borderRadius: BORDER_RADIUS.l,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
     marginTop: 20,
     marginBottom: 10,
   },

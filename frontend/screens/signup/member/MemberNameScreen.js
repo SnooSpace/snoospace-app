@@ -9,10 +9,13 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ImageBackground,
 } from "react-native";
 
+import { BlurView } from "expo-blur";
+import { User } from "lucide-react-native";
+
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -86,63 +89,72 @@ const NameInputScreen = ({ navigation, route }) => {
   const isButtonDisabled = name.trim().length === 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader onCancel={() => setShowCancelModal(true)} />
+    <ImageBackground
+      source={require("../../../assets/wave.png")}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3 }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader onCancel={() => setShowCancelModal(true)} role="People" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>What should we call you?</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>What should we call you?</Text>
 
-          {/* Name Input */}
-          <TextInput
-            style={[styles.input, isFocused && styles.inputFocused]}
-            onChangeText={setName}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            value={name}
-            placeholder="Enter your name"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="default"
-            autoCapitalize="words"
-            textContentType="name"
-            autoComplete="name"
-          />
-        </View>
-      </ScrollView>
+            <View style={styles.card}>
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.cardContent}>
+                <View style={styles.inputContainer}>
+                  <User
+                    size={20}
+                    color="#8AADC4"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    onChangeText={setName}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    value={name}
+                    placeholder="Enter your name"
+                    placeholderTextColor="#8AADC4"
+                    keyboardType="default"
+                    autoCapitalize="words"
+                    textContentType="name"
+                    autoComplete="name"
+                    importantForAutofill="no"
+                  />
+                </View>
 
-      {/* Fixed Footer/Button Section */}
-      <KeyboardStickyView
-        offset={{
-          closed: 0,
-          opened: 0,
-        }}
-        style={styles.stickyFooter}
-      >
-        <View style={[styles.footer, { paddingBottom: 70 }]}>
-          <TouchableOpacity
-            style={[
-              styles.nextButtonContainer,
-              isButtonDisabled && styles.disabledButton,
-            ]}
-            onPress={handleNext}
-            disabled={isButtonDisabled}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextButton}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </KeyboardStickyView>
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                  ]}
+                  onPress={handleNext}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
 
       {/* Cancel Confirmation Modal */}
       <CancelSignupModal
@@ -150,7 +162,8 @@ const NameInputScreen = ({ navigation, route }) => {
         onKeepEditing={() => setShowCancelModal(false)}
         onDiscard={handleCancel}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
@@ -159,83 +172,93 @@ const NameInputScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 120,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    marginTop: 50,
-    paddingHorizontal: 5,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 40,
+    letterSpacing: -0.5,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.10,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(180, 210, 245, 0.6)",
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    height: 50,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 10,
-    paddingHorizontal: 15,
+    flex: 1,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
   },
-  inputFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
-  },
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-  },
-  stickyFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
   nextButtonContainer: {
-    borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    borderRadius: BORDER_RADIUS.l,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButton: {
-    paddingVertical: 15,
-    borderRadius: BORDER_RADIUS.pill,
+    height: 56,
+    borderRadius: BORDER_RADIUS.l,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
+    elevation: 0,
     shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  backButton: {
-    padding: 15,
-    marginLeft: -15,
+    fontSize: 16,
+    fontFamily: "Manrope-Bold",
   },
 });
 

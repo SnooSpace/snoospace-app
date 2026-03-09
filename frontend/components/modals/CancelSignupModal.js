@@ -14,8 +14,8 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { COLORS, BORDER_RADIUS } from "../../constants/theme";
+import { AlertTriangle } from "lucide-react-native";
+import { COLORS, BORDER_RADIUS, FONTS, SHADOWS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -36,7 +36,7 @@ export default function CancelSignupModal({
         <View style={styles.modalContainer}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="warning-outline" size={40} color="#FF9500" />
+            <AlertTriangle size={32} color="#FF9500" strokeWidth={2} />
           </View>
 
           {/* Title */}
@@ -76,23 +76,19 @@ export default function CancelSignupModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
   },
   modalContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: BORDER_RADIUS.xl || 20,
+    borderRadius: BORDER_RADIUS.xl,
     padding: 28,
     width: width - 48,
     maxWidth: 360,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...SHADOWS.large,
   },
   iconContainer: {
     width: 72,
@@ -101,21 +97,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF5E6",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary || "#1D1D1F",
+    fontSize: 22,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 12,
   },
   description: {
     fontSize: 15,
-    color: COLORS.textSecondary || "#8E8E93",
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 28,
+    marginBottom: 32,
   },
   actions: {
     flexDirection: "row",
@@ -124,26 +121,28 @@ const styles = StyleSheet.create({
   },
   keepButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.m || 12,
-    backgroundColor: "#F2F2F7",
+    height: 54,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#F0F2F5",
     alignItems: "center",
+    justifyContent: "center",
   },
   keepText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.primary || "#007AFF",
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
   },
   discardButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.m || 12,
-    backgroundColor: "#FF3B30",
+    height: 54,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: COLORS.error || "#FF3B30",
     alignItems: "center",
+    justifyContent: "center",
   },
   discardText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
 });

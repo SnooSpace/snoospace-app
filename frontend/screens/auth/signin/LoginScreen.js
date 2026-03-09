@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, Pressable } from "react-native";
+import { BlurView } from "expo-blur";
 import { Mail, Check } from "lucide-react-native";
-import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
 import * as Haptics from "expo-haptics";
 import Animated, { ZoomIn } from "react-native-reanimated";
@@ -134,68 +134,71 @@ const LoginScreen = ({ navigation, route }) => {
           </Text>
 
           <View style={styles.card}>
-            <Text style={styles.inputLabel}>Email or username</Text>
-            <Pressable 
-              onPress={() => inputRef.current?.focus()}
-              style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-            >
-              <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
-                placeholder="name@example.com"
-                placeholderTextColor={COLORS.textMuted}
-                value={emailOrUsername}
-                onChangeText={setEmailOrUsername}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                importantForAutofill="no"
-                autoComplete="off"
-              />
-            </Pressable>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <TouchableOpacity
-              style={[
-                styles.buttonContainer,
-                (loading || isSuccess || !isValidEmailOrUsername) && styles.buttonDisabled,
-                isSuccess && styles.buttonSuccessContainer,
-                (!loading && !isSuccess && !isValidEmailOrUsername) && styles.buttonInactive,
-              ]}
-              onPress={handleLogin}
-              disabled={loading || isSuccess || !isValidEmailOrUsername}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={isSuccess ? [COLORS.success, COLORS.success] : COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.buttonGradient}
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={styles.cardContent}>
+              <Text style={styles.inputLabel}>Email or username</Text>
+              <Pressable 
+                onPress={() => inputRef.current?.focus()}
+                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
               >
-                {loading ? (
-                  <SnooLoader color={COLORS.textInverted} />
-                ) : isSuccess ? (
-                  <Animated.View entering={ZoomIn}>
-                    <Check
-                      size={24}
-                      color={COLORS.textInverted}
-                      strokeWidth={2.5}
-                    />
-                  </Animated.View>
-                ) : (
-                  <Text style={styles.buttonText}>Send Login Code</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            <View style={styles.signupLinkContainer}>
-              <Text style={styles.signupText}>New here? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Landing")}>
-                <Text style={styles.signupLinkText}> Create an account</Text>
+                <Mail size={20} color={isFocused ? COLORS.primary : COLORS.textSecondary} style={styles.inputIcon} strokeWidth={2.5} />
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  placeholder="name@example.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={emailOrUsername}
+                  onChangeText={setEmailOrUsername}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  importantForAutofill="no"
+                  autoComplete="off"
+                />
+              </Pressable>
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.buttonContainer,
+                  (loading || isSuccess || !isValidEmailOrUsername) && styles.buttonDisabled,
+                  isSuccess && styles.buttonSuccessContainer,
+                  (!loading && !isSuccess && !isValidEmailOrUsername) && styles.buttonInactive,
+                ]}
+                onPress={handleLogin}
+                disabled={loading || isSuccess || !isValidEmailOrUsername}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={isSuccess ? [COLORS.success, COLORS.success] : COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.buttonGradient}
+                >
+                  {loading ? (
+                    <SnooLoader color={COLORS.textInverted} />
+                  ) : isSuccess ? (
+                    <Animated.View entering={ZoomIn}>
+                      <Check
+                        size={24}
+                        color={COLORS.textInverted}
+                        strokeWidth={2.5}
+                      />
+                    </Animated.View>
+                  ) : (
+                    <Text style={styles.buttonText}>Send Login Code</Text>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
+              <View style={styles.signupLinkContainer}>
+                <Text style={styles.signupText}>New here? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate("Landing")}>
+                  <Text style={styles.signupLinkText}> Create an account</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -230,15 +233,24 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.10,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
     padding: 24,
-    // Deep 3D foreground shadow — pushes background illustration back visually
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 15,
   },
   inputLabel: {
     fontFamily: "Manrope-Medium",

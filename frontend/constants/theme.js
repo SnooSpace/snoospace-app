@@ -10,14 +10,14 @@ export const COLORS = {
   screenBackground: "#F9FAFB", // Light Gray for screen backgrounds
 
   // Typography
-  textPrimary: "#111827", // Almost Black
+  textPrimary: "#1a2d4a", // Custom Dark Blue-Gray
   textSecondary: "#6B7280", // Cool Gray
   textMuted: "#9CA3AF", // Lighter Gray
   textInverted: "#FFFFFF", // White text on dark/gradient
 
   // Editorial Feed Colors
   editorial: {
-    textPrimary: "#111827",
+    textPrimary: "#1a2d4a",
     textSecondary: "#6B7280",
     textMuted: "#9CA3AF",
     background: "#FFFFFF",

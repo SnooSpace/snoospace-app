@@ -43,23 +43,29 @@ const SignupHeader = ({
         },
       ]}
     >
-      <GlassBackButton onPress={onBack} />
+      <View style={styles.leftColumn}>
+        <GlassBackButton onPress={onBack} />
+      </View>
 
-      {role && (
-        <BlurView intensity={70} tint="light" style={styles.roleBadgeContainer}>
-          <View style={styles.roleBadgeInner}>
-            <Text style={styles.roleText}>{role}</Text>
-          </View>
-        </BlurView>
-      )}
+      <View style={styles.centerColumn}>
+        {role && (
+          <BlurView intensity={70} tint="light" style={styles.roleBadgeContainer}>
+            <View style={styles.roleBadgeInner}>
+              <Text style={styles.roleText}>{role}</Text>
+            </View>
+          </BlurView>
+        )}
+      </View>
 
-      {showCancelButton ? (
-        <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>{cancelText}</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.placeholder} />
-      )}
+      <View style={styles.rightColumn}>
+        {showCancelButton ? (
+          <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
+            <Text style={styles.cancelText}>{cancelText}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
+      </View>
     </View>
   );
 };
@@ -71,6 +77,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 10,
+    minHeight: 60,
+  },
+  leftColumn: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  centerColumn: {
+    flex: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rightColumn: {
+    flex: 1,
+    alignItems: "flex-end",
   },
   cancelButton: {
     paddingHorizontal: 12,
@@ -78,11 +98,11 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: "#8E8E93",
-    fontWeight: "500",
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textSecondary,
   },
   placeholder: {
-    width: 44, // Same width as GlassBackButton for alignment
+    width: 44,
   },
   roleBadgeContainer: {
     borderRadius: BORDER_RADIUS.pill,
