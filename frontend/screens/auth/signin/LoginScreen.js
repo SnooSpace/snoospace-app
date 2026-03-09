@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F2F5", // Premium greyish background
+    backgroundColor: "#F0F2F5",// Premium greyish background
     borderWidth: 1.5,
     borderColor: "transparent",
     borderRadius: BORDER_RADIUS.l,

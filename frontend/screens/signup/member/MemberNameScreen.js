@@ -63,7 +63,7 @@ const NameInputScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[MemberNameScreen] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -108,14 +108,14 @@ const NameInputScreen = ({ navigation, route }) => {
             <Text style={styles.title}>What should we call you?</Text>
 
             <View style={styles.card}>
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
               <View style={styles.cardContent}>
                 <View style={styles.inputContainer}>
-                  <User
-                    size={20}
-                    color="#8AADC4"
-                    style={styles.inputIcon}
-                  />
+                  <User size={20} color="#8AADC4" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     onChangeText={setName}
@@ -155,13 +155,12 @@ const NameInputScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
 
-
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
       </SafeAreaView>
     </ImageBackground>
   );
@@ -203,7 +202,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         ...SHADOWS.xl,
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
       },
       android: {
@@ -220,13 +219,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "#F0F2F5",
+    borderColor: "transparent", // Premium greyish background
     borderRadius: 14,
     paddingHorizontal: 16,
     height: 56,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "rgba(180, 210, 245, 0.6)",
   },
   inputIcon: {
     marginRight: 12,
