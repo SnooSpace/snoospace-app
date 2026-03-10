@@ -393,7 +393,8 @@ async function getPublicMember(req, res) {
     }
 
     const memberR = await pool.query(
-      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation
+      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
+              occupation_details, occupation_category, portfolio_link, education
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -443,6 +444,10 @@ async function getPublicMember(req, res) {
           : profile.interests || [],
       pronouns: parsePgTextArray(profile.pronouns),
       occupation: profile.occupation || null,
+      occupation_details: profile.occupation_details || null,
+      occupation_category: profile.occupation_category || null,
+      portfolio_link: profile.portfolio_link || null,
+      education: profile.education || null,
     });
   } catch (err) {
     console.error(
@@ -482,6 +487,11 @@ async function patchProfile(req, res) {
       openers,
       show_pronouns,
       occupation,
+      // Occupation sub-fields
+      occupation_details,
+      occupation_category,
+      portfolio_link,
+      education,
     } = req.body || {};
 
     const updates = [];
@@ -671,6 +681,55 @@ async function patchProfile(req, res) {
         const occTrimmed = typeof occupation === "string" ? occupation.trim().substring(0, 50) : null;
         updates.push(`occupation = $${paramIndex++}`);
         values.push(occTrimmed);
+      }
+    }
+
+    // Occupation sub-fields
+    if (occupation_details !== undefined) {
+      if (occupation_details === null) {
+        updates.push(`occupation_details = NULL`);
+      } else if (typeof occupation_details === "object" && !Array.isArray(occupation_details)) {
+        // Sanitize: max 15 keys, each value <= 200 chars
+        const sanitized = {};
+        const keys = Object.keys(occupation_details).slice(0, 15);
+        for (const key of keys) {
+          const val = occupation_details[key];
+          if (typeof val === "string") {
+            sanitized[key] = val.trim().substring(0, 200);
+          }
+        }
+        updates.push(`occupation_details = $${paramIndex++}::jsonb`);
+        values.push(JSON.stringify(sanitized));
+      }
+    }
+
+    if (occupation_category !== undefined) {
+      if (occupation_category === null) {
+        updates.push(`occupation_category = NULL`);
+      } else {
+        const catTrimmed = typeof occupation_category === "string" ? occupation_category.trim().substring(0, 50) : null;
+        updates.push(`occupation_category = $${paramIndex++}`);
+        values.push(catTrimmed);
+      }
+    }
+
+    if (portfolio_link !== undefined) {
+      if (portfolio_link === null || portfolio_link === "") {
+        updates.push(`portfolio_link = NULL`);
+      } else {
+        const linkTrimmed = typeof portfolio_link === "string" ? portfolio_link.trim().substring(0, 255) : null;
+        updates.push(`portfolio_link = $${paramIndex++}`);
+        values.push(linkTrimmed);
+      }
+    }
+
+    if (education !== undefined) {
+      if (education === null || education === "") {
+        updates.push(`education = NULL`);
+      } else {
+        const eduTrimmed = typeof education === "string" ? education.trim().substring(0, 200) : null;
+        updates.push(`education = $${paramIndex++}`);
+        values.push(eduTrimmed);
       }
     }
 

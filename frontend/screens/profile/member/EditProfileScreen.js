@@ -37,6 +37,8 @@ import {
   ChevronDown,
   ChevronRight,
   Search as SearchIcon,
+  Briefcase,
+  Check,
 } from "lucide-react-native";
 
 import { getAuthToken } from "../../../api/auth";
@@ -86,6 +88,8 @@ if (
 }
 
 import { INTEREST_CATEGORIES, getInterestStyle } from "./EditProfileConstants";
+import { OCCUPATION_CATEGORIES, getOccupationLabel, getOccupationCategory } from "../../../constants/OccupationConstants";
+import { getSubFieldsForOccupation, getSubFieldsForCategory, shouldShowPortfolio, CATEGORY_GENERIC_FIELDS } from "../../../constants/OccupationSubFields";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Pronoun Category Tints
@@ -154,6 +158,21 @@ export default function EditProfileScreen({ route, navigation }) {
   );
   const [interests, setInterests] = useState(profile?.interests || []);
 
+  // Occupation state
+  const initialOccupation = profile?.occupation || null;
+  const [selectedOccupation, setSelectedOccupation] = useState(
+    initialOccupation && initialOccupation.startsWith("other:") ? "other" : initialOccupation
+  );
+  const [customOccupation, setCustomOccupation] = useState(
+    initialOccupation && initialOccupation.startsWith("other:") ? initialOccupation.substring(6) : ""
+  );
+  const [occupationCategoryExpanded, setOccupationCategoryExpanded] = useState(null);
+
+  // Occupation sub-fields state
+  const [occupationDetails, setOccupationDetails] = useState(profile?.occupation_details || {});
+  const [occupationCategory, setOccupationCategory] = useState(profile?.occupation_category || null);
+  const [portfolioLink, setPortfolioLink] = useState(profile?.portfolio_link || "");
+
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
@@ -189,7 +208,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, bio, username, phone, pronouns, interests, email, education]);
+  }, [name, bio, username, phone, pronouns, interests, email, education, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -244,6 +263,10 @@ export default function EditProfileScreen({ route, navigation }) {
     const originalPhone = profile?.phone || "";
     const originalEmail = profile?.email || "";
     const originalEducation = profile?.education || "";
+    const originalOccupation = profile?.occupation || null;
+    const originalOccupationDetails = profile?.occupation_details || {};
+    const originalOccupationCategory = profile?.occupation_category || null;
+    const originalPortfolioLink = profile?.portfolio_link || "";
 
     const normalizePronouns = (arr) =>
       (arr ? (Array.isArray(arr) ? arr : [arr]) : [])
@@ -258,6 +281,11 @@ export default function EditProfileScreen({ route, navigation }) {
     const originalInterests = normalizeInterests(profile?.interests || []);
     const currentInterests = normalizeInterests(interests || []);
 
+    // Compute current occupation value
+    const currentOccupation = selectedOccupation === "other"
+      ? `other:${customOccupation.trim()}`
+      : selectedOccupation;
+
     const changed =
       name !== originalName ||
       bio !== originalBio ||
@@ -265,6 +293,10 @@ export default function EditProfileScreen({ route, navigation }) {
       phone !== originalPhone ||
       email !== originalEmail ||
       education !== originalEducation ||
+      currentOccupation !== originalOccupation ||
+      occupationCategory !== originalOccupationCategory ||
+      portfolioLink !== originalPortfolioLink ||
+      JSON.stringify(occupationDetails) !== JSON.stringify(originalOccupationDetails) ||
       JSON.stringify(currentPronouns) !== JSON.stringify(originalPronouns) ||
       JSON.stringify(currentInterests) !== JSON.stringify(originalInterests);
 
@@ -351,11 +383,26 @@ export default function EditProfileScreen({ route, navigation }) {
       setSaving(true);
       const token = await getAuthToken();
 
+      // Compute final occupation value
+      const finalOccupation = selectedOccupation === "other"
+        ? `other:${customOccupation.trim()}`
+        : selectedOccupation;
+
+      // Build clean occupation details (strip empty values)
+      const cleanDetails = {};
+      Object.entries(occupationDetails).forEach(([k, v]) => {
+        if (typeof v === "string" && v.trim()) cleanDetails[k] = v.trim();
+      });
+
       const updates = {
         name: name.trim(),
         bio: bio.trim(),
         phone: phone.trim(),
         education: education.trim(),
+        occupation: finalOccupation,
+        occupation_details: Object.keys(cleanDetails).length > 0 ? cleanDetails : null,
+        occupation_category: selectedOccupation === "other" ? occupationCategory : null,
+        portfolio_link: portfolioLink.trim() || null,
         pronouns: pronouns.length > 0 ? pronouns.map(cleanLabel) : null,
         interests: interests.length > 0 ? interests : [],
       };
@@ -552,25 +599,228 @@ export default function EditProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Card 3: Education */}
+        {/* Card 3: Occupation */}
         <View style={styles.card}>
-          {renderSectionHeader("EDUCATION", GraduationCap)}
+          {renderSectionHeader("OCCUPATION", Briefcase)}
+
           <View style={styles.inputGroupLast}>
-            <Text style={styles.inputLabel}>COLLEGE / UNIVERSITY</Text>
-            <TextInput
-              style={styles.input}
-              value={education}
-              onChangeText={setEducation}
-              placeholder="Where did you study?"
-              placeholderTextColor={TEXT_SECONDARY}
-            />
-            <Text style={styles.helperText}>
-              Optional • Shown on your profile
-            </Text>
+            {/* Selected Occupation Display */}
+            {selectedOccupation && (
+              <View style={styles.selectedVibesSection}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setSelectedOccupation(null);
+                    setCustomOccupation("");
+                    setOccupationDetails({});
+                    setOccupationCategory(null);
+                    setPortfolioLink("");
+                    HapticsService.triggerSelection();
+                  }}
+                  style={[
+                    styles.vibeChip,
+                    { backgroundColor: getOccupationCategory(selectedOccupation).bg, paddingRight: 8 },
+                  ]}
+                >
+                  <View style={styles.vibeContent}>
+                    <Check size={14} color={getOccupationCategory(selectedOccupation).text} strokeWidth={2.5} />
+                    <Text style={[styles.vibeText, { color: getOccupationCategory(selectedOccupation).text }]}>
+                      {selectedOccupation === "other"
+                        ? (customOccupation.trim() || "Other")
+                        : getOccupationLabel(selectedOccupation)}
+                    </Text>
+                  </View>
+                  <View style={styles.removeIconContainer}>
+                    <X size={12} color={getOccupationCategory(selectedOccupation).text} strokeWidth={3} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Free-text input when "Other" is selected */}
+                {selectedOccupation === "other" && (
+                  <View style={{ marginTop: 12 }}>
+                    <TextInput
+                      style={styles.input}
+                      value={customOccupation}
+                      onChangeText={setCustomOccupation}
+                      placeholder="Type your occupation..."
+                      placeholderTextColor={TEXT_SECONDARY}
+                      maxLength={50}
+                      autoCapitalize="words"
+                      returnKeyType="done"
+                    />
+                  </View>
+                )}
+
+                {/* Category picker for "Other" */}
+                {selectedOccupation === "other" && customOccupation.trim().length > 0 && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>WHICH CATEGORY FITS YOU BEST?</Text>
+                    <View style={styles.vibesContainer}>
+                      {Object.keys(CATEGORY_GENERIC_FIELDS).filter(k => k !== "OTHER").map((catKey) => {
+                        const catInfo = OCCUPATION_CATEGORIES[catKey];
+                        const isSelected = occupationCategory === catKey;
+                        return (
+                          <TouchableOpacity
+                            key={catKey}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                              setOccupationCategory(isSelected ? null : catKey);
+                              if (isSelected) setOccupationDetails({});
+                              HapticsService.triggerSelection();
+                            }}
+                            style={[
+                              styles.optionChip,
+                              isSelected && { backgroundColor: catInfo?.bg || "#F5F5F5", borderColor: catInfo?.text || "#424242" },
+                            ]}
+                          >
+                            <Text style={[
+                              styles.optionText,
+                              isSelected && { color: catInfo?.text || "#424242", fontFamily: "Manrope-SemiBold" },
+                            ]}>
+                              {catInfo?.label || catKey}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Dynamic sub-fields based on occupation or category */}
+                {(() => {
+                  const subFields = selectedOccupation === "other"
+                    ? getSubFieldsForCategory(occupationCategory)
+                    : getSubFieldsForOccupation(selectedOccupation);
+                  if (!subFields || subFields.length === 0) return null;
+                  return (
+                    <View style={{ marginTop: 16 }}>
+                      {subFields.map((field) => (
+                        <View key={field.key} style={{ marginBottom: 14 }}>
+                          <Text style={styles.inputLabel}>
+                            {field.label}{field.optional ? " (OPTIONAL)" : ""}
+                          </Text>
+                          <TextInput
+                            style={styles.input}
+                            value={occupationDetails[field.key] || ""}
+                            onChangeText={(text) => setOccupationDetails(prev => ({ ...prev, [field.key]: text }))}
+                            placeholder={field.placeholder}
+                            placeholderTextColor={TEXT_SECONDARY}
+                            maxLength={200}
+                            keyboardType={field.keyboardType || "default"}
+                            autoCapitalize="words"
+                            returnKeyType="done"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
+
+                {/* Portfolio link for relevant occupations */}
+                {shouldShowPortfolio(selectedOccupation, occupationCategory) && (
+                  <View style={{ marginTop: selectedOccupation === "other" ? 2 : 16, marginBottom: 4 }}>
+                    <Text style={styles.inputLabel}>PORTFOLIO / WEBSITE</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={portfolioLink}
+                      onChangeText={setPortfolioLink}
+                      placeholder="https://yourportfolio.com"
+                      placeholderTextColor={TEXT_SECONDARY}
+                      maxLength={255}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                    />
+                  </View>
+                )}
+
+                <View style={styles.divider} />
+              </View>
+            )}
+
+            {/* Occupation Categories Accordion */}
+            <View style={styles.categoriesContainer}>
+              {Object.keys(OCCUPATION_CATEGORIES).map((key) => {
+                const category = OCCUPATION_CATEGORIES[key];
+                const isExpanded = occupationCategoryExpanded === key;
+                const Icon = category.icon;
+
+                // Filter out the currently selected occupation
+                const availableOccupations = category.occupations.filter(
+                  (occ) => occ.value !== selectedOccupation
+                );
+
+                if (availableOccupations.length === 0) return null;
+
+                return (
+                  <View key={key} style={styles.categoryRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setOccupationCategoryExpanded(isExpanded ? null : key);
+                      }}
+                      style={[
+                        styles.categoryHeader,
+                        isExpanded && styles.categoryHeaderExpanded,
+                        { backgroundColor: isExpanded ? category.bg : "transparent" },
+                      ]}
+                    >
+                      <View style={styles.categoryHeaderLeft}>
+                        <View style={[styles.categoryIcon, { backgroundColor: category.bg }]}>
+                          <Icon size={14} color={category.text} />
+                        </View>
+                        <Text
+                          style={[
+                            styles.categoryTitle,
+                            isExpanded && { color: category.text, fontWeight: "600" },
+                          ]}
+                        >
+                          {category.label}
+                        </Text>
+                      </View>
+                      {isExpanded ? (
+                        <ChevronDown size={16} color={TEXT_SECONDARY} />
+                      ) : (
+                        <ChevronRight size={16} color={TEXT_SECONDARY} />
+                      )}
+                    </TouchableOpacity>
+
+                    {isExpanded && (
+                      <View style={styles.categoryContent}>
+                        <View style={styles.vibesContainer}>
+                          {availableOccupations.map((occ) => (
+                            <TouchableOpacity
+                              key={occ.value}
+                              onPress={() => {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                setSelectedOccupation(occ.value);
+                                if (occ.value !== "other") setCustomOccupation("");
+                                setOccupationDetails({});
+                                setOccupationCategory(null);
+                                setPortfolioLink("");
+                                HapticsService.triggerSelection();
+                              }}
+                              style={styles.optionChip}
+                            >
+                              <Text style={styles.optionText}>{occ.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            <Text style={styles.helperText}>Optional • Shown on your profile</Text>
           </View>
         </View>
 
-        {/* Card 4: My Vibes (Scalable Redesign) */}
+        {/* Card 5: My Vibes (Scalable Redesign) */}
         <View style={styles.card}>
           {renderSectionHeader("MY VIBES", RollerCoaster)}
 
@@ -820,7 +1070,7 @@ export default function EditProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Card 5: Private Details */}
+        {/* Card 6: Private Details */}
         <View style={styles.card}>
           {renderSectionHeader("PRIVATE DETAILS", Lock)}
 

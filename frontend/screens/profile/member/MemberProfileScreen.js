@@ -220,6 +220,11 @@ export default function MemberProfileScreen({ navigation }) {
             ? JSON.parse(fullProfile.location)
             : fullProfile.location || null,
         city: fullProfile.city || "",
+        education: fullProfile.education || "",
+        occupation: fullProfile.occupation || null,
+        occupation_details: fullProfile.occupation_details || null,
+        occupation_category: fullProfile.occupation_category || null,
+        portfolio_link: fullProfile.portfolio_link || "",
         follower_count: followerCount,
         following_count: followingCount,
       };
