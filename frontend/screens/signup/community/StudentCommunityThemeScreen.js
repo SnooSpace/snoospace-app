@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -138,7 +139,7 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
       style={styles.backgroundImage}
       imageStyle={{
         opacity: 0.3,
-        transform: [{ scaleX: -1 }, { rotate: "270deg" }],
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
       }}
       blurRadius={10}
     >
@@ -158,13 +159,24 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
           {/* Content */}
           <View style={styles.content}>
             <View style={styles.headerTitle}>
-              <Text style={styles.title}>Choose a theme</Text>
-              <Text style={styles.globalHelperText}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                Choose a theme
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
                 What will your student community be about?
-              </Text>
+              </Animated.Text>
             </View>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -186,16 +198,20 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
 
                 {/* Theme Cards */}
                 <View style={styles.cardsContainer}>
-                  {COMMUNITY_THEMES.map((theme) => (
-                    <ThemeCard
+                  {COMMUNITY_THEMES.map((theme, index) => (
+                    <Animated.View 
                       key={theme.id}
-                      theme={theme}
-                      onPress={handleThemeSelect}
-                    />
+                      entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
+                    >
+                      <ThemeCard
+                        theme={theme}
+                        onPress={handleThemeSelect}
+                      />
+                    </Animated.View>
                   ))}
                 </View>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -323,3 +339,6 @@ const styles = StyleSheet.create({
 });
 
 export default StudentCommunityThemeScreen;
+
+
+

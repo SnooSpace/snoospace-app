@@ -12,6 +12,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -47,11 +48,29 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
     gender,
     location,
     interests,
+    occupation,
     phone: initialPhone,
   } = route.params || {};
   const [phoneNumber, setPhoneNumber] = useState(initialPhone || "");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (phoneNumber.length === 10)
+  useEffect(() => {
+    if (phoneNumber.length === 10) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [phoneNumber.length === 10]);
 
   // Hydrate from draft if route.params is missing phone
   useEffect(() => {
@@ -97,6 +116,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
         gender,
         location,
         interests,
+        occupation,
         phone: phoneNumber,
       },
       accessToken,
@@ -117,7 +137,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
       style={styles.backgroundImage}
       imageStyle={{
         opacity: 0.3,
-        transform: [{ scaleX: -1 }, { scaleY: 1 }], 
+        transform: [{ scaleX: -1 }, { scaleY: -1 }], 
       }}
       resizeMode="cover"
       blurRadius={10}
@@ -129,7 +149,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("MemberInterests", {
+              navigation.replace("MemberOccupation", {
                 email,
                 accessToken,
                 refreshToken,
@@ -141,6 +161,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                 gender,
                 location,
                 interests,
+                occupation,
               });
             }
           }}
@@ -158,12 +179,23 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
           >
             {/* Content Section */}
             <View style={styles.contentContainer}>
-              <Text style={styles.title}>Drop your digits</Text>
-              <Text style={styles.subtitle}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                Drop your digits
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.subtitle}
+              >
                 Your number is private and never shared.
-              </Text>
+              </Animated.Text>
 
-              <View style={styles.card}>
+              <Animated.View 
+                entering={FadeInDown.delay(300).duration(600).springify()}
+                style={styles.card}
+              >
                 <BlurView
                   intensity={60}
                   tint="light"
@@ -199,31 +231,36 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                     />
                   </View>
                 </View>
-              </View>
+              </Animated.View>
 
               {/* Next Button */}
               <View
                 style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.nextButtonContainer,
-                    phoneNumber.length !== 10 && styles.disabledButton,
-                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                  ]}
-                  onPress={handleContinue}
-                  disabled={phoneNumber.length !== 10}
-                  activeOpacity={0.8}
+                <Animated.View 
+                  entering={FadeInDown.delay(500).duration(600).springify()}
+                  style={animatedButtonStyle}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.nextButton}
+                  <TouchableOpacity
+                    style={[
+                      styles.nextButtonContainer,
+                      phoneNumber.length !== 10 && styles.disabledButton,
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                    ]}
+                    onPress={handleContinue}
+                    disabled={phoneNumber.length !== 10}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.buttonText}>Next</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.nextButton}
+                    >
+                      <Text style={styles.buttonText}>Next</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
             </View>
           </ScrollView>
@@ -366,3 +403,6 @@ const styles = StyleSheet.create({
 });
 
 export default PhoneNumberInputScreen;
+
+
+

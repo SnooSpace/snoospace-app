@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,9 +7,10 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
   ImageBackground,
+  ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -83,6 +84,23 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   const [allPronouns, setAllPronouns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (selected length > 0)
+  useEffect(() => {
+    if (selectedPronouns.length > 0) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [selectedPronouns.length > 0]);
 
   // Hydrate from draft if route.params is missing pronouns
   useEffect(() => {
@@ -198,7 +216,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: 1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+      resizeMode="cover"
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -227,10 +246,23 @@ const MemberPronounsScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What pronouns feel like you?</Text>
-            <Text style={styles.subtitle}>Select up to {MAX_SELECTIONS}</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              What pronouns feel like you?
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
+              Select up to {MAX_SELECTIONS}
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -319,31 +351,36 @@ const MemberPronounsScreen = ({ navigation, route }) => {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Next Button */}
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.nextButtonDisabled,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                disabled={isButtonDisabled}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.nextButtonDisabled,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  activeOpacity={0.8}
+                  disabled={isButtonDisabled}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -514,3 +551,6 @@ const styles = StyleSheet.create({
 });
 
 export default MemberPronounsScreen;
+
+
+

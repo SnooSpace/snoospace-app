@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -10,8 +10,8 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  StatusBar,
-} from "react-native";
+  StatusBar} from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -47,9 +47,26 @@ const CustomInput = ({
   onChangeText,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const inputScale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  useEffect(() => {
+    inputScale.value = withSpring(isFocused ? 1.02 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [isFocused]);
+
   return (
-    <View
-      style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}
+    <Animated.View
+      style={[
+        styles.inputWrapper,
+        isFocused && styles.inputWrapperFocused,
+        animatedStyle,
+      ]}
     >
       <TextInput
         style={styles.inputInner}
@@ -63,7 +80,7 @@ const CustomInput = ({
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       />
-    </View>
+    </Animated.View>
   );
 };
 
@@ -90,6 +107,23 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   const [optionalName1, setOptionalName1] = useState("");
   const [optionalName2, setOptionalName2] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isButtonDisabled becomes false)
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
 
   // Hydrate from draft
   useEffect(() => {
@@ -170,7 +204,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1, scaleY: 1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -211,9 +245,17 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.contentArea}>
-            <Text style={styles.mainTitle}>Name of community head</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.mainTitle}
+            >
+              Name of community head
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -240,32 +282,37 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                   />
                 </View>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Next step"
-                disabled={isButtonDisabled}
+              <Animated.View 
+                entering={FadeInDown.delay(400).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next step"
+                  disabled={isButtonDisabled}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -391,3 +438,5 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityHeadNameScreen;
+
+

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import { Mail } from "lucide-react-native";
 import { apiPost } from "../../../api/client";
@@ -11,6 +12,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -22,6 +24,23 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isValidEmail)
+  React.useEffect(() => {
+    if (isValidEmail) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isValidEmail]);
 
   const validateEmail = (text) => {
     setEmail(text);
@@ -81,6 +100,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   };
 
   const handleContinue = async () => {
+    triggerTransitionHaptic();
     if (!isValidEmail) {
       Alert.alert("Error", "Please enter a valid email address.");
       return;
@@ -102,7 +122,10 @@ const CommunityEmailScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        <SignupHeader onBack={() => navigation.goBack()} role="Community" />
+        <SignupHeader onBack={() => {
+          triggerTransitionHaptic();
+          navigation.goBack();
+        }} role="Communities" />
 
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
@@ -110,12 +133,23 @@ const CommunityEmailScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Enter your email</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Enter your email
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               We'll send you a verification code to confirm your email.
-            </Text>
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
                 <Text style={styles.inputLabel}>Email address</Text>
@@ -147,30 +181,32 @@ const CommunityEmailScreen = ({ navigation, route }) => {
                 {/* API/Network Error display */}
                 {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
 
-                <TouchableOpacity
-                  style={[
-                    styles.buttonContainer,
-                    (!isValidEmail || loading) && styles.buttonDisabled,
-                  ]}
-                  onPress={handleContinue}
-                  disabled={!isValidEmail || loading}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.button}
+                <Animated.View style={animatedButtonStyle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.buttonContainer,
+                      (!isValidEmail || loading) && styles.buttonDisabled,
+                    ]}
+                    onPress={handleContinue}
+                    disabled={!isValidEmail || loading}
+                    activeOpacity={0.8}
                   >
-                    {loading ? (
-                      <SnooLoader color={COLORS.textInverted} />
-                    ) : (
-                      <Text style={styles.buttonText}>Send Code</Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.button}
+                    >
+                      {loading ? (
+                        <SnooLoader color={COLORS.textInverted} />
+                      ) : (
+                        <Text style={styles.buttonText}>Send Code</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>

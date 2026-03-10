@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Modal, TouchableWithoutFeedback, Pressable, ImageBackground } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withTiming, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import { Mail } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +18,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const GradientText = (props) => {
   return (
@@ -42,6 +44,28 @@ const MemberEmailScreen = ({ navigation }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const inputRef = useRef(null);
+
+  // Animation values
+  const inputScale = useSharedValue(1);
+  const buttonScale = useSharedValue(1);
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true
+  useEffect(() => {
+    if (isValidEmail && !loading && resendTimer === 0) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isValidEmail, loading, resendTimer]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -115,6 +139,7 @@ const MemberEmailScreen = ({ navigation }) => {
   };
 
   const handleContinue = async () => {
+    triggerTransitionHaptic();
     if (!isValidEmail) {
       Alert.alert("Error", "Please enter a valid email address.");
       return;
@@ -131,43 +156,65 @@ const MemberEmailScreen = ({ navigation }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        <SignupHeader onBack={() => navigation.goBack()} role="People" />
+        <SignupHeader onBack={() => {
+          triggerTransitionHaptic();
+          navigation.goBack();
+        }} role="People" />
 
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What's your email?</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              What's your email?
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               We'll use it to send you a verification code.
-            </Text>
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
                 <Text style={styles.inputLabel}>Email address</Text>
-                <Pressable 
-                  onPress={() => inputRef.current?.focus()}
-                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-                >
-                  <Mail size={20} color="#8AADC4" style={styles.inputIcon} strokeWidth={2.5} />
-                  <TextInput
-                    ref={inputRef}
-                    style={styles.input}
-                    placeholder="name@example.com"
-                    placeholderTextColor="#8AADC4"
-                    value={email}
-                    onChangeText={validateEmail}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    importantForAutofill="no"
-                    autoComplete="off"
-                  />
-                </Pressable>
+                <Animated.View style={animatedInputStyle}>
+                  <Pressable 
+                    onPress={() => inputRef.current?.focus()}
+                    style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                  >
+                    <Mail size={20} color="#8AADC4" style={styles.inputIcon} strokeWidth={2.5} />
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.input}
+                      placeholder="name@example.com"
+                      placeholderTextColor="#8AADC4"
+                      value={email}
+                      onChangeText={validateEmail}
+                      onFocus={() => {
+                        setIsFocused(true);
+                        inputScale.value = withSpring(1.02);
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        inputScale.value = withSpring(1);
+                      }}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      importantForAutofill="no"
+                      autoComplete="off"
+                    />
+                  </Pressable>
+                </Animated.View>
 
                 {touched && email.length > 0 && !isValidEmail && (
                   <Text style={styles.validationErrorText}>
@@ -177,32 +224,37 @@ const MemberEmailScreen = ({ navigation }) => {
 
                 {error ? <Text style={styles.apiErrorText}>{error}</Text> : null}
 
-                <TouchableOpacity
-                  style={[
-                    styles.buttonContainer,
-                    (!isValidEmail || loading || resendTimer > 0) && styles.buttonDisabled,
-                  ]}
-                  onPress={handleContinue}
-                  disabled={!isValidEmail || loading || resendTimer > 0}
-                  activeOpacity={0.8}
+                <Animated.View 
+                  entering={FadeInDown.delay(500).duration(600).springify()}
+                  style={animatedButtonStyle}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.button}
+                  <TouchableOpacity
+                    style={[
+                      styles.buttonContainer,
+                      (!isValidEmail || loading || resendTimer > 0) && styles.buttonDisabled,
+                    ]}
+                    onPress={handleContinue}
+                    disabled={!isValidEmail || loading || resendTimer > 0}
+                    activeOpacity={0.8}
                   >
-                    {loading ? (
-                      <SnooLoader color={COLORS.textInverted} />
-                    ) : (
-                      <Text style={styles.buttonText}>
-                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Send Code"}
-                      </Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.button}
+                    >
+                      {loading ? (
+                        <SnooLoader color={COLORS.textInverted} />
+                      ) : (
+                        <Text style={styles.buttonText}>
+                          {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Send Code"}
+                        </Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>

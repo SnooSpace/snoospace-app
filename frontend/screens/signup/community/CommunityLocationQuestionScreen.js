@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -12,6 +12,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence, interpolate } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -53,6 +54,23 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [hasLocation, setHasLocation] = useState(null); // 'yes' or 'no'
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (hasLocation !== null)
+  useEffect(() => {
+    if (hasLocation !== null) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [hasLocation]);
 
   // Update step on mount
   useEffect(() => {
@@ -182,7 +200,7 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "270deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -197,141 +215,156 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentBody}>
-            <Text style={styles.mainTitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.mainTitle}
+            >
               Do you have a permanent location?
-            </Text>
-            <Text style={styles.subtitle}>
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               This helps us show your community to nearby members and sponsors.
-            </Text>
+            </Animated.Text>
 
             <View style={styles.optionsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.optionCard,
-                  hasLocation === "yes" && styles.optionCardSelected,
-                ]}
-                onPress={handleYes}
-                activeOpacity={0.8}
-              >
-                <BlurView
-                  intensity={hasLocation === "yes" ? 80 : 40}
-                  tint="light"
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.optionContent}>
-                  <Ionicons
-                    name="location"
-                    size={24}
-                    color={
-                      hasLocation === "yes"
-                        ? COLORS.primary
-                        : COLORS.textPrimary
-                    }
-                    style={{ marginRight: 15 }}
+              <Animated.View entering={FadeInDown.delay(300).duration(600).springify()}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionCard,
+                    hasLocation === "yes" && styles.optionCardSelected,
+                  ]}
+                  onPress={handleYes}
+                  activeOpacity={0.8}
+                >
+                  <BlurView
+                    intensity={hasLocation === "yes" ? 80 : 40}
+                    tint="light"
+                    style={StyleSheet.absoluteFill}
                   />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.optionTitle,
-                        hasLocation === "yes" && styles.optionTitleSelected,
-                      ]}
-                    >
-                      Yes
-                    </Text>
-                    <Text style={styles.optionDescription}>
-                      We have a physical office or recurring meetup spot
-                    </Text>
+                  <View style={styles.optionContent}>
+                    <Ionicons
+                      name="location"
+                      size={24}
+                      color={
+                        hasLocation === "yes"
+                          ? COLORS.primary
+                          : COLORS.textPrimary
+                      }
+                      style={{ marginRight: 15 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.optionTitle,
+                          hasLocation === "yes" && styles.optionTitleSelected,
+                        ]}
+                      >
+                        Yes
+                      </Text>
+                      <Text style={styles.optionDescription}>
+                        We have a physical office or recurring meetup spot
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={
+                        hasLocation === "yes"
+                          ? "radio-button-on"
+                          : "radio-button-off"
+                      }
+                      size={24}
+                      color={
+                        hasLocation === "yes"
+                          ? COLORS.primary
+                          : COLORS.textSecondary
+                      }
+                    />
                   </View>
-                  <Ionicons
-                    name={
-                      hasLocation === "yes"
-                        ? "radio-button-on"
-                        : "radio-button-off"
-                    }
-                    size={24}
-                    color={
-                      hasLocation === "yes"
-                        ? COLORS.primary
-                        : COLORS.textSecondary
-                    }
-                  />
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </Animated.View>
 
-              <TouchableOpacity
-                style={[
-                  styles.optionCard,
-                  hasLocation === "no" && styles.optionCardSelected,
-                ]}
-                onPress={handleNo}
-                activeOpacity={0.8}
-              >
-                <BlurView
-                  intensity={hasLocation === "no" ? 80 : 40}
-                  tint="light"
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.optionContent}>
-                  <Ionicons
-                    name="earth-outline"
-                    size={24}
-                    color={
-                      hasLocation === "no" ? COLORS.primary : COLORS.textPrimary
-                    }
-                    style={{ marginRight: 15 }}
+              <Animated.View entering={FadeInDown.delay(400).duration(600).springify()}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionCard,
+                    hasLocation === "no" && styles.optionCardSelected,
+                  ]}
+                  onPress={handleNo}
+                  activeOpacity={0.8}
+                >
+                  <BlurView
+                    intensity={hasLocation === "no" ? 80 : 40}
+                    tint="light"
+                    style={StyleSheet.absoluteFill}
                   />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.optionTitle,
-                        hasLocation === "no" && styles.optionTitleSelected,
-                      ]}
-                    >
-                      No
-                    </Text>
-                    <Text style={styles.optionDescription}>
-                      We are online-only or host events in different places
-                    </Text>
+                  <View style={styles.optionContent}>
+                    <Ionicons
+                      name="earth-outline"
+                      size={24}
+                      color={
+                        hasLocation === "no" ? COLORS.primary : COLORS.textPrimary
+                      }
+                      style={{ marginRight: 15 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.optionTitle,
+                          hasLocation === "no" && styles.optionTitleSelected,
+                        ]}
+                      >
+                        No
+                      </Text>
+                      <Text style={styles.optionDescription}>
+                        We are online-only or host events in different places
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={
+                        hasLocation === "no"
+                          ? "radio-button-on"
+                          : "radio-button-off"
+                      }
+                      size={24}
+                      color={
+                        hasLocation === "no"
+                          ? COLORS.primary
+                          : COLORS.textSecondary
+                      }
+                    />
                   </View>
-                  <Ionicons
-                    name={
-                      hasLocation === "no"
-                        ? "radio-button-on"
-                        : "radio-button-off"
-                    }
-                    size={24}
-                    color={
-                      hasLocation === "no"
-                        ? COLORS.primary
-                        : COLORS.textSecondary
-                    }
-                  />
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                disabled={isButtonDisabled}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                  ]}
+                  onPress={handleNext}
+                  activeOpacity={0.8}
+                  disabled={isButtonDisabled}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -451,3 +484,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityLocationQuestionScreen;
+
+
+

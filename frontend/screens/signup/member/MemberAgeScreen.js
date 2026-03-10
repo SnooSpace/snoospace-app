@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import {
-  Animated,
+  Animated as RNAnimated,
   StyleSheet,
   SafeAreaView,
   View,
@@ -12,6 +12,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withTiming, withSequence } from "react-native-reanimated";
 
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -29,13 +30,14 @@ import {
   deleteSignupDraft,
   getDraftData,
 } from "../../../utils/signupDraftManager";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import AgeConfirmationModal from "../../../components/modals/AgeConfirmationModal";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
 
-export default function Example({ navigation, route }) {
+export default function MemberAgeScreen({ navigation, route }) {
   const {
     email,
     accessToken,
@@ -60,6 +62,28 @@ export default function Example({ navigation, route }) {
   const [formattedBirthDate, setFormattedBirthDate] = useState("");
   const [error, setError] = useState("");
 
+  // Animation values
+  const inputScale = useSharedValue(1);
+  const buttonScale = useSharedValue(1);
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (8 digits)
+  useEffect(() => {
+    if (input.length === 8 && !error) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [input.length, error]);
+
   // Hydrate from draft if route.params is missing dob
   useEffect(() => {
     const hydrateFromDraft = async () => {
@@ -80,9 +104,9 @@ export default function Example({ navigation, route }) {
     hydrateFromDraft();
   }, []);
 
-  // Animation Refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  // Animation Refs (RNAnimated)
+  const fadeAnim = useRef(new RNAnimated.Value(0)).current;
+  const slideAnim = useRef(new RNAnimated.Value(20)).current;
 
   useEffect(() => {
     if (error) {
@@ -91,13 +115,13 @@ export default function Example({ navigation, route }) {
       slideAnim.setValue(20);
 
       // Animate In
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
+      RNAnimated.parallel([
+        RNAnimated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
+        RNAnimated.timing(slideAnim, {
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
@@ -106,7 +130,7 @@ export default function Example({ navigation, route }) {
 
       // Auto dismiss after 5s
       const timer = setTimeout(() => {
-        Animated.timing(fadeAnim, {
+        RNAnimated.timing(fadeAnim, {
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
@@ -160,6 +184,7 @@ export default function Example({ navigation, route }) {
   };
 
   const handleNext = async () => {
+    triggerTransitionHaptic();
     if (!form.dateOfBirth) {
       setError("Enter a valid date");
       return;
@@ -221,13 +246,27 @@ export default function Example({ navigation, route }) {
     });
   };
 
+  const handleBack = () => {
+    triggerTransitionHaptic();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace("MemberProfilePic", {
+        email,
+        accessToken,
+        refreshToken,
+        name,
+      });
+    }
+  };
+
   return (
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
       imageStyle={{
         opacity: 0.3,
-        transform: [{ scaleX: -1 }, { scaleY: -1 }],
+        transform: [{ scaleX: 1 }, { scaleY: -1 }],
       }}
       resizeMode="cover"
       blurRadius={10}
@@ -235,18 +274,7 @@ export default function Example({ navigation, route }) {
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader
           role="People"
-          onBack={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.replace("MemberProfilePic", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-              });
-            }
-          }}
+          onBack={handleBack}
           onCancel={() => setShowCancelModal(true)}
         />
 
@@ -256,13 +284,24 @@ export default function Example({ navigation, route }) {
         >
           <View style={styles.contentContainer}>
             {/* Title */}
-            <Text style={styles.title}>Blow out the candles — when's your birthday?</Text>
-            <Text style={styles.subtitle}>
+            <Reanimated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Blow out the candles — when's your birthday?
+            </Reanimated.Text>
+            <Reanimated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               Provide your birth date to complete your profile.
-            </Text>
+            </Reanimated.Text>
 
             {/* Input Card */}
-            <View style={styles.card}>
+            <Reanimated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -270,7 +309,7 @@ export default function Example({ navigation, route }) {
               />
               <View style={styles.cardContent}>
                 <View style={styles.form}>
-                  <View style={styles.input}>
+                  <Reanimated.View style={[styles.input, animatedInputStyle]}>
                     <TextInput
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -279,8 +318,14 @@ export default function Example({ navigation, route }) {
                       keyboardType="number-pad"
                       maxLength={8}
                       onChangeText={handleInputChange}
-                      onFocus={() => setIsFocused(true)}
-                      onBlur={() => setIsFocused(false)}
+                      onFocus={() => {
+                        setIsFocused(true);
+                        inputScale.value = withSpring(1.02);
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        inputScale.value = withSpring(1);
+                      }}
                       returnKeyType="done"
                       style={[
                         styles.inputControl,
@@ -323,13 +368,13 @@ export default function Example({ navigation, route }) {
                         );
                       })}
                     </View>
-                  </View>
+                  </Reanimated.View>
 
                   <Text style={styles.formSubtitle}>
                     Your profile will show your age, not your date of birth.
                   </Text>
                   {error ? (
-                    <Animated.Text
+                    <RNAnimated.Text
                       style={[
                         styles.errorText,
                         {
@@ -339,33 +384,38 @@ export default function Example({ navigation, route }) {
                       ]}
                     >
                       {error}
-                    </Animated.Text>
+                    </RNAnimated.Text>
                   ) : null}
                 </View>
               </View>
-            </View>
+            </Reanimated.View>
 
             {/* Button Moved Outside */}
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                onPress={handleNext}
-                style={[
-                  styles.nextButtonContainer,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                activeOpacity={0.8}
+              <Reanimated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  onPress={handleNext}
+                  style={[
+                    styles.nextButtonContainer,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Reanimated.View>
             </View>
           </View>
         </ScrollView>
@@ -545,3 +595,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+
+

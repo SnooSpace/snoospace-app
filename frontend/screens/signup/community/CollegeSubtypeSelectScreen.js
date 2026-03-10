@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   View,
   Text,
@@ -6,10 +6,10 @@ import {
   StyleSheet,
   SafeAreaView,
   Platform,
-  StatusBar,
   ImageBackground,
   ScrollView,
-} from "react-native";
+StatusBar } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -172,7 +172,7 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
       style={styles.backgroundImage}
       imageStyle={{
         opacity: 0.3,
-        transform: [{ scaleX: -1 }, { rotate: "90deg" }],
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
       }}
       blurRadius={10}
     >
@@ -192,16 +192,27 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
           {/* Content */}
           <View style={styles.content}>
             <View style={styles.headerTitle}>
-              <Text style={styles.title}>What are you creating?</Text>
-              <Text style={styles.globalHelperText}>
+              <Animated.Text
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                What are you creating?
+              </Animated.Text>
+              <Animated.Text
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
                 Choose the type for{" "}
                 <Text style={styles.collegeName}>
                   {college_name || "your college"}
                 </Text>
-              </Text>
+              </Animated.Text>
             </View>
 
-            <View style={styles.card}>
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -211,17 +222,23 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
                 {/* Subtype Cards */}
                 <View style={styles.cardsContainer}>
                   {COLLEGE_SUBTYPES.map((subtype, index) => (
-                    <SubtypeCard
+                    <Animated.View
                       key={subtype.id}
-                      subtype={subtype}
-                      collegeName={college_name}
-                      onPress={handleSubtypeSelect}
-                      isLast={index === COLLEGE_SUBTYPES.length - 1}
-                    />
+                      entering={FadeInDown.delay(400 + index * 100)
+                        .duration(600)
+                        .springify()}
+                    >
+                      <SubtypeCard
+                        subtype={subtype}
+                        collegeName={college_name}
+                        onPress={handleSubtypeSelect}
+                        isLast={index === COLLEGE_SUBTYPES.length - 1}
+                      />
+                    </Animated.View>
                   ))}
                 </View>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -360,3 +377,5 @@ const styles = StyleSheet.create({
 });
 
 export default CollegeSubtypeSelectScreen;
+
+

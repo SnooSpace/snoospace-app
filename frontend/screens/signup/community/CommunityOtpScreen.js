@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, Pressable, ImageBackground } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, Pressable, ImageBackground, Modal, TouchableWithoutFeedback } from "react-native";
 import { BlurView } from "expo-blur";
 import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import Reanimated, { ZoomIn } from "react-native-reanimated";
+import Reanimated, { ZoomIn, FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import MaskedView from "@react-native-masked-view/masked-view";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
@@ -47,6 +47,23 @@ const CommunityOtpScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showGoBackModal, setShowGoBackModal] = useState(false);
   const inputRef = useRef(null);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (otp.length === 6)
+  useEffect(() => {
+    if (otp.length === 6) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [otp.length === 6]);
 
   // Button feedback state
   const [isSuccess, setIsSuccess] = useState(false);
@@ -244,10 +261,23 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Enter verification code</Text>
-            <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
+            <Reanimated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Enter verification code
+            </Reanimated.Text>
+            <Reanimated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
+              We sent a 6-digit code to {email}
+            </Reanimated.Text>
 
-            <View style={styles.card}>
+            <Reanimated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
                 <Pressable 
@@ -282,43 +312,45 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                <TouchableOpacity
-                  style={[
-                    styles.buttonContainer,
-                    (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
-                    (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
-                  ]}
-                  onPress={handleVerify}
-                  disabled={loading || isSuccess || isError || otp.length !== 6}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={
-                      isSuccess
-                        ? ["#34C759", "#2FB350"]
-                        : isError
-                          ? [COLORS.error, COLORS.error]
-                          : COLORS.primaryGradient
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.button}
+                <Reanimated.View style={animatedButtonStyle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.buttonContainer,
+                      (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
+                      (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                    ]}
+                    onPress={handleVerify}
+                    disabled={loading || isSuccess || isError || otp.length !== 6}
+                    activeOpacity={0.8}
                   >
-                    {loading ? (
-                      <SnooLoader color={COLORS.textInverted} />
-                    ) : isSuccess ? (
-                      <Reanimated.View entering={ZoomIn}>
-                        <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                      </Reanimated.View>
-                    ) : isError ? (
-                      <Reanimated.View entering={ZoomIn}>
-                        <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                      </Reanimated.View>
-                    ) : (
-                      <Text style={styles.buttonText}>Verify</Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={
+                        isSuccess
+                          ? ["#34C759", "#2FB350"]
+                          : isError
+                            ? [COLORS.error, COLORS.error]
+                            : COLORS.primaryGradient
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.button}
+                    >
+                      {loading ? (
+                        <SnooLoader color={COLORS.textInverted} />
+                      ) : isSuccess ? (
+                        <Reanimated.View entering={ZoomIn}>
+                          <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                        </Reanimated.View>
+                      ) : isError ? (
+                        <Reanimated.View entering={ZoomIn}>
+                          <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                        </Reanimated.View>
+                      ) : (
+                        <Text style={styles.buttonText}>Verify</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Reanimated.View>
 
                 <TouchableOpacity
                   style={styles.resendButton}
@@ -339,7 +371,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+            </Reanimated.View>
           </View>
         </ScrollView>
 

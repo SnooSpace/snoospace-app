@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+﻿import React, { useRef, useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,7 @@ import {
   Linking,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import { MapPin } from "lucide-react-native";
 
@@ -25,6 +26,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import SignupHeader from "../../../components/SignupHeader";
 import {
   updateSignupDraft,
@@ -61,6 +63,23 @@ const LocationInputScreen = ({ navigation, route }) => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const navigatedRef = useRef(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (hasLocation)
+  useEffect(() => {
+    if (location.city && location.city.trim().length > 0) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [location.city && location.city.trim().length > 0]);
 
   // Hydrate from draft if route.params is missing location
   useEffect(() => {
@@ -211,6 +230,7 @@ const LocationInputScreen = ({ navigation, route }) => {
   };
 
   const handleNext = async () => {
+    triggerTransitionHaptic();
     // Update client-side draft
     try {
       await updateSignupDraft("MemberLocation", { location });
@@ -244,12 +264,14 @@ const LocationInputScreen = ({ navigation, route }) => {
       source={wave}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+      resizeMode="cover"
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader
           role="People"
           onBack={() => {
+            triggerTransitionHaptic();
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
@@ -275,9 +297,17 @@ const LocationInputScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Where's your world?</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Where's your world?
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -350,31 +380,36 @@ const LocationInputScreen = ({ navigation, route }) => {
                   events and improve recommendations.
                 </Text>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Next Button */}
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleNext}
-                disabled={isButtonDisabled}
-                activeOpacity={0.8}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -556,3 +591,6 @@ const styles = StyleSheet.create({
 });
 
 export default LocationInputScreen;
+
+
+

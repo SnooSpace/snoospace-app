@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,7 @@ import {
   TextInput,
   Alert,
   Platform,
-  StatusBar,
-} from 'react-native';
+  StatusBar} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProgressBar from '../../../components/Progressbar';
 import { Ionicons } from '@expo/vector-icons';
@@ -490,3 +489,5 @@ const styles = StyleSheet.create({
 });
 
 export default SponsorCategoryScreen;
+
+

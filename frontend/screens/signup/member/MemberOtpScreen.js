@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Platform, StatusBar, Animated, ScrollView, Pressable, ImageBackground } from "react-native";
+import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Platform, StatusBar, ScrollView, Pressable, ImageBackground } from "react-native";
 import { BlurView } from "expo-blur";
 import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import Reanimated, { ZoomIn } from "react-native-reanimated";
+import Animated, { FadeInDown, ZoomIn, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as sessionManager from "../../../utils/sessionManager";
@@ -53,6 +53,28 @@ const MemberOtpScreen = ({ route, navigation }) => {
   const [accountPickerLoading, setAccountPickerLoading] = useState(false);
   const [verificationResult, setVerificationResult] = useState(null);
   const insets = useSafeAreaInsets();
+
+  // Animation values
+  const inputScale = useSharedValue(1);
+  const buttonScale = useSharedValue(1);
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (6 digits)
+  useEffect(() => {
+    if (otp.length === 6 && !loading && !isSuccess && !isError) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [otp.length, loading, isSuccess, isError]);
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -270,102 +292,132 @@ const MemberOtpScreen = ({ route, navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Enter verification code</Text>
-            <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Enter verification code
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
+              We sent a 6-digit code to {email}
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
-                <Pressable 
-                  onPress={() => inputRef.current?.focus()}
-                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
-                >
-                  {otp.length === 0 && (
-                    <View style={styles.placeholderContainer} pointerEvents="none">
-                      {[...Array(6)].map((_, i) => (
-                        <SquareAsterisk key={i} size={20} color="#8AADC4" strokeWidth={2} style={styles.asteriskIcon} />
-                      ))}
-                    </View>
-                  )}
-                  <TextInput
-                    ref={inputRef}
-                    style={[
-                      styles.input,
-                      otp.length === 0 && styles.inputTransparentText,
-                    ]}
-                    placeholder=""
-                    placeholderTextColor="transparent"
-                    underlineColorAndroid="transparent"
-                    value={otp}
-                    onChangeText={setOtp}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    textAlign="center"
-                  />
-                </Pressable>
+                <Animated.View style={animatedInputStyle}>
+                  <Pressable 
+                    onPress={() => inputRef.current?.focus()}
+                    style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                  >
+                    {otp.length === 0 && (
+                      <View style={styles.placeholderContainer} pointerEvents="none">
+                        {[...Array(6)].map((_, i) => (
+                          <SquareAsterisk key={i} size={20} color="#8AADC4" strokeWidth={2} style={styles.asteriskIcon} />
+                        ))}
+                      </View>
+                    )}
+                    <TextInput
+                      ref={inputRef}
+                      style={[
+                        styles.input,
+                        otp.length === 0 && styles.inputTransparentText,
+                      ]}
+                      placeholder=""
+                      placeholderTextColor="transparent"
+                      underlineColorAndroid="transparent"
+                      value={otp}
+                      onChangeText={setOtp}
+                      onFocus={() => {
+                        setIsFocused(true);
+                        inputScale.value = withSpring(1.02);
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        inputScale.value = withSpring(1);
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      textAlign="center"
+                    />
+                  </Pressable>
+                </Animated.View>
 
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                <TouchableOpacity
-                  style={[
-                    styles.buttonContainer,
-                    (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
-                    (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
-                  ]}
-                  onPress={handleVerify}
-                  disabled={loading || isSuccess || isError || otp.length !== 6}
-                  activeOpacity={0.8}
+                <Animated.View 
+                  entering={FadeInDown.delay(500).duration(600).springify()}
+                  style={animatedButtonStyle}
                 >
-                  <LinearGradient
-                    colors={
-                      isSuccess
-                        ? ["#34C759", "#2FB350"]
-                        : isError
-                          ? [COLORS.error, COLORS.error]
-                          : COLORS.primaryGradient
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.button}
+                  <TouchableOpacity
+                    style={[
+                      styles.buttonContainer,
+                      (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
+                      (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                    ]}
+                    onPress={handleVerify}
+                    disabled={loading || isSuccess || isError || otp.length !== 6}
+                    activeOpacity={0.8}
                   >
-                    {loading ? (
-                      <SnooLoader color={COLORS.textInverted} />
-                    ) : isSuccess ? (
-                      <Reanimated.View entering={ZoomIn}>
-                        <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                      </Reanimated.View>
-                    ) : isError ? (
-                      <Reanimated.View entering={ZoomIn}>
-                        <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                      </Reanimated.View>
-                    ) : (
-                      <Text style={styles.buttonText}>Verify</Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.resendButton}
-                  onPress={handleResendCode}
-                  disabled={resendTimer > 0 || resendLoading}
-                >
-                  {resendLoading ? (
-                    <SnooLoader color={COLORS.primary} size="small" />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.resendText,
-                        resendTimer > 0 && styles.resendTextDisabled,
-                      ]}
+                    <LinearGradient
+                      colors={
+                        isSuccess
+                          ? ["#34C759", "#2FB350"]
+                          : isError
+                            ? [COLORS.error, COLORS.error]
+                            : COLORS.primaryGradient
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.button}
                     >
-                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                      {loading ? (
+                        <SnooLoader color={COLORS.textInverted} />
+                      ) : isSuccess ? (
+                        <Animated.View entering={ZoomIn}>
+                          <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                        </Animated.View>
+                      ) : isError ? (
+                        <Animated.View entering={ZoomIn}>
+                          <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                        </Animated.View>
+                      ) : (
+                        <Text style={styles.buttonText}>Verify</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+
+                <Animated.View
+                  entering={FadeInDown.delay(600).duration(600).springify()}
+                >
+                  <TouchableOpacity
+                    style={styles.resendButton}
+                    onPress={handleResendCode}
+                    disabled={resendTimer > 0 || resendLoading}
+                  >
+                    {resendLoading ? (
+                      <SnooLoader color={COLORS.primary} size="small" />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.resendText,
+                          resendTimer > 0 && styles.resendTextDisabled,
+                        ]}
+                      >
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </ScrollView>
 

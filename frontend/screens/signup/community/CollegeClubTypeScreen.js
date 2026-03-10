@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -128,7 +129,7 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -147,16 +148,27 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
           {/* Content */}
           <View style={styles.content}>
             <View style={styles.headerTitle}>
-              <Text style={styles.title}>What type of club?</Text>
-              <Text style={styles.globalHelperText}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                What type of club?
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
                 Select the category that best describes your club at{" "}
                 <Text style={styles.collegeName}>
                   {college_name || "your college"}
                 </Text>
-              </Text>
+              </Animated.Text>
             </View>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -165,17 +177,21 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
               <View style={styles.cardContent}>
                 {/* Club Type Cards */}
                 <View style={styles.cardsContainer}>
-                  {CLUB_TYPES.map((clubType) => (
-                    <ClubTypeCard
+                  {CLUB_TYPES.map((clubType, index) => (
+                    <Animated.View 
                       key={clubType.id}
-                      clubType={clubType}
-                      onPress={handleClubTypeSelect}
-                    />
+                      entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
+                    >
+                      <ClubTypeCard
+                        clubType={clubType}
+                        onPress={handleClubTypeSelect}
+                      />
+                    </Animated.View>
                   ))}
+                  </View>
                 </View>
-              </View>
+              </Animated.View>
             </View>
-          </View>
         </ScrollView>
       </SafeAreaView>
     </ImageBackground>
@@ -290,3 +306,6 @@ const styles = StyleSheet.create({
 });
 
 export default CollegeClubTypeScreen;
+
+
+

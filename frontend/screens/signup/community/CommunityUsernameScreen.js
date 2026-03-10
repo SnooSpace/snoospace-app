@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -20,6 +21,7 @@ import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
 import { deleteCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const { width } = Dimensions.get("window");
 
@@ -33,6 +35,33 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+  const inputScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isButtonDisabled becomes false)
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
+
+  useEffect(() => {
+    inputScale.value = withSpring(isUsernameFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
+  }, [isUsernameFocused]);
 
   // Support both organization flow (userData object) and non-org flow (direct params)
   const routeParams = route.params || {};
@@ -95,6 +124,13 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       setIsAvailable(null);
     }
   }, [username]);
+
+  // Trigger haptic when username becomes available
+  useEffect(() => {
+    if (isAvailable === true) {
+      triggerInputValidHaptic();
+    }
+  }, [isAvailable]);
 
   const checkUsernameAvailability = async () => {
     if (username.length < 3) return;
@@ -206,8 +242,11 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         );
       }
 
-      // Step 5: Navigate to community home with navigation reset
-      navigation.reset({ index: 0, routes: [{ name: "CommunityHome" }] });
+      // Step 5: Navigate to celebration screen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Celebration", params: { role: "Community" } }],
+      });
     } catch (error) {
       console.error("Error completing signup:", error);
       Alert.alert(
@@ -228,11 +267,11 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       };
     if (isAvailable === true)
       return {
-        text: "✓ Username is available",
+        text: "âœ“ Username is available",
         color: COLORS.success || "#00C851",
       };
     if (isAvailable === false)
-      return { text: "✗ Username is already taken", color: COLORS.error };
+      return { text: "âœ— Username is already taken", color: COLORS.error };
     return { text: "", color: COLORS.textSecondary };
   };
 
@@ -248,7 +287,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1, scaleY: -1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -273,13 +312,24 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
           {/* 3. Content Area */}
           <View style={styles.content}>
             <View style={styles.header}>
-              <Text style={styles.title}>Choose Your Community Username</Text>
-              <Text style={styles.globalHelperText}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                Choose Your Community Username
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
                 This will be your unique identifier on SnooSpace
-              </Text>
+              </Animated.Text>
             </View>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -288,9 +338,10 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
               <View style={styles.cardContent}>
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Username</Text>
-                  <View
+                  <Animated.View
                     style={[
                       styles.inputWrapper,
+                      animatedInputStyle,
                       {
                         borderColor:
                           isAvailable === false
@@ -310,11 +361,13 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                       autoCapitalize="none"
                       autoCorrect={false}
                       maxLength={30}
+                      onFocus={() => setIsUsernameFocused(true)}
+                      onBlur={() => setIsUsernameFocused(false)}
                     />
                     {isChecking && (
                       <SnooLoader size="small" color={COLORS.primary} />
                     )}
-                  </View>
+                  </Animated.View>
                   <Text style={[styles.statusText, { color: status.color }]}>
                     {status.text}
                   </Text>
@@ -322,41 +375,46 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
                 <View style={styles.rulesContainer}>
                   <Text style={styles.rulesTitle}>Username Rules:</Text>
-                  <Text style={styles.rule}>• 3-30 characters long</Text>
+                  <Text style={styles.rule}>â€¢ 3-30 characters long</Text>
                   <Text style={styles.rule}>
-                    • Only letters, numbers, underscores, and dots
+                    â€¢ Only letters, numbers, underscores, and dots
                   </Text>
                   <Text style={styles.rule}>
-                    • Must be unique across all users
+                    â€¢ Must be unique across all users
                   </Text>
                 </View>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.nextButtonDisabled,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
-                ]}
-                onPress={handleFinish}
-                disabled={isButtonDisabled}
-                activeOpacity={0.8}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.nextButtonDisabled,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                  ]}
+                  onPress={handleFinish}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.nextButtonText}>
-                    {isSubmitting ? "Finishing..." : "Complete Setup"}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.nextButtonText}>
+                      {isSubmitting ? "Finishing..." : "Complete Setup"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -508,3 +566,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityUsernameScreen;
+
+
+

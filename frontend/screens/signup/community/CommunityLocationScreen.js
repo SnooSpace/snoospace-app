@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -14,6 +14,7 @@ import {
   ScrollView,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -102,6 +103,36 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   const [urlValid, setUrlValid] = useState(null);
   const [isUrlFocused, setIsUrlFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+  const inputScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (canContinue)
+  useEffect(() => {
+    if (canContinue) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [canContinue]);
+
+  // Handle focus bloom
+  useEffect(() => {
+    inputScale.value = withSpring(isUrlFocused ? 1.02 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [isUrlFocused]);
 
   // Track already-parsed URLs to prevent re-parsing on screen revisit
   const parsedUrlsRef = useRef(new Set());
@@ -360,7 +391,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: 1, scaleY: 1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -382,12 +413,23 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
             {/* Content */}
             <View style={styles.contentBody}>
-              <Text style={styles.mainTitle}>Add your location</Text>
-              <Text style={styles.subtitle}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.mainTitle}
+              >
+                Add your location
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.subtitle}
+              >
                 This helps members and sponsors find your community
-              </Text>
+              </Animated.Text>
 
-              <View style={styles.card}>
+              <Animated.View 
+                entering={FadeInDown.delay(300).duration(600).springify()}
+                style={styles.card}
+              >
                 <BlurView
                   intensity={60}
                   tint="light"
@@ -427,27 +469,29 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                   {/* Google Maps URL Input */}
                   <Text style={styles.label}>Paste a Google Maps link</Text>
                   <Text style={styles.helperText}>
-                    Open Google Maps → Search location → Tap Share → Copy link
+                    Open Google Maps â†’ Search location â†’ Tap Share â†’ Copy link
                   </Text>
 
-                  <TextInput
-                    style={[
-                      styles.urlInput,
-                      isUrlFocused && styles.urlInputFocused,
-                      urlValid === true && styles.urlInputValid,
-                      urlValid === false && styles.urlInputInvalid,
-                    ]}
-                    value={locationUrl}
-                    onChangeText={setLocationUrl}
-                    onFocus={() => setIsUrlFocused(true)}
-                    onBlur={() => setIsUrlFocused(false)}
-                    placeholder="Paste Google Maps link here..."
-                    placeholderTextColor={COLORS.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    multiline={false}
-                  />
+                    <Animated.View style={animatedInputStyle}>
+                      <TextInput
+                        style={[
+                          styles.urlInput,
+                          isUrlFocused && styles.urlInputFocused,
+                          urlValid === true && styles.urlInputValid,
+                          urlValid === false && styles.urlInputInvalid,
+                        ]}
+                        value={locationUrl}
+                        onChangeText={setLocationUrl}
+                        onFocus={() => setIsUrlFocused(true)}
+                        onBlur={() => setIsUrlFocused(false)}
+                        placeholder="Paste Google Maps link here..."
+                        placeholderTextColor={COLORS.textSecondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="url"
+                        multiline={false}
+                      />
+                    </Animated.View>
 
                   {/* URL Validation Indicator */}
                   {isParsingUrl && (
@@ -498,30 +542,35 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                     </View>
                   )}
                 </View>
-              </View>
+              </Animated.View>
 
               <View
                 style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.continueButtonContainer,
-                    !canContinue && styles.continueButtonDisabled,
-                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
-                  ]}
-                  onPress={handleContinue}
-                  disabled={!canContinue || isParsingUrl}
-                  activeOpacity={0.8}
+                <Animated.View 
+                  entering={FadeInDown.delay(500).duration(600).springify()}
+                  style={animatedButtonStyle}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.continueButton}
+                  <TouchableOpacity
+                    style={[
+                      styles.continueButtonContainer,
+                      !canContinue && styles.continueButtonDisabled,
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                    ]}
+                    onPress={handleContinue}
+                    disabled={!canContinue || isParsingUrl}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.continueButtonText}>Next</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.continueButton}
+                    >
+                      <Text style={styles.continueButtonText}>Next</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
             </View>
           </ScrollView>
@@ -732,3 +781,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityLocationScreen;
+
+
+

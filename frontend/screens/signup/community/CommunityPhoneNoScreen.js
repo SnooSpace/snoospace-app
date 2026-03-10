@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -11,7 +11,9 @@ import {
   StatusBar,
   ImageBackground,
   Dimensions,
+  KeyboardAvoidingView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,15 +37,29 @@ const { width } = Dimensions.get("window");
 // --- Components ---
 const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const inputScale = useSharedValue(1);
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  useEffect(() => {
+    inputScale.value = withSpring(isFocused ? 1.02 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [isFocused]);
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.phoneInputContainer,
         isFocused && styles.phoneInputContainerFocused,
+        animatedInputStyle,
       ]}
     >
       <View style={styles.countryCodePill}>
-        <Text style={styles.flagEmoji}>🇮🇳</Text>
+        <Text style={styles.flagEmoji}>ðŸ‡®ðŸ‡³</Text>
         <Text style={styles.countryCodeText}>+91</Text>
       </View>
       <TextInput
@@ -59,7 +75,7 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
         maxLength={10}
         autoFocus={isRequired}
       />
-    </View>
+    </Animated.View>
   );
 };
 
@@ -80,6 +96,23 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isButtonDisabled becomes false)
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
 
   // Hydrate from draft
   useEffect(() => {
@@ -210,17 +243,34 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
           onCancel={() => setShowCancelModal(true)}
         />
 
-        <ScrollView
-          style={styles.contentScrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
         >
-          <View style={styles.contentArea}>
-            <Text style={styles.mainTitle}>What's your number?</Text>
-            <Text style={styles.subtitle}>Your number is private and never shared.</Text>
+          <ScrollView
+            style={styles.contentScrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.contentArea}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.mainTitle}
+              >
+                What's your number?
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.subtitle}
+              >
+                Your number is private and never shared.
+              </Animated.Text>
 
-            <View style={styles.card}>
+              <Animated.View 
+                entering={FadeInDown.delay(300).duration(600).springify()}
+                style={styles.card}
+              >
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
                 <PhoneInput
@@ -241,31 +291,37 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                   onChangeText={setSecondaryNumber}
                 />
               </View>
-            </View>
+            </Animated.View>
 
             <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
-              <TouchableOpacity
-                style={[
-                  styles.continueButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleContinue}
-                activeOpacity={0.8}
-                disabled={isButtonDisabled}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.continueButton}
+                <TouchableOpacity
+                  style={[
+                    styles.continueButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleContinue}
+                  activeOpacity={0.8}
+                  disabled={isButtonDisabled}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.continueButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
+      </KeyboardAvoidingView>
 
         <CancelSignupModal
           visible={showCancelModal}
@@ -418,3 +474,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityPhoneNoScreen;
+
+
+

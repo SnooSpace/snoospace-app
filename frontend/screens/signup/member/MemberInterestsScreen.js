@@ -7,13 +7,15 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
   ImageBackground,
+  ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 import { ChevronDown, ChevronRight, X } from "lucide-react-native";
 
 import HapticsService from "../../../services/HapticsService";
+import { triggerChipSelectHaptic, triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -64,6 +66,24 @@ const InterestsScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (selectedInterests.length >= MIN_SELECTIONS)
+  useEffect(() => {
+    if (selectedInterests.length >= MIN_SELECTIONS) {
+      triggerInputValidHaptic();
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [selectedInterests.length >= MIN_SELECTIONS]);
+
   // Hydrate from draft if route.params is missing interests
   useEffect(() => {
     const hydrateFromDraft = async () => {
@@ -97,7 +117,7 @@ const InterestsScreen = ({ navigation, route }) => {
     loadInterests();
   }, []);
 
-  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE");
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   const handleCancel = async () => {
     await deleteSignupDraft();
@@ -109,7 +129,7 @@ const InterestsScreen = ({ navigation, route }) => {
   };
 
   const toggleInterest = (interest) => {
-    HapticsService.triggerSelection();
+    triggerChipSelectHaptic();
     setSelectedInterests((prev) => {
       if (prev.includes(interest)) {
         // Deselect
@@ -135,7 +155,7 @@ const InterestsScreen = ({ navigation, route }) => {
       console.log("[MemberInterestsScreen] Draft update failed:", e.message);
     }
 
-    navigation.navigate("MemberPhone", {
+    navigation.navigate("MemberOccupation", {
       email,
       accessToken,
       refreshToken,
@@ -159,7 +179,7 @@ const InterestsScreen = ({ navigation, route }) => {
       style={styles.backgroundImage}
       imageStyle={{
         opacity: 0.3,
-        transform: [{ scaleX: 1 }, { scaleY: -1 }], // Different orientation from Location Screen, but no rotation to preserve aspect ratio filling
+        transform: [{ scaleX: -1 }, { scaleY: -1 }], // Standardizing orientation
       }}
       resizeMode="cover"
       blurRadius={10}
@@ -194,13 +214,24 @@ const InterestsScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What gets you out the door?</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              What gets you out the door?
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize
               your experience.
-            </Text>
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -353,30 +384,35 @@ const InterestsScreen = ({ navigation, route }) => {
                   )}
                 </View>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.finishButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleFinish}
-                disabled={isButtonDisabled}
-                activeOpacity={0.8}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.finishButton}
+                <TouchableOpacity
+                  style={[
+                    styles.finishButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleFinish}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.finishButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -580,3 +616,6 @@ const styles = StyleSheet.create({
 });
 
 export default InterestsScreen;
+
+
+

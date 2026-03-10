@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -9,9 +9,10 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
   ImageBackground,
+  ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -56,6 +57,23 @@ const CommunityBioScreen = ({ navigation, route }) => {
   const [bioText, setBioText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (bioText.trim().length > 0)
+  useEffect(() => {
+    if (bioText.trim().length > 0) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [bioText.trim().length > 0]);
 
   // Hydrate from draft
   useEffect(() => {
@@ -155,7 +173,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: 1, scaleY: -1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -192,9 +210,17 @@ const CommunityBioScreen = ({ navigation, route }) => {
 
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Tell us about your community...</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Tell us about your community...
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -215,7 +241,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
                 />
                 <Text style={styles.charCount}>{bioText.length} / 500</Text>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{
@@ -245,25 +271,30 @@ const CommunityBioScreen = ({ navigation, route }) => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                disabled={isButtonDisabled} // Apply disabled prop
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  activeOpacity={0.8}
+                  disabled={isButtonDisabled} // Apply disabled prop
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -420,3 +451,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityBioScreen;
+
+
+

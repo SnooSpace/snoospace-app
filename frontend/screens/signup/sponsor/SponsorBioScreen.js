@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,7 @@ import {
   Dimensions,
   ScrollView,
   Platform,
-  StatusBar,
-} from 'react-native';
+  StatusBar} from 'react-native';
 import ProgressBar from "../../../components/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; 
 
@@ -248,3 +247,5 @@ const styles = StyleSheet.create({
 });
 
 export default SponsorBioScreen;
+
+

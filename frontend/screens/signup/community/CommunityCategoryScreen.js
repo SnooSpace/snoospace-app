@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -15,6 +15,7 @@ import {
   StatusBar,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for the back arrow
@@ -121,6 +122,23 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (selectedCategories.length > 0)
+  useEffect(() => {
+    if (selectedCategories.length > 0) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [selectedCategories.length > 0]);
 
   // Load categories from API on component mount
   useEffect(() => {
@@ -313,7 +331,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -351,12 +369,23 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>Choose Community Category</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              Choose Community Category
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               Select up to 3 categories that best fit your community.
-            </Text>
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -365,13 +394,17 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
               <View style={styles.cardContent}>
                 {/* Category Chips Container */}
                 <View style={styles.chipsContainer}>
-                  {availableCategories.map((category) => (
-                    <CategoryChip
+                  {availableCategories.map((category, index) => (
+                    <Animated.View 
                       key={category}
-                      category={category}
-                      isSelected={selectedCategories.includes(category)}
-                      onPress={toggleCategory}
-                    />
+                      entering={FadeInDown.delay(400 + index * 30).duration(400).springify()}
+                    >
+                      <CategoryChip
+                        category={category}
+                        isSelected={selectedCategories.includes(category)}
+                        onPress={toggleCategory}
+                      />
+                    </Animated.View>
                   ))}
                 </View>
 
@@ -391,31 +424,36 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
                   <Text style={styles.createNewText}>Create New</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                disabled={isButtonDisabled}
-                accessibilityRole="button"
+              <Animated.View 
+                entering={FadeInDown.delay(600).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  activeOpacity={0.8}
+                  disabled={isButtonDisabled}
+                  accessibilityRole="button"
                 >
-                  <Text style={styles.buttonText}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -663,3 +701,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityCategoryScreen;
+
+
+

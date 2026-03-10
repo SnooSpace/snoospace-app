@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Image, Alert, Animated, Easing } from "react-native";
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Image, Alert } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming, withRepeat, Easing } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
 import { BlurView } from "expo-blur";
 import { ImageBackground } from "react-native";
@@ -33,10 +34,29 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   const [uploading, setUploading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  // Animation values
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const bounceAnim = useRef(new Animated.Value(0.5)).current;
-  const hintOpacity = useRef(new Animated.Value(1)).current;
+  // Animation values (Reanimated)
+  const buttonScale = useSharedValue(1);
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.6);
+  const bounceScale = useSharedValue(0.5);
+  const hintOpacity = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const animatedPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  }));
+
+  const animatedBounceStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bounceScale.value }],
+  }));
+
+  const animatedHintStyle = useAnimatedStyle(() => ({
+    opacity: hintOpacity.value,
+  }));
 
   const [currentHintIndex, setCurrentHintIndex] = useState(0);
   const HINTS = [
@@ -64,53 +84,44 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     // 1. Bounce Animation on Load
-    Animated.spring(bounceAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
+    bounceScale.value = withSpring(1, { damping: 12, stiffness: 90 });
 
     // 2. Slow Pulsing Animation Loop
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    pulseScale.value = withRepeat(
+      withTiming(1.15, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0.2, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
 
     // 3. Rotating Hints Animation
     const hintInterval = setInterval(() => {
-      Animated.sequence([
-        Animated.timing(hintOpacity, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(hintOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      hintOpacity.value = withSequence(
+        withTiming(0, { duration: 500 }),
+        withTiming(1, { duration: 500 })
+      );
 
       setTimeout(() => {
         setCurrentHintIndex((prev) => (prev + 1) % HINTS.length);
-      }, 500); // Change text halfway through fade out/in
+      }, 500);
     }, 4000);
 
     return () => clearInterval(hintInterval);
   }, []);
+
+  // Trigger button bounce when validity changes
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
 
   const handleAddPhoto = async () => {
     console.log("handleAddPhoto called"); // Debug log
@@ -180,22 +191,11 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   // Button is disabled if no image or while uploading
   const isButtonDisabled = !imageUri || uploading;
 
-  // Pulse ring scale interpolation
-  const pulseScale = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.15],
-  });
-
-  const pulseOpacity = pulseAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.6, 0.3, 0],
-  });
-
   return (
     <ImageBackground
       source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ rotate: "180deg" }, { scale: 1.5 }], opacity: 0.3 }}
+      imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -223,30 +223,34 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       >
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Time to be iconic</Text>
-          <Text style={styles.subtitle}>
+          <Animated.Text 
+            entering={FadeInDown.delay(100).duration(600).springify()}
+            style={styles.title}
+          >
+            Time to be iconic
+          </Animated.Text>
+          <Animated.Text 
+            entering={FadeInDown.delay(200).duration(600).springify()}
+            style={styles.subtitle}
+          >
             People are more likely to connect with you when they can see you.
-          </Text>
+          </Animated.Text>
 
-          <View style={styles.card}>
+          <Animated.View 
+            entering={FadeInDown.delay(300).duration(600).springify()}
+            style={styles.card}
+          >
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.cardContent}>
               {/* Animated Profile Picture Upload Area */}
               <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: bounceAnim }],
-                  },
-                ]}
+                style={[animatedBounceStyle]}
               >
             {/* Pulsing Ring Background */}
             <Animated.View
               style={[
                 styles.pulsingRing,
-                {
-                  transform: [{ scale: pulseScale }],
-                  opacity: pulseOpacity,
-                },
+                animatedPulseStyle,
               ]}
             />
 
@@ -282,50 +286,52 @@ const ProfilePictureScreen = ({ navigation, route }) => {
             <Animated.Text
               style={[
                 styles.hintText,
-                {
-                  opacity: hintOpacity,
-                },
+                animatedHintStyle,
               ]}
             >
               {HINTS[currentHintIndex]}
             </Animated.Text>
           </View>
-
         </View>
-      </View>
+      </Animated.View>
 
       {/* Next Button Moved Outside Card */}
       <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
+        <Animated.View 
+          entering={FadeInDown.delay(500).duration(600).springify()}
+          style={animatedButtonStyle}
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
+          <TouchableOpacity
+            style={[
+              styles.nextButtonContainer,
+              { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+              isButtonDisabled && styles.disabledButton,
+            ]}
+            onPress={handleNext}
+            disabled={isButtonDisabled}
+            activeOpacity={0.8}
           >
-            {uploading ? (
-              <View style={styles.buttonLoadingContainer}>
-                <SnooLoader
-                  size="small"
-                  color={COLORS.textInverted}
-                  style={styles.buttonSpinner}
-                />
-                <Text style={[styles.buttonText, { fontFamily: 'Manrope-Medium' }]}>Uploading...</Text>
-              </View>
-            ) : (
-              <Text style={styles.buttonText}>Next</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextButton}
+            >
+              {uploading ? (
+                <View style={styles.buttonLoadingContainer}>
+                  <SnooLoader
+                    size="small"
+                    color={COLORS.textInverted}
+                    style={styles.buttonSpinner}
+                  />
+                  <Text style={[styles.buttonText, { fontFamily: 'Manrope-Medium' }]}>Uploading...</Text>
+                </View>
+              ) : (
+                <Text style={styles.buttonText}>Next</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </View>
   </ScrollView>
@@ -512,6 +518,7 @@ const styles = StyleSheet.create({
 });
 
 export default ProfilePictureScreen;
+
 
 
 

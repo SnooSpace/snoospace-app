@@ -1,4 +1,4 @@
- import React, { useState } from 'react';
+﻿ import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,7 @@ import {
   Dimensions,
   ScrollView,
   Platform,
-  StatusBar,
-} from 'react-native';
+  StatusBar} from 'react-native';
 import ProgressBar from '../../../components/Progressbar';
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -351,3 +350,5 @@ const styles = StyleSheet.create({
 });
 
 export default SponsorTypeSelect;
+
+

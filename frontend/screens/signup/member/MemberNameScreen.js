@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
-  StatusBar,
   ScrollView,
+  StatusBar,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
 import { BlurView } from "expo-blur";
 import { User } from "lucide-react-native";
@@ -28,6 +29,7 @@ import {
   deleteSignupDraft,
   getDraftData,
 } from "../../../utils/signupDraftManager";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import SignupHeader from "../../../components/SignupHeader";
 
@@ -56,6 +58,12 @@ const NameInputScreen = ({ navigation, route }) => {
   }, []);
 
   const handleNext = async () => {
+    triggerTransitionHaptic();
+    if (!name.trim()) {
+      // If name is empty, do not proceed.
+      // This might be handled by the disabled button, but good to have a fallback.
+      return;
+    }
     // Update client-side draft with name
     try {
       await updateSignupDraft("MemberName", { name });
@@ -88,11 +96,33 @@ const NameInputScreen = ({ navigation, route }) => {
   // Determine if the button should be disabled (e.g., if the name is empty)
   const isButtonDisabled = name.trim().length === 0;
 
+  // Animation values
+  const inputScale = useSharedValue(1);
+  const buttonScale = useSharedValue(1);
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
+
   return (
     <ImageBackground
       source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3 }}
+      imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -105,57 +135,77 @@ const NameInputScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What's the name behind the profile?</Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              What's the name behind the profile?
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.cardContent}>
-                <View style={styles.inputContainer}>
-                  <User size={20} color="#8AADC4" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    onChangeText={setName}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    value={name}
-                    placeholder="Enter your name"
-                    placeholderTextColor="#8AADC4"
-                    keyboardType="default"
-                    autoCapitalize="words"
-                    textContentType="name"
-                    autoComplete="name"
-                    importantForAutofill="no"
-                  />
-                </View>
-
+                <Animated.View style={animatedInputStyle}>
+                  <View style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}>
+                    <User size={20} color="#8AADC4" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      onChangeText={setName}
+                      onFocus={() => {
+                        setIsFocused(true);
+                        inputScale.value = withSpring(1.02);
+                      }}
+                      onBlur={() => {
+                        setIsFocused(false);
+                        inputScale.value = withSpring(1);
+                      }}
+                      value={name}
+                      placeholder="Enter your name"
+                      placeholderTextColor="#8AADC4"
+                      keyboardType="default"
+                      autoCapitalize="words"
+                      textContentType="name"
+                      autoComplete="name"
+                      importantForAutofill="no"
+                    />
+                  </View>
+                </Animated.View>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Next Button Moved Outside Card */}
             <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
-              <TouchableOpacity
-                style={[
-                  styles.nextButtonContainer,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                  isButtonDisabled && styles.disabledButton,
-                ]}
-                onPress={handleNext}
-                disabled={isButtonDisabled}
-                activeOpacity={0.8}
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.nextButton}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                    isButtonDisabled && styles.disabledButton,
+                  ]}
+                  onPress={handleNext}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -230,8 +280,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 16,
     height: 56,
-    marginBottom: 24,
+    marginBottom: 0,
     borderWidth: 1,
+  },
+  inputFocusedContainer: {
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   inputIcon: {
     marginRight: 12,
@@ -268,3 +322,6 @@ const styles = StyleSheet.create({
 });
 
 export default NameInputScreen;
+
+
+

@@ -41,6 +41,7 @@ export async function createSignupDraft(email, originAccountId) {
       gender: null,
       location: null,
       interests: [],
+      occupation: null,
       phone: null,
       username: null,
     },
@@ -168,7 +169,8 @@ export function getNextScreenForStep(currentStep) {
     MemberPronouns: "MemberGender",
     MemberGender: "MemberLocation",
     MemberLocation: "MemberInterests",
-    MemberInterests: "MemberPhone",
+    MemberInterests: "MemberOccupation",
+    MemberOccupation: "MemberPhone",
     MemberPhone: "MemberUsername",
     MemberUsername: "COMPLETE",
   };

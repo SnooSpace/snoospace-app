@@ -1,5 +1,6 @@
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
+import { Easing } from "react-native";
 
 import CommunityEmailScreen from "./CommunityEmailScreen";
 import CommunityOtpScreen from "./CommunityOtpScreen";
@@ -25,9 +26,49 @@ import CommunityUsernameScreen from "./CommunityUsernameScreen";
 
 const Stack = createStackNavigator();
 
+const verticalAnimation = {
+  gestureDirection: "vertical",
+  transitionSpec: {
+    open: {
+      animation: "timing",
+      config: {
+        duration: 350,
+        easing: Easing.out(Easing.poly(4)),
+      },
+    },
+    close: {
+      animation: "timing",
+      config: {
+        duration: 300,
+        easing: Easing.out(Easing.poly(4)),
+      },
+    },
+  },
+  cardStyleInterpolator: ({ current, next, layouts }) => {
+    return {
+      cardStyle: {
+        transform: [
+          {
+            translateY: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [layouts.screen.height * 0.05, 0],
+            }),
+          },
+        ],
+        opacity: current.progress,
+      },
+    };
+  },
+};
+
 export default function CommunitySignupNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        ...verticalAnimation
+      }}
+    >
       <Stack.Screen name="CommunityEmail" component={CommunityEmailScreen} />
       <Stack.Screen name="CommunityOtp" component={CommunityOtpScreen} />
       {/* NEW: Type selection after OTP */}

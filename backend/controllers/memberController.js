@@ -30,6 +30,7 @@ async function signup(req, res) {
       interests,
       profile_photo_url,
       username,
+      occupation,
     } = req.body || {};
 
     if (
@@ -98,8 +99,8 @@ async function signup(req, res) {
 
     // INSERT with optional username
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username, occupation)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10)
        RETURNING *`,
       [
         name,
@@ -111,6 +112,7 @@ async function signup(req, res) {
         JSON.stringify(interests),
         profile_photo_url || null,
         sanitizedUsername,
+        occupation || null,
       ]
     );
     res.json({ member: result.rows[0] });
@@ -141,7 +143,7 @@ async function getProfile(req, res) {
     const memberResult = await pool.query(
       `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
               intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
-              discover_photos, openers, show_pronouns
+              discover_photos, openers, show_pronouns, occupation
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -273,6 +275,7 @@ async function getProfile(req, res) {
         return [];
       })(),
       show_pronouns: member.show_pronouns !== false,
+      occupation: member.occupation || null,
     };
 
     res.json({
@@ -390,7 +393,7 @@ async function getPublicMember(req, res) {
     }
 
     const memberR = await pool.query(
-      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns
+      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -439,6 +442,7 @@ async function getPublicMember(req, res) {
           ? JSON.parse(profile.interests)
           : profile.interests || [],
       pronouns: parsePgTextArray(profile.pronouns),
+      occupation: profile.occupation || null,
     });
   } catch (err) {
     console.error(
@@ -477,6 +481,7 @@ async function patchProfile(req, res) {
       discover_photos,
       openers,
       show_pronouns,
+      occupation,
     } = req.body || {};
 
     const updates = [];
@@ -657,6 +662,16 @@ async function patchProfile(req, res) {
     if (show_pronouns !== undefined) {
       updates.push(`show_pronouns = $${paramIndex++}`);
       values.push(!!show_pronouns);
+    }
+
+    if (occupation !== undefined) {
+      if (occupation === null) {
+        updates.push(`occupation = NULL`);
+      } else {
+        const occTrimmed = typeof occupation === "string" ? occupation.trim().substring(0, 50) : null;
+        updates.push(`occupation = $${paramIndex++}`);
+        values.push(occTrimmed);
+      }
     }
 
     if (updates.length === 0) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -8,11 +8,19 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  Alert, 
+  Alert,
   ImageBackground,
+  Image,
 } from "react-native";
 import wave from "../../../assets/wave.png";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from "react-native-reanimated";
 import { useCrop } from "../../../components/MediaCrop";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -56,6 +64,38 @@ const CommunityLogoScreen = ({ navigation, route }) => {
   const [imageUri, setImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+  const uploadAreaScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const animatedUploadAreaStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: uploadAreaScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (imageUri)
+  useEffect(() => {
+    if (imageUri) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [imageUri]);
+
+  // Bounce upload area when image is picked
+  useEffect(() => {
+    if (imageUri) {
+      uploadAreaScale.value = withSequence(
+        withSpring(1.1, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [imageUri]);
 
   // Update step on mount AND hydrate from draft
   useEffect(() => {
@@ -206,19 +246,26 @@ const CommunityLogoScreen = ({ navigation, route }) => {
 
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Add your Community Logo</Text>
+          <Animated.Text 
+            entering={FadeInDown.delay(100).duration(600).springify()}
+            style={styles.title}
+          >
+            Add your Community Logo
+          </Animated.Text>
 
-          <View style={styles.card}>
+          <Animated.View 
+            entering={FadeInDown.delay(300).duration(600).springify()}
+            style={styles.card}
+          >
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.cardContent}>
           {/* Profile Picture Upload Area */}
           <TouchableOpacity
-            style={styles.photoUploadArea}
             onPress={handleAddPhoto}
             activeOpacity={0.7}
           >
             {/* The Dashed Circle Wrapper */}
-            <View style={styles.dashedCircle}>
+            <Animated.View style={[styles.dashedCircle, animatedUploadAreaStyle]}>
               {/* Content when no photo is uploaded */}
               {!imageUri && (
                 <View style={styles.uploadContent}>
@@ -238,36 +285,41 @@ const CommunityLogoScreen = ({ navigation, route }) => {
                   resizeMode="cover"
                 />
               )}
-            </View>
+            </Animated.View>
           </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Next Button Moved Outside Card */}
           <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
-            <TouchableOpacity
-              style={[
-                styles.nextButtonContainer,
-                { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                isButtonDisabled && styles.disabledButton,
-              ]}
-              onPress={handleNext}
-              disabled={isButtonDisabled}
-              activeOpacity={0.8}
+            <Animated.View 
+              entering={FadeInDown.delay(500).duration(600).springify()}
+              style={animatedButtonStyle}
             >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.nextButton}
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  isButtonDisabled && styles.disabledButton,
+                ]}
+                onPress={handleNext}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
               >
-                {isLoading ? (
-                  <SnooLoader color={COLORS.textInverted} size="small" />
-                ) : (
-                  <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  {isLoading ? (
+                    <SnooLoader color={COLORS.textInverted} size="small" />
+                  ) : (
+                    <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </ScrollView>
@@ -423,6 +475,9 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityLogoScreen;
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +23,7 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const COMMUNITY_TYPES = [
   {
@@ -53,8 +55,11 @@ const COMMUNITY_TYPES = [
 /**
  * Type Selection Card Component
  */
-const TypeCard = ({ type, onPress, isLast }) => (
-  <View style={[styles.card, isLast && styles.cardLast]}>
+const TypeCard = ({ type, onPress, isLast, index }) => (
+  <Animated.View 
+    entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
+    style={[styles.card, isLast && styles.cardLast]}
+  >
     <BlurView intensity={60} tint="light" style={styles.absoluteFill} />
     <TouchableOpacity
       style={styles.cardInner}
@@ -84,7 +89,7 @@ const TypeCard = ({ type, onPress, isLast }) => (
         style={styles.cardArrow}
       />
     </TouchableOpacity>
-  </View>
+  </Animated.View>
 );
 
 /**
@@ -95,6 +100,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken } = route.params || {};
 
   const handleTypeSelect = async (type) => {
+    triggerTransitionHaptic();
     console.log("[CommunityTypeSelect] Selected type:", type.id);
 
     // Save community_type to draft
@@ -120,6 +126,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
   };
 
   const handleBack = () => {
+    triggerTransitionHaptic();
     navigation.goBack();
   };
 
@@ -143,10 +150,18 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            <Text style={styles.title}>What are you creating?</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.title}
+            >
+              What are you creating?
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               Choose the option that best describes your community
-            </Text>
+            </Animated.Text>
 
             {/* Type Cards */}
             <View style={styles.cardsContainer}>
@@ -156,6 +171,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
                   type={type}
                   onPress={handleTypeSelect}
                   isLast={index === COMMUNITY_TYPES.length - 1}
+                  index={index}
                 />
               ))}
             </View>
@@ -265,3 +281,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunityTypeSelectScreen;
+
+
+

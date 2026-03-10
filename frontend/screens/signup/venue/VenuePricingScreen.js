@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,8 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
   Platform,
-  StatusBar,
-} from 'react-native';
+  StatusBar} from 'react-native';
 // Removed all external imports to resolve compilation issues.
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,7 +29,7 @@ const PricingInput = ({ title, placeholder, unit, value, onChangeText }) => {
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{title}</Text>
       <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
-        <Text style={styles.currencySymbol}>₹</Text>
+        <Text style={styles.currencySymbol}>â‚¹</Text>
         <TextInput
           style={styles.textInput}
           onChangeText={handleTextChange}
@@ -115,7 +114,7 @@ const EventPricingScreen = ({ navigation, route }) => {
         {/* Mandatory Pricing Message */}
         <View style={styles.mandatoryMessage}>
           <Text style={styles.mandatoryText}>
-            ⚠️ At least one pricing type is mandatory. You can specify all three or any combination.
+            âš ï¸ At least one pricing type is mandatory. You can specify all three or any combination.
           </Text>
         </View>
 
@@ -297,3 +296,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+

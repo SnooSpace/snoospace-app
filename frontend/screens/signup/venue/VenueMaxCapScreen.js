@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 // Note: The failure to resolve 'react-native' is an environmental issue.
 // We keep the imports as they are required for React Native components to work.
 import {
@@ -10,7 +10,7 @@ import {
   Platform,
   StatusBar,
   TextInput,
-} from 'react-native';
+} from "react-native";
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -207,3 +207,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+
+

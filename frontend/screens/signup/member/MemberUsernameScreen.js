@@ -10,9 +10,10 @@ import {
   Platform,
   StatusBar,
   Dimensions,
-  ScrollView,
   ImageBackground,
+  ScrollView,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Check, X } from "lucide-react-native";
 import { apiPost } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
@@ -21,6 +22,7 @@ import {
   deleteSignupDraft,
   getDraftData,
 } from "../../../utils/signupDraftManager";
+import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width, height } = Dimensions.get("window");
@@ -50,6 +52,24 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isAvailable === true)
+  useEffect(() => {
+    if (isAvailable === true) {
+      triggerInputValidHaptic();
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isAvailable === true]);
 
   const { userData, accessToken, refreshToken } = route.params;
 
@@ -150,6 +170,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         showPronouns: userData.showPronouns,
         location: userData.location,
         interests: userData.interests,
+        occupation: userData.occupation,
         profile_photo_url: userData.profile_photo_url,
         username: username,
       });
@@ -165,6 +186,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         show_pronouns: userData.showPronouns !== false, // default to true
         location: userData.location,
         interests: userData.interests,
+        occupation: userData.occupation || null,
         profile_photo_url: userData.profile_photo_url || null,
         username: username,
       });
@@ -226,10 +248,10 @@ const MemberUsernameScreen = ({ navigation, route }) => {
         // Continue anyway, as the account is created
       }
 
-      // Step 6: Navigate to member home with navigation reset
+      // Step 6: Navigate to celebration screen
       navigation.reset({
         index: 0,
-        routes: [{ name: "MemberHome" }],
+        routes: [{ name: "Celebration", params: { role: "People" } }],
       });
     } catch (error) {
       console.error("Error completing signup:", error);
@@ -285,7 +307,8 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+      resizeMode="cover"
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -311,13 +334,24 @@ const MemberUsernameScreen = ({ navigation, route }) => {
               {/* 3. Content Area */}
               <View style={styles.content}>
                 <View style={styles.header}>
-                  <Text style={styles.title}>Time to claim your space</Text>
-                  <Text style={styles.subtitle}>
+                  <Animated.Text 
+                    entering={FadeInDown.delay(100).duration(600).springify()}
+                    style={styles.title}
+                  >
+                    Time to claim your space
+                  </Animated.Text>
+                  <Animated.Text 
+                    entering={FadeInDown.delay(200).duration(600).springify()}
+                    style={styles.subtitle}
+                  >
                     This will be your unique identifier on SnooSpace
-                  </Text>
+                  </Animated.Text>
                 </View>
 
-                <View style={styles.card}>
+                <Animated.View 
+                  entering={FadeInDown.delay(300).duration(600).springify()}
+                  style={styles.card}
+                >
                   <BlurView
                     intensity={60}
                     tint="light"
@@ -362,16 +396,25 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
                     <View style={styles.rulesContainer}>
                       <Text style={styles.rulesTitle}>Username Rules:</Text>
-                      <Text style={styles.rule}>• 3-30 characters long</Text>
-                      <Text style={styles.rule}>
-                        • Only letters, numbers, underscores, and dots
-                      </Text>
-                      <Text style={styles.rule}>
-                        • Must be unique across all users
-                      </Text>
+                      <View style={styles.ruleRow}>
+                        <Text style={styles.ruleBullet}>•</Text>
+                        <Text style={styles.ruleText}>3-30 characters long</Text>
+                      </View>
+                      <View style={styles.ruleRow}>
+                        <Text style={styles.ruleBullet}>•</Text>
+                        <Text style={styles.ruleText}>
+                          Only letters, numbers, underscores, and dots
+                        </Text>
+                      </View>
+                      <View style={styles.ruleRow}>
+                        <Text style={styles.ruleBullet}>•</Text>
+                        <Text style={styles.ruleText}>
+                          Must be unique across all users
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </Animated.View>
                 <View
                   style={{
                     width: "100%",
@@ -379,29 +422,34 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                     marginTop: 40,
                   }}
                 >
-                  <TouchableOpacity
-                    style={[
-                      styles.nextButtonContainer,
-                      isButtonDisabled && styles.nextButtonDisabled,
-                      { minWidth: 220, paddingHorizontal: 32, marginRight: -35 },
-                    ]}
-                    onPress={handleFinish}
-                    disabled={isButtonDisabled}
-                    activeOpacity={0.8}
+                  <Animated.View 
+                    entering={FadeInDown.delay(500).duration(600).springify()}
+                    style={animatedButtonStyle}
                   >
-                    <LinearGradient
-                      colors={COLORS.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.nextButton}
+                    <TouchableOpacity
+                      style={[
+                        styles.nextButtonContainer,
+                        isButtonDisabled && styles.nextButtonDisabled,
+                        { minWidth: 220, paddingHorizontal: 32, marginRight: -35 },
+                      ]}
+                      onPress={handleFinish}
+                      disabled={isButtonDisabled}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.nextButtonText}>
-                        {isSubmitting
-                          ? "Setting Username..."
-                          : "Complete Signup"}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <LinearGradient
+                        colors={COLORS.primaryGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.nextButton}
+                      >
+                        <Text style={styles.nextButtonText}>
+                          {isSubmitting
+                            ? "Setting Username..."
+                            : "Complete Signup"}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </Animated.View>
                 </View>
               </View>
             </View>
@@ -525,11 +573,23 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
-  rule: {
+  ruleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  ruleBullet: {
+    fontSize: 14,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textPrimary,
+    marginRight: 6,
+    lineHeight: 20,
+  },
+  ruleText: {
+    flex: 1,
     fontSize: 14,
     fontFamily: "Manrope-Regular",
     color: COLORS.textPrimary,
-    marginBottom: 6,
     lineHeight: 20,
   },
 
@@ -566,3 +626,6 @@ const styles = StyleSheet.create({
 });
 
 export default MemberUsernameScreen;
+
+
+

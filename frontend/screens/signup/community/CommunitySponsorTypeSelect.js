@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { getSponsorTypes } from "../../../api/client";
@@ -92,9 +93,25 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   } = route.params || {};
   const [sponsorTypes, setSponsorTypes] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
-  const [isOpenToAll, setIsOpenToAll] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isButtonDisabled becomes false)
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
 
   // Fetch sponsor types from API on mount
   useEffect(() => {
@@ -240,7 +257,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "90deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -258,12 +275,23 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentArea}>
-            <Text style={styles.mainTitle}>Choose Sponsor Type</Text>
-            <Text style={styles.subtitle}>
+            <Animated.Text 
+              entering={FadeInDown.delay(100).duration(600).springify()}
+              style={styles.mainTitle}
+            >
+              Choose Sponsor Type
+            </Animated.Text>
+            <Animated.Text 
+              entering={FadeInDown.delay(200).duration(600).springify()}
+              style={styles.subtitle}
+            >
               Select the types of sponsors you are looking for.
-            </Text>
+            </Animated.Text>
 
-            <View style={styles.card}>
+            <Animated.View 
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
               <BlurView
                 intensity={60}
                 tint="light"
@@ -277,13 +305,17 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                       Loading sponsor types...
                     </Text>
                   ) : (
-                    sponsorTypes.map((type) => (
-                      <SponsorChip
+                    sponsorTypes.map((type, index) => (
+                      <Animated.View 
                         key={type}
-                        type={type}
-                        isSelected={isOpenToAll || selectedTypes.includes(type)}
-                        onPress={toggleType}
-                      />
+                        entering={FadeInDown.delay(400 + index * 50).duration(600).springify()}
+                      >
+                        <SponsorChip
+                          type={type}
+                          isSelected={isOpenToAll || selectedTypes.includes(type)}
+                          onPress={toggleType}
+                        />
+                      </Animated.View>
                     ))
                   )}
                 </View>
@@ -319,34 +351,39 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
 
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <TouchableOpacity
-                style={[
-                  styles.finishButtonContainer,
-                  isButtonDisabled && styles.disabledButton,
-                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                ]}
-                onPress={handleFinish}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Next step"
-                disabled={isButtonDisabled}
+              <Animated.View 
+                entering={FadeInDown.delay(600).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <LinearGradient
-                  colors={COLORS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.finishButton}
+                <TouchableOpacity
+                  style={[
+                    styles.finishButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleFinish}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next step"
+                  disabled={isButtonDisabled}
                 >
-                  <Text style={styles.buttonText}>
-                    {isSubmitting ? "Submitting..." : "Next"}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.finishButton}
+                  >
+                    <Text style={styles.buttonText}>
+                      {isSubmitting ? "Submitting..." : "Next"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </ScrollView>
@@ -498,3 +535,6 @@ const styles = StyleSheet.create({
 });
 
 export default CommunitySponsorTypeSelect;
+
+
+

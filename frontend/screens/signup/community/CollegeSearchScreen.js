@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   ScrollView,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -55,6 +56,21 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const [newCollegeWebsite, setNewCollegeWebsite] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pendingCollegeId, setPendingCollegeId] = useState(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Animation values
+  const searchScale = useSharedValue(1);
+
+  const animatedSearchStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: searchScale.value }],
+  }));
+
+  useEffect(() => {
+    searchScale.value = withSpring(isSearchFocused ? 1.02 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [isSearchFocused]);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -187,10 +203,10 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     // If campus_name exists, show it as the primary name (for multi-campus colleges)
     // Otherwise, show the college name
     const displayName = item.campus_name ? item.campus_name : item.name;
-    // For subtitle: if there's a campus, show "College Name • City"
+    // For subtitle: if there's a campus, show "College Name â€¢ City"
     // Otherwise, just show "City,"
     const subtitle = item.campus_name
-      ? `${item.name} • ${item.city}`
+      ? `${item.name} â€¢ ${item.city}`
       : `${item.city},`;
 
     return (
@@ -219,7 +235,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "90deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -231,16 +247,27 @@ const CollegeSearchScreen = ({ navigation, route }) => {
           hideCancel={true}
         />
 
-        {/* Content */}
-        <View style={styles.content}>
-          <View style={styles.headerTitle}>
-            <Text style={styles.title}>Select your college</Text>
-            <Text style={styles.globalHelperText}>
-              Search for your college or request to add a new one
-            </Text>
-          </View>
+          {/* Content */}
+          <View style={styles.content}>
+            <View style={styles.headerTitle}>
+              <Animated.Text
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                Select your college
+              </Animated.Text>
+              <Animated.Text
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
+                Search for your college or request to add a new one
+              </Animated.Text>
+            </View>
 
-          <View style={styles.card}>
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
             <BlurView
               intensity={60}
               tint="light"
@@ -248,31 +275,33 @@ const CollegeSearchScreen = ({ navigation, route }) => {
             />
             <View style={styles.cardContent}>
               {/* Search Input */}
-              <View style={styles.searchContainer}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color={COLORS.textSecondary}
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search for your college..."
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoCapitalize="words"
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery("")}>
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={COLORS.textSecondary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
+                <Animated.View style={[styles.searchContainer, animatedSearchStyle]}>
+                  <Ionicons
+                    name="search"
+                    size={20}
+                    color={COLORS.textSecondary}
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search for your college..."
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setIsSearchFocused(false)}
+                    autoCapitalize="words"
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                      <Ionicons
+                        name="close-circle"
+                        size={20}
+                        color={COLORS.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </Animated.View>
 
               {/* Loading indicator */}
               {loading && (
@@ -307,24 +336,26 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                 </View>
               )}
 
-              {/* Request new college button */}
-              <TouchableOpacity
-                style={styles.requestButton}
-                onPress={() => setShowRequestModal(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={24}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.requestButtonText}>
-                  Can't find your college? Request add
-                </Text>
-              </TouchableOpacity>
-            </View>
+                {/* Request new college button */}
+                <Animated.View entering={FadeInDown.delay(500).duration(600).springify()}>
+                  <TouchableOpacity
+                    style={styles.requestButton}
+                    onPress={() => setShowRequestModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={24}
+                      color={COLORS.primary}
+                    />
+                    <Text style={styles.requestButtonText}>
+                      Can't find your college? Request add
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            </Animated.View>
           </View>
-        </View>
 
         {/* Request College Modal */}
         <Modal
@@ -673,3 +704,6 @@ const styles = StyleSheet.create({
 });
 
 export default CollegeSearchScreen;
+
+
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CollegeHeadsScreen.js
  *
  * Heads screen for College-affiliated communities.
@@ -20,6 +20,7 @@ import {
   Alert,
   ImageBackground,
 } from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -54,6 +55,26 @@ const HeadEntry = ({
   const [nameFocused, setNameFocused] = useState(false);
   const [roleFocused, setRoleFocused] = useState(false);
 
+  // Animation values for inputs
+  const nameScale = useSharedValue(1);
+  const roleScale = useSharedValue(1);
+
+  const animatedNameStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: nameScale.value }],
+  }));
+
+  const animatedRoleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: roleScale.value }],
+  }));
+
+  useEffect(() => {
+    nameScale.value = withSpring(nameFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
+  }, [nameFocused]);
+
+  useEffect(() => {
+    roleScale.value = withSpring(roleFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
+  }, [roleFocused]);
+
   return (
     <View style={styles.headEntry}>
       <View style={styles.entryHeader}>
@@ -67,27 +88,31 @@ const HeadEntry = ({
         )}
       </View>
 
-      <TextInput
-        style={[styles.input, nameFocused && styles.inputFocused]}
-        placeholder="Name"
-        placeholderTextColor={COLORS.textSecondary}
-        value={name}
-        onChangeText={onNameChange}
-        autoCapitalize="words"
-        onFocus={() => setNameFocused(true)}
-        onBlur={() => setNameFocused(false)}
-      />
+      <Animated.View style={animatedNameStyle}>
+        <TextInput
+          style={[styles.input, nameFocused && styles.inputFocused]}
+          placeholder="Name"
+          placeholderTextColor={COLORS.textSecondary}
+          value={name}
+          onChangeText={onNameChange}
+          autoCapitalize="words"
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => setNameFocused(false)}
+        />
+      </Animated.View>
 
-      <TextInput
-        style={[styles.input, roleFocused && styles.inputFocused]}
-        placeholder="Role (e.g., Coordinator, President, Organizer)"
-        placeholderTextColor={COLORS.textSecondary}
-        value={role}
-        onChangeText={onRoleChange}
-        autoCapitalize="words"
-        onFocus={() => setRoleFocused(true)}
-        onBlur={() => setRoleFocused(false)}
-      />
+      <Animated.View style={animatedRoleStyle}>
+        <TextInput
+          style={[styles.input, roleFocused && styles.inputFocused]}
+          placeholder="Role (e.g., Coordinator, President, Organizer)"
+          placeholderTextColor={COLORS.textSecondary}
+          value={role}
+          onChangeText={onRoleChange}
+          autoCapitalize="words"
+          onFocus={() => setRoleFocused(true)}
+          onBlur={() => setRoleFocused(false)}
+        />
+      </Animated.View>
     </View>
   );
 };
@@ -123,6 +148,23 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     { name: "", role: "" },
   ]);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (isButtonDisabled becomes false)
+  useEffect(() => {
+    if (!isButtonDisabled) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [isButtonDisabled]);
 
   // Update step on mount and hydrate from draft
   useEffect(() => {
@@ -269,7 +311,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ rotate: "270deg" }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -290,15 +332,24 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
           >
             <View style={styles.contentArea}>
               <View style={styles.headerTitle}>
-                <Text style={styles.mainTitle}>
+                <Animated.Text 
+                  entering={FadeInDown.delay(100).duration(600).springify()}
+                  style={styles.mainTitle}
+                >
                   Who manages this community?
-                </Text>
-                <Text style={styles.globalHelperText}>
+                </Animated.Text>
+                <Animated.Text 
+                  entering={FadeInDown.delay(200).duration(600).springify()}
+                  style={styles.globalHelperText}
+                >
                   Add the people who handle this page with their roles.
-                </Text>
+                </Animated.Text>
               </View>
 
-              <View style={styles.card}>
+              <Animated.View 
+                entering={FadeInDown.delay(300).duration(600).springify()}
+                style={styles.card}
+              >
                 <BlurView
                   intensity={60}
                   tint="light"
@@ -307,17 +358,21 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
                 <View style={styles.cardContent}>
                   {/* Head Entries */}
                   {heads.map((head, index) => (
-                    <HeadEntry
+                    <Animated.View 
                       key={index}
-                      index={index}
-                      name={head.name}
-                      role={head.role}
-                      onNameChange={(value) => updateHead(index, "name", value)}
-                      onRoleChange={(value) => updateHead(index, "role", value)}
-                      onRemove={() => removeHead(index)}
-                      isRequired={index === 0}
-                      showRemove={index >= 2}
-                    />
+                      entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
+                    >
+                      <HeadEntry
+                        index={index}
+                        name={head.name}
+                        role={head.role}
+                        onNameChange={(value) => updateHead(index, "name", value)}
+                        onRoleChange={(value) => updateHead(index, "role", value)}
+                        onRemove={() => removeHead(index)}
+                        isRequired={index === 0}
+                        showRemove={index >= 2}
+                      />
+                    </Animated.View>
                   ))}
 
                   {/* Add More Button */}
@@ -330,31 +385,36 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
                     <Text style={styles.addButtonText}>Add Another Head</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </Animated.View>
 
               {/* Next Button Container placed beneath the card */}
               <View
                 style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.nextButtonContainer,
-                    isButtonDisabled && styles.disabledButton,
-                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
-                  ]}
-                  onPress={handleNext}
-                  disabled={isButtonDisabled}
-                  activeOpacity={0.8}
+                <Animated.View 
+                  entering={FadeInDown.delay(600).duration(600).springify()}
+                  style={animatedButtonStyle}
                 >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.nextButton}
+                  <TouchableOpacity
+                    style={[
+                      styles.nextButtonContainer,
+                      isButtonDisabled && styles.disabledButton,
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                    ]}
+                    onPress={handleNext}
+                    disabled={isButtonDisabled}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.buttonText}>Next</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.nextButton}
+                    >
+                      <Text style={styles.buttonText}>Next</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
             </View>
           </ScrollView>
@@ -521,3 +581,6 @@ const styles = StyleSheet.create({
 });
 
 export default CollegeHeadsScreen;
+
+
+
