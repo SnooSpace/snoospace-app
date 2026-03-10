@@ -8,8 +8,12 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ImageBackground,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -26,32 +30,65 @@ import {
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
-// --- Reusable Radio Button Component ---
-const RadioOption = ({ label, isSelected, onPress }) => {
+const RadioOption = ({ label, isSelected, onPress, isLast }) => {
   const isChecked = isSelected === label;
+  
+  // Animation value
+  const liftAnim = React.useRef(new Animated.Value(isChecked ? 1 : 0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(liftAnim, {
+      toValue: isChecked ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isChecked]);
+
+  const scale = liftAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.02],
+  });
+
+  const translateY = liftAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -2],
+  });
 
   return (
-    <TouchableOpacity
+    <Animated.View
       style={[
-        styles.optionContainer,
-        isChecked && styles.selectedOptionContainer,
+        { transform: [{ scale }, { translateY }] },
+        styles.animatedContainer,
       ]}
-      onPress={() => onPress(label)}
-      activeOpacity={0.7}
     >
-      <Text style={styles.optionText}>{label}</Text>
-
-      {/* Radio Icon */}
-      {isChecked ? (
-        <View style={styles.radioChecked}>
-          <Ionicons name="radio-button-on" size={20} color={COLORS.primary} />
-        </View>
-      ) : (
-        <View style={styles.radioUnchecked}>
-          <Ionicons name="radio-button-off" size={20} color={COLORS.border} />
+      {isChecked && (
+        <View style={StyleSheet.absoluteFill}>
+          <BlurView
+            intensity={60}
+            tint="light"
+            style={[StyleSheet.absoluteFill, styles.glassBackground]}
+          />
+          <View style={styles.glassTintLayer} />
         </View>
       )}
-    </TouchableOpacity>
+      <TouchableOpacity
+        style={[
+          styles.optionContainer,
+          isLast && styles.optionContainerLast,
+          isChecked && styles.selectedOptionContent,
+        ]}
+        onPress={() => onPress(label)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.optionText}>{label}</Text>
+
+        <View
+          style={[styles.radio, isChecked && styles.radioSelected]}
+        >
+          {isChecked && <View style={styles.radioInner} />}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -121,166 +158,229 @@ const GenderSelectionScreen = ({ navigation, route }) => {
   const isButtonDisabled = selectedGender === null;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberPronouns", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              profile_photo_url,
-              dob,
-              pronouns,
-              showPronouns,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: 1 }, { scaleY: -1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberPronouns", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                profile_photo_url,
+                dob,
+                pronouns,
+                showPronouns,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>How do you identify?</Text>
-
-          {/* Gender Options */}
-          {genderOptions.map((option) => (
-            <RadioOption
-              key={option}
-              label={option}
-              isSelected={selectedGender}
-              onPress={setSelectedGender}
-            />
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Your identity, your way</Text>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+            {/* Gender Options */}
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {genderOptions.map((option, index) => (
+                  <RadioOption
+                    key={option}
+                    label={option}
+                    isSelected={selectedGender}
+                    onPress={setSelectedGender}
+                    isLast={index === genderOptions.length - 1}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Next Button */}
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-    marginLeft: 5,
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 5,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 30,
+    marginBottom: 10,
+    letterSpacing: -1,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
 
   // --- Radio Option Styles ---
+  animatedContainer: {
+    marginBottom: 8,
+    borderRadius: 16,
+  },
+  glassBackground: {
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.8)",
+  },
+  glassTintLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 16,
+  },
   optionContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 15,
-    paddingHorizontal: 15,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: "transparent",
+    borderRadius: 16,
   },
-  selectedOptionContainer: {
-    backgroundColor: "#F0F8FF",
-    borderColor: COLORS.primary,
+  selectedOptionContent: {
+    // The visual separation is now handled by the glassBackground BlurView
+  },
+  optionContainerLast: {
+    marginBottom: 0,
   },
   optionText: {
-    fontSize: 18,
+    fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
-    fontWeight: "500",
   },
-  radioUnchecked: {},
-  radioChecked: {},
-
-  // --- Footer/Button Styles ---
-  footer: {
-    padding: 20,
+  radio: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.background,
-    borderTopWidth: 0,
-    marginBottom: 50,
   },
+  radioSelected: {
+    borderColor: COLORS.primary,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+  },
+
+  // --- Footer/Button Styles Extracted ---
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Dimensions, ScrollView, Modal, TextInput, Alert, Platform, StatusBar } from "react-native";
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  Dimensions,
+  ScrollView,
+  Modal,
+  TextInput,
+  Alert,
+  Platform,
+  StatusBar,
+  ImageBackground,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for the back arrow
-
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -53,8 +67,10 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
     style={[
       styles.chip,
       {
-        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
-        borderColor: isSelected ? COLORS.primary : COLORS.border,
+        backgroundColor: isSelected
+          ? COLORS.primary
+          : "rgba(255, 255, 255, 0.6)",
+        borderColor: isSelected ? COLORS.primary : "rgba(255, 255, 255, 0.5)",
       },
     ]}
     onPress={() => onPress(category)}
@@ -294,271 +310,289 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   const isButtonDisabled = selectedCategories.length === 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <SignupHeader
-          onBack={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.replace("CommunityBio", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                logo_url,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
-              });
-            }
-          }}
-          onCancel={() => setShowCancelModal(true)}
-        />
-
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Choose Community Category</Text>
-          <Text style={styles.subtitle}>
-            Select up to 3 categories that best fit your community.
-          </Text>
-
-          {/* Category Chips Container */}
-          <View style={styles.chipsContainer}>
-            {availableCategories.map((category) => (
-              <CategoryChip
-                key={category}
-                category={category}
-                isSelected={selectedCategories.includes(category)}
-                onPress={toggleCategory}
-              />
-            ))}
-          </View>
-
-          {/* Create New Category Button */}
-          <TouchableOpacity
-            style={styles.createNewButton}
-            onPress={handleCreateNewCategory}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={24}
-              color={COLORS.primary}
-              style={styles.createNewIcon}
-            />
-            <Text style={styles.createNewText}>Create New Category</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          activeOpacity={0.8}
-          disabled={isButtonDisabled}
-          accessibilityRole="button"
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <SignupHeader
+            role="Communities"
+            onBack={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.replace("CommunityBio", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  logo_url,
+                  community_type,
+                  college_id,
+                  college_name,
+                  college_subtype,
+                  club_type,
+                  community_theme,
+                  college_pending,
+                  isStudentCommunity,
+                });
+              }
+            }}
+            onCancel={() => setShowCancelModal(true)}
+          />
 
-      {/* Create New Category Modal */}
-      <Modal
-        visible={showCreateModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCancelCreate}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Category</Text>
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Choose Community Category</Text>
+            <Text style={styles.subtitle}>
+              Select up to 3 categories that best fit your community.
+            </Text>
 
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Enter category name"
-              placeholderTextColor={COLORS.textSecondary}
-              value={newCategoryName}
-              onChangeText={setNewCategoryName}
-              autoFocus={true}
-              maxLength={30}
-            />
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Category Chips Container */}
+                <View style={styles.chipsContainer}>
+                  {availableCategories.map((category) => (
+                    <CategoryChip
+                      key={category}
+                      category={category}
+                      isSelected={selectedCategories.includes(category)}
+                      onPress={toggleCategory}
+                    />
+                  ))}
+                </View>
 
-            <View style={styles.modalButtons}>
+                {/* Create New Category Button */}
+                <TouchableOpacity
+                  style={styles.createNewButton}
+                  onPress={handleCreateNewCategory}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={24}
+                    color={COLORS.primary}
+                    style={styles.createNewIcon}
+                  />
+                  <Text style={styles.createNewText}>Create New</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={handleCancelCreate}
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                activeOpacity={0.8}
+                disabled={isButtonDisabled}
+                accessibilityRole="button"
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButton, styles.createButton]}
-                onPress={handleCreateCategory}
-              >
-                <Text style={styles.createButtonText}>Create</Text>
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </ScrollView>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        {/* Create New Category Modal */}
+        <Modal
+          visible={showCreateModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCancelCreate}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Create New Category</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter category name"
+                placeholderTextColor={COLORS.textSecondary}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                autoFocus={true}
+                maxLength={30}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={handleCancelCreate}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.createButton]}
+                  onPress={handleCreateCategory}
+                >
+                  <Text style={styles.createButtonText}>Create</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Stylesheet ---
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-
-  // --- Header Styles (Consistent) ---
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    paddingTop: 15,
-    paddingBottom: 10,
-    paddingHorizontal: 5,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-
-  // --- Progress Bar Styles (Consistent) ---
-  progressContainer: {
-    marginBottom: 40,
-    paddingHorizontal: 5,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
 
   // --- Content Styles ---
   contentContainer: {
-    marginTop: 10,
-    paddingHorizontal: 5,
+    marginTop: 40,
     flex: 1,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 10, // Increased spacing
+    marginBottom: 10,
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 30,
+    marginBottom: 40,
+  },
+
+  // --- Card Styles ---
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
 
   // --- Chips/Tags Styles ---
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12, // Consistent spacing between chips
-    marginBottom: 40,
+    gap: 12,
+    marginBottom: 30,
   },
   chip: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    borderWidth: 1,
+    paddingVertical: 12,
+    borderRadius: BORDER_RADIUS.pill,
+    borderWidth: 1.5,
   },
   chipText: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
   },
 
   // --- Create New Button Styles ---
   createNewButton: {
     flexDirection: "row",
-    alignSelf: "center",
+    alignSelf: "stretch", // full width within card
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 15, // matching input height
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: COLORS.primary,
     borderStyle: "dashed",
-    backgroundColor: COLORS.background,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
   },
   createNewIcon: {
     marginRight: 8,
   },
   createNewText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.primary,
   },
 
-  // --- Footer/Button Styles (Consistent) ---
-  footer: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 25,
-    borderTopWidth: 0,
-  },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    height: 60,
-  },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 
   // --- Modal Styles (Consistent) ---

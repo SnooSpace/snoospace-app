@@ -13,8 +13,7 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import GrainyGradientBackground from "../../../components/ui/GrainyGradientBackground";
-import WavyIllustration from "../../../components/ui/WavyIllustration";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Removed local constants in favor of theme constants
@@ -114,8 +113,13 @@ const LoginScreen = ({ navigation, route }) => {
   const isValidEmailOrUsername = emailOrUsername.includes('@');
 
   return (
-    <GrainyGradientBackground>
-      <WavyIllustration position="topLeft" stripeCount={7} scale={1.0} animated={false} />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
       <SafeAreaView style={styles.container}>
         <SignupHeader
           onBack={() => {
@@ -203,7 +207,7 @@ const LoginScreen = ({ navigation, route }) => {
           </View>
         </View>
       </SafeAreaView>
-    </GrainyGradientBackground>
+    </ImageBackground>
   );
 };
 
@@ -212,6 +216,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -270,10 +280,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputFocusedContainer: {
-    borderColor: COLORS.primary,
-    ...SHADOWS.sm,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   inputIcon: {
     marginRight: 12,

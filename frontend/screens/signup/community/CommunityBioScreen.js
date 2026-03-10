@@ -10,9 +10,12 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ImageBackground,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -109,7 +112,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CommunityBioScreen] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -138,7 +141,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
@@ -149,121 +152,150 @@ const CommunityBioScreen = ({ navigation, route }) => {
   const isSkipDisabled = bioText.trim().length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <SignupHeader
-          onBack={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.replace("CommunityLogo", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
-              });
-            }
-          }}
-          showCancel={false}
-        />
-
-        {/* Skip Button Row */}
-        <View style={styles.skipButtonRow}>
-          <TouchableOpacity
-            onPress={handleSkip}
-            style={[
-              styles.skipButton,
-              isSkipDisabled && styles.disabledSkipButton,
-            ]} // Apply disabled style
-            disabled={isSkipDisabled} // Apply disabled prop
-          >
-            <Text
-              style={[
-                styles.skipText,
-                isSkipDisabled && styles.disabledSkipText,
-              ]}
-            >
-              Skip
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Tell us about your community...</Text>
-
-          <TextInput
-            style={[styles.bioInput, isFocused && styles.bioInputFocused]}
-            placeholder="Write a brief description of your community. What is its purpose? Who is it for? (500 characters max)"
-            placeholderTextColor={COLORS.textSecondary}
-            value={bioText}
-            onChangeText={setBioText}
-            multiline={true}
-            textAlignVertical="top"
-            maxLength={500}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-          />
-          <Text style={styles.charCount}>{bioText.length} / 500</Text>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleNext}
-          activeOpacity={0.8}
-          disabled={isButtonDisabled} // Apply disabled prop
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: 1, scaleY: -1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <SignupHeader
+            role="Communities"
+            onBack={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.replace("CommunityLogo", {
+                  email,
+                  accessToken,
+                  refreshToken,
+                  name,
+                  community_type,
+                  college_id,
+                  college_name,
+                  college_subtype,
+                  club_type,
+                  community_theme,
+                  college_pending,
+                  isStudentCommunity,
+                });
+              }
+            }}
+            showCancel={false}
+          />
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Tell us about your community...</Text>
+
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                <TextInput
+                  style={[styles.bioInput, isFocused && styles.bioInputFocused]}
+                  placeholder="Write a brief description of your community. What is its purpose? Who is it for? (500 characters max)"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={bioText}
+                  onChangeText={setBioText}
+                  multiline={true}
+                  textAlignVertical="top"
+                  maxLength={500}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                />
+                <Text style={styles.charCount}>{bioText.length} / 500</Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                width: "100%",
+                alignItems: "flex-end",
+                marginTop: 40,
+                flexDirection: "row",
+                justifyContent: "space-between",
+              }}
+            >
+              {/* Skip Button */}
+              <TouchableOpacity
+                onPress={handleSkip}
+                style={[
+                  styles.skipButton,
+                  isSkipDisabled && styles.disabledSkipButton,
+                ]} // Apply disabled style
+                disabled={isSkipDisabled} // Apply disabled prop
+              >
+                <Text
+                  style={[
+                    styles.skipText,
+                    isSkipDisabled && styles.disabledSkipText,
+                  ]}
+                >
+                  Skip
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                activeOpacity={0.8}
+                disabled={isButtonDisabled} // Apply disabled prop
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Stylesheet ---
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
 
   // --- Header Styles ---
@@ -309,66 +341,81 @@ const styles = StyleSheet.create({
 
   // --- Content & Input Styles ---
   contentContainer: {
-    marginTop: 10,
-    paddingHorizontal: 5,
+    marginTop: 40,
     flex: 1,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 30,
+    marginBottom: 40,
+    letterSpacing: -1,
+  },
+  // --- Card Styles ---
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   bioInput: {
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     minHeight: 180,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
     lineHeight: 24,
   },
   bioInputFocused: {
     borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   charCount: {
-    fontSize: 12,
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textSecondary,
-    marginTop: 8,
+    marginTop: 12,
     textAlign: "right",
-  },
-
-  // --- Footer/Button Styles (Fixed at bottom) ---
-  footer: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 0,
-    borderTopWidth: 0,
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
-    marginBottom: 280,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    height: 60,
-  },
-  disabledButton: {
-    opacity: 0.6, // Visually dim the button when disabled
-    shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

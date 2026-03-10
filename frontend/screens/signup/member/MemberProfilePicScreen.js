@@ -195,7 +195,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
     <ImageBackground
       source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ rotate: "180deg" }], opacity: 0.3 }}
+      imageStyle={{ transform: [{ rotate: "180deg" }, { scale: 1.5 }], opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -223,7 +223,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       >
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Put a face to your profile</Text>
+          <Text style={styles.title}>Time to be iconic</Text>
           <Text style={styles.subtitle}>
             People are more likely to connect with you when they can see you.
           </Text>
@@ -374,9 +374,8 @@ const styles = StyleSheet.create({
     marginLeft: -40, // Visual centering adjustment
   },
   contentContainer: {
-    flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
+    paddingTop: 30,
+    flex: 0,
   },
   title: {
     fontSize: 34,
@@ -384,6 +383,7 @@ const styles = StyleSheet.create({
     color: '#1a2d4a',
     marginBottom: 12,
     letterSpacing: -0.5,
+    lineHeight: 42,
   },
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',

@@ -229,7 +229,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     <ImageBackground 
       source={require("../../../assets/wave.png")} 
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ scaleX: -1 }], opacity: 0.3 }}
+      imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -494,10 +494,8 @@ const styles = StyleSheet.create({
     color: "transparent",
   },
   inputFocusedContainer: {
-    borderColor: COLORS.primary,
-    ...SHADOWS.sm,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   buttonContainer: {
     height: 56,

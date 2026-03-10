@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Dimensions,
-  ScrollView,
   Platform,
   StatusBar,
+  ImageBackground,
+  Dimensions,
 } from "react-native";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -40,14 +42,10 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
         isFocused && styles.phoneInputContainerFocused,
       ]}
     >
-      <TouchableOpacity
-        style={styles.countryCodePicker}
-        onPress={() => console.log("Action: Open country code selection modal")}
-        activeOpacity={0.7}
-        accessibilityLabel="Select country code"
-      >
-        <Text style={styles.countryCodeText}>🇮🇳 +91 </Text>
-      </TouchableOpacity>
+      <View style={styles.countryCodePill}>
+        <Text style={styles.flagEmoji}>🇮🇳</Text>
+        <Text style={styles.countryCodeText}>+91</Text>
+      </View>
       <TextInput
         style={styles.phoneNumberInput}
         placeholder={placeholder}
@@ -181,241 +179,229 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
   const isButtonDisabled = primaryNumber.replace(/\D/g, "").length !== 10;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("CommunityLocation", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              logo_url,
-              bio,
-              category,
-              categories,
-              community_type,
-              college_id,
-              college_name,
-              college_subtype,
-              club_type,
-              community_theme,
-              college_pending,
-              isStudentCommunity,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
+      }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityLocation", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                logo_url,
+                bio,
+                category,
+                categories,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      {/* 3. Scrollable Content */}
-      <ScrollView
-        style={styles.contentScrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.contentArea}>
-          <Text style={styles.mainTitle}>What's your number?</Text>
-
-          <PhoneInput
-            placeholder="(000) 000-0000"
-            isRequired={true}
-            value={primaryNumber}
-            onChangeText={setPrimaryNumber}
-          />
-
-          <View style={styles.optionalInputSection}>
-            <Text style={styles.optionalInputLabel}>Add another number</Text>
-            <Text style={styles.optionalLabel}>Optional</Text>
-          </View>
-          <PhoneInput
-            placeholder="(000) 000-0000"
-            isRequired={false}
-            value={secondaryNumber}
-            onChangeText={setSecondaryNumber}
-          />
-        </View>
-      </ScrollView>
-
-      {/* 4. Fixed Button Container */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.continueButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleContinue}
-          activeOpacity={0.8}
-          disabled={isButtonDisabled}
-          accessibilityRole="button"
-          accessibilityLabel="Continue to verification code input"
+        <ScrollView
+          style={styles.contentScrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.continueButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.contentArea}>
+            <Text style={styles.mainTitle}>What's your number?</Text>
+            <Text style={styles.subtitle}>Your number is private and never shared.</Text>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+            <View style={styles.card}>
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={styles.cardContent}>
+                <PhoneInput
+                  placeholder="(000) 000-0000"
+                  isRequired={true}
+                  value={primaryNumber}
+                  onChangeText={setPrimaryNumber}
+                />
+
+                <View style={styles.optionalInputSection}>
+                  <Text style={styles.optionalInputLabel}>Add another number</Text>
+                  <Text style={styles.optionalLabel}>Optional</Text>
+                </View>
+                <PhoneInput
+                  placeholder="(000) 000-0000"
+                  isRequired={false}
+                  value={secondaryNumber}
+                  onChangeText={setSecondaryNumber}
+                />
+              </View>
+            </View>
+
+            <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
+              <TouchableOpacity
+                style={[
+                  styles.continueButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleContinue}
+                activeOpacity={0.8}
+                disabled={isButtonDisabled}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.continueButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Stylesheet ---
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-
-  // --- Header Styles ---
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    paddingTop: 15,
-    paddingBottom: 5,
-    paddingHorizontal: width * 0.05,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-
-  // --- Progress Bar Styles ---
-  progressContainer: {
-    width: "100%",
-    marginBottom: 40,
-    paddingHorizontal: width * 0.05,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-  },
-
-  // --- Content Styles ---
   contentScrollView: {
     flex: 1,
-    width: "100%",
   },
   scrollContent: {
     flexGrow: 1,
-    width: width * 0.9,
-    alignSelf: "center",
-    // FIX: Reduced padding bottom here to accommodate the slightly raised button footer
-    paddingBottom: 70,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   contentArea: {
     flex: 1,
-    alignItems: "flex-start",
-    paddingTop: 0,
+    marginTop: 40,
   },
   mainTitle: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 4,
+    letterSpacing: -1,
+    lineHeight: 42,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 40,
+    marginBottom: 20,
+    lineHeight: 20,
   },
-
-  // --- Phone Input Styles ---
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
   phoneInputContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    height: 60,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 12,
+    height: 56,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    overflow: "hidden",
+    marginBottom: 10,
   },
   phoneInputContainerFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
-  countryCodePicker: {
+  countryCodePill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
-    height: "100%",
     justifyContent: "center",
+    paddingHorizontal: 16,
+    backgroundColor: "transparent",
+    borderRightWidth: 1,
+    borderRightColor: "rgba(0,0,0,0.05)",
+  },
+  flagEmoji: {
+    fontSize: 20,
+    marginRight: 6,
   },
   countryCodeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
   },
   phoneNumberInput: {
     flex: 1,
-    height: "100%",
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
+    backgroundColor: "transparent",
   },
-
-  // --- Optional Input Section Styles ---
   optionalInputSection: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    width: "100%",
     marginTop: 20,
     marginBottom: 10,
+    paddingHorizontal: 4,
   },
   optionalInputLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
   },
   optionalLabel: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     opacity: 0.8,
   },
-
-  // --- Button Styles ---
-  buttonContainer: {
-    paddingVertical: 15,
-    position: "absolute",
-    bottom: 0,
-    width: width * 0.9,
-    alignSelf: "center",
-    backgroundColor: COLORS.background,
-    // FIX: Increased bottom padding to push the button higher
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
-  },
   continueButtonContainer: {
-    width: "100%",
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
   },
   continueButton: {
-    width: "100%",
-    height: 70,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
@@ -423,10 +409,10 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Manrope-SemiBold",
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
     shadowOpacity: 0,
   },
 });

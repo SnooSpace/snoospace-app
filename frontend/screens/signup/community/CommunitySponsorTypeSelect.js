@@ -14,7 +14,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { getSponsorTypes } from "../../../api/client";
-
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -161,7 +162,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     if (!isOpenToAll && selectedTypes.length < 3) {
       Alert.alert(
         "Select Sponsor Types",
-        'Please select at least 3 sponsor types or choose "Open to All".'
+        'Please select at least 3 sponsor types or choose "Open to All".',
       );
       return;
     }
@@ -175,19 +176,19 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       Array.isArray(categories) && categories.length > 0
         ? categories
         : category
-        ? [category]
-        : [];
+          ? [category]
+          : [];
     const categoryList = Array.from(
       new Set(
         rawCategories
           .map((c) => (typeof c === "string" ? c.trim() : ""))
-          .filter((c) => c)
-      )
+          .filter((c) => c),
+      ),
     ).slice(0, 3);
     if (categoryList.length === 0) {
       Alert.alert(
         "Missing Categories",
-        "Please go back and select at least one category."
+        "Please go back and select at least one category.",
       );
       return;
     }
@@ -214,12 +215,12 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
         sponsor_types,
       });
       console.log(
-        "[CommunitySponsorTypeSelect] Draft updated with sponsor_types"
+        "[CommunitySponsorTypeSelect] Draft updated with sponsor_types",
       );
     } catch (e) {
       console.log(
         "[CommunitySponsorTypeSelect] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -236,10 +237,19 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
 
   return (
     // FIX 1: Consistent Safe Area implementation
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "90deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
         {/* Header */}
-        <SignupHeader onBack={() => navigation.goBack()} showCancel={false} />
+        <SignupHeader
+          onBack={() => navigation.goBack()}
+          role="Communities"
+          showCancel={false}
+        />
 
         {/* Scrollable Content */}
         <ScrollView
@@ -253,95 +263,110 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
               Select the types of sponsors you are looking for.
             </Text>
 
-            {/* Sponsor Type Chips Container */}
-            <View style={styles.chipsContainer}>
-              {loading ? (
-                <Text style={styles.subtitle}>Loading sponsor types...</Text>
-              ) : (
-                sponsorTypes.map((type) => (
-                  <SponsorChip
-                    key={type}
-                    type={type}
-                    isSelected={isOpenToAll || selectedTypes.includes(type)}
-                    onPress={toggleType}
-                  />
-                ))
-              )}
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Sponsor Type Chips Container */}
+                <View style={styles.chipsContainer}>
+                  {loading ? (
+                    <Text style={styles.subtitle}>
+                      Loading sponsor types...
+                    </Text>
+                  ) : (
+                    sponsorTypes.map((type) => (
+                      <SponsorChip
+                        key={type}
+                        type={type}
+                        isSelected={isOpenToAll || selectedTypes.includes(type)}
+                        onPress={toggleType}
+                      />
+                    ))
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.openToAllButton,
+                    {
+                      backgroundColor: openToAllIsSelected
+                        ? COLORS.primary
+                        : "rgba(255, 255, 255, 0.4)",
+                      borderColor: openToAllIsSelected
+                        ? COLORS.primary
+                        : "rgba(255, 255, 255, 0.6)",
+                    },
+                  ]}
+                  onPress={handleOpenToAll}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open to All Sponsors"
+                >
+                  <Text
+                    style={[
+                      styles.openToAllText,
+                      {
+                        color: openToAllIsSelected
+                          ? COLORS.textInverted
+                          : COLORS.textPrimary,
+                      },
+                    ]}
+                  >
+                    Open to All
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.openToAllButton,
-                {
-                  backgroundColor: openToAllIsSelected
-                    ? COLORS.primary
-                    : COLORS.background,
-                  borderColor: openToAllIsSelected
-                    ? COLORS.primary
-                    : COLORS.border,
-                },
-              ]}
-              onPress={handleOpenToAll}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Open to All Sponsors"
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <Text
+              <TouchableOpacity
                 style={[
-                  styles.openToAllText,
-                  {
-                    color: openToAllIsSelected
-                      ? COLORS.textInverted
-                      : COLORS.textPrimary,
-                  },
+                  styles.finishButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
                 ]}
+                onPress={handleFinish}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Next step"
+                disabled={isButtonDisabled}
               >
-                Open to All
-              </Text>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.finishButton}
+                >
+                  <Text style={styles.buttonText}>
+                    {isSubmitting ? "Submitting..." : "Next"}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
-      </View>
-
-      <View style={styles.buttonFixedContainer}>
-        <TouchableOpacity
-          style={[
-            styles.finishButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleFinish}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Next step"
-          disabled={isButtonDisabled}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.finishButton}
-          >
-            <Text style={styles.buttonText}>
-              {isSubmitting ? "Submitting..." : "Next"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Stylesheet ---
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: width * 0.05, // Consistent horizontal padding
-    backgroundColor: COLORS.background,
   },
 
   // --- Header Styles ---
@@ -358,18 +383,6 @@ const styles = StyleSheet.create({
     marginLeft: -10,
   },
 
-  // --- Progress Bar Styles ---
-  progressContainer: {
-    width: "100%",
-    marginBottom: 40,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-    textAlign: "left", // Aligned left for consistency
-  },
-
   // --- Content Styles ---
   contentScrollView: {
     flex: 1,
@@ -377,23 +390,49 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 110, // Space for the fixed button
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   contentArea: {
     alignItems: "flex-start",
     width: "100%",
+    paddingTop: 40,
   },
   mainTitle: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
-    lineHeight: 38,
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 30,
+    marginBottom: 40,
+  },
+
+  // --- Card Styles ---
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
 
   // --- Chips/Tags Styles ---
@@ -401,67 +440,60 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
-    marginBottom: 30, // Reduced space before next button/chip
+    marginBottom: 20,
   },
   chip: {
     paddingHorizontal: 20,
-    paddingVertical: 12, // Slightly increased padding for consistency
-    borderRadius: 25,
-    borderWidth: 2, // Consistent border width
+    paddingVertical: 12,
+    borderRadius: BORDER_RADIUS.pill,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderColor: "rgba(255, 255, 255, 0.5)",
   },
   chipText: {
-    fontSize: 16, // Consistent font size
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
   },
 
   // --- Open to All Button Styles ---
   openToAllButton: {
     alignSelf: "stretch",
-    height: 60, // Consistent height with input fields/other buttons
+    height: 56,
     paddingHorizontal: 30,
     paddingVertical: 15,
-    borderRadius: 15,
-    borderWidth: 2, // Consistent border width
+    borderRadius: 16,
+    borderWidth: 1.5,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginTop: 10,
   },
   openToAllText: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 
   // --- Fixed Button Container ---
-  buttonFixedContainer: {
-    position: "absolute",
-    bottom: 0,
-    width: width,
-    paddingHorizontal: width * 0.05,
-    paddingVertical: 15,
-    backgroundColor: COLORS.background,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
-    zIndex: 10,
-  },
   finishButtonContainer: {
-    width: "100%",
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   finishButton: {
-    width: "100%",
-    height: 70, // Consistent button height
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

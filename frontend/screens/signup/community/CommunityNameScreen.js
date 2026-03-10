@@ -16,8 +16,6 @@ import {
 import { BlurView } from "expo-blur";
 import { User } from "lucide-react-native";
 
-
-
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -75,7 +73,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CommunityNameScreen] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -103,7 +101,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
@@ -113,7 +111,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
     <ImageBackground
       source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3 }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: 1, scaleY: 1 }] }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -143,14 +141,14 @@ const CommunityNameScreen = ({ navigation, route }) => {
             <Text style={styles.title}>Enter your Community Name</Text>
 
             <View style={styles.card}>
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
               <View style={styles.cardContent}>
                 <View style={styles.inputContainer}>
-                  <User
-                    size={20}
-                    color="#8AADC4"
-                    style={styles.inputIcon}
-                  />
+                  <User size={20} color="#8AADC4" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     onChangeText={setName}
@@ -166,26 +164,31 @@ const CommunityNameScreen = ({ navigation, route }) => {
                     importantForAutofill="no"
                   />
                 </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.nextButtonContainer,
-                    isButtonDisabled && styles.disabledButton,
-                  ]}
-                  onPress={handleNext}
-                  disabled={isButtonDisabled}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.nextButton}
-                  >
-                    <Text style={styles.buttonText}>Next</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
               </View>
+            </View>
+
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -235,7 +238,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         ...SHADOWS.xl,
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
       },
       android: {
@@ -290,7 +293,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 16,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

@@ -129,20 +129,21 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "800",
+    fontFamily: "BasicCommercial-Bold",
     color: "#1a1a1a",
     marginBottom: 8,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
     color: "#1a1a1a",
     marginBottom: 20,
     textAlign: "center",
   },
   description: {
     fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: "#666",
     textAlign: "center",
     lineHeight: 22,
@@ -168,11 +169,11 @@ const styles = StyleSheet.create({
   },
   editText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#1a1a1a",
   },
   confirmText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Manrope-SemiBold",
   },
 });

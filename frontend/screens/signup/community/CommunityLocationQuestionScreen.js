@@ -9,8 +9,12 @@ import {
   Platform,
   StatusBar,
   Dimensions,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -48,6 +52,7 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
   } = route.params || {};
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [hasLocation, setHasLocation] = useState(null); // 'yes' or 'no'
 
   // Update step on mount
   useEffect(() => {
@@ -85,49 +90,55 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
     isStudentCommunity,
   };
 
-  const handleYes = async () => {
-    // Save location preference to draft
-    try {
-      await updateCommunitySignupDraft("CommunityLocationQuestion", {
-        hasLocation: true,
-      });
-      console.log("[CommunityLocationQuestion] Draft updated - has location");
-    } catch (e) {
-      console.log(
-        "[CommunityLocationQuestion] Draft update failed (non-critical):",
-        e.message
-      );
-    }
-    navigation.navigate("CommunityLocation", commonParams);
+  const handleYes = () => {
+    setHasLocation("yes");
   };
 
-  const handleNo = async () => {
-    // Save location preference to draft
-    try {
-      await updateCommunitySignupDraft("CommunityLocationQuestion", {
-        hasLocation: false,
-        location: null,
-      });
-      console.log("[CommunityLocationQuestion] Draft updated - no location");
-    } catch (e) {
-      console.log(
-        "[CommunityLocationQuestion] Draft update failed (non-critical):",
-        e.message
-      );
-    }
+  const handleNo = () => {
+    setHasLocation("no");
+  };
 
-    // Skip phone/heads for non-organization types
-    if (isOrganization) {
-      navigation.navigate("CommunityPhone", {
-        ...commonParams,
-        location: null,
-      });
+  const handleNext = async () => {
+    if (hasLocation === null) return;
+
+    if (hasLocation === "yes") {
+      try {
+        await updateCommunitySignupDraft("CommunityLocationQuestion", {
+          hasLocation: true,
+        });
+        console.log("[CommunityLocationQuestion] Draft updated - has location");
+      } catch (e) {
+        console.log(
+          "[CommunityLocationQuestion] Draft update failed (non-critical):",
+          e.message,
+        );
+      }
+      navigation.navigate("CommunityLocation", commonParams);
     } else {
-      // Go directly to username for non-organization types
-      navigation.navigate("CommunityUsername", {
-        ...commonParams,
-        location: null,
-      });
+      try {
+        await updateCommunitySignupDraft("CommunityLocationQuestion", {
+          hasLocation: false,
+          location: null,
+        });
+        console.log("[CommunityLocationQuestion] Draft updated - no location");
+      } catch (e) {
+        console.log(
+          "[CommunityLocationQuestion] Draft update failed (non-critical):",
+          e.message,
+        );
+      }
+
+      if (isOrganization) {
+        navigation.navigate("CommunityPhone", {
+          ...commonParams,
+          location: null,
+        });
+      } else {
+        navigation.navigate("CommunityUsername", {
+          ...commonParams,
+          location: null,
+        });
+      }
     }
   };
 
@@ -161,146 +172,281 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
+  const isButtonDisabled = hasLocation === null;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header */}
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "270deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
         <SignupHeader
           onBack={handleBack}
+          role="Communities"
           onCancel={() => setShowCancelModal(true)}
         />
 
-        {/* Content */}
-        <View style={styles.contentBody}>
-          <Text style={styles.mainTitle}>
-            Do you have a permanent location?
-          </Text>
-          <Text style={styles.subtitle}>
-            This helps us show your community to nearby members and sponsors.
-          </Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentBody}>
+            <Text style={styles.mainTitle}>
+              Do you have a permanent location?
+            </Text>
+            <Text style={styles.subtitle}>
+              This helps us show your community to nearby members and sponsors.
+            </Text>
 
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.yesButtonContainer}
-              onPress={handleYes}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.yesButton}
+            <View style={styles.optionsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.optionCard,
+                  hasLocation === "yes" && styles.optionCardSelected,
+                ]}
+                onPress={handleYes}
+                activeOpacity={0.8}
               >
-                <Text style={styles.buttonText}>Yes</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <BlurView
+                  intensity={hasLocation === "yes" ? 80 : 40}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.optionContent}>
+                  <Ionicons
+                    name="location"
+                    size={24}
+                    color={
+                      hasLocation === "yes"
+                        ? COLORS.primary
+                        : COLORS.textPrimary
+                    }
+                    style={{ marginRight: 15 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.optionTitle,
+                        hasLocation === "yes" && styles.optionTitleSelected,
+                      ]}
+                    >
+                      Yes
+                    </Text>
+                    <Text style={styles.optionDescription}>
+                      We have a physical office or recurring meetup spot
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={
+                      hasLocation === "yes"
+                        ? "radio-button-on"
+                        : "radio-button-off"
+                    }
+                    size={24}
+                    color={
+                      hasLocation === "yes"
+                        ? COLORS.primary
+                        : COLORS.textSecondary
+                    }
+                  />
+                </View>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.noButton}
-              onPress={handleNo}
-              activeOpacity={0.8}
+              <TouchableOpacity
+                style={[
+                  styles.optionCard,
+                  hasLocation === "no" && styles.optionCardSelected,
+                ]}
+                onPress={handleNo}
+                activeOpacity={0.8}
+              >
+                <BlurView
+                  intensity={hasLocation === "no" ? 80 : 40}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.optionContent}>
+                  <Ionicons
+                    name="earth-outline"
+                    size={24}
+                    color={
+                      hasLocation === "no" ? COLORS.primary : COLORS.textPrimary
+                    }
+                    style={{ marginRight: 15 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.optionTitle,
+                        hasLocation === "no" && styles.optionTitleSelected,
+                      ]}
+                    >
+                      No
+                    </Text>
+                    <Text style={styles.optionDescription}>
+                      We are online-only or host events in different places
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={
+                      hasLocation === "no"
+                        ? "radio-button-on"
+                        : "radio-button-off"
+                    }
+                    size={24}
+                    color={
+                      hasLocation === "no"
+                        ? COLORS.primary
+                        : COLORS.textSecondary
+                    }
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <Text style={styles.noButtonText}>No</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                ]}
+                onPress={handleNext}
+                activeOpacity={0.8}
+                disabled={isButtonDisabled}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </View>
+        </ScrollView>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 20,
-  },
-
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    paddingTop: 15,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-  progressContainer: {
-    width: "100%",
-    marginBottom: 40,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   contentBody: {
     flex: 1,
     paddingTop: 40,
   },
   mainTitle: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 60,
+    marginBottom: 40,
   },
-  buttonContainer: {
-    gap: 20,
+  optionsContainer: {
+    gap: 16,
   },
-  yesButtonContainer: {
+  optionCard: {
     width: "100%",
-    borderRadius: 15,
-    ...SHADOWS.primaryGlow,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.8)",
+    overflow: "hidden",
   },
-  yesButton: {
-    width: "100%",
-    height: 70,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  noButton: {
-    width: "100%",
-    height: 70,
-    backgroundColor: COLORS.background,
-    borderRadius: 15,
-    borderWidth: 2,
+  optionCardSelected: {
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
     borderColor: COLORS.primary,
-    justifyContent: "center",
+  },
+  optionContent: {
+    flexDirection: "row",
     alignItems: "center",
+    padding: 24,
+  },
+  optionTitle: {
+    fontSize: 18,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  optionTitleSelected: {
+    color: COLORS.primary,
+  },
+  optionDescription: {
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  nextButton: {
+    height: 56,
+    borderRadius: BORDER_RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  noButtonText: {
-    color: COLORS.primary,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

@@ -11,8 +11,9 @@ import {
   StatusBar,
   Dimensions,
   ScrollView,
+  ImageBackground,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Check, X } from "lucide-react-native";
 import { apiPost } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import * as sessionManager from "../../../utils/sessionManager";
@@ -24,6 +25,8 @@ import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width, height } = Dimensions.get("window");
 
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -32,7 +35,6 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const FONT_SIZES = {
@@ -241,20 +243,26 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
+    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary, icon: null };
     if (username.length < 3)
       return {
         text: "Username must be at least 3 characters",
         color: COLORS.textSecondary,
+        icon: null,
       };
     if (isAvailable === true)
       return {
-        text: "✓ Username is available",
-        color: COLORS.success || "#00C851",
+        text: "Username is available",
+        color: "#16A34A", // Premium green
+        icon: <Check size={16} color="#16A34A" strokeWidth={3} />,
       };
     if (isAvailable === false)
-      return { text: "✗ Username is already taken", color: COLORS.error };
-    return { text: "", color: COLORS.textSecondary };
+      return { 
+        text: "Username is already taken", 
+        color: "#DC2626", // Premium red
+        icon: <X size={16} color="#DC2626" strokeWidth={3} />
+      };
+    return { text: "", color: COLORS.textSecondary, icon: null };
   };
 
   const status = getUsernameStatus();
@@ -274,126 +282,152 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
 
-      <SignupHeader
-        onBack={handleBack}
-        onCancel={() => setShowCancelModal(true)}
-      />
+        <SignupHeader
+          role="People"
+          onBack={handleBack}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.container}>
-            {/* 3. Content Area */}
-            <View style={styles.content}>
-              <View style={styles.header}>
-                <Text style={styles.title}>Choose Your Username</Text>
-                <Text style={styles.subtitle}>
-                  This will be your unique identifier on SnooSpace
-                </Text>
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Username</Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    isFocused && styles.inputWrapperFocused,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.textInput}
-                    value={username}
-                    onChangeText={validateUsername}
-                    placeholder="Enter your username"
-                    placeholderTextColor={COLORS.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    maxLength={30}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                  />
-                  {isChecking && (
-                    <SnooLoader size="small" color={COLORS.primary} />
-                  )}
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.container}>
+              {/* 3. Content Area */}
+              <View style={styles.content}>
+                <View style={styles.header}>
+                  <Text style={styles.title}>Time to claim your space</Text>
+                  <Text style={styles.subtitle}>
+                    This will be your unique identifier on SnooSpace
+                  </Text>
                 </View>
-                <Text style={[styles.statusText, { color: status.color }]}>
-                  {status.text}
-                </Text>
-              </View>
 
-              <View style={styles.rulesContainer}>
-                <Text style={styles.rulesTitle}>Username Rules:</Text>
-                <Text style={styles.rule}>• 3-30 characters long</Text>
-                <Text style={styles.rule}>
-                  • Only letters, numbers, underscores, and dots
-                </Text>
-                <Text style={styles.rule}>
-                  • Must be unique across all users
-                </Text>
+                <View style={styles.card}>
+                  <BlurView
+                    intensity={60}
+                    tint="light"
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.cardContent}>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>Username</Text>
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          isFocused && styles.inputWrapperFocused,
+                        ]}
+                      >
+                        <TextInput
+                          style={styles.textInput}
+                          value={username}
+                          onChangeText={validateUsername}
+                          placeholder="Enter your username"
+                          placeholderTextColor={COLORS.textSecondary}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          maxLength={30}
+                          onFocus={() => setIsFocused(true)}
+                          onBlur={() => setIsFocused(false)}
+                        />
+                        {isChecking && (
+                          <SnooLoader size="small" color={COLORS.primary} />
+                        )}
+                      </View>
+                      
+                      {/* Status Message */}
+                      {status.text ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                          {status.icon && <View style={{ marginRight: 4, marginTop: 1 }}>{status.icon}</View>}
+                          <Text style={[styles.statusText, { color: status.color, marginTop: 0 }]}>
+                            {status.text}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.rulesContainer}>
+                      <Text style={styles.rulesTitle}>Username Rules:</Text>
+                      <Text style={styles.rule}>• 3-30 characters long</Text>
+                      <Text style={styles.rule}>
+                        • Only letters, numbers, underscores, and dots
+                      </Text>
+                      <Text style={styles.rule}>
+                        • Must be unique across all users
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View
+                  style={{
+                    width: "100%",
+                    alignItems: "flex-end",
+                    marginTop: 40,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.nextButtonContainer,
+                      isButtonDisabled && styles.nextButtonDisabled,
+                      { minWidth: 220, paddingHorizontal: 32, marginRight: -35 },
+                    ]}
+                    onPress={handleFinish}
+                    disabled={isButtonDisabled}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.nextButton}
+                    >
+                      <Text style={styles.nextButtonText}>
+                        {isSubmitting
+                          ? "Setting Username..."
+                          : "Complete Signup"}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
-        </ScrollView>
-
-        {/* 4. Fixed Button - Using KeyboardAwareToolbar for proper keyboard sync */}
-        <KeyboardAwareToolbar style={styles.buttonFixedContainer}>
-          <TouchableOpacity
-            style={[
-              styles.nextButtonContainer,
-              isButtonDisabled && styles.nextButtonDisabled,
-            ]}
-            onPress={handleFinish}
-            disabled={isButtonDisabled}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextButton}
-            >
-              <Text style={styles.nextButtonText}>
-                {isSubmitting ? "Setting Username..." : "Complete Signup"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </KeyboardAwareToolbar>
-      </View>
-    </SafeAreaView>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    paddingBottom: 100, // Space for fixed button
-  },
-
-  // --- Progress Bar Styles ---
-  progressContainer: {
-    width: "100%",
-    marginBottom: 40,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
+    backgroundColor: "transparent",
+    paddingBottom: 40,
   },
 
   // --- Content Styles ---
@@ -406,43 +440,67 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   title: {
-    fontSize: FONT_SIZES.largeHeader,
-    fontWeight: "800",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
-    lineHeight: 38,
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
+    marginBottom: 20,
     lineHeight: 24,
   },
+  // --- Card Styles ---
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
   inputContainer: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: FONT_SIZES.body,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 16,
     paddingHorizontal: 20,
     height: 60,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   inputWrapperFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   textInput: {
     flex: 1,
-    fontSize: FONT_SIZES.body,
+    fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     height: "100%",
   },
@@ -455,20 +513,21 @@ const styles = StyleSheet.create({
 
   // --- Rules Container Styles ---
   rulesContainer: {
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     padding: 20,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(255, 255, 255, 0.6)",
   },
   rulesTitle: {
-    fontSize: FONT_SIZES.body,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
   rule: {
-    fontSize: FONT_SIZES.small,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textPrimary,
     marginBottom: 6,
     lineHeight: 20,
@@ -483,23 +542,26 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   nextButtonContainer: {
-    borderRadius: 15,
-    ...SHADOWS.primaryGlow,
+    borderRadius: BORDER_RADIUS.pill,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  nextButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
-    height: 70,
-    borderRadius: 15,
+    height: 56,
+    borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
   },
-  nextButtonDisabled: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
   nextButtonText: {
     color: COLORS.textInverted,
-    fontSize: FONT_SIZES.body,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

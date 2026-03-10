@@ -7,16 +7,15 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-} from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
 import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const COLLEGE_SUBTYPES = [
@@ -49,7 +48,7 @@ const COLLEGE_SUBTYPES = [
  */
 const SubtypeCard = ({ subtype, collegeName, onPress, isLast }) => (
   <TouchableOpacity
-    style={[styles.card, isLast && styles.cardLast]}
+    style={[styles.subtypeItem, isLast && styles.cardLast]}
     onPress={() => onPress(subtype)}
     activeOpacity={0.8}
     accessibilityRole="button"
@@ -65,9 +64,9 @@ const SubtypeCard = ({ subtype, collegeName, onPress, isLast }) => (
         <Ionicons name={subtype.icon} size={32} color="#fff" />
       </View>
     </LinearGradient>
-    <View style={styles.cardContent}>
-      <Text style={styles.cardTitle}>{subtype.title}</Text>
-      <Text style={styles.cardSubtitle}>{subtype.subtitle}</Text>
+    <View style={styles.subtypeContent}>
+      <Text style={styles.subtypeTitle}>{subtype.title}</Text>
+      <Text style={styles.subtypeSubtitle}>{subtype.subtitle}</Text>
       {subtype.isPrivate && (
         <View style={styles.privateTag}>
           <Ionicons name="lock-closed" size={12} color={COLORS.textSecondary} />
@@ -106,7 +105,7 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
       "[CollegeSubtypeSelect] Selected:",
       subtype.id,
       "for college:",
-      college_name
+      college_name,
     );
 
     // Save college_subtype to draft
@@ -119,7 +118,7 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CollegeSubtypeSelect] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -168,84 +167,145 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <GlassBackButton onPress={handleBack} style={styles.backButton} />
-      </View>
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { rotate: "90deg" }],
+      }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <SignupHeader
+            role="Communities"
+            onBack={handleBack}
+            onCancel={() => {}}
+            hideCancel={true}
+          />
 
-      {/* Content */}
-      <View style={styles.content}>
-        <Text style={styles.title}>What are you creating?</Text>
-        <Text style={styles.subtitle}>
-          Choose the type for{" "}
-          <Text style={styles.collegeName}>
-            {college_name || "your college"}
-          </Text>
-        </Text>
+          {/* Content */}
+          <View style={styles.content}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>What are you creating?</Text>
+              <Text style={styles.globalHelperText}>
+                Choose the type for{" "}
+                <Text style={styles.collegeName}>
+                  {college_name || "your college"}
+                </Text>
+              </Text>
+            </View>
 
-        {/* Subtype Cards */}
-        <View style={styles.cardsContainer}>
-          {COLLEGE_SUBTYPES.map((subtype, index) => (
-            <SubtypeCard
-              key={subtype.id}
-              subtype={subtype}
-              collegeName={college_name}
-              onPress={handleSubtypeSelect}
-              isLast={index === COLLEGE_SUBTYPES.length - 1}
-            />
-          ))}
-        </View>
-      </View>
-    </SafeAreaView>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Subtype Cards */}
+                <View style={styles.cardsContainer}>
+                  {COLLEGE_SUBTYPES.map((subtype, index) => (
+                    <SubtypeCard
+                      key={subtype.id}
+                      subtype={subtype}
+                      collegeName={college_name}
+                      onPress={handleSubtypeSelect}
+                      isLast={index === COLLEGE_SUBTYPES.length - 1}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: {
-    paddingRight: 15,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    marginTop: 40,
+  },
+  headerTitle: {
+    marginBottom: 40,
+    paddingRight: 10,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
+    lineHeight: 38,
   },
-  subtitle: {
+  globalHelperText: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 30,
+    marginBottom: 10,
+    lineHeight: 24,
   },
   collegeName: {
-    fontWeight: "600",
+    fontFamily: "Manrope-Bold",
     color: COLORS.primary,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   cardsContainer: {
     gap: 16,
   },
-  card: {
+  subtypeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.cardBackground || "#fff",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
     borderRadius: 16,
     padding: 16,
-    ...SHADOWS.medium,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   cardLast: {
     marginBottom: 0,
@@ -261,19 +321,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cardContent: {
+  subtypeContent: {
     flex: 1,
     marginLeft: 16,
     marginRight: 8,
   },
-  cardTitle: {
+  subtypeTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
     marginBottom: 4,
   },
-  cardSubtitle: {
+  subtypeSubtitle: {
     fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
@@ -283,12 +344,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: COLORS.inputBackground || "#f0f0f0",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderRadius: 6,
     alignSelf: "flex-start",
   },
   privateTagText: {
     fontSize: 11,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textSecondary,
     marginLeft: 4,
   },

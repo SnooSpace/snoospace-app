@@ -8,12 +8,15 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
   KeyboardAvoidingView,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import {
   COLORS,
   SPACING,
@@ -109,116 +112,146 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberInterests", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              profile_photo_url,
-              dob,
-              pronouns,
-              showPronouns,
-              gender,
-              location,
-              interests,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { scaleY: 1 }], 
+      }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberInterests", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                profile_photo_url,
+                dob,
+                pronouns,
+                showPronouns,
+                gender,
+                location,
+                interests,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
-          {/* Content Section */}
-          <View style={styles.contentContainer}>
-            <Text style={styles.title}>Where can we reach you?</Text>
-            <Text style={styles.subtitle}>
-              Your number is private and never shared.
-            </Text>
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Content Section */}
+            <View style={styles.contentContainer}>
+              <Text style={styles.title}>Drop your digits</Text>
+              <Text style={styles.subtitle}>
+                Your number is private and never shared.
+              </Text>
 
-            {/* Phone Number Input */}
-            <View
-              style={[
-                styles.phoneInputContainer,
-                isFocused && styles.phoneInputContainerFocused,
-              ]}
-            >
-              {/* Country Code and Flag for India */}
-              <View style={styles.countryCodePill}>
-                <Text style={styles.flagEmoji}>🇮🇳</Text>
-                <Text style={styles.countryCodeText}>+91</Text>
+              <View style={styles.card}>
+                <BlurView
+                  intensity={60}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.cardContent}>
+                  {/* Phone Number Input */}
+                  <View
+                    style={[
+                      styles.phoneInputContainer,
+                      isFocused && styles.phoneInputContainerFocused,
+                    ]}
+                  >
+                    {/* Country Code and Flag for India */}
+                    <View style={styles.countryCodePill}>
+                      <Text style={styles.flagEmoji}>🇮🇳</Text>
+                      <Text style={styles.countryCodeText}>+91</Text>
+                    </View>
+
+                    {/* Actual Phone Number Input Field */}
+                    <TextInput
+                      style={styles.inputField}
+                      onChangeText={formatPhoneNumber}
+                      value={phoneNumber}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => setIsFocused(false)}
+                      placeholder="(000) 000-0000"
+                      placeholderTextColor={COLORS.textSecondary}
+                      keyboardType="phone-pad"
+                      textContentType="telephoneNumber"
+                      autoComplete="tel"
+                      maxLength={10}
+                    />
+                  </View>
+                </View>
               </View>
 
-              {/* Actual Phone Number Input Field */}
-              <TextInput
-                style={styles.inputField}
-                onChangeText={formatPhoneNumber}
-                value={phoneNumber}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder="(000) 000-0000"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="phone-pad"
-                textContentType="telephoneNumber"
-                autoComplete="tel"
-                maxLength={10}
-              />
+              {/* Next Button */}
+              <View
+                style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    phoneNumber.length !== 10 && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleContinue}
+                  disabled={phoneNumber.length !== 10}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-        {/* Fixed Footer/Button Section - Now inside KeyboardAvoidingView */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.continueButtonContainer,
-              phoneNumber.length !== 10 && styles.disabledButton,
-            ]}
-            onPress={handleContinue}
-            disabled={phoneNumber.length !== 10}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.continueButton}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   keyboardAvoidingView: {
@@ -226,86 +259,109 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 4,
+    letterSpacing: -1,
+    lineHeight: 42,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 40,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   phoneInputContainer: {
     flexDirection: "row",
-    height: 50,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-    borderRadius: 10,
+    height: 56,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(255, 255, 255, 0.5)",
     overflow: "hidden",
   },
   phoneInputContainerFocused: {
-    borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    borderColor: "rgba(255, 255, 255, 0.9)", // Subtle premium border
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   countryCodePill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
-    backgroundColor: "#e9ecef",
+    paddingHorizontal: 16,
+    backgroundColor: "transparent",
     borderRightWidth: 1,
-    borderRightColor: "#ced4da",
+    borderRightColor: "rgba(0,0,0,0.05)",
   },
   flagEmoji: {
-    fontSize: 18,
-    marginRight: 5,
+    fontSize: 20,
+    marginRight: 6,
   },
   countryCodeText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
-    marginRight: 2,
   },
   inputField: {
     flex: 1,
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     backgroundColor: "transparent",
   },
-  footer: {
-    padding: 20,
-    paddingBottom: 50,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 0,
-  },
-  continueButtonContainer: {
+  // --- Footer/Button Styles Extracted ---
+  nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  continueButton: {
-    paddingVertical: 15,
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  nextButton: {
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

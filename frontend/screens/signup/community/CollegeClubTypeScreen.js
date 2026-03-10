@@ -7,16 +7,15 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-} from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
 import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const CLUB_TYPES = [
@@ -48,7 +47,7 @@ const CLUB_TYPES = [
  */
 const ClubTypeCard = ({ clubType, onPress }) => (
   <TouchableOpacity
-    style={styles.card}
+    style={styles.clubTypeItem}
     onPress={() => onPress(clubType)}
     activeOpacity={0.8}
     accessibilityRole="button"
@@ -62,9 +61,9 @@ const ClubTypeCard = ({ clubType, onPress }) => (
     >
       <Ionicons name={clubType.icon} size={28} color="#fff" />
     </LinearGradient>
-    <View style={styles.cardContent}>
-      <Text style={styles.cardTitle}>{clubType.title}</Text>
-      <Text style={styles.cardSubtitle}>{clubType.subtitle}</Text>
+    <View style={styles.clubTypeContent}>
+      <Text style={styles.clubTypeTitle}>{clubType.title}</Text>
+      <Text style={styles.clubTypeSubtitle}>{clubType.subtitle}</Text>
     </View>
     <Ionicons
       name="chevron-forward"
@@ -103,7 +102,7 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CollegeClubType] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -126,83 +125,140 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <GlassBackButton onPress={handleBack} style={styles.backButton} />
-      </View>
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "180deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <SignupHeader
+            role="Communities"
+            onBack={handleBack}
+            onCancel={() => {}}
+            hideCancel={true}
+          />
 
-      {/* Content */}
-      <View style={styles.content}>
-        <Text style={styles.title}>What type of club?</Text>
-        <Text style={styles.subtitle}>
-          Select the category that best describes your club at{" "}
-          <Text style={styles.collegeName}>
-            {college_name || "your college"}
-          </Text>
-        </Text>
+          {/* Content */}
+          <View style={styles.content}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>What type of club?</Text>
+              <Text style={styles.globalHelperText}>
+                Select the category that best describes your club at{" "}
+                <Text style={styles.collegeName}>
+                  {college_name || "your college"}
+                </Text>
+              </Text>
+            </View>
 
-        {/* Club Type Cards */}
-        <View style={styles.cardsContainer}>
-          {CLUB_TYPES.map((clubType) => (
-            <ClubTypeCard
-              key={clubType.id}
-              clubType={clubType}
-              onPress={handleClubTypeSelect}
-            />
-          ))}
-        </View>
-      </View>
-    </SafeAreaView>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Club Type Cards */}
+                <View style={styles.cardsContainer}>
+                  {CLUB_TYPES.map((clubType) => (
+                    <ClubTypeCard
+                      key={clubType.id}
+                      clubType={clubType}
+                      onPress={handleClubTypeSelect}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: {
-    paddingRight: 15,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    marginTop: 40,
+  },
+  headerTitle: {
+    marginBottom: 40,
+    paddingRight: 10,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
+    lineHeight: 38,
   },
-  subtitle: {
+  globalHelperText: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 30,
-    lineHeight: 22,
+    marginBottom: 10,
+    lineHeight: 24,
   },
   collegeName: {
-    fontWeight: "600",
+    fontFamily: "Manrope-Bold",
     color: COLORS.primary,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   cardsContainer: {
     gap: 16,
   },
-  card: {
+  clubTypeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.cardBackground || "#fff",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
     borderRadius: 16,
     padding: 16,
-    ...SHADOWS.medium,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   cardGradient: {
     width: 56,
@@ -211,19 +267,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cardContent: {
+  clubTypeContent: {
     flex: 1,
     marginLeft: 16,
     marginRight: 8,
   },
-  cardTitle: {
+  clubTypeTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
     marginBottom: 4,
   },
-  cardSubtitle: {
+  clubTypeSubtitle: {
     fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textSecondary,
     lineHeight: 18,
   },

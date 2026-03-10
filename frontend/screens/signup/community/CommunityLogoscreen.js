@@ -8,10 +8,10 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  ScrollView,
-  Image,
-  Alert, // 👈 Imported  for the spinner
+  Alert, 
+  ImageBackground,
 } from "react-native";
+import wave from "../../../assets/wave.png";
 import { Ionicons } from "@expo/vector-icons";
 import { useCrop } from "../../../components/MediaCrop";
 
@@ -165,11 +165,21 @@ const CommunityLogoScreen = ({ navigation, route }) => {
   const isButtonDisabled = !imageUri || isLoading;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
+      }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Header */}
         <SignupHeader
           onBack={() => {
@@ -268,7 +278,8 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         onKeepEditing={() => setShowCancelModal(false)}
         onDiscard={handleCancel}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
@@ -318,7 +329,7 @@ const styles = StyleSheet.create({
 
   contentContainer: {
     flex: 1,
-    marginTop: 30,
+    paddingTop: 40,
     paddingHorizontal: 25,
     alignItems: "center",
   },

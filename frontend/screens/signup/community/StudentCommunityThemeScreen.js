@@ -7,16 +7,15 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-} from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
 import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 const COMMUNITY_THEMES = [
@@ -55,7 +54,7 @@ const COMMUNITY_THEMES = [
  */
 const ThemeCard = ({ theme, onPress }) => (
   <TouchableOpacity
-    style={styles.card}
+    style={styles.themeItem}
     onPress={() => onPress(theme)}
     activeOpacity={0.8}
     accessibilityRole="button"
@@ -69,9 +68,9 @@ const ThemeCard = ({ theme, onPress }) => (
     >
       <Ionicons name={theme.icon} size={26} color="#fff" />
     </LinearGradient>
-    <View style={styles.cardContent}>
-      <Text style={styles.cardTitle}>{theme.title}</Text>
-      <Text style={styles.cardSubtitle}>{theme.subtitle}</Text>
+    <View style={styles.themeContent}>
+      <Text style={styles.themeTitle}>{theme.title}</Text>
+      <Text style={styles.themeSubtitle}>{theme.subtitle}</Text>
     </View>
     <Ionicons
       name="chevron-forward"
@@ -110,7 +109,7 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[StudentCommunityTheme] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -134,84 +133,150 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <GlassBackButton onPress={handleBack} style={styles.backButton} />
-      </View>
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { rotate: "270deg" }],
+      }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <SignupHeader
+            role="Communities"
+            onBack={handleBack}
+            onCancel={() => {}}
+            hideCancel={true}
+          />
 
-      {/* Content */}
-      <View style={styles.content}>
-        <Text style={styles.title}>Choose a theme</Text>
-        <Text style={styles.subtitle}>
-          What will your student community be about?
-        </Text>
+          {/* Content */}
+          <View style={styles.content}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>Choose a theme</Text>
+              <Text style={styles.globalHelperText}>
+                What will your student community be about?
+              </Text>
+            </View>
 
-        {/* Privacy notice */}
-        <View style={styles.privacyNotice}>
-          <Ionicons name="lock-closed" size={16} color={COLORS.primary} />
-          <Text style={styles.privacyText}>
-            Student communities are private and never visible to sponsors
-          </Text>
-        </View>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Privacy notice */}
+                <View style={styles.privacyNotice}>
+                  <Ionicons
+                    name="lock-closed"
+                    size={16}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.privacyText}>
+                    Student communities are private and never visible to
+                    sponsors
+                  </Text>
+                </View>
 
-        {/* Theme Cards */}
-        <View style={styles.cardsContainer}>
-          {COMMUNITY_THEMES.map((theme) => (
-            <ThemeCard
-              key={theme.id}
-              theme={theme}
-              onPress={handleThemeSelect}
-            />
-          ))}
-        </View>
-      </View>
-    </SafeAreaView>
+                {/* Theme Cards */}
+                <View style={styles.cardsContainer}>
+                  {COMMUNITY_THEMES.map((theme) => (
+                    <ThemeCard
+                      key={theme.id}
+                      theme={theme}
+                      onPress={handleThemeSelect}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: {
-    paddingRight: 15,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    marginTop: 40,
+  },
+  headerTitle: {
+    marginBottom: 40,
+    paddingRight: 10,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
+    lineHeight: 38,
   },
-  subtitle: {
+  globalHelperText: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 16,
+    marginBottom: 10,
+    lineHeight: 24,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   privacyNotice: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.primaryLight || "#e8f4ff",
-    borderRadius: 10,
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginBottom: 24,
   },
   privacyText: {
     fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: COLORS.primary,
     marginLeft: 8,
     flex: 1,
@@ -219,13 +284,14 @@ const styles = StyleSheet.create({
   cardsContainer: {
     gap: 14,
   },
-  card: {
+  themeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.cardBackground || "#fff",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
     borderRadius: 16,
     padding: 14,
-    ...SHADOWS.medium,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   cardGradient: {
     width: 50,
@@ -234,19 +300,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cardContent: {
+  themeContent: {
     flex: 1,
     marginLeft: 14,
     marginRight: 8,
   },
-  cardTitle: {
+  themeTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
     marginBottom: 3,
   },
-  cardSubtitle: {
+  themeSubtitle: {
     fontSize: 12,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textSecondary,
     lineHeight: 16,
   },

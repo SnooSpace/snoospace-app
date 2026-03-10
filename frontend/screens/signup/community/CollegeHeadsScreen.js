@@ -18,9 +18,12 @@ import {
   Platform,
   StatusBar,
   Alert,
+  ImageBackground,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import {
   COLORS,
   SPACING,
@@ -221,7 +224,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     } catch (e) {
       console.log(
         "[CollegeHeadsScreen] Draft update failed (non-critical):",
-        e.message
+        e.message,
       );
     }
 
@@ -255,7 +258,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
@@ -263,89 +266,122 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
   const isButtonDisabled = !heads[0].name.trim();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header */}
-        <SignupHeader
-          onBack={handleBack}
-          onCancel={() => setShowCancelModal(true)}
-        />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ rotate: "270deg" }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {/* Header */}
+          <SignupHeader
+            role={isStudentCommunity ? "People" : "Communities"}
+            onBack={handleBack}
+            onCancel={() => setShowCancelModal(true)}
+          />
 
-        {/* Scrollable Content */}
-        <ScrollView
-          style={styles.contentScrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.contentArea}>
-            <Text style={styles.mainTitle}>Who manages this community?</Text>
-            <Text style={styles.subtitle}>
-              Add the people who handle this page with their roles.
-            </Text>
-
-            {/* Head Entries */}
-            {heads.map((head, index) => (
-              <HeadEntry
-                key={index}
-                index={index}
-                name={head.name}
-                role={head.role}
-                onNameChange={(value) => updateHead(index, "name", value)}
-                onRoleChange={(value) => updateHead(index, "role", value)}
-                onRemove={() => removeHead(index)}
-                isRequired={index === 0}
-                showRemove={index >= 2}
-              />
-            ))}
-
-            {/* Add More Button */}
-            <TouchableOpacity style={styles.addButton} onPress={addHead}>
-              <Ionicons name="add-circle" size={24} color={COLORS.primary} />
-              <Text style={styles.addButtonText}>Add Another Head</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-
-        {/* Footer / Next Button */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.nextButtonContainer,
-              isButtonDisabled && styles.disabledButton,
-            ]}
-            onPress={handleNext}
-            disabled={isButtonDisabled}
-            activeOpacity={0.8}
+          {/* Scrollable Content */}
+          <ScrollView
+            style={styles.contentScrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextButton}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <View style={styles.contentArea}>
+              <View style={styles.headerTitle}>
+                <Text style={styles.mainTitle}>
+                  Who manages this community?
+                </Text>
+                <Text style={styles.globalHelperText}>
+                  Add the people who handle this page with their roles.
+                </Text>
+              </View>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+              <View style={styles.card}>
+                <BlurView
+                  intensity={60}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.cardContent}>
+                  {/* Head Entries */}
+                  {heads.map((head, index) => (
+                    <HeadEntry
+                      key={index}
+                      index={index}
+                      name={head.name}
+                      role={head.role}
+                      onNameChange={(value) => updateHead(index, "name", value)}
+                      onRoleChange={(value) => updateHead(index, "role", value)}
+                      onRemove={() => removeHead(index)}
+                      isRequired={index === 0}
+                      showRemove={index >= 2}
+                    />
+                  ))}
+
+                  {/* Add More Button */}
+                  <TouchableOpacity style={styles.addButton} onPress={addHead}>
+                    <Ionicons
+                      name="add-circle"
+                      size={24}
+                      color={COLORS.primary}
+                    />
+                    <Text style={styles.addButtonText}>Add Another Head</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Next Button Container placed beneath the card */}
+              <View
+                style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                  ]}
+                  onPress={handleNext}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
@@ -355,31 +391,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 30,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   contentArea: {
-    marginTop: 20,
+    marginTop: 40,
+  },
+  headerTitle: {
+    marginBottom: 40,
+    paddingRight: 10,
   },
   mainTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: -1,
+    lineHeight: 38,
   },
-  subtitle: {
+  globalHelperText: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginBottom: 24,
-    lineHeight: 22,
+    lineHeight: 24,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   headEntry: {
     marginBottom: 20,
-    backgroundColor: COLORS.cardBackground || "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   entryHeader: {
     flexDirection: "row",
@@ -389,60 +454,60 @@ const styles = StyleSheet.create({
   },
   entryLabel: {
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.primary,
   },
   removeButton: {
     padding: 4,
   },
   input: {
-    height: 50,
-    backgroundColor: COLORS.inputBackground || "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 15,
+    height: 56,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(0,0,0,0.1)",
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
   inputFocused: {
     borderColor: COLORS.primary,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
   },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: "rgba(116, 173, 242, 0.5)",
     borderStyle: "dashed",
     marginTop: 8,
   },
   addButtonText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 8,
-  },
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: 30,
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    paddingHorizontal: 32,
   },
   disabledButton: {
     opacity: 0.6,
@@ -450,8 +515,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

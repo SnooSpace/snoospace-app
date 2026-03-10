@@ -1,6 +1,9 @@
 /**
  * IndividualLocationScreen.js
  *
+/**
+ * IndividualLocationScreen.js
+ *
  * GPS-based location screen for Individual Organizers.
  * Based on MemberLocationScreen but with custom text for community organizers.
  */
@@ -8,16 +11,24 @@
 import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
-  StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Linking } from "react-native";
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  ScrollView,
+  Alert,
+  Linking,
+  ImageBackground,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-} from "../../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import {
   updateCommunitySignupDraft,
@@ -57,7 +68,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       country: "",
       lat: null,
       lng: null,
-    }
+    },
   );
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -70,12 +81,12 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       try {
         await updateCommunitySignupDraft("IndividualLocation", {});
         console.log(
-          "[IndividualLocationScreen] Step set to IndividualLocation"
+          "[IndividualLocationScreen] Step set to IndividualLocation",
         );
       } catch (e) {
         console.log(
           "[IndividualLocationScreen] Step update failed:",
-          e.message
+          e.message,
         );
       }
 
@@ -124,7 +135,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      })
+      }),
     );
   };
 
@@ -146,7 +157,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
                 } catch {}
               },
             },
-          ]
+          ],
         );
         return;
       }
@@ -182,7 +193,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
         } catch (e) {
           console.log(
             "[IndividualLocationScreen] Draft update failed:",
-            e.message
+            e.message,
           );
         }
       } else {
@@ -233,134 +244,191 @@ const IndividualLocationScreen = ({ navigation, route }) => {
   const isButtonDisabled = !hasLocation;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={handleBack}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1, scaleY: 1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={handleBack}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Where are you located?</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Where are you located?</Text>
+            <Text style={styles.globalHelperText}>
+              This city will be set as your primary event location. This doesn't
+              mean you always have to host events in this location.
+            </Text>
 
-          {/* Location Card - shown when location is set */}
-          {hasLocation && (
-            <View style={styles.locationCard}>
-              <View style={styles.locationCardContent}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={COLORS.success || "#00C851"}
-                />
-                <View style={styles.locationCardText}>
-                  <Text style={styles.locationCity}>
-                    {location.city}
-                    {location.state ? `, ${location.state}` : ""}
-                  </Text>
-                  {location.country && (
-                    <Text style={styles.locationCountry}>
-                      {location.country}
-                    </Text>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Location Card - shown when location is set */}
+                {hasLocation && (
+                  <View style={styles.locationCard}>
+                    <View style={styles.locationCardContent}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={COLORS.success || "#00C851"}
+                      />
+                      <View style={styles.locationCardText}>
+                        <Text style={styles.locationCity}>
+                          {location.city}
+                          {location.state ? `, ${location.state}` : ""}
+                        </Text>
+                        {location.country && (
+                          <Text style={styles.locationCountry}>
+                            {location.country}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Use/Update Current Location Button */}
+                <TouchableOpacity
+                  style={styles.locationButton}
+                  onPress={handleGetLocation}
+                  disabled={loadingLocation}
+                  activeOpacity={0.8}
+                >
+                  {loadingLocation ? (
+                    <SnooLoader size="small" color={COLORS.primary} />
+                  ) : (
+                    <Ionicons
+                      name="location"
+                      size={20}
+                      color={COLORS.primary}
+                    />
                   )}
-                </View>
+                  <Text style={styles.locationButtonText}>
+                    {loadingLocation
+                      ? "Getting location..."
+                      : hasLocation
+                        ? "Update Location"
+                        : "Use Current Location"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-          )}
 
-          {/* Use/Update Current Location Button */}
-          <TouchableOpacity
-            style={styles.locationButton}
-            onPress={handleGetLocation}
-            disabled={loadingLocation}
-          >
-            {loadingLocation ? (
-              <SnooLoader size="small" color={COLORS.primary} />
-            ) : (
-              <Ionicons name="location" size={20} color={COLORS.primary} />
+            {/* Next button - visible when location is set */}
+            {hasLocation && (
+              <View
+                style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    isButtonDisabled && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                  ]}
+                  onPress={handleNext}
+                  disabled={isButtonDisabled}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
+                  >
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             )}
-            <Text style={[styles.locationButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-              {loadingLocation
-                ? "Getting location..."
-                : hasLocation
-                ? "Update Location"
-                : "Use Current Location"}
-            </Text>
-          </TouchableOpacity>
+          </View>
+        </ScrollView>
 
-          {/* Custom text for Individual Organizers */}
-          <Text style={styles.helperText}>
-            This city will be set as your primary event location. This doesn't
-            mean you always have to host events in this location.
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* Footer with Next button - visible when location is set */}
-      {hasLocation && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.nextButtonContainer,
-              isButtonDisabled && styles.disabledButton,
-            ]}
-            onPress={handleNext}
-            disabled={isButtonDisabled}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextButton}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 30,
+    marginBottom: 10,
+    letterSpacing: -1,
+  },
+  globalHelperText: {
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 40,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   locationCard: {
-    backgroundColor: "#F0FFF4",
-    borderRadius: 12,
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#00C85133",
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   locationCardContent: {
     flexDirection: "row",
@@ -372,11 +440,12 @@ const styles = StyleSheet.create({
   },
   locationCity: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
   },
   locationCountry: {
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -384,47 +453,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: "rgba(116, 173, 242, 0.15)", // slightly tinted primary
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.primary,
-    marginBottom: 16,
+    borderColor: "rgba(116, 173, 242, 0.3)",
+    marginBottom: 10,
   },
   locationButtonText: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 8,
-  },
-  helperText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: 50,
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
     shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
 });

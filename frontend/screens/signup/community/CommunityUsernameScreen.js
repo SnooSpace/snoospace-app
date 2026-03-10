@@ -10,8 +10,12 @@ import {
   Platform,
   StatusBar,
   Dimensions,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
@@ -20,13 +24,8 @@ import { deleteCommunitySignupDraft } from "../../../utils/signupDraftManager";
 const { width } = Dimensions.get("window");
 
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  COLORS,
-  SPACING,
-  BORDER_RADIUS,
-  SHADOWS,
-} from "../../../constants/theme";
-import GlassBackButton from "../../../components/GlassBackButton";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
@@ -246,160 +245,193 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* 1. Header Row (Back Button) */}
-        <View style={styles.headerRow}>
-          <GlassBackButton
-            onPress={handleBack}
-            style={styles.backButton}
-            accessibilityLabel="Go back"
-          />
-        </View>
-
-        {/* 3. Content Area */}
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Choose Your Community Username</Text>
-            <Text style={styles.subtitle}>
-              This will be your unique identifier on SnooSpace
-            </Text>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Username</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                {
-                  borderColor:
-                    isAvailable === false
-                      ? COLORS.error
-                      : isAvailable === true
-                        ? COLORS.success || "#00C851"
-                        : COLORS.border,
-                },
-              ]}
-            >
-              <TextInput
-                style={styles.textInput}
-                value={username}
-                onChangeText={validateUsername}
-                placeholder="Enter your username"
-                placeholderTextColor={COLORS.textSecondary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                maxLength={30}
-              />
-              {isChecking && <SnooLoader size="small" color={COLORS.primary} />}
-            </View>
-            <Text style={[styles.statusText, { color: status.color }]}>
-              {status.text}
-            </Text>
-          </View>
-
-          <View style={styles.rulesContainer}>
-            <Text style={styles.rulesTitle}>Username Rules:</Text>
-            <Text style={styles.rule}>• 3-30 characters long</Text>
-            <Text style={styles.rule}>
-              • Only letters, numbers, underscores, and dots
-            </Text>
-            <Text style={styles.rule}>• Must be unique across all users</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 4. Fixed Button Container */}
-      <View style={styles.buttonFixedContainer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.nextButtonDisabled,
-          ]}
-          onPress={handleFinish}
-          disabled={isButtonDisabled}
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1, scaleY: -1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.nextButtonText}>
-              {isSubmitting ? "Setting Username..." : "Complete Signup"}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          {/* 1. Header Row */}
+          <SignupHeader
+            role={
+              community_type
+                ? isStudentCommunity
+                  ? "People"
+                  : "Communities"
+                : "Communities"
+            }
+            onBack={handleBack}
+            onCancel={() => {}}
+            hideCancel={true}
+          />
+
+          {/* 3. Content Area */}
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Choose Your Community Username</Text>
+              <Text style={styles.globalHelperText}>
+                This will be your unique identifier on SnooSpace
+              </Text>
+            </View>
+
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Username</Text>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        borderColor:
+                          isAvailable === false
+                            ? COLORS.error
+                            : isAvailable === true
+                              ? COLORS.success || "#00C851"
+                              : "rgba(0,0,0,0.1)",
+                      },
+                    ]}
+                  >
+                    <TextInput
+                      style={styles.textInput}
+                      value={username}
+                      onChangeText={validateUsername}
+                      placeholder="Enter your username"
+                      placeholderTextColor={COLORS.textSecondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      maxLength={30}
+                    />
+                    {isChecking && (
+                      <SnooLoader size="small" color={COLORS.primary} />
+                    )}
+                  </View>
+                  <Text style={[styles.statusText, { color: status.color }]}>
+                    {status.text}
+                  </Text>
+                </View>
+
+                <View style={styles.rulesContainer}>
+                  <Text style={styles.rulesTitle}>Username Rules:</Text>
+                  <Text style={styles.rule}>• 3-30 characters long</Text>
+                  <Text style={styles.rule}>
+                    • Only letters, numbers, underscores, and dots
+                  </Text>
+                  <Text style={styles.rule}>
+                    • Must be unique across all users
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.nextButtonDisabled,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                ]}
+                onPress={handleFinish}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.nextButtonText}>
+                    {isSubmitting ? "Finishing..." : "Complete Setup"}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: width * 0.05,
-    backgroundColor: COLORS.background,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
   },
-
-  // --- Header Styles ---
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    width: "100%",
-    paddingTop: 15,
-    paddingBottom: 5,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-
-  // --- Progress Bar Styles (Re-added) ---
-  progressContainer: {
-    width: "100%",
-    marginBottom: 40,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-  },
-
-  // --- Content Styles ---
   content: {
     flex: 1,
-    // Adjusted top padding slightly lower to accommodate progress bar height
-    paddingTop: 0,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25, // Add bottom padding to prevent content overlap with button
+    marginTop: 40,
   },
   header: {
     marginBottom: 40,
+    paddingRight: 10,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
     lineHeight: 38,
   },
-  subtitle: {
+  globalHelperText: {
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    lineHeight: 24,
+    marginBottom: 40,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   inputContainer: {
     marginBottom: 30,
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
@@ -407,15 +439,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 15,
-    paddingHorizontal: 20,
+    borderColor: "rgba(0,0,0,0.1)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     height: 60,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
   },
   textInput: {
     flex: 1,
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     height: "100%",
   },
@@ -428,43 +462,36 @@ const styles = StyleSheet.create({
 
   // --- Rules Container Styles ---
   rulesContainer: {
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
     padding: 20,
-    borderRadius: 15,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(116, 173, 242, 0.2)",
   },
   rulesTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.primary,
     marginBottom: 12,
   },
   rule: {
     fontSize: 14,
     color: COLORS.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
     lineHeight: 20,
+    fontFamily: "Manrope-Medium",
   },
 
-  // --- Fixed Button Styles ---
-  buttonFixedContainer: {
-    position: "absolute",
-    bottom: 0,
-    width: width,
-    paddingHorizontal: width * 0.05,
-    paddingVertical: 15,
-    backgroundColor: COLORS.background,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
-    zIndex: 10,
-  },
   nextButtonContainer: {
-    width: "100%",
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButton: {
-    height: 70,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
@@ -476,7 +503,7 @@ const styles = StyleSheet.create({
   nextButtonText: {
     color: COLORS.textInverted,
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

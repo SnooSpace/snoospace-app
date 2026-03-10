@@ -1,9 +1,24 @@
 import React, { useRef, useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Alert, Linking } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  ScrollView,
+  Alert,
+  Linking,
+  ImageBackground,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+import { MapPin } from "lucide-react-native";
 
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import {
   COLORS,
   SPACING,
@@ -41,7 +56,7 @@ const LocationInputScreen = ({ navigation, route }) => {
       country: "",
       lat: null,
       lng: null,
-    }
+    },
   );
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -88,7 +103,7 @@ const LocationInputScreen = ({ navigation, route }) => {
                 } catch {}
               },
             },
-          ]
+          ],
         );
         return;
       }
@@ -122,7 +137,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           } catch (e) {
             console.log(
               "[MemberLocationScreen] Draft update failed:",
-              e.message
+              e.message,
             );
           }
           navigation.navigate("MemberInterests", {
@@ -145,7 +160,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           } catch (e) {
             console.log(
               "[MemberLocationScreen] Draft update failed:",
-              e.message
+              e.message,
             );
           }
         }
@@ -160,7 +175,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           } catch (e) {
             console.log(
               "[MemberLocationScreen] Draft update failed:",
-              e.message
+              e.message,
             );
           }
           navigation.navigate("MemberInterests", {
@@ -182,7 +197,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           } catch (e) {
             console.log(
               "[MemberLocationScreen] Draft update failed:",
-              e.message
+              e.message,
             );
           }
         }
@@ -225,167 +240,214 @@ const LocationInputScreen = ({ navigation, route }) => {
   const isButtonDisabled = !hasLocation;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberGender", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              profile_photo_url,
-              dob,
-              pronouns,
-              showPronouns,
-              gender,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberGender", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                profile_photo_url,
+                dob,
+                pronouns,
+                showPronouns,
+                gender,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>Where are you located?</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>Where's your world?</Text>
 
-          {/* Location Card - shown when location is set */}
-          {hasLocation && (
-            <View style={styles.locationCard}>
-              <View style={styles.locationCardContent}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={COLORS.success || "#00C851"}
-                />
-                <View style={styles.locationCardText}>
-                  <Text style={styles.locationCity}>
-                    {location.city}
-                    {location.state ? `, ${location.state}` : ""}
-                  </Text>
-                  {location.country && (
-                    <Text style={styles.locationCountry}>
-                      {location.country}
-                    </Text>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Location Card - shown when location is set */}
+                {hasLocation && (
+                  <View style={styles.locationCard}>
+                    <View style={styles.locationCardContent}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={COLORS.success || "#00C851"}
+                      />
+                      <View style={styles.locationCardText}>
+                        <Text style={styles.locationCity}>
+                          {location.city}
+                          {location.state ? `, ${location.state}` : ""}
+                        </Text>
+                        {location.country && (
+                          <Text style={styles.locationCountry}>
+                            {location.country}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Use/Update Current Location Button */}
+                <TouchableOpacity
+                  style={styles.locationButton}
+                  onPress={handleGetLocation}
+                  disabled={loadingLocation}
+                >
+                  {loadingLocation ? (
+                    <SnooLoader size="small" color={COLORS.textPrimary} />
+                  ) : (
+                    <MapPin
+                      size={20}
+                      color={COLORS.textPrimary}
+                    />
                   )}
-                </View>
+                  <Text
+                    style={[
+                      styles.locationButtonText,
+                      { fontFamily: "Manrope-SemiBold" },
+                    ]}
+                  >
+                    {loadingLocation
+                      ? "Getting location..."
+                      : hasLocation
+                        ? "Update Location"
+                        : "Use Current Location"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Helper text */}
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Regular",
+                    color: COLORS.textSecondary,
+                    marginTop: 8,
+                    fontSize: 13,
+                    lineHeight: 18,
+                  }}
+                >
+                  We only use your location while the app is open to show nearby
+                  events and improve recommendations.
+                </Text>
               </View>
             </View>
-          )}
 
-          {/* Use/Update Current Location Button */}
-          <TouchableOpacity
-            style={styles.locationButton}
-            onPress={handleGetLocation}
-            disabled={loadingLocation}
-          >
-            {loadingLocation ? (
-              <SnooLoader size="small" color={COLORS.primary} />
-            ) : (
-              <Ionicons name="location" size={20} color={COLORS.primary} />
-            )}
-            <Text style={[styles.locationButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-              {loadingLocation
-                ? "Getting location..."
-                : hasLocation
-                ? "Update Location"
-                : "Use Current Location"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Helper text */}
-          <Text style={{ color: COLORS.textSecondary, marginTop: 8 }}>
-            We only use your location while the app is open to show nearby
-            events and improve recommendations.
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* Footer with Next button - visible when location is set */}
-      {hasLocation && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.nextButtonContainer,
-              isButtonDisabled && styles.disabledButton,
-            ]}
-            onPress={handleNext}
-            disabled={isButtonDisabled}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextButton}
+            {/* Next Button */}
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    flex: 1, // Pushes back button to the left
-    textAlign: "center",
-    marginLeft: -40, // Adjust to center the text visually
-  },
-
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 30,
+    marginBottom: 10,
+    letterSpacing: -1,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   // Location Card Styles
   locationCard: {
-    backgroundColor: "#F0FFF4",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#00C85133",
+    borderColor: "rgba(255, 255, 255, 0.5)",
   },
   locationCardContent: {
     flexDirection: "row",
@@ -397,90 +459,53 @@ const styles = StyleSheet.create({
   },
   locationCity: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
   },
   locationCountry: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginTop: 2,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 50,
-    backgroundColor: "#f8f9fa", // Light background for the input field
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 15,
-  },
-  locationIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    paddingVertical: 0, // Ensures text is centered vertically
   },
   locationButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.7)",
     marginBottom: 12,
   },
   locationButtonText: {
-    color: COLORS.primary,
+    color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginLeft: 8,
   },
-  locationFields: {
-    gap: 12,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    backgroundColor: "#FFFFFF",
-  },
-  locationInput: {
-    marginBottom: 0,
-  },
-
-  // --- Footer/Button Styles ---
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: 50,
-  },
+  // --- Footer/Button Styles Extracted ---
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
   // Map Picker Modal Styles

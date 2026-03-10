@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  ScrollView,
+  ImageBackground,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import {
   COLORS,
   SPACING,
@@ -63,10 +75,10 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     showPronouns: initialShowPronouns,
   } = route.params || {};
   const [selectedPronouns, setSelectedPronouns] = useState(
-    initialPronouns || []
+    initialPronouns || [],
   );
   const [visibleOnProfile, setVisibleOnProfile] = useState(
-    initialShowPronouns !== false
+    initialShowPronouns !== false,
   );
   const [allPronouns, setAllPronouns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +124,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   const preferNotToSaySelected = selectedPronouns.includes(PREFER_NOT_TO_SAY);
   // Check if any other pronoun is selected
   const hasOtherPronounSelected = selectedPronouns.some(
-    (p) => p !== PREFER_NOT_TO_SAY
+    (p) => p !== PREFER_NOT_TO_SAY,
   );
 
   const togglePronoun = (pronoun) => {
@@ -152,7 +164,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   const handleNext = async () => {
     // Filter out "Prefer not to say" - it should not be stored in the database
     const pronounsToSave = selectedPronouns.filter(
-      (p) => p !== PREFER_NOT_TO_SAY
+      (p) => p !== PREFER_NOT_TO_SAY,
     );
     // If "Prefer not to say" is selected, force showPronouns to false
     const shouldShowPronouns = preferNotToSaySelected
@@ -183,166 +195,225 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberAge", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              profile_photo_url,
-              dob,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: 1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberAge", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                profile_photo_url,
+                dob,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>What are your pronouns?</Text>
-          <Text style={styles.subtitle}>Select up to {MAX_SELECTIONS}</Text>
-
-          {/* Pronouns List */}
-          <View style={styles.pronounsList}>
-            {loading ? (
-              <SnooLoader size="large" color={COLORS.primary} />
-            ) : allPronouns.length === 0 ? (
-              <Text style={[styles.subtitle, { fontFamily: 'Manrope-Medium' }]}>No pronouns available</Text>
-            ) : (
-              <>
-                {allPronouns.map((pronoun) => (
-                  <PronounRow
-                    key={pronoun}
-                    label={pronoun}
-                    isSelected={selectedPronouns.includes(pronoun)}
-                    onPress={togglePronoun}
-                    disabled={
-                      preferNotToSaySelected && pronoun !== PREFER_NOT_TO_SAY
-                    }
-                  />
-                ))}
-                {/* Prefer not to say option */}
-                <PronounRow
-                  key={PREFER_NOT_TO_SAY}
-                  label={PREFER_NOT_TO_SAY}
-                  isSelected={preferNotToSaySelected}
-                  onPress={togglePronoun}
-                  disabled={hasOtherPronounSelected}
-                />
-              </>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer Section */}
-      <View style={styles.footer}>
-        {/* Visible on Profile Toggle */}
-        <TouchableOpacity
-          style={[
-            styles.visibilityToggle,
-            preferNotToSaySelected && styles.visibilityToggleDisabled,
-          ]}
-          onPress={() =>
-            !preferNotToSaySelected && setVisibleOnProfile(!visibleOnProfile)
-          }
-          activeOpacity={preferNotToSaySelected ? 1 : 0.7}
-          disabled={preferNotToSaySelected}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <View
-            style={[
-              styles.toggleCheckbox,
-              visibleOnProfile &&
-                !preferNotToSaySelected &&
-                styles.toggleCheckboxSelected,
-              preferNotToSaySelected && styles.checkboxDisabled,
-            ]}
-          >
-            {visibleOnProfile && !preferNotToSaySelected && (
-              <Ionicons
-                name="checkmark"
-                size={16}
-                color={COLORS.textInverted}
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>What pronouns feel like you?</Text>
+            <Text style={styles.subtitle}>Select up to {MAX_SELECTIONS}</Text>
+
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
               />
-            )}
+              <View style={styles.cardContent}>
+                {/* Pronouns List */}
+                <View style={styles.pronounsList}>
+                  {loading ? (
+                    <SnooLoader size="large" color={COLORS.primary} />
+                  ) : allPronouns.length === 0 ? (
+                    <Text
+                      style={[
+                        styles.subtitle,
+                        { fontFamily: "Manrope-Medium" },
+                      ]}
+                    >
+                      No pronouns available
+                    </Text>
+                  ) : (
+                    <>
+                      {allPronouns.map((pronoun) => {
+                        const isSelected = selectedPronouns.includes(pronoun);
+                        const isMaxSelected = selectedPronouns.filter(p => p !== PREFER_NOT_TO_SAY).length >= MAX_SELECTIONS;
+                        const isDisabled = (preferNotToSaySelected && pronoun !== PREFER_NOT_TO_SAY) || (!isSelected && isMaxSelected);
+                        
+                        return (
+                          <PronounRow
+                            key={pronoun}
+                            label={pronoun}
+                            isSelected={isSelected}
+                            onPress={togglePronoun}
+                            disabled={isDisabled}
+                          />
+                        );
+                      })}
+                      {/* Prefer not to say option */}
+                      <PronounRow
+                        key={PREFER_NOT_TO_SAY}
+                        label={PREFER_NOT_TO_SAY}
+                        isSelected={preferNotToSaySelected}
+                        onPress={togglePronoun}
+                        disabled={hasOtherPronounSelected}
+                      />
+                    </>
+                  )}
+                </View>
+
+                {/* Visible on Profile Toggle */}
+                <TouchableOpacity
+                  style={[
+                    styles.visibilityToggle,
+                    preferNotToSaySelected && styles.visibilityToggleDisabled,
+                  ]}
+                  onPress={() =>
+                    !preferNotToSaySelected &&
+                    setVisibleOnProfile(!visibleOnProfile)
+                  }
+                  activeOpacity={preferNotToSaySelected ? 1 : 0.7}
+                  disabled={preferNotToSaySelected}
+                >
+                  <View
+                    style={[
+                      styles.toggleCheckbox,
+                      visibleOnProfile &&
+                        !preferNotToSaySelected &&
+                        styles.toggleCheckboxSelected,
+                      preferNotToSaySelected && styles.checkboxDisabled,
+                    ]}
+                  >
+                    {visibleOnProfile && !preferNotToSaySelected && (
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={COLORS.textInverted}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.visibilityText,
+                      preferNotToSaySelected && styles.visibilityTextDisabled,
+                    ]}
+                  >
+                    Visible on profile
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Next Button */}
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.nextButtonContainer,
+                  isButtonDisabled && styles.nextButtonDisabled,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleNext}
+                activeOpacity={0.8}
+                disabled={isButtonDisabled}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text
-            style={[
-              styles.visibilityText,
-              preferNotToSaySelected && styles.visibilityTextDisabled,
-            ]}
-          >
-            Visible on profile
-          </Text>
-        </TouchableOpacity>
+        </ScrollView>
 
-        {/* Next Button */}
-        <TouchableOpacity
-          style={[
-            styles.nextButtonContainer,
-            isButtonDisabled && styles.nextButtonDisabled,
-          ]}
-          onPress={handleNext}
-          activeOpacity={0.8}
-          disabled={isButtonDisabled}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 5,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginBottom: 30,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
 
   // --- Pronouns List Styles ---
@@ -359,6 +430,7 @@ const styles = StyleSheet.create({
   },
   pronounText: {
     fontSize: 16,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
   },
   checkbox: {
@@ -386,16 +458,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBackground || "#f0f0f0",
   },
 
-  // --- Footer Styles ---
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: Platform.OS === "ios" ? 20 : 50,
-  },
+  // --- Footer Styles Removed since it was extracted into content block ---
   visibilityToggle: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginTop: 20,
   },
   toggleCheckbox: {
     width: 24,
@@ -412,7 +479,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   visibilityText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textPrimary,
   },
   visibilityToggleDisabled: {
@@ -423,22 +491,24 @@ const styles = StyleSheet.create({
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButtonDisabled: {
     opacity: 0.5,
     shadowOpacity: 0,
   },
   nextButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
 });

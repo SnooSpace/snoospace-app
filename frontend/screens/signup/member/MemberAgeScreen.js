@@ -9,9 +9,13 @@ import {
   TextInput,
   Platform,
   StatusBar,
+  ImageBackground,
+  ScrollView,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -41,13 +45,13 @@ export default function Example({ navigation, route }) {
     dob: initialDob,
   } = route?.params || {};
   const [form, setForm] = useState(
-    initialDob ? { dateOfBirth: initialDob } : {}
+    initialDob ? { dateOfBirth: initialDob } : {},
   );
   const [input, setInput] = useState(
     initialDob
       ? initialDob.replace(/-/g, "").slice(4) +
           initialDob.replace(/-/g, "").slice(0, 4)
-      : ""
+      : "",
   );
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -218,150 +222,226 @@ export default function Example({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberProfilePic", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
+      }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberProfilePic", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <View style={styles.contentContainer}>
-        {/* Title */}
-        <Text style={styles.title}>Enter your Birthday</Text>
-        <Text style={styles.subtitle}>
-          Provide your birth date to complete your profile.
-        </Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentContainer}>
+            {/* Title */}
+            <Text style={styles.title}>Blow out the candles — when's your birthday?</Text>
+            <Text style={styles.subtitle}>
+              Provide your birth date to complete your profile.
+            </Text>
 
-        {/* Input */}
-        <View style={styles.form}>
-          <View style={styles.input}>
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus={true}
-              caretHidden={true}
-              keyboardType="number-pad"
-              maxLength={8}
-              onChangeText={handleInputChange}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              returnKeyType="done"
-              style={[
-                styles.inputControl,
-                isFocused && styles.inputControlFocused,
-              ]}
-              value={input}
-            />
+            {/* Input Card */}
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                <View style={styles.form}>
+                  <View style={styles.input}>
+                    <TextInput
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoFocus={true}
+                      caretHidden={true}
+                      keyboardType="number-pad"
+                      maxLength={8}
+                      onChangeText={handleInputChange}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => setIsFocused(false)}
+                      returnKeyType="done"
+                      style={[
+                        styles.inputControl,
+                        isFocused && styles.inputControlFocused,
+                      ]}
+                      value={input}
+                    />
 
-            <View style={styles.inputOverflow}>
-              {"MM/DD/YYYY".split("").map((placeholder, index, arr) => {
-                const countDelimiters = arr
-                  .slice(0, index)
-                  .filter((char) => char === "/").length;
-                const indexWithoutDelimeter = index - countDelimiters;
-                const current = input[indexWithoutDelimeter];
-                const isSlash = placeholder === "/";
+                    <View style={styles.inputOverflow}>
+                      {"MM/DD/YYYY".split("").map((placeholder, index, arr) => {
+                        const countDelimiters = arr
+                          .slice(0, index)
+                          .filter((char) => char === "/").length;
+                        const indexWithoutDelimeter = index - countDelimiters;
+                        const current = input[indexWithoutDelimeter];
+                        const isSlash = placeholder === "/";
 
-                return (
-                  <View
-                    key={index}
-                    style={
-                      isSlash
-                        ? styles.inputCharContainerSlash
-                        : styles.inputCharContainer
-                    }
-                  >
-                    {isSlash ? (
-                      <Text style={styles.slashText}>/</Text>
-                    ) : (
-                      <Text style={styles.inputChar}>{current || ""}</Text>
-                    )}
+                        return (
+                          <View
+                            key={index}
+                            style={
+                              isSlash
+                                ? styles.inputCharContainerSlash
+                                : styles.inputCharContainer
+                            }
+                          >
+                            {isSlash ? (
+                              <Text style={styles.slashText}>/</Text>
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.inputChar,
+                                  !current && styles.placeholderChar,
+                                ]}
+                              >
+                                {current || placeholder}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
                   </View>
-                );
-              })}
+
+                  <Text style={styles.formSubtitle}>
+                    Your profile will show your age, not your date of birth.
+                  </Text>
+                  {error ? (
+                    <Animated.Text
+                      style={[
+                        styles.errorText,
+                        {
+                          opacity: fadeAnim,
+                          transform: [{ translateY: slideAnim }],
+                        },
+                      ]}
+                    >
+                      {error}
+                    </Animated.Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            {/* Button Moved Outside */}
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                onPress={handleNext}
+                style={[
+                  styles.nextButtonContainer,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
+        </ScrollView>
 
-          <Text style={styles.subtitle}>
-            Your profile will show your age, not your date of birth.
-          </Text>
-          {error ? (
-            <Animated.Text
-              style={[
-                styles.errorText,
-                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-              ]}
-            >
-              {error}
-            </Animated.Text>
-          ) : null}
-        </View>
-
-        {/* Button */}
-        <TouchableOpacity
-          onPress={handleNext}
-          style={styles.btnContainer}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.btn}
-          >
-            <Text style={styles.btnText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      <AgeConfirmationModal
-        visible={showAgeModal}
-        age={calculatedAge}
-        birthDate={formattedBirthDate}
-        onConfirm={onConfirmAge}
-        onEdit={() => setShowAgeModal(false)}
-      />
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+        <AgeConfirmationModal
+          visible={showAgeModal}
+          age={calculatedAge}
+          birthDate={formattedBirthDate}
+          onConfirm={onConfirmAge}
+          onEdit={() => setShowAgeModal(false)}
+        />
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 25,
     marginTop: 40,
   },
   title: {
-    fontSize: 28, // Adjusted to 28 to match Gender screen
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
-    marginBottom: 10,
+    marginBottom: 40,
+    letterSpacing: -1,
+    lineHeight: 42,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginBottom: 30,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
   },
   form: {
     marginBottom: 20,
@@ -416,9 +496,12 @@ const styles = StyleSheet.create({
   },
   inputChar: {
     fontSize: 24,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
     color: "#000",
     textAlign: "center",
+  },
+  placeholderChar: {
+    color: "#C7C7CC",
   },
   inputCharEmpty: {
     // No placeholder needed for empty lines in this design, or could clearly show empty space
@@ -426,32 +509,39 @@ const styles = StyleSheet.create({
   },
   slashText: {
     fontSize: 24,
-    fontWeight: "400",
+    fontFamily: "Manrope-Medium",
     color: "#C7C7CC", // Lighter color for slash
   },
-  btnContainer: {
-    marginTop: 20, // Added some top margin
-    marginBottom: 50,
-    borderRadius: 12,
-    ...SHADOWS.primaryGlow,
+  formSubtitle: {
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: 10,
   },
-  btn: {
+  nextButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  nextButton: {
+    height: 56,
+    borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 12,
   },
-  btnText: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: "600",
+  buttonText: {
     color: COLORS.textInverted,
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
   },
   errorText: {
     marginTop: 10,
     color: "rgba(255, 59, 48, 0.8)", // Slightly dimmed red
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     textAlign: "center",
-    fontWeight: "600",
   },
 });

@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  ScrollView,
+  ImageBackground,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+import { ChevronDown, ChevronRight, X } from "lucide-react-native";
 
 import HapticsService from "../../../services/HapticsService";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+import {
+  INTEREST_CATEGORIES,
+  getInterestStyle,
+} from "../../profile/member/EditProfileConstants";
 import {
   COLORS,
   SPACING,
@@ -22,34 +39,9 @@ import SnooLoader from "../../../components/ui/SnooLoader";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants
+// --- Helpers ---
 const MIN_SELECTIONS = 3; // Requirement from the design text
 const MAX_SELECTIONS = 7; // Maximum selections allowed
-
-// --- Reusable Interest Chip Component ---
-const InterestChip = ({ label, isSelected, onPress, isDisabled }) => {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.chip,
-        isSelected ? styles.chipSelected : styles.chipUnselected,
-        isDisabled && styles.chipDisabled,
-      ]}
-      onPress={() => !isDisabled && onPress(label)}
-      activeOpacity={isDisabled ? 1 : 0.7}
-      disabled={isDisabled}
-    >
-      <Text
-        style={[
-          styles.chipText,
-          isSelected ? styles.chipTextSelected : styles.chipTextUnselected,
-          isDisabled && styles.chipTextDisabled,
-        ]}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-};
 
 const InterestsScreen = ({ navigation, route }) => {
   const {
@@ -66,7 +58,7 @@ const InterestsScreen = ({ navigation, route }) => {
     interests: initialInterests,
   } = route.params || {};
   const [selectedInterests, setSelectedInterests] = useState(
-    initialInterests || []
+    initialInterests || [],
   );
   const [allInterests, setAllInterests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +96,8 @@ const InterestsScreen = ({ navigation, route }) => {
     };
     loadInterests();
   }, []);
+
+  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE");
 
   const handleCancel = async () => {
     await deleteSignupDraft();
@@ -160,229 +154,427 @@ const InterestsScreen = ({ navigation, route }) => {
   const isButtonDisabled = selectedInterests.length < MIN_SELECTIONS;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <SignupHeader
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace("MemberLocation", {
-              email,
-              accessToken,
-              refreshToken,
-              name,
-              profile_photo_url,
-              dob,
-              pronouns,
-              showPronouns,
-              gender,
-              location,
-            });
-          }
-        }}
-        onCancel={() => setShowCancelModal(true)}
-      />
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: 1 }, { scaleY: -1 }], // Different orientation from Location Screen, but no rotation to preserve aspect ratio filling
+      }}
+      resizeMode="cover"
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <SignupHeader
+          role="People"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("MemberLocation", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                profile_photo_url,
+                dob,
+                pronouns,
+                showPronouns,
+                gender,
+                location,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>What are you interested in?</Text>
-          <Text style={styles.subtitle}>
-            Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize
-            your experience.
-          </Text>
-
-          {/* Interest Chips Container */}
-          <View style={styles.chipsContainer}>
-            {loading ? (
-              <SnooLoader size="large" color={COLORS.primary} />
-            ) : allInterests.length === 0 ? (
-              <Text style={[styles.subtitle, { fontFamily: 'Manrope-Medium' }]}>No interests available</Text>
-            ) : (
-              allInterests.map((interest) => {
-                const isSelected = selectedInterests.includes(interest);
-                const isDisabled =
-                  !isSelected && selectedInterests.length >= MAX_SELECTIONS;
-
-                return (
-                  <InterestChip
-                    key={interest}
-                    label={interest}
-                    isSelected={isSelected}
-                    isDisabled={isDisabled}
-                    onPress={toggleInterest}
-                  />
-                );
-              })
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Fixed Footer/Button Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.finishButtonContainer,
-            isButtonDisabled && styles.disabledButton,
-          ]}
-          onPress={handleFinish}
-          disabled={isButtonDisabled}
-          activeOpacity={0.8}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={COLORS.primaryGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.finishButton}
-          >
-            <Text style={styles.buttonText}>Next</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          {/* Content Section */}
+          <View style={styles.contentContainer}>
+            <Text style={styles.title}>What gets you out the door?</Text>
+            <Text style={styles.subtitle}>
+              Select {MIN_SELECTIONS}-{MAX_SELECTIONS} interests to personalize
+              your experience.
+            </Text>
 
-      {/* Cancel Confirmation Modal */}
-      <CancelSignupModal
-        visible={showCancelModal}
-        onKeepEditing={() => setShowCancelModal(false)}
-        onDiscard={handleCancel}
-      />
-    </SafeAreaView>
+            <View style={styles.card}>
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Top Section: Selected Interests */}
+                {selectedInterests.length > 0 && (
+                  <View style={styles.selectedSection}>
+                    <View style={styles.chipsContainer}>
+                      {selectedInterests.map((interest) => {
+                        const style = getInterestStyle(interest);
+                        const Icon = style.icon;
+                        return (
+                          <TouchableOpacity
+                            key={`selected-${interest}`}
+                            activeOpacity={0.7}
+                            onPress={() => toggleInterest(interest)}
+                            style={[
+                              styles.vibeChip,
+                              { backgroundColor: style.bg, paddingRight: 8 },
+                            ]}
+                          >
+                            <View style={styles.vibeContent}>
+                              <Icon
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={[styles.vibeText, { color: style.text }]}
+                              >
+                                {interest}
+                              </Text>
+                            </View>
+                            <View style={styles.removeIconContainer}>
+                              <X size={12} color={style.text} strokeWidth={3} />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.divider} />
+                  </View>
+                )}
+
+                {/* Categories */}
+                <View style={styles.categoriesContainer}>
+                  {loading ? (
+                    <SnooLoader size="large" color={COLORS.primary} />
+                  ) : allInterests.length === 0 ? (
+                    <Text
+                      style={[
+                        styles.subtitle,
+                        { fontFamily: "Manrope-Medium", marginTop: 20 },
+                      ]}
+                    >
+                      No interests available
+                    </Text>
+                  ) : (
+                    Object.keys(INTEREST_CATEGORIES)
+                      .filter((key) => key !== "DEFAULT")
+                      .map((key) => {
+                        const category = INTEREST_CATEGORIES[key];
+                        const isExpanded = expandedCategory === key;
+                        const Icon = category.icon;
+
+                        // Filter interests for this category
+                        const categoryInterests = allInterests.filter(
+                          (i) =>
+                            !selectedInterests.includes(i) &&
+                            category.keywords.some((k) =>
+                              i.toLowerCase().includes(k),
+                            ),
+                        );
+
+                        // Skip rendering category if it has no unselected interests available
+                        if (categoryInterests.length === 0) return null;
+
+                        return (
+                          <View key={key} style={styles.categoryRow}>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setExpandedCategory(isExpanded ? null : key);
+                              }}
+                              style={[
+                                styles.categoryHeader,
+                                isExpanded && styles.categoryHeaderExpanded,
+                                {
+                                  backgroundColor: isExpanded
+                                    ? category.bg
+                                    : "transparent",
+                                },
+                              ]}
+                            >
+                              <View style={styles.categoryHeaderLeft}>
+                                <View
+                                  style={[
+                                    styles.categoryIcon,
+                                    { backgroundColor: category.bg },
+                                  ]}
+                                >
+                                  <Icon size={14} color={category.text} />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.categoryTitle,
+                                    isExpanded && {
+                                      color: category.text,
+                                      fontWeight: "600",
+                                    },
+                                  ]}
+                                >
+                                  {category.label}
+                                </Text>
+                              </View>
+                              {isExpanded ? (
+                                <ChevronDown size={16} color={COLORS.textSecondary} />
+                              ) : (
+                                <ChevronRight size={16} color={COLORS.textSecondary} />
+                              )}
+                            </TouchableOpacity>
+
+                            {isExpanded && (
+                              <View style={styles.categoryContent}>
+                                <View style={styles.chipsContainer}>
+                                  {categoryInterests.map((interest) => (
+                                    <TouchableOpacity
+                                      key={interest}
+                                      onPress={() => toggleInterest(interest)}
+                                      style={[
+                                        styles.optionChip,
+                                        selectedInterests.length >= MAX_SELECTIONS && styles.optionChipDisabled
+                                      ]}
+                                      disabled={selectedInterests.length >= MAX_SELECTIONS}
+                                    >
+                                      <Text style={[
+                                        styles.optionText,
+                                        selectedInterests.length >= MAX_SELECTIONS && styles.optionTextDisabled
+                                      ]}>{interest}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.finishButtonContainer,
+                  isButtonDisabled && styles.disabledButton,
+                  { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                ]}
+                onPress={handleFinish}
+                disabled={isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={COLORS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.finishButton}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    flex: 1,
-    textAlign: "center",
-    marginLeft: -40, // Visual centering adjustment
-  },
-  progressSection: {
-    paddingHorizontal: 5,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
-  },
-  percentageText: {
-    position: "absolute",
-    top: 0,
-    right: 5,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    fontWeight: "600",
-  },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#e9ecef",
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  // ProgressBar handles active state
   contentContainer: {
     flex: 1,
-    marginTop: 30,
-    paddingHorizontal: 25,
+    marginTop: 40,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
     marginBottom: 10,
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 30,
+    marginBottom: 20,
+    lineHeight: 24,
   },
 
-  // --- Chip Styles ---
+  // --- Card Styles ---
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
+
+  // --- Layout Styles (Categories / Accordion) ---
+  selectedSection: {
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    marginVertical: 16,
+  },
+  categoriesContainer: {
+    marginTop: 8,
+  },
+  categoryRow: {
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  categoryHeaderExpanded: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  categoryContent: {
+    padding: 16,
+    backgroundColor: "transparent",
+  },
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
-  chip: {
+
+  // --- Chip Styles (My Vibes Redesign matching EditProfileScreen) ---
+  vibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
     paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
+    gap: 8,
+  },
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  vibeText: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+  },
+  removeIconContainer: {
+    marginLeft: 2,
+    opacity: 0.6,
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.4)", // Glass style
     paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
   },
-  chipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  chipUnselected: {
-    backgroundColor: COLORS.background,
-    borderColor: COLORS.textSecondary + "80",
-  },
-  chipText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  chipTextSelected: {
-    color: COLORS.textInverted,
-  },
-  chipTextUnselected: {
+  optionText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
   },
-  chipDisabled: {
-    backgroundColor: COLORS.inputBackground,
-    borderColor: "#e9ecef",
+  optionChipDisabled: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.3)",
     opacity: 0.5,
   },
-  chipTextDisabled: {
+  optionTextDisabled: {
     color: COLORS.textSecondary,
   },
 
-  // --- Footer/Button Styles ---
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: 50,
-  },
+  // --- Footer/Button Styles Extracted ---
   finishButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
-    ...SHADOWS.primaryGlow,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
   },
   finishButton: {
-    paddingVertical: 15,
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabledButton: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
-    
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
 });

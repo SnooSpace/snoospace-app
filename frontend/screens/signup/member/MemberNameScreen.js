@@ -105,7 +105,7 @@ const NameInputScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Text style={styles.title}>What should we call you?</Text>
+            <Text style={styles.title}>What's the name behind the profile?</Text>
 
             <View style={styles.card}>
               <BlurView
@@ -200,6 +200,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 40,
     letterSpacing: -0.5,
+    lineHeight: 42,
   },
   card: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
