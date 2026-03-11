@@ -28,6 +28,8 @@ import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
+import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
+import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";
 
 const Stack = createStackNavigator();
 
@@ -148,6 +150,16 @@ export default function AppNavigator({ initialRouteName }) {
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
         }}
+      />
+      <Stack.Screen
+        name="DeleteAccount"
+        component={DeleteAccountScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DeleteConfirmation"
+        component={DeleteConfirmationScreen}
+        options={{ headerShown: false, animation: "fade" }}
       />
     </Stack.Navigator>
   );

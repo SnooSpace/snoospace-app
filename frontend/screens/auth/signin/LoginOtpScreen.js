@@ -124,10 +124,6 @@ const LoginOtpScreen = ({ navigation, route }) => {
     await startForegroundWatch();
     attachAppStateListener();
 
-    if (isAddingAccount) {
-      Alert.alert("Account Added", "Switching to new account...");
-    }
-
     navigateToHome(user.type);
   };
 

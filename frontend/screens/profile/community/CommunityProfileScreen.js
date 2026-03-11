@@ -1983,7 +1983,7 @@ export default function CommunityProfileScreen({ navigation }) {
         }
         onAddAccountPress={() => setShowAddAccountModal(true)}
         onLogoutPress={handleLogout}
-        onDeleteAccountPress={() => setShowDeleteModal(true)}
+        onDeleteAccountPress={() => navigation.navigate("DeleteAccount")}
         hapticsEnabled={hapticsEnabled}
         onToggleHaptics={handleToggleHaptics}
         textColor={TEXT_COLOR}
@@ -1999,130 +1999,7 @@ export default function CommunityProfileScreen({ navigation }) {
         hasMultipleAccounts={logoutModalData.hasMultiple}
       />
 
-      <Modal
-        visible={showDeleteModal}
-        transparent={true}
-        animationType="fade"
-        statusBarTranslucent={true}
-        onRequestClose={() => setShowDeleteModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Delete Account</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowDeleteModal(false);
-                    setDeleteInput("");
-                  }}
-                  style={styles.closeButton}
-                >
-                  <X size={24} color={TEXT_COLOR} />
-                </TouchableOpacity>
-              </View>
-              <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-                <Text style={{ color: LIGHT_TEXT_COLOR, marginBottom: 12 }}>
-                  This is permanent and cannot be undone. Type "delete" to
-                  confirm.
-                </Text>
-                <TextInput
-                  value={deleteInput}
-                  onChangeText={setDeleteInput}
-                  placeholder="Type delete"
-                  autoCapitalize="none"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "#E5E5EA",
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    marginBottom: 16,
-                  }}
-                />
-                <TouchableOpacity
-                  disabled={
-                    deleting || deleteInput.trim().toLowerCase() !== "delete"
-                  }
-                  onPress={async () => {
-                    if (deleteInput.trim().toLowerCase() !== "delete") return;
-                    setDeleting(true);
-                    try {
-                      const { switchedToAccount, navigateToLanding } =
-                        await apiDeleteAccount();
-                      await AsyncStorage.multiRemove([
-                        "accessToken",
-                        "userData",
-                        "auth_token",
-                        "auth_email",
-                        "pending_otp",
-                      ]);
-                      setShowDeleteModal(false);
-
-                      // Get the root navigator
-                      let rootNavigator = navigation;
-                      if (navigation.getParent) {
-                        const parent = navigation.getParent();
-                        if (parent) {
-                          rootNavigator = parent.getParent
-                            ? parent.getParent()
-                            : parent;
-                        }
-                      }
-
-                      if (navigateToLanding || !switchedToAccount) {
-                        // No other accounts or explicitly told to go to landing
-                        rootNavigator.dispatch(
-                          CommonActions.reset({
-                            index: 0,
-                            routes: [{ name: "Landing" }],
-                          }),
-                        );
-                      } else {
-                        // Switch to other account
-                        const routeMap = {
-                          member: "MemberHome",
-                          community: "CommunityHome",
-                          sponsor: "SponsorHome",
-                          venue: "VenueHome",
-                        };
-                        const routeName =
-                          routeMap[switchedToAccount.type] || "Landing";
-                        rootNavigator.dispatch(
-                          CommonActions.reset({
-                            index: 0,
-                            routes: [{ name: routeName }],
-                          }),
-                        );
-                      }
-                    } catch (e) {
-                      Alert.alert(
-                        "Delete failed",
-                        e?.message || "Could not delete account",
-                      );
-                    } finally {
-                      setDeleting(false);
-                    }
-                  }}
-                  style={{
-                    backgroundColor:
-                      deleteInput.trim().toLowerCase() === "delete"
-                        ? "#FF3B30"
-                        : "#FFAAA3",
-                    paddingVertical: 12,
-                    borderRadius: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>
-                    {deleting ? "Deleting..." : "Delete Account"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardStickyView>
-        </View>
-      </Modal>
+      {/* Old Delete Account Modal removed */}
 
       <HeadsEditorModal
         visible={headsModalVisible}
@@ -2768,7 +2645,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontFamily: FONTS.primary,
     color: TEXT_COLOR,
   },
   closeButton: {

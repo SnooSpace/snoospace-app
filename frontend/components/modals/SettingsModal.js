@@ -8,7 +8,14 @@ import {
   StyleSheet,
   Switch,
   Platform,
+  Pressable,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  withSpring,
+  useSharedValue,
+  interpolateColor,
+} from "react-native-reanimated";
 import {
   X,
   Bell,
@@ -22,6 +29,44 @@ import {
 } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { FONTS } from "../../constants/theme";
+
+/**
+ * Custom animated switch component for a smoother, premium feel.
+ */
+function AnimatedSwitch({ value, onValueChange, activeColor = "#2962FF" }) {
+  const translateX = useSharedValue(value ? 20 : 0);
+
+  React.useEffect(() => {
+    translateX.value = withSpring(value ? 22 : 2, {
+      mass: 0.8,
+      stiffness: 150,
+      damping: 15,
+    });
+  }, [value]);
+
+  const trackStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      translateX.value,
+      [2, 22],
+      ["#E5E5EA", activeColor],
+    );
+    return { backgroundColor };
+  });
+
+  const thumbStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+
+  return (
+    <Pressable onPress={() => onValueChange(!value)}>
+      <Animated.View style={[styles.switchTrack, trackStyle]}>
+        <Animated.View style={[styles.switchThumb, thumbStyle]} />
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 /**
  * Reusable settings modal that mirrors the layout/behavior originally
@@ -118,12 +163,10 @@ export default function SettingsModal({
                   >
                     Enable App Haptics
                   </Text>
-                  <Switch
-                    trackColor={{ false: "#767577", true: "#34C759" }} // Use IOS green for true
-                    thumbColor={Platform.OS === "android" ? "#f4f3f4" : ""}
-                    ios_backgroundColor="#3e3e3e"
-                    onValueChange={onToggleHaptics}
+                  <AnimatedSwitch
                     value={hapticsEnabled}
+                    onValueChange={onToggleHaptics}
+                    activeColor="#2962FF"
                   />
                 </View>
 
@@ -233,6 +276,24 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#E5E5EA",
     marginVertical: 10,
+  },
+  switchTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    padding: 2,
+  },
+  switchThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });
 
