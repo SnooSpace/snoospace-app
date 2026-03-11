@@ -1,6 +1,6 @@
 import React from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { X } from "lucide-react-native";
 import PropTypes from "prop-types";
 
 /**
@@ -48,8 +48,13 @@ export default function AddAccountModal({
           {/* Handle bar */}
           <View style={styles.handleBar} />
 
-          {/* Title */}
-          <Text style={styles.title}>Add account</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Add account</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <X size={24} color="#1D1D1F" />
+            </TouchableOpacity>
+          </View>
 
           {/* Log into existing account button */}
           <TouchableOpacity
@@ -67,11 +72,6 @@ export default function AddAccountModal({
             onPress={handleCreateNew}
           >
             <Text style={styles.secondaryButtonText}>Create new account</Text>
-          </TouchableOpacity>
-
-          {/* Cancel button */}
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -101,12 +101,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 30,
+    position: "relative",
+  },
   title: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "BasicCommercialBold",
     color: "#1D1D1F",
     textAlign: "center",
-    marginBottom: 30,
+  },
+  closeButton: {
+    position: "absolute",
+    right: 0,
+    padding: 4,
   },
   primaryButton: {
     backgroundColor: "#0095F6",
@@ -118,7 +129,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
   },
   secondaryButton: {
     backgroundColor: "#FFFFFF",
@@ -130,16 +141,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#0095F6",
     fontSize: 16,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#8E8E93",
-    fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "Manrope-SemiBold",
   },
 });
 

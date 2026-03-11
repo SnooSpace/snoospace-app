@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated, Pressable } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated, Pressable, ImageBackground } from "react-native";
 import { BlurView } from "expo-blur";
 import { Mail, Check, SquareAsterisk } from "lucide-react-native";
 import MaskedView from "@react-native-masked-view/masked-view";

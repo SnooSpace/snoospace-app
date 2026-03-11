@@ -1099,13 +1099,14 @@ export default function CommunityProfileScreen({ navigation }) {
               style={styles.usernameRow}
               onPress={() => setShowAccountSwitcher(true)}
             >
+              <View style={{ width: 26 }} />
               <Text style={styles.usernameText}>
                 {profile.username ? `@${profile.username}` : ""}
               </Text>
               <ChevronDown
                 size={26}
                 color="#3B82F6"
-                style={{ marginLeft: -2 }}
+                style={{ marginLeft: 2 }}
               />
             </TouchableOpacity>
             {Array.isArray(profile.categories) &&

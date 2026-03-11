@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { CheckCircle2, XCircle, PlusCircle } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
@@ -298,7 +298,7 @@ export default function AccountSwitcherModal({
           {isSwitching ? (
             <SnooLoader size="small" color="#0095F6" />
           ) : isActive && !isLoggedOut ? (
-            <Ionicons name="checkmark-circle" size={24} color="#0095F6" />
+            <CheckCircle2 size={20} color="#0095F6" />
           ) : null}
         </TouchableOpacity>
 
@@ -307,7 +307,7 @@ export default function AccountSwitcherModal({
             style={styles.removeButton}
             onPress={() => handleRemoveAccount(item)}
           >
-            <Ionicons name="close-circle" size={22} color="#FF3B30" />
+            <XCircle size={20} color="#FF3B30" />
           </TouchableOpacity>
         )}
       </View>
@@ -358,9 +358,8 @@ export default function AccountSwitcherModal({
             }}
             disabled={!canAddMore}
           >
-            <Ionicons
-              name="add-circle-outline"
-              size={24}
+            <PlusCircle
+              size={20}
               color={canAddMore ? "#1D1D1F" : "#8E8E93"}
             />
             <Text
@@ -444,7 +443,7 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#1D1D1F",
   },
   usernameLoggedOut: {
@@ -452,6 +451,7 @@ const styles = StyleSheet.create({
   },
   loginRequired: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: "#8E8E93",
     marginTop: 2,
   },
@@ -472,10 +472,11 @@ const styles = StyleSheet.create({
   badgeText: {
     color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
   },
   badgeLabel: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: "#8E8E93",
   },
   addAccountButton: {
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
   },
   addAccountText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#1D1D1F",
   },
   addAccountTextDisabled: {
@@ -501,6 +502,7 @@ const styles = StyleSheet.create({
   },
   maxReachedText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: "#8E8E93",
     marginLeft: 4,
   },
@@ -510,7 +512,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#8E8E93",
   },
   removeButton: {

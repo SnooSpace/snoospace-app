@@ -1,8 +1,9 @@
 import React, { useState, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, Pressable } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, Pressable, ImageBackground } from "react-native";
 import { BlurView } from "expo-blur";
 import { Mail, Check } from "lucide-react-native";
 import { setPendingOtp } from "../../../api/auth";
+import { apiPost } from "../../../api/client";
 import * as Haptics from "expo-haptics";
 import Animated, { ZoomIn } from "react-native-reanimated";
 import {
