@@ -31,6 +31,8 @@ async function signup(req, res) {
       profile_photo_url,
       username,
       occupation,
+      pronouns,
+      show_pronouns,
     } = req.body || {};
 
     if (
@@ -97,10 +99,15 @@ async function signup(req, res) {
       sanitizedUsername
     );
 
-    // INSERT with optional username
+    // Sanitize pronouns array
+    const sanitizedPronouns = Array.isArray(pronouns)
+      ? pronouns.filter((p) => typeof p === "string" && p.trim().length > 0 && p.trim().length <= 50)
+      : [];
+
+    // INSERT with optional username, pronouns and show_pronouns
     const result = await pool.query(
-      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username, occupation)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10)
+      `INSERT INTO members (name, email, phone, dob, gender, location, interests, profile_photo_url, username, occupation, pronouns, show_pronouns)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11::text[],$12)
        RETURNING *`,
       [
         name,
@@ -113,6 +120,8 @@ async function signup(req, res) {
         profile_photo_url || null,
         sanitizedUsername,
         occupation || null,
+        sanitizedPronouns,
+        show_pronouns !== false, // default to true
       ]
     );
     res.json({ member: result.rows[0] });

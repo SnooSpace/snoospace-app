@@ -457,30 +457,41 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     style={styles.profileImage}
                   />
                 </View>
-                <View style={styles.nameAndPronounsContainer}>
-                  <Text style={styles.profileName}>
-                    {profile?.full_name || "Member"}
-                  </Text>
-                  {Array.isArray(profile?.pronouns) &&
-                  profile.pronouns.filter((p) => p !== "Prefer not to say")
-                    .length > 0 ? (
-                    <View style={styles.pronounsRowCentered}>
-                      <View
-                        key={`p-0`}
-                        style={[styles.chip, styles.pronounChipSmall]}
-                      >
-                        <Text style={styles.chipText}>
-                          {profile.pronouns
-                            .filter((p) => p !== "Prefer not to say")
-                            .map((p) =>
-                              String(p).replace(/^[{\"]+|[}\"]+$/g, ""),
-                            )
-                            .join(" / ")}
-                        </Text>
-                      </View>
+                {(() => {
+                  const visiblePronouns = Array.isArray(profile?.pronouns)
+                    ? profile.pronouns.filter((p) => p !== "Prefer not to say")
+                    : [];
+                  const hasBio = !!profile?.bio;
+                  const hasPronouns = visiblePronouns.length > 0;
+                  return (
+                    <View
+                      style={[
+                        styles.nameAndPronounsContainer,
+                        !hasBio && !hasPronouns && { marginBottom: 30 },
+                      ]}
+                    >
+                      <Text style={styles.profileName}>
+                        {profile?.full_name || "Member"}
+                      </Text>
+                      {hasPronouns ? (
+                        <View style={styles.pronounsRowCentered}>
+                          <View
+                            key={`p-0`}
+                            style={[styles.chip, styles.pronounChipSmall]}
+                          >
+                            <Text style={styles.chipText}>
+                              {visiblePronouns
+                                .map((p) =>
+                                  String(p).replace(/^[{\"]+|[}\"]+$/g, ""),
+                                )
+                                .join(" / ")}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
-                  ) : null}
-                </View>
+                  );
+                })()}
                 {!!profile?.bio && renderBio(profile.bio)}
 
                 <View style={styles.statsContainer}>
@@ -954,7 +965,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-evenly",
     width: "100%",
     marginBottom: 20,
   },
@@ -967,6 +978,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   statItem: {
+    flex: 1,
     alignItems: "center",
   },
   countItem: {

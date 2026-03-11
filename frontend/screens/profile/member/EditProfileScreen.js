@@ -195,7 +195,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   // My Vibes Redesign State
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE"); // Default open
+  const [expandedCategory, setExpandedCategory] = useState(null); // Default closed
   const [showAllSelected, setShowAllSelected] = useState(false);
 
   const allowLeaveRef = useRef(false);

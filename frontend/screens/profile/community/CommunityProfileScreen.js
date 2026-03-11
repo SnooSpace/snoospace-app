@@ -1121,7 +1121,7 @@ export default function CommunityProfileScreen({ navigation }) {
           </View>
 
           {/* Stats Row */}
-          <View style={styles.statsRow}>
+          <View style={[styles.statsRow, { justifyContent: "space-evenly" }]}>
             <TouchableOpacity
               style={styles.statItem}
               onPress={() =>
@@ -2582,7 +2582,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-evenly",
     marginTop: 16,
     marginBottom: 16,
   },
