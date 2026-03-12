@@ -1,9 +1,32 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, TouchableWithoutFeedback, Platform, StatusBar, ScrollView, Pressable, ImageBackground } from "react-native";
+import {
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Modal,
+  TouchableWithoutFeedback,
+  Platform,
+  StatusBar,
+  ScrollView,
+  Pressable,
+  ImageBackground,
+  Animated,
+} from "react-native";
 import { BlurView } from "expo-blur";
 import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, ZoomIn, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
+import Reanimated, {
+  FadeInDown,
+  ZoomIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from "react-native-reanimated";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as sessionManager from "../../../utils/sessionManager";
@@ -71,7 +94,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
     if (otp.length === 6 && !loading && !isSuccess && !isError) {
       buttonScale.value = withSequence(
         withSpring(1.05, { damping: 10, stiffness: 100 }),
-        withSpring(1, { damping: 12, stiffness: 90 })
+        withSpring(1, { damping: 12, stiffness: 90 }),
       );
     }
   }, [otp.length, loading, isSuccess, isError]);
@@ -130,7 +153,9 @@ const MemberOtpScreen = ({ route, navigation }) => {
             const originAccountId = activeAccount?.id || null;
             await createSignupDraft(email, originAccountId);
           } catch (draftError) {
-            console.log("[MemberOtpScreen] Draft creation failed (non-critical)");
+            console.log(
+              "[MemberOtpScreen] Draft creation failed (non-critical)",
+            );
           }
 
           navigation.navigate("MemberName", {
@@ -277,8 +302,8 @@ const MemberOtpScreen = ({ route, navigation }) => {
   };
 
   return (
-    <ImageBackground 
-      source={require("../../../assets/wave.png")} 
+    <ImageBackground
+      source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
       imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
@@ -292,34 +317,50 @@ const MemberOtpScreen = ({ route, navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.contentContainer}>
-            <Animated.Text 
+            <Reanimated.Text
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
               Enter verification code
-            </Animated.Text>
-            <Animated.Text 
+            </Reanimated.Text>
+            <Reanimated.Text
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.subtitle}
             >
               We sent a 6-digit code to {email}
-            </Animated.Text>
+            </Reanimated.Text>
 
-            <Animated.View 
+            <Reanimated.View
               entering={FadeInDown.delay(300).duration(600).springify()}
               style={styles.card}
             >
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
               <View style={styles.cardContent}>
-                <Animated.View style={animatedInputStyle}>
-                  <Pressable 
+                <Reanimated.View style={animatedInputStyle}>
+                  <Pressable
                     onPress={() => inputRef.current?.focus()}
-                    style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                    style={[
+                      styles.inputContainer,
+                      isFocused && styles.inputFocusedContainer,
+                    ]}
                   >
                     {otp.length === 0 && (
-                      <View style={styles.placeholderContainer} pointerEvents="none">
+                      <View
+                        style={styles.placeholderContainer}
+                        pointerEvents="none"
+                      >
                         {[...Array(6)].map((_, i) => (
-                          <SquareAsterisk key={i} size={20} color="#8AADC4" strokeWidth={2} style={styles.asteriskIcon} />
+                          <SquareAsterisk
+                            key={i}
+                            size={20}
+                            color="#8AADC4"
+                            strokeWidth={2}
+                            style={styles.asteriskIcon}
+                          />
                         ))}
                       </View>
                     )}
@@ -347,22 +388,29 @@ const MemberOtpScreen = ({ route, navigation }) => {
                       textAlign="center"
                     />
                   </Pressable>
-                </Animated.View>
+                </Reanimated.View>
 
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                <Animated.View 
+                <Reanimated.View
                   entering={FadeInDown.delay(500).duration(600).springify()}
                   style={animatedButtonStyle}
                 >
                   <TouchableOpacity
                     style={[
                       styles.buttonContainer,
-                      (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
-                      (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                      (loading || isSuccess || isError || otp.length !== 6) &&
+                        styles.buttonDisabled,
+                      !loading &&
+                        !isSuccess &&
+                        !isError &&
+                        otp.length !== 6 &&
+                        styles.buttonInactive,
                     ]}
                     onPress={handleVerify}
-                    disabled={loading || isSuccess || isError || otp.length !== 6}
+                    disabled={
+                      loading || isSuccess || isError || otp.length !== 6
+                    }
                     activeOpacity={0.8}
                   >
                     <LinearGradient
@@ -380,21 +428,29 @@ const MemberOtpScreen = ({ route, navigation }) => {
                       {loading ? (
                         <SnooLoader color={COLORS.textInverted} />
                       ) : isSuccess ? (
-                        <Animated.View entering={ZoomIn}>
-                          <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                        </Animated.View>
+                        <Reanimated.View entering={ZoomIn}>
+                          <Check
+                            size={24}
+                            color={COLORS.textInverted}
+                            strokeWidth={2.5}
+                          />
+                        </Reanimated.View>
                       ) : isError ? (
-                        <Animated.View entering={ZoomIn}>
-                          <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
-                        </Animated.View>
+                        <Reanimated.View entering={ZoomIn}>
+                          <X
+                            size={24}
+                            color={COLORS.textInverted}
+                            strokeWidth={2.5}
+                          />
+                        </Reanimated.View>
                       ) : (
                         <Text style={styles.buttonText}>Verify</Text>
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
-                </Animated.View>
+                </Reanimated.View>
 
-                <Animated.View
+                <Reanimated.View
                   entering={FadeInDown.delay(600).duration(600).springify()}
                 >
                   <TouchableOpacity
@@ -411,13 +467,15 @@ const MemberOtpScreen = ({ route, navigation }) => {
                           resendTimer > 0 && styles.resendTextDisabled,
                         ]}
                       >
-                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                        {resendTimer > 0
+                          ? `Resend in ${resendTimer}s`
+                          : "Resend Code"}
                       </Text>
                     )}
                   </TouchableOpacity>
-                </Animated.View>
+                </Reanimated.View>
               </View>
-            </Animated.View>
+            </Reanimated.View>
           </View>
         </ScrollView>
 
@@ -532,7 +590,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         ...SHADOWS.xl,
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
       },
       android: {

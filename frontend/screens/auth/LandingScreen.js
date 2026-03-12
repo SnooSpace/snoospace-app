@@ -26,9 +26,19 @@ import Animated, {
   Easing,
   useAnimatedScrollHandler,
 } from "react-native-reanimated";
+import { useFocusEffect } from "@react-navigation/native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
+import DraftRecoveryModal from "../../components/modals/DraftRecoveryModal";
+import {
+  getSignupDraft,
+  deleteSignupDraft,
+  getResumeScreen as getMemberResumeScreen,
+  getCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityResumeScreen,
+} from "../../utils/signupDraftManager";
 
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.667 0.5C103.181 0.500189 132.833 31.9995 132.833 70.9219C132.833 109.844 103.181 141.344 66.667 141.344C30.1528 141.344 0.5 109.844 0.5 70.9219C0.500058 31.9993 30.1529 0.5 66.667 0.5Z" fill="#3565F2" stroke="#3D79F2"/>
@@ -217,13 +227,98 @@ const AnimatedCard = memo(({
   );
 });
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 const LandingScreen = ({ navigation }) => {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const scrollX = useSharedValue(0);
   const flatListRef = useRef(null);
+
+  // Draft recovery state
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [activeDraft, setActiveDraft] = useState(null); // { type: "Member"|"Community", email: string, step: string }
+
+  // Check for any existing drafts when landing screen appears
+  useFocusEffect(
+    useCallback(() => {
+      const checkForDrafts = async () => {
+        try {
+          // Check both drafts
+          const [communityDraft, memberDraft] = await Promise.all([
+            getCommunitySignupDraft(),
+            getSignupDraft()
+          ]);
+
+          // Priority: Community draft if exists, else Member draft
+          // (Or could compare lastUpdatedAt, but a simple priority is fine)
+          if (communityDraft && communityDraft.data?.email) {
+            setActiveDraft({
+              type: "Community",
+              email: communityDraft.data.email,
+              step: communityDraft.currentStep,
+              data: communityDraft.data,
+            });
+            setShowDraftModal(true);
+          } else if (memberDraft && memberDraft.data?.email) {
+             setActiveDraft({
+               type: "Member",
+               email: memberDraft.data.email,
+               step: memberDraft.currentStep,
+               data: memberDraft.data,
+             });
+             setShowDraftModal(true);
+          }
+        } catch (e) {
+          console.log("[LandingScreen] Draft check failed:", e.message);
+        }
+      };
+      
+      // Delay slightly to not interrupt splash screen transition
+      setTimeout(checkForDrafts, 600);
+    }, [])
+  );
+
+  const handleContinueDraft = () => {
+    HapticsService.triggerImpactLight();
+    setShowDraftModal(false);
+    
+    if (!activeDraft) return;
+
+    if (activeDraft.type === "Community") {
+      const resumeScreen = getCommunityResumeScreen(activeDraft.step);
+      // Navigate to CommunitySignup stack, targeting the specific screen
+      navigation.navigate("CommunitySignup", { 
+        screen: resumeScreen, 
+        params: { 
+          ...activeDraft.data,
+          isResumingDraft: true 
+        } 
+      });
+    } else {
+      const resumeScreen = getMemberResumeScreen(activeDraft.step);
+      navigation.navigate("MemberSignup", { 
+        screen: resumeScreen, 
+        params: { 
+          ...activeDraft.data,
+          isResumingDraft: true 
+        } 
+      });
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    HapticsService.triggerImpactLight();
+    setShowDraftModal(false);
+    
+    if (!activeDraft) return;
+
+    if (activeDraft.type === "Community") {
+      await deleteCommunitySignupDraft();
+    } else {
+      await deleteSignupDraft();
+    }
+    setActiveDraft(null);
+  };
 
   const CARD_WIDTH   = width * 0.85;
   const CARD_SPACING = 16;
@@ -351,6 +446,16 @@ const LandingScreen = ({ navigation }) => {
 
         </SafeAreaView>
       </View>
+
+      {activeDraft && (
+        <DraftRecoveryModal
+          visible={showDraftModal}
+          draftEmail={activeDraft.email}
+          draftType={activeDraft.type}
+          onContinue={handleContinueDraft}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
     </ImageBackground>
   );
 };

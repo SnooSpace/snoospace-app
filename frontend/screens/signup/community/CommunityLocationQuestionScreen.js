@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -27,6 +27,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,
+  getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
@@ -71,6 +72,21 @@ const CommunityLocationQuestionScreen = ({ navigation, route }) => {
       );
     }
   }, [hasLocation]);
+
+  // Hydrate from draft if needed
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      // If we don't have a value in route.params, try draft
+      if (hasLocation === null) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.hasLocation !== undefined) {
+          console.log("[LocationQuestion] Hydrating hasLocation from draft:", draftData.hasLocation);
+          setHasLocation(draftData.hasLocation ? "yes" : "no");
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Update step on mount
   useEffect(() => {

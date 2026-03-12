@@ -1,9 +1,31 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, Pressable, ImageBackground, Modal, TouchableWithoutFeedback } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  Platform,
+  StatusBar,
+  ScrollView,
+  Pressable,
+  ImageBackground,
+  Modal,
+  TouchableWithoutFeedback,
+} from "react-native";
 import { BlurView } from "expo-blur";
 import { SquareAsterisk, Check, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import Reanimated, { ZoomIn, FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
+import Reanimated, {
+  ZoomIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from "react-native-reanimated";
 import MaskedView from "@react-native-masked-view/masked-view";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
@@ -60,7 +82,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     if (otp.length === 6) {
       buttonScale.value = withSequence(
         withSpring(1.05, { damping: 10, stiffness: 100 }),
-        withSpring(1, { damping: 12, stiffness: 90 })
+        withSpring(1, { damping: 12, stiffness: 90 }),
       );
     }
   }, [otp.length === 6]);
@@ -125,7 +147,9 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             const originAccountId = activeAccount?.id || null;
             await createCommunitySignupDraft(email, originAccountId);
           } catch (draftError) {
-            console.log("[CommunityOtpScreen] Draft creation failed (non-critical)");
+            console.log(
+              "[CommunityOtpScreen] Draft creation failed (non-critical)",
+            );
           }
 
           navigation.navigate("CommunityTypeSelect", {
@@ -243,17 +267,15 @@ const CommunityOtpScreen = ({ navigation, route }) => {
   };
 
   return (
-    <ImageBackground 
-      source={require("../../../assets/wave.png")} 
+    <ImageBackground
+      source={require("../../../assets/wave.png")}
       style={styles.backgroundImage}
       imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        <SignupHeader 
-          onBack={() => setShowGoBackModal(true)} 
-        />
+        <SignupHeader onBack={() => setShowGoBackModal(true)} />
 
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
@@ -261,33 +283,49 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         >
           {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Reanimated.Text 
+            <Reanimated.Text
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
               Enter verification code
             </Reanimated.Text>
-            <Reanimated.Text 
+            <Reanimated.Text
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.subtitle}
             >
               We sent a 6-digit code to {email}
             </Reanimated.Text>
 
-            <Reanimated.View 
+            <Reanimated.View
               entering={FadeInDown.delay(300).duration(600).springify()}
               style={styles.card}
             >
-              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
               <View style={styles.cardContent}>
-                <Pressable 
+                <Pressable
                   onPress={() => inputRef.current?.focus()}
-                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                  style={[
+                    styles.inputContainer,
+                    isFocused && styles.inputFocusedContainer,
+                  ]}
                 >
                   {otp.length === 0 && (
-                    <View style={styles.placeholderContainer} pointerEvents="none">
+                    <View
+                      style={styles.placeholderContainer}
+                      pointerEvents="none"
+                    >
                       {[...Array(6)].map((_, i) => (
-                        <SquareAsterisk key={i} size={20} color="#8AADC4" strokeWidth={2} style={styles.asteriskIcon} />
+                        <SquareAsterisk
+                          key={i}
+                          size={20}
+                          color="#8AADC4"
+                          strokeWidth={2}
+                          style={styles.asteriskIcon}
+                        />
                       ))}
                     </View>
                   )}
@@ -316,11 +354,18 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                   <TouchableOpacity
                     style={[
                       styles.buttonContainer,
-                      (loading || isSuccess || isError || otp.length !== 6) && styles.buttonDisabled,
-                      (!loading && !isSuccess && !isError && otp.length !== 6) && styles.buttonInactive,
+                      (loading || isSuccess || isError || otp.length !== 6) &&
+                        styles.buttonDisabled,
+                      !loading &&
+                        !isSuccess &&
+                        !isError &&
+                        otp.length !== 6 &&
+                        styles.buttonInactive,
                     ]}
                     onPress={handleVerify}
-                    disabled={loading || isSuccess || isError || otp.length !== 6}
+                    disabled={
+                      loading || isSuccess || isError || otp.length !== 6
+                    }
                     activeOpacity={0.8}
                   >
                     <LinearGradient
@@ -339,11 +384,19 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                         <SnooLoader color={COLORS.textInverted} />
                       ) : isSuccess ? (
                         <Reanimated.View entering={ZoomIn}>
-                          <Check size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                          <Check
+                            size={24}
+                            color={COLORS.textInverted}
+                            strokeWidth={2.5}
+                          />
                         </Reanimated.View>
                       ) : isError ? (
                         <Reanimated.View entering={ZoomIn}>
-                          <X size={24} color={COLORS.textInverted} strokeWidth={2.5} />
+                          <X
+                            size={24}
+                            color={COLORS.textInverted}
+                            strokeWidth={2.5}
+                          />
                         </Reanimated.View>
                       ) : (
                         <Text style={styles.buttonText}>Verify</Text>
@@ -366,7 +419,9 @@ const CommunityOtpScreen = ({ navigation, route }) => {
                         resendTimer > 0 && styles.resendTextDisabled,
                       ]}
                     >
-                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                      {resendTimer > 0
+                        ? `Resend in ${resendTimer}s`
+                        : "Resend Code"}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -471,7 +526,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         ...SHADOWS.xl,
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
       },
       android: {

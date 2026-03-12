@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import wave from "../../../assets/wave.png";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import { apiGet, apiPost } from "../../../api/client";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Debounce helper
@@ -57,6 +57,24 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const [submitting, setSubmitting] = useState(false);
   const [pendingCollegeId, setPendingCollegeId] = useState(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Hydrate from draft if needed
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!route.params?.college_id) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.college_name) {
+          console.log("[CollegeSearch] Hydrating from draft");
+          setSearchQuery(draftData.college_name);
+          // We could also trigger a search here, but if it's already selected and they are at this screen,
+          // it might be because they want to RE-SELECT or they are at this step.
+          // Since getCommunityResumeScreen returns CURRENT step, if they are here,
+          // it means they haven't finished this step.
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Animation values
   const searchScale = useSharedValue(1);

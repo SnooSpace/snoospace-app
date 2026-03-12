@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Modal, TouchableWithoutFeedback, Dimensions, Platform, StatusBar, Animated, Pressable, ImageBackground } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  Modal,
+  TouchableWithoutFeedback,
+  Dimensions,
+  Platform,
+  StatusBar,
+  Animated,
+  Pressable,
+  ImageBackground,
+} from "react-native";
 import { BlurView } from "expo-blur";
 import { Mail, Check, SquareAsterisk } from "lucide-react-native";
 import MaskedView from "@react-native-masked-view/masked-view";
@@ -136,13 +152,13 @@ const LoginOtpScreen = ({ navigation, route }) => {
       console.log(
         "[LoginOtpV2] Creating session for selected account:",
         account.type,
-        account.id
+        account.id,
       );
 
       const result = await sessionManager.createSession(
         account.id,
         account.type,
-        account.email || email
+        account.email || email,
       );
 
       await completeLogin(result.user, result.session);
@@ -163,7 +179,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
     try {
       console.log(
         "[LoginOtpV2] Logging into multiple accounts:",
-        selectedAccounts.length
+        selectedAccounts.length,
       );
 
       // Login to each account and save them
@@ -176,13 +192,13 @@ const LoginOtpScreen = ({ navigation, route }) => {
           `[LoginOtpV2] Processing account ${i + 1}/${
             selectedAccounts.length
           }:`,
-          account.type
+          account.type,
         );
 
         const result = await sessionManager.createSession(
           account.id,
           account.type,
-          account.email || email
+          account.email || email,
         );
 
         // Save account to account manager
@@ -210,7 +226,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         await setAuthSession(
           primarySession.accessToken,
           email,
-          primarySession.refreshToken
+          primarySession.refreshToken,
         );
         await clearPendingOtp();
 
@@ -220,7 +236,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
         Alert.alert(
           "Accounts Logged In",
-          `Successfully logged into ${selectedAccounts.length} accounts. You can switch between them from your profile.`
+          `Successfully logged into ${selectedAccounts.length} accounts. You can switch between them from your profile.`,
         );
 
         setShowAccountPicker(false);
@@ -251,7 +267,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         "[LoginOtpV2] Verifying OTP for:",
         email,
         "viaUsername:",
-        loginViaUsername
+        loginViaUsername,
       );
 
       // Verify OTP with V2 endpoint
@@ -270,7 +286,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
               text: "Create Account",
               onPress: () => navigation.navigate("Landing"),
             },
-          ]
+          ],
         );
         return;
       }
@@ -280,12 +296,12 @@ const LoginOtpScreen = ({ navigation, route }) => {
         console.log(
           "[LoginOtpV2] Username login - direct login to account:",
           targetAccount.type,
-          targetAccount.id
+          targetAccount.id,
         );
         const sessionResult = await sessionManager.createSession(
           targetAccount.id,
           targetAccount.type,
-          email
+          email,
         );
         await completeLogin(sessionResult.user, sessionResult.session);
         return;
@@ -295,7 +311,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
       if (result.requiresAccountSelection) {
         // Multiple accounts - check which are already logged in
         console.log(
-          "[LoginOtpV2] Multiple accounts found, checking logged-in status"
+          "[LoginOtpV2] Multiple accounts found, checking logged-in status",
         );
 
         // Get currently logged-in accounts
@@ -306,14 +322,14 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
         // Filter accounts to find non-logged-in ones
         const notLoggedInAccounts = result.accounts.filter(
-          (acc) => !loggedInIds.includes(`${acc.type}_${acc.id}`)
+          (acc) => !loggedInIds.includes(`${acc.type}_${acc.id}`),
         );
 
         console.log(
           "[LoginOtpV2] Already logged in:",
           loggedInIds.length,
           "Not logged in:",
-          notLoggedInAccounts.length
+          notLoggedInAccounts.length,
         );
 
         // Case 1: All accounts already logged in
@@ -330,7 +346,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
                 text: "Create new account",
                 onPress: () => navigation.navigate("Landing"),
               },
-            ]
+            ],
           );
           return;
         }
@@ -338,13 +354,13 @@ const LoginOtpScreen = ({ navigation, route }) => {
         // Case 2: Only one non-logged-in account → auto-login
         if (notLoggedInAccounts.length === 1) {
           console.log(
-            "[LoginOtpV2] Only one non-logged-in account, auto-login"
+            "[LoginOtpV2] Only one non-logged-in account, auto-login",
           );
           const account = notLoggedInAccounts[0];
           const sessionResult = await sessionManager.createSession(
             account.id,
             account.type,
-            email
+            email,
           );
           await completeLogin(sessionResult.user, sessionResult.session);
           return;
@@ -371,7 +387,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
       console.error("[LoginOtpV2] OTP verification error:", e);
       if (e.message && e.message.includes("timed out")) {
         setError(
-          "Request timed out. Please check your internet connection and try again."
+          "Request timed out. Please check your internet connection and try again.",
         );
       } else {
         setError(e.message || "Invalid verification code.");
@@ -442,16 +458,32 @@ const LoginOtpScreen = ({ navigation, route }) => {
           <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
 
           <View style={styles.card}>
-            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <BlurView
+              intensity={60}
+              tint="light"
+              style={StyleSheet.absoluteFill}
+            />
             <View style={styles.cardContent}>
-              <Pressable 
+              <Pressable
                 onPress={() => inputRef.current?.focus()}
-                style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                style={[
+                  styles.inputContainer,
+                  isFocused && styles.inputFocusedContainer,
+                ]}
               >
                 {otp.length === 0 && (
-                  <View style={styles.placeholderContainer} pointerEvents="none">
+                  <View
+                    style={styles.placeholderContainer}
+                    pointerEvents="none"
+                  >
                     {[...Array(6)].map((_, i) => (
-                      <SquareAsterisk key={i} size={20} color={COLORS.textMuted} strokeWidth={2} style={styles.asteriskIcon} />
+                      <SquareAsterisk
+                        key={i}
+                        size={20}
+                        color={COLORS.textMuted}
+                        strokeWidth={2}
+                        style={styles.asteriskIcon}
+                      />
                     ))}
                   </View>
                 )}
@@ -480,7 +512,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
                 style={[
                   styles.buttonContainer,
                   (loading || otp.length !== 6) && styles.buttonDisabled,
-                  (!loading && otp.length !== 6) && styles.buttonInactive,
+                  !loading && otp.length !== 6 && styles.buttonInactive,
                 ]}
                 onPress={handleVerify}
                 disabled={loading || otp.length !== 6}
@@ -508,8 +540,15 @@ const LoginOtpScreen = ({ navigation, route }) => {
                 {resendLoading ? (
                   <SnooLoader color={COLORS.primary} size="small" />
                 ) : (
-                  <Text style={[styles.resendText, { fontFamily: 'Manrope-Medium' }]}>
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                  <Text
+                    style={[
+                      styles.resendText,
+                      { fontFamily: "Manrope-Medium" },
+                    ]}
+                  >
+                    {resendTimer > 0
+                      ? `Resend in ${resendTimer}s`
+                      : "Resend Code"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -528,68 +567,68 @@ const LoginOtpScreen = ({ navigation, route }) => {
           loggedInAccountIds={loggedInAccountIds}
         />
 
-      {/* Modern Go Back Modal */}
-      <Modal
-        visible={showGoBackModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowGoBackModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Go Back?</Text>
-                <Text style={styles.modalMessage}>
-                  You'll need to request a new code if you go back.
-                </Text>
-
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalSecondaryButton}
-                    onPress={() => setShowGoBackModal(false)}
-                  >
-                    <Text style={styles.modalSecondaryButtonText}>Stay</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.modalVerticalDivider} />
-
-                  <TouchableOpacity
-                    style={styles.modalPrimaryButton}
-                    onPress={() => {
-                      setShowGoBackModal(false);
-                      navigation.goBack();
-                    }}
-                  >
-                    <GradientText style={styles.modalPrimaryButtonText}>
-                      Change Email
-                    </GradientText>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* Resend Success Toast */}
-      {showResendToast && (
-        <Animated.View
-          style={[
-            styles.toastContainer,
-            {
-              bottom: 50 + insets.bottom,
-              opacity: fadeAnim,
-              transform: [{ translateY: translateYAnim }],
-            },
-          ]}
+        {/* Modern Go Back Modal */}
+        <Modal
+          visible={showGoBackModal}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setShowGoBackModal(false)}
         >
-          <Ionicons name="checkmark-circle" size={24} color="#fff" />
-          <Text style={styles.toastText}>Code resent to {email}</Text>
-        </Animated.View>
-      )}
-    </SafeAreaView>
+          <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Go Back?</Text>
+                  <Text style={styles.modalMessage}>
+                    You'll need to request a new code if you go back.
+                  </Text>
+
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.modalSecondaryButton}
+                      onPress={() => setShowGoBackModal(false)}
+                    >
+                      <Text style={styles.modalSecondaryButtonText}>Stay</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.modalVerticalDivider} />
+
+                    <TouchableOpacity
+                      style={styles.modalPrimaryButton}
+                      onPress={() => {
+                        setShowGoBackModal(false);
+                        navigation.goBack();
+                      }}
+                    >
+                      <GradientText style={styles.modalPrimaryButtonText}>
+                        Change Email
+                      </GradientText>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+        {/* Resend Success Toast */}
+        {showResendToast && (
+          <Animated.View
+            style={[
+              styles.toastContainer,
+              {
+                bottom: 50 + insets.bottom,
+                opacity: fadeAnim,
+                transform: [{ translateY: translateYAnim }],
+              },
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={24} color="#fff" />
+            <Text style={styles.toastText}>Code resent to {email}</Text>
+          </Animated.View>
+        )}
+      </SafeAreaView>
     </ImageBackground>
   );
 };
@@ -635,7 +674,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         ...SHADOWS.xl,
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
       },
       android: {
@@ -649,7 +688,7 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: 24,
   },
-  
+
   inputContainer: {
     height: 56,
     marginBottom: 24,
@@ -705,7 +744,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     flexDirection: "row",
-    
+
     borderRadius: BORDER_RADIUS.l,
     alignItems: "center",
   },
@@ -719,7 +758,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 16,
-    
+
     fontFamily: "Manrope-SemiBold",
   },
   resendButton: {
@@ -729,7 +768,7 @@ const styles = StyleSheet.create({
   resendText: {
     color: COLORS.primary,
     fontSize: 16,
-    
+
     fontFamily: "Manrope-SemiBold",
   },
   errorText: {

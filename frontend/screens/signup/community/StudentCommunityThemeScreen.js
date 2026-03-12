@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 
 const COMMUNITY_THEMES = [
   {
@@ -96,10 +96,28 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
     college_name,
     college_subtype,
     college_pending,
+    community_theme: routeTheme,
   } = route.params || {};
+
+  const [selectedTheme, setSelectedTheme] = React.useState(routeTheme || null);
+
+  // Hydrate from draft if needed
+  React.useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!routeTheme) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.community_theme) {
+          console.log("[StudentCommunityTheme] Hydrating from draft");
+          setSelectedTheme(draftData.community_theme);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleThemeSelect = async (theme) => {
     console.log("[StudentCommunityTheme] Selected:", theme.id);
+    setSelectedTheme(theme.id);
 
     // Save community_theme to draft
     try {

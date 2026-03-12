@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 
 const CLUB_TYPES = [
   {
@@ -89,10 +89,30 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
     college_name,
     college_subtype,
     college_pending,
+    club_type: routeClubType,
   } = route.params || {};
+
+  const [selectedClubType, setSelectedClubType] = React.useState(
+    routeClubType || null,
+  );
+
+  // Hydrate from draft if needed
+  React.useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!routeClubType) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.club_type) {
+          console.log("[CollegeClubType] Hydrating from draft");
+          setSelectedClubType(draftData.club_type);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleClubTypeSelect = async (clubType) => {
     console.log("[CollegeClubType] Selected:", clubType.id);
+    setSelectedClubType(clubType.id);
 
     // Save club_type to draft
     try {

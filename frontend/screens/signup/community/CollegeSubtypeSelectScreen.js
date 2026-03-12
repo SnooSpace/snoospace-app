@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 
 const COLLEGE_SUBTYPES = [
   {
@@ -98,7 +98,26 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
     college_id,
     college_name,
     college_pending,
+    college_subtype: routeSubtype,
   } = route.params || {};
+
+  const [selectedSubtype, setSelectedSubtype] = React.useState(
+    routeSubtype || null,
+  );
+
+  // Hydrate from draft if needed
+  React.useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!routeSubtype) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.college_subtype) {
+          console.log("[CollegeSubtypeSelect] Hydrating from draft");
+          setSelectedSubtype(draftData.college_subtype);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleSubtypeSelect = async (subtype) => {
     console.log(
@@ -107,6 +126,7 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
       "for college:",
       college_name,
     );
+    setSelectedSubtype(subtype.id);
 
     // Save college_subtype to draft
     try {

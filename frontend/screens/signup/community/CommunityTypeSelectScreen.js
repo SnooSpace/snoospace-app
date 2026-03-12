@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const COMMUNITY_TYPES = [
@@ -45,7 +45,7 @@ const COMMUNITY_TYPES = [
   {
     id: "organization",
     title: "Community / Organization",
-    subtitle: "For NGOs, startups, run clubs & brands",
+    subtitle: "For NGOs, startups, run clubs, brands & more",
     icon: "business-outline",
     gradientColors: ["#11998e", "#38ef7d"],
     nextScreen: "CommunityName",
@@ -97,10 +97,29 @@ const TypeCard = ({ type, onPress, isLast, index }) => (
  * Shown after OTP verification - user selects what type of community they're creating
  */
 const CommunityTypeSelectScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken } = route.params || {};
+  const { email, accessToken, refreshToken, isResumingDraft } =
+    route.params || {};
+  const [selectedType, setSelectedType] = React.useState(
+    route.params?.community_type || null,
+  );
+
+  // Hydrate from draft if needed
+  React.useEffect(() => {
+    const hydrateFromDraft = async () => {
+      if (!route.params?.community_type) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.community_type) {
+          console.log("[CommunityTypeSelect] Hydrating from draft");
+          setSelectedType(draftData.community_type);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   const handleTypeSelect = async (type) => {
     triggerTransitionHaptic();
+    setSelectedType(type.id);
     console.log("[CommunityTypeSelect] Selected type:", type.id);
 
     // Save community_type to draft
@@ -134,7 +153,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1, scaleY: -1 }] }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>

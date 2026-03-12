@@ -11,6 +11,7 @@ import {
   Alert,
   ImageBackground,
   Image,
+  ScrollView,
 } from "react-native";
 import wave from "../../../assets/wave.png";
 import { Ionicons } from "@expo/vector-icons";

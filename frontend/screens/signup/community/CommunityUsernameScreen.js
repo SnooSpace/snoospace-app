@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import wave from "../../../assets/wave.png";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
-import { deleteCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { deleteCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const { width } = Dimensions.get("window");
@@ -36,6 +36,21 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+
+  // Hydrate from draft if needed
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      // route.params.username usually comes from a previous attempt or passing data forward
+      if (!route.params?.username) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.username) {
+          console.log("[CommunityUsername] Hydrating from draft");
+          setUsername(draftData.username);
+        }
+      }
+    };
+    hydrateFromDraft();
+  }, []);
 
   // Animation values
   const buttonScale = useSharedValue(1);
