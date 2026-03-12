@@ -355,7 +355,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   bioInputFocused: {
-    borderColor: COLORS.primary,
     backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   charCount: {

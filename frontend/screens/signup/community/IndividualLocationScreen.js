@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IndividualLocationScreen.js
  *
 /**
@@ -24,12 +24,12 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { MapPin, CheckCircle2 } from "lucide-react-native";
 import * as Location from "expo-location";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import {
   updateCommunitySignupDraft,
@@ -270,7 +270,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     >
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader
-          role="People"
+          role="Community"
           onBack={handleBack}
           onCancel={() => setShowCancelModal(true)}
         />
@@ -309,8 +309,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
                 {hasLocation && (
                   <View style={styles.locationCard}>
                     <View style={styles.locationCardContent}>
-                      <Ionicons
-                        name="checkmark-circle"
+                      <CheckCircle2
                         size={24}
                         color={COLORS.success || "#00C851"}
                       />
@@ -337,12 +336,11 @@ const IndividualLocationScreen = ({ navigation, route }) => {
                   activeOpacity={0.8}
                 >
                   {loadingLocation ? (
-                    <SnooLoader size="small" color={COLORS.primary} />
+                    <SnooLoader size="small" color={COLORS.textPrimary} />
                   ) : (
-                    <Ionicons
-                      name="location"
+                    <MapPin
                       size={20}
-                      color={COLORS.primary}
+                      color={COLORS.textPrimary}
                     />
                   )}
                   <Text style={styles.locationButtonText}>
@@ -369,7 +367,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
                     style={[
                       styles.nextButtonContainer,
                       isButtonDisabled && styles.disabledButton,
-                      { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
                     ]}
                     onPress={handleNext}
                     disabled={isButtonDisabled}
@@ -414,7 +412,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
   contentContainer: {
@@ -427,6 +425,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 10,
     letterSpacing: -1,
+    lineHeight: 42,
   },
   globalHelperText: {
     fontSize: 16,
@@ -440,8 +439,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
+        ...SHADOWS.xl,
         shadowOpacity: 0.1,
         shadowRadius: 24,
       },
@@ -457,12 +455,12 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   locationCard: {
-    backgroundColor: "rgba(116, 173, 242, 0.1)",
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "rgba(116, 173, 242, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.5)",
   },
   locationCardContent: {
     flexDirection: "row",
@@ -474,12 +472,12 @@ const styles = StyleSheet.create({
   },
   locationCity: {
     fontSize: 18,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
   },
   locationCountry: {
     fontSize: 14,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -487,16 +485,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(116, 173, 242, 0.15)", // slightly tinted primary
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(116, 173, 242, 0.3)",
-    marginBottom: 10,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.7)",
+    marginBottom: 12,
   },
   locationButtonText: {
-    color: COLORS.primary,
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
     marginLeft: 8,

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -18,7 +18,7 @@ import {
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for the back arrow
+import { ChevronDown, ChevronRight, X } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,6 +28,10 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import {
+  INTEREST_CATEGORIES,
+  getInterestStyle,
+} from "../../profile/member/EditProfileConstants";
 import SignupHeader from "../../../components/SignupHeader";
 import {
   updateCommunitySignupDraft,
@@ -118,10 +122,8 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [availableCategories, setAvailableCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -191,69 +193,6 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     });
   };
 
-  const handleCreateNewCategory = () => {
-    setShowCreateModal(true);
-  };
-
-  const handleCreateCategory = async () => {
-    const trimmedName = newCategoryName.trim();
-
-    if (!trimmedName) {
-      Alert.alert("Error", "Please enter a category name.");
-      return;
-    }
-
-    // Check if category already exists (case-insensitive check)
-    if (
-      availableCategories
-        .map((c) => c.toLowerCase())
-        .includes(trimmedName.toLowerCase())
-    ) {
-      Alert.alert("Error", "This category already exists.");
-      return;
-    }
-
-    setSubmittingRequest(true);
-    try {
-      const response = await apiPost("/community-categories/request", {
-        name: trimmedName,
-      });
-
-      console.log(
-        "[CommunityCategoryScreen] Category request response:",
-        response,
-      );
-
-      // Add to local list immediately
-      setAvailableCategories((prev) => [...prev, trimmedName]);
-
-      // Close modal and reset
-      setShowCreateModal(false);
-      setNewCategoryName("");
-
-      if (response?.status === "approved") {
-        Alert.alert("Success", "Category added successfully!");
-      } else {
-        Alert.alert(
-          "Request Submitted",
-          "Thanks! Your category request has been submitted for review. You can still use it now.",
-        );
-      }
-    } catch (error) {
-      console.error("Error requesting category:", error);
-      Alert.alert(
-        "Error",
-        "Failed to submit category request. Please try again.",
-      );
-    } finally {
-      setSubmittingRequest(false);
-    }
-  };
-
-  const handleCancelCreate = () => {
-    setShowCreateModal(false);
-    setNewCategoryName("");
-  };
 
   const handleBack = () => {
     navigation.goBack();
@@ -335,45 +274,45 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <SignupHeader
+          role="Community"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityBio", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                logo_url,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          onCancel={() => setShowCancelModal(true)}
+        />
+
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <SignupHeader
-            role="Communities"
-            onBack={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.replace("CommunityBio", {
-                  email,
-                  accessToken,
-                  refreshToken,
-                  name,
-                  logo_url,
-                  community_type,
-                  college_id,
-                  college_name,
-                  college_subtype,
-                  club_type,
-                  community_theme,
-                  college_pending,
-                  isStudentCommunity,
-                });
-              }
-            }}
-            onCancel={() => setShowCancelModal(true)}
-          />
-
-          {/* Content Section */}
+        {/* Content Section */}
           <View style={styles.contentContainer}>
             <Animated.Text 
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
-              Choose Community Category
+              Choose your community's category
             </Animated.Text>
             <Animated.Text 
               entering={FadeInDown.delay(200).duration(600).springify()}
@@ -392,37 +331,219 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.cardContent}>
-                {/* Category Chips Container */}
-                <View style={styles.chipsContainer}>
-                  {availableCategories.map((category, index) => (
-                    <Animated.View 
-                      key={category}
-                      entering={FadeInDown.delay(400 + index * 30).duration(400).springify()}
-                    >
-                      <CategoryChip
-                        category={category}
-                        isSelected={selectedCategories.includes(category)}
-                        onPress={toggleCategory}
-                      />
-                    </Animated.View>
-                  ))}
-                </View>
+                {/* Top Section: Selected Categories */}
+                {selectedCategories.length > 0 && (
+                  <View style={styles.selectedSection}>
+                    <View style={styles.chipsContainer}>
+                      {selectedCategories.map((cat) => {
+                        const style = getInterestStyle(cat);
+                        const Icon = style.icon;
+                        return (
+                          <TouchableOpacity
+                            key={`selected-${cat}`}
+                            activeOpacity={0.7}
+                            onPress={() => toggleCategory(cat)}
+                            style={[
+                              styles.vibeChip,
+                              { backgroundColor: style.bg, paddingRight: 8 },
+                            ]}
+                          >
+                            <View style={styles.vibeContent}>
+                              <Icon
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={[styles.vibeText, { color: style.text }]}
+                              >
+                                {cat}
+                              </Text>
+                            </View>
+                            <View style={styles.removeIconContainer}>
+                              <X size={12} color={style.text} strokeWidth={3} />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.divider} />
+                  </View>
+                )}
 
-                {/* Create New Category Button */}
-                <TouchableOpacity
-                  style={styles.createNewButton}
-                  onPress={handleCreateNewCategory}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={24}
-                    color={COLORS.primary}
-                    style={styles.createNewIcon}
-                  />
-                  <Text style={styles.createNewText}>Create New</Text>
-                </TouchableOpacity>
+                {/* Categories Accordion */}
+                <View style={styles.categoriesContainer}>
+                  {loadingCategories ? (
+                    <SnooLoader size="large" color={COLORS.primary} />
+                  ) : availableCategories.length === 0 ? (
+                    <Text style={styles.emptyText}>No categories available</Text>
+                  ) : (
+                    Object.keys(INTEREST_CATEGORIES)
+                      .filter((key) => key !== "DEFAULT")
+                      .map((key) => {
+                        const categoryGroup = INTEREST_CATEGORIES[key];
+                        const isExpanded = expandedCategory === key;
+                        const GroupIcon = categoryGroup.icon;
+
+                        // Filter categories for this group
+                        const groupCats = availableCategories.filter(
+                          (cat) =>
+                            !selectedCategories.includes(cat) &&
+                            categoryGroup.keywords.some((k) =>
+                              cat.toLowerCase().includes(k),
+                            ),
+                        );
+
+                        if (groupCats.length === 0) return null;
+
+                        return (
+                          <View key={key} style={styles.categoryRow}>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setExpandedCategory(isExpanded ? null : key);
+                              }}
+                              style={[
+                                styles.categoryHeader,
+                                isExpanded && styles.categoryHeaderExpanded,
+                                {
+                                  backgroundColor: isExpanded
+                                    ? categoryGroup.bg
+                                    : "transparent",
+                                },
+                              ]}
+                            >
+                              <View style={styles.categoryHeaderLeft}>
+                                <View
+                                  style={[
+                                    styles.categoryIcon,
+                                    { backgroundColor: categoryGroup.bg },
+                                  ]}
+                                >
+                                  <GroupIcon size={14} color={categoryGroup.text} />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.categoryTitle,
+                                    isExpanded && {
+                                      color: categoryGroup.text,
+                                      fontWeight: "600",
+                                    },
+                                  ]}
+                                >
+                                  {categoryGroup.label}
+                                </Text>
+                              </View>
+                              {isExpanded ? (
+                                <ChevronDown size={16} color={COLORS.textSecondary} />
+                              ) : (
+                                <ChevronRight size={16} color={COLORS.textSecondary} />
+                              )}
+                            </TouchableOpacity>
+
+                            {isExpanded && (
+                              <View style={styles.categoryContent}>
+                                <View style={styles.chipsContainer}>
+                                  {groupCats.map((cat) => (
+                                    <TouchableOpacity
+                                      key={cat}
+                                      onPress={() => toggleCategory(cat)}
+                                      style={[
+                                        styles.optionChip,
+                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
+                                      ]}
+                                      disabled={selectedCategories.length >= MAX_CATEGORIES}
+                                    >
+                                      <Text style={[
+                                        styles.optionText,
+                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
+                                      ]}>{cat}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })
+                  )}
+
+                  {/* Handle uncategorized categories if any */}
+                  {!loadingCategories && availableCategories.some(cat => 
+                    !selectedCategories.includes(cat) && 
+                    !Object.values(INTEREST_CATEGORIES).some(group => group.keywords.some(k => cat.toLowerCase().includes(k)))
+                  ) && (
+                    <View style={styles.categoryRow}>
+                       <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                setExpandedCategory(expandedCategory === 'OTHER' ? null : 'OTHER');
+                              }}
+                              style={[
+                                styles.categoryHeader,
+                                expandedCategory === 'OTHER' && styles.categoryHeaderExpanded,
+                                {
+                                  backgroundColor: expandedCategory === 'OTHER'
+                                    ? INTEREST_CATEGORIES.DEFAULT.bg
+                                    : "transparent",
+                                },
+                              ]}
+                            >
+                              <View style={styles.categoryHeaderLeft}>
+                                <View
+                                  style={[
+                                    styles.categoryIcon,
+                                    { backgroundColor: INTEREST_CATEGORIES.DEFAULT.bg },
+                                  ]}
+                                >
+                                  <INTEREST_CATEGORIES.DEFAULT.icon size={14} color={INTEREST_CATEGORIES.DEFAULT.text} />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.categoryTitle,
+                                    expandedCategory === 'OTHER' && {
+                                      color: INTEREST_CATEGORIES.DEFAULT.text,
+                                      fontWeight: "600",
+                                    },
+                                  ]}
+                                >
+                                  {INTEREST_CATEGORIES.DEFAULT.label}
+                                </Text>
+                              </View>
+                              {expandedCategory === 'OTHER' ? (
+                                <ChevronDown size={16} color={COLORS.textSecondary} />
+                              ) : (
+                                <ChevronRight size={16} color={COLORS.textSecondary} />
+                              )}
+                            </TouchableOpacity>
+                            {expandedCategory === 'OTHER' && (
+                              <View style={styles.categoryContent}>
+                                <View style={styles.chipsContainer}>
+                                  {availableCategories.filter(cat => 
+                                    !selectedCategories.includes(cat) && 
+                                    !Object.values(INTEREST_CATEGORIES).some(group => group.keywords.some(k => cat.toLowerCase().includes(k)))
+                                  ).map((cat) => (
+                                    <TouchableOpacity
+                                      key={cat}
+                                      onPress={() => toggleCategory(cat)}
+                                      style={[
+                                        styles.optionChip,
+                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
+                                      ]}
+                                      disabled={selectedCategories.length >= MAX_CATEGORIES}
+                                    >
+                                      <Text style={[
+                                        styles.optionText,
+                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
+                                      ]}>{cat}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+                    </View>
+                  )}
+                </View>
               </View>
             </Animated.View>
 
@@ -458,46 +579,6 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
 
-        {/* Create New Category Modal */}
-        <Modal
-          visible={showCreateModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={handleCancelCreate}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Create New Category</Text>
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Enter category name"
-                placeholderTextColor={COLORS.textSecondary}
-                value={newCategoryName}
-                onChangeText={setNewCategoryName}
-                autoFocus={true}
-                maxLength={30}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={handleCancelCreate}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.createButton]}
-                  onPress={handleCreateCategory}
-                >
-                  <Text style={styles.createButtonText}>Create</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
         <CancelSignupModal
           visible={showCancelModal}
           onKeepEditing={() => setShowCancelModal(false)}
@@ -523,7 +604,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
 
@@ -538,12 +619,14 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 10,
     letterSpacing: -1,
+    lineHeight: 42,
   },
   subtitle: {
     fontSize: 16,
     fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 40,
+    marginBottom: 20,
+    lineHeight: 24,
   },
 
   // --- Card Styles ---
@@ -569,45 +652,113 @@ const styles = StyleSheet.create({
     padding: 24,
   },
 
-  // --- Chips/Tags Styles ---
+  // --- Layout Styles (Categories / Accordion) ---
+  selectedSection: {
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    marginVertical: 16,
+  },
+  categoriesContainer: {
+    marginTop: 8,
+  },
+  categoryRow: {
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  categoryHeaderExpanded: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  categoryContent: {
+    padding: 16,
+    backgroundColor: "transparent",
+  },
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 30,
-  },
-  chip: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: BORDER_RADIUS.pill,
-    borderWidth: 1.5,
-  },
-  chipText: {
-    fontSize: 14,
-    fontFamily: "Manrope-Medium",
+    gap: 8,
   },
 
-  // --- Create New Button Styles ---
-  createNewButton: {
+  // --- Chip Styles ---
+  vibeChip: {
     flexDirection: "row",
-    alignSelf: "stretch", // full width within card
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    paddingVertical: 15, // matching input height
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    borderStyle: "dashed",
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
+    gap: 8,
   },
-  createNewIcon: {
-    marginRight: 8,
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  createNewText: {
-    fontSize: 16,
+  vibeText: {
+    fontSize: 14,
     fontFamily: "Manrope-SemiBold",
-    color: COLORS.primary,
+  },
+  removeIconContainer: {
+    marginLeft: 2,
+    opacity: 0.6,
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.4)", // Glass style
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
+  },
+  optionText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textPrimary,
+  },
+  optionChipDisabled: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    opacity: 0.5,
+  },
+  optionTextDisabled: {
+    color: COLORS.textSecondary,
+  },
+
+  emptyText: {
+    textAlign: 'center',
+    padding: 20,
+    color: COLORS.textSecondary,
+    fontFamily: 'Manrope-Medium',
   },
 
   nextButtonContainer: {
@@ -632,75 +783,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
-
-  // --- Modal Styles (Consistent) ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  modalContent: {
-    backgroundColor: COLORS.background,
-    borderRadius: 15,
-    padding: 25,
-    width: "100%",
-    maxWidth: 350,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    marginBottom: 25,
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 15,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: COLORS.inputBackground || "#f8f9fa",
-  },
-  createButton: {
-    backgroundColor: COLORS.primary,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  createButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textInverted,
-  },
 });
 
 export default CommunityCategoryScreen;
-
-
-

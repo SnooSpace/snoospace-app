@@ -14,19 +14,20 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { Check, X } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
 import { setAuthSession } from "../../../api/auth";
 import { deleteCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 
 const { width } = Dimensions.get("window");
 
 import { LinearGradient } from "expo-linear-gradient";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -35,7 +36,8 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Hydrate from draft if needed
   useEffect(() => {
@@ -75,8 +77,8 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   }, [isButtonDisabled]);
 
   useEffect(() => {
-    inputScale.value = withSpring(isUsernameFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
-  }, [isUsernameFocused]);
+    inputScale.value = withSpring(isFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
+  }, [isFocused]);
 
   // Support both organization flow (userData object) and non-org flow (direct params)
   const routeParams = route.params || {};
@@ -156,7 +158,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       setIsAvailable(response.available);
     } catch (error) {
       console.error("Error checking username:", error);
-      Alert.alert("Error", "Failed to check username availability");
+      // Don't show alert for debounced check failures to avoid UX interruption
     } finally {
       setIsChecking(false);
     }
@@ -168,6 +170,37 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     if (regex.test(text)) {
       setUsername(text);
     }
+  };
+
+  const getUsernameStatus = () => {
+    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary, icon: null };
+    if (username.length < 3)
+      return {
+        text: "Username must be at least 3 characters",
+        color: COLORS.textSecondary,
+        icon: null,
+      };
+    if (isAvailable === true)
+      return {
+        text: "Username is available",
+        color: "#16A34A",
+        icon: <Check size={16} color="#16A34A" strokeWidth={3} />,
+      };
+    if (isAvailable === false)
+      return { 
+        text: "Username is already taken", 
+        color: "#DC2626",
+        icon: <X size={16} color="#DC2626" strokeWidth={3} />
+      };
+    return { text: "", color: COLORS.textSecondary, icon: null };
+  };
+
+  const status = getUsernameStatus();
+  const isButtonDisabled =
+    !username || username.length < 3 || !isAvailable || isSubmitting;
+
+  const handleBack = () => {
+    navigation.goBack();
   };
 
   const handleFinish = async () => {
@@ -273,29 +306,15 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     }
   };
 
-  const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary };
-    if (username.length < 3)
-      return {
-        text: "Username must be at least 3 characters",
-        color: COLORS.textSecondary,
-      };
-    if (isAvailable === true)
-      return {
-        text: "âœ“ Username is available",
-        color: COLORS.success || "#00C851",
-      };
-    if (isAvailable === false)
-      return { text: "âœ— Username is already taken", color: COLORS.error };
-    return { text: "", color: COLORS.textSecondary };
-  };
-
-  const status = getUsernameStatus();
-  const isButtonDisabled =
-    !username || username.length < 3 || !isAvailable || isSubmitting;
-
-  const handleBack = () => {
-    navigation.goBack();
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      }),
+    );
   };
 
   return (
@@ -306,24 +325,22 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+
+        <SignupHeader
+          role="Community"
+          onBack={handleBack}
+          onCancel={() => setShowCancelModal(true)}
+        />
+
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          {/* 1. Header Row */}
-          <SignupHeader
-            role={
-              community_type
-                ? isStudentCommunity
-                  ? "People"
-                  : "Communities"
-                : "Communities"
-            }
-            onBack={handleBack}
-            onCancel={() => {}}
-            hideCancel={true}
-          />
-
           {/* 3. Content Area */}
           <View style={styles.content}>
             <View style={styles.header}>
@@ -331,11 +348,11 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                 entering={FadeInDown.delay(100).duration(600).springify()}
                 style={styles.title}
               >
-                Choose Your Community Username
+                Time to claim your community's space
               </Animated.Text>
               <Animated.Text 
                 entering={FadeInDown.delay(200).duration(600).springify()}
-                style={styles.globalHelperText}
+                style={styles.subtitle}
               >
                 This will be your unique identifier on SnooSpace
               </Animated.Text>
@@ -353,18 +370,10 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
               <View style={styles.cardContent}>
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Username</Text>
-                  <Animated.View
+                  <View
                     style={[
                       styles.inputWrapper,
-                      animatedInputStyle,
-                      {
-                        borderColor:
-                          isAvailable === false
-                            ? COLORS.error
-                            : isAvailable === true
-                              ? COLORS.success || "#00C851"
-                              : "rgba(0,0,0,0.1)",
-                      },
+                      isFocused && styles.inputWrapperFocused,
                     ]}
                   >
                     <TextInput
@@ -376,27 +385,43 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                       autoCapitalize="none"
                       autoCorrect={false}
                       maxLength={30}
-                      onFocus={() => setIsUsernameFocused(true)}
-                      onBlur={() => setIsUsernameFocused(false)}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => setIsFocused(false)}
                     />
                     {isChecking && (
                       <SnooLoader size="small" color={COLORS.primary} />
                     )}
-                  </Animated.View>
-                  <Text style={[styles.statusText, { color: status.color }]}>
-                    {status.text}
-                  </Text>
+                  </View>
+                  
+                  {/* Status Message */}
+                  {status.text ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                      {status.icon && <View style={{ marginRight: 4, marginTop: 1 }}>{status.icon}</View>}
+                      <Text style={[styles.statusText, { color: status.color, marginTop: 0 }]}>
+                        {status.text}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.rulesContainer}>
                   <Text style={styles.rulesTitle}>Username Rules:</Text>
-                  <Text style={styles.rule}>â€¢ 3-30 characters long</Text>
-                  <Text style={styles.rule}>
-                    â€¢ Only letters, numbers, underscores, and dots
-                  </Text>
-                  <Text style={styles.rule}>
-                    â€¢ Must be unique across all users
-                  </Text>
+                  <View style={styles.ruleRow}>
+                    <Text style={styles.ruleBullet}>•</Text>
+                    <Text style={styles.ruleText}>3-30 characters long</Text>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Text style={styles.ruleBullet}>•</Text>
+                    <Text style={styles.ruleText}>
+                      Only letters, numbers, underscores, and dots
+                    </Text>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Text style={styles.ruleBullet}>•</Text>
+                    <Text style={styles.ruleText}>
+                      Must be unique across all users
+                    </Text>
+                  </View>
                 </View>
               </View>
             </Animated.View>
@@ -412,7 +437,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                   style={[
                     styles.nextButtonContainer,
                     isButtonDisabled && styles.nextButtonDisabled,
-                    { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                    { minWidth: 220, paddingHorizontal: 32, marginRight: -33 },
                   ]}
                   onPress={handleFinish}
                   disabled={isButtonDisabled}
@@ -452,7 +477,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
   content: {
@@ -469,13 +494,14 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: 10,
     letterSpacing: -1,
-    lineHeight: 38,
+    lineHeight: 42,
   },
-  globalHelperText: {
+  subtitle: {
     fontSize: 16,
     fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 40,
+    marginBottom: 20,
+    lineHeight: 24,
   },
   card: {
     width: "100%",
@@ -483,8 +509,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
+        ...SHADOWS.xl,
         shadowOpacity: 0.1,
         shadowRadius: 24,
       },
@@ -504,20 +529,23 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 10,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
     height: 60,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+  },
+  inputWrapperFocused: {
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   textInput: {
     flex: 1,
@@ -535,24 +563,36 @@ const styles = StyleSheet.create({
 
   // --- Rules Container Styles ---
   rulesContainer: {
-    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "rgba(116, 173, 242, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.6)",
   },
   rulesTitle: {
     fontSize: 16,
-    fontFamily: "Manrope-Bold",
-    color: COLORS.primary,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
     marginBottom: 12,
   },
-  rule: {
+  ruleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  ruleBullet: {
     fontSize: 14,
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    marginRight: 6,
     lineHeight: 20,
-    fontFamily: "Manrope-Medium",
+  },
+  ruleText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textPrimary,
+    lineHeight: 20,
   },
 
   nextButtonContainer: {
