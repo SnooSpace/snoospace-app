@@ -60,7 +60,7 @@ const SignupHeader = ({
       <View style={styles.rightColumn}>
         {showCancelButton ? (
           <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>{cancelText}</Text>
+            <Text numberOfLines={1} style={styles.cancelText}>{cancelText}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.placeholder} />
@@ -80,16 +80,16 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   leftColumn: {
-    flex: 1,
+    flex: 1.2,
     alignItems: "flex-start",
   },
   centerColumn: {
-    flex: 2,
+    flex: 1.6,
     alignItems: "center",
     justifyContent: "center",
   },
   rightColumn: {
-    flex: 1,
+    flex: 1.2,
     alignItems: "flex-end",
   },
   cancelButton: {

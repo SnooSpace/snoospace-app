@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -177,38 +177,39 @@ const CommunityBioScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <SignupHeader
+          role="Community"
+          onBack={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace("CommunityLogo", {
+                email,
+                accessToken,
+                refreshToken,
+                name,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+              });
+            }
+          }}
+          onCancel={handleSkip}
+          cancelText="Add later"
+        />
+
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <SignupHeader
-            role="Communities"
-            onBack={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.replace("CommunityLogo", {
-                  email,
-                  accessToken,
-                  refreshToken,
-                  name,
-                  community_type,
-                  college_id,
-                  college_name,
-                  college_subtype,
-                  club_type,
-                  community_theme,
-                  college_pending,
-                  isStudentCommunity,
-                });
-              }
-            }}
-            showCancel={false}
-          />
-
-          {/* Content Section */}
+        {/* Content Section */}
           <View style={styles.contentContainer}>
             <Animated.Text 
               entering={FadeInDown.delay(100).duration(600).springify()}
@@ -248,29 +249,8 @@ const CommunityBioScreen = ({ navigation, route }) => {
                 width: "100%",
                 alignItems: "flex-end",
                 marginTop: 40,
-                flexDirection: "row",
-                justifyContent: "space-between",
               }}
             >
-              {/* Skip Button */}
-              <TouchableOpacity
-                onPress={handleSkip}
-                style={[
-                  styles.skipButton,
-                  isSkipDisabled && styles.disabledSkipButton,
-                ]} // Apply disabled style
-                disabled={isSkipDisabled} // Apply disabled prop
-              >
-                <Text
-                  style={[
-                    styles.skipText,
-                    isSkipDisabled && styles.disabledSkipText,
-                  ]}
-                >
-                  Skip
-                </Text>
-              </TouchableOpacity>
-
               <Animated.View 
                 entering={FadeInDown.delay(500).duration(600).springify()}
                 style={animatedButtonStyle}
@@ -325,49 +305,8 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingBottom: 40,
-  },
-
-  // --- Header Styles ---
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 15,
-    paddingBottom: 10,
-    paddingHorizontal: 5,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-  skipButton: {
-    padding: 10,
-  },
-  skipText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: COLORS.primary,
-  },
-  // New styles for disabled Skip button
-  disabledSkipButton: {
-    // No visual changes to the container needed, relying on text opacity
-  },
-  disabledSkipText: {
-    color: COLORS.textSecondary, // Change color to light grey when disabled
-    opacity: 0.7,
-  },
-
-  // --- Progress Bar Styles ---
-  progressContainer: {
-    marginBottom: 40,
-    paddingHorizontal: 5,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
   },
 
   // --- Content & Input Styles ---

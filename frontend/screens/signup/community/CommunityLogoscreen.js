@@ -66,7 +66,9 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     isStudentCommunity,
     isResumingDraft,
   } = route.params || {};
-  const [imageUri, setImageUri] = useState(null);
+  const [imageUri, setImageUri] = useState(
+    route.params?.logo_url || null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -153,11 +155,13 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         console.log("[CommunityLogoScreen] Step update failed:", e.message);
       }
 
-      // Hydrate from draft if we have a saved logo
-      const draftData = await getCommunityDraftData();
-      if (draftData?.logo_url) {
-        console.log("[CommunityLogoScreen] Hydrating logo from draft");
-        setImageUri(draftData.logo_url);
+      // Hydrate from draft only if no logo is already loaded (e.g. from route.params)
+      if (!imageUri && !route.params?.logo_url) {
+        const draftData = await getCommunityDraftData();
+        if (draftData?.logo_url) {
+          console.log("[CommunityLogoScreen] Hydrating logo from draft");
+          setImageUri(draftData.logo_url);
+        }
       }
     };
     initScreen();
@@ -192,7 +196,14 @@ const CommunityLogoScreen = ({ navigation, route }) => {
 
     setIsLoading(true);
     try {
-      const secureUrl = await uploadImage(imageUri, () => {});
+      let secureUrl;
+      if (imageUri && !imageUri.startsWith("http")) {
+        // Only upload if it's a local file URI (not already uploaded)
+        secureUrl = await uploadImage(imageUri, () => {});
+      } else {
+        // Already a remote URL (e.g. came back from next screen)
+        secureUrl = imageUri;
+      }
 
       // Save logo_url to draft
       try {
