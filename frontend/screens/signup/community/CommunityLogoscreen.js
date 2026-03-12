@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -14,13 +14,17 @@ import {
   ScrollView,
 } from "react-native";
 import wave from "../../../assets/wave.png";
-import { Ionicons } from "@expo/vector-icons";
+import { Camera } from "lucide-react-native";
+import { BlurView } from "expo-blur";
 import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withSequence,
+  withTiming,
+  withRepeat,
+  Easing,
 } from "react-native-reanimated";
 import { useCrop } from "../../../components/MediaCrop";
 
@@ -68,15 +72,34 @@ const CommunityLogoScreen = ({ navigation, route }) => {
 
   // Animation values
   const buttonScale = useSharedValue(1);
-  const uploadAreaScale = useSharedValue(1);
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.6);
+  const bounceScale = useSharedValue(0.5);
+  const hintOpacity = useSharedValue(1);
 
   const animatedButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const animatedUploadAreaStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: uploadAreaScale.value }],
+  const animatedPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
   }));
+
+  const animatedBounceStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bounceScale.value }],
+  }));
+
+  const animatedHintStyle = useAnimatedStyle(() => ({
+    opacity: hintOpacity.value,
+  }));
+
+  const [currentHintIndex, setCurrentHintIndex] = useState(0);
+  const HINTS = [
+    "A logo makes you recognizable",
+    "Keep it simple and bold",
+    "Square images work best",
+  ];
 
   // Trigger button bounce when validity changes to true (imageUri)
   useEffect(() => {
@@ -88,15 +111,36 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     }
   }, [imageUri]);
 
-  // Bounce upload area when image is picked
   useEffect(() => {
-    if (imageUri) {
-      uploadAreaScale.value = withSequence(
-        withSpring(1.1, { damping: 10, stiffness: 100 }),
-        withSpring(1, { damping: 12, stiffness: 90 })
+    // 1. Bounce Animation on Load
+    bounceScale.value = withSpring(1, { damping: 12, stiffness: 90 });
+
+    // 2. Slow Pulsing Animation Loop
+    pulseScale.value = withRepeat(
+      withTiming(1.15, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0.2, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+
+    // 3. Rotating Hints Animation
+    const hintInterval = setInterval(() => {
+      hintOpacity.value = withSequence(
+        withTiming(0, { duration: 500 }),
+        withTiming(1, { duration: 500 })
       );
-    }
-  }, [imageUri]);
+
+      setTimeout(() => {
+        setCurrentHintIndex((prev) => (prev + 1) % HINTS.length);
+      }, 500);
+    }, 4000);
+
+    return () => clearInterval(hintInterval);
+  }, []);
 
   // Update step on mount AND hydrate from draft
   useEffect(() => {
@@ -217,10 +261,6 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
         {/* Header */}
         <SignupHeader
           onBack={() => {
@@ -243,15 +283,26 @@ const CommunityLogoScreen = ({ navigation, route }) => {
             }
           }}
           onCancel={() => setShowCancelModal(true)}
+          role="Community"
         />
 
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Content Section */}
         <View style={styles.contentContainer}>
           <Animated.Text 
             entering={FadeInDown.delay(100).duration(600).springify()}
             style={styles.title}
           >
-            Add your Community Logo
+            Create your Identity
+          </Animated.Text>
+          <Animated.Text 
+            entering={FadeInDown.delay(200).duration(600).springify()}
+            style={styles.subtitle}
+          >
+            A strong logo helps others identify and trust your community.
           </Animated.Text>
 
           <Animated.View 
@@ -260,34 +311,59 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           >
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.cardContent}>
-          {/* Profile Picture Upload Area */}
-          <TouchableOpacity
-            onPress={handleAddPhoto}
-            activeOpacity={0.7}
-          >
-            {/* The Dashed Circle Wrapper */}
-            <Animated.View style={[styles.dashedCircle, animatedUploadAreaStyle]}>
-              {/* Content when no photo is uploaded */}
-              {!imageUri && (
-                <View style={styles.uploadContent}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={35}
-                    color={COLORS.primary}
-                  />
-                  <Text style={styles.uploadText}>Add Photo</Text>
-                </View>
-              )}
-              {/* Content when photo IS uploaded */}
-              {imageUri && (
-                <Image
-                  source={{ uri: imageUri }}
-                  style={styles.profileImage}
-                  resizeMode="cover"
+              {/* Animated Logo Upload Area */}
+              <Animated.View
+                style={[animatedBounceStyle]}
+              >
+                {/* Pulsing Ring Background */}
+                <Animated.View
+                  style={[
+                    styles.pulsingRing,
+                    animatedPulseStyle,
+                  ]}
                 />
-              )}
-            </Animated.View>
-          </TouchableOpacity>
+
+                {/* Main Upload Circle */}
+                <TouchableOpacity
+                  style={styles.photoUploadArea}
+                  onPress={handleAddPhoto}
+                  activeOpacity={0.9}
+                >
+                  {/* Glow Shadow Container */}
+                  <View style={styles.glowContainer}>
+                    {/* Content when no photo is uploaded */}
+                    {!imageUri && (
+                      <View style={styles.uploadContent}>
+                        <Camera
+                          size={40}
+                          color={COLORS.primary}
+                        />
+                        <Text style={styles.uploadText}>Add Logo</Text>
+                      </View>
+                    )}
+                    {/* Content when photo IS uploaded */}
+                    {imageUri && (
+                      <Image
+                        source={{ uri: imageUri }}
+                        style={styles.profileImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+
+              {/* Rotating Hints */}
+              <View style={styles.hintContainer}>
+                <Animated.Text
+                  style={[
+                    styles.hintText,
+                    animatedHintStyle,
+                  ]}
+                >
+                  {HINTS[currentHintIndex]}
+                </Animated.Text>
+              </View>
             </View>
           </Animated.View>
 
@@ -314,7 +390,14 @@ const CommunityLogoScreen = ({ navigation, route }) => {
                   style={styles.nextButton}
                 >
                   {isLoading ? (
-                    <SnooLoader color={COLORS.textInverted} size="small" />
+                    <View style={styles.buttonLoadingContainer}>
+                      <SnooLoader
+                        size="small"
+                        color={COLORS.textInverted}
+                        style={styles.buttonSpinner}
+                      />
+                      <Text style={[styles.buttonText, { fontFamily: 'Manrope-Medium' }]}>Uploading...</Text>
+                    </View>
                   ) : (
                     <Text style={[styles.buttonText, { fontFamily: 'Manrope-SemiBold' }]}>Next</Text>
                   )}
@@ -352,46 +435,20 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
     paddingBottom: 40,
-  },
-
-  // Adjusted header structure for consistency
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    paddingTop: 15,
-    paddingBottom: 10,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
-  },
-
-  // Consistent Progress Container Styles
-  progressContainer: {
-    marginBottom: 40,
-    paddingHorizontal: 20,
-  },
-  stepText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 5,
   },
 
   contentContainer: {
     flex: 1,
     paddingTop: 40,
-    paddingHorizontal: 25,
-    alignItems: "center",
   },
   title: {
     fontSize: 34,
     fontFamily: 'BasicCommercial-Black',
     color: '#1a2d4a',
     marginBottom: 40,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -410,6 +467,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Manrope-Regular',
+    color: COLORS.textSecondary,
+    marginBottom: 40,
+    lineHeight: 24,
+  },
   // --- Photo Upload Area Styles ---
   photoUploadArea: {
     width: CIRCLE_SIZE,
@@ -417,23 +481,37 @@ const styles = StyleSheet.create({
     borderRadius: CIRCLE_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: COLORS.background,
+    shadowColor: "#6FE7D8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  dashedCircle: {
+  glowContainer: {
     width: "100%",
     height: "100%",
     borderRadius: CIRCLE_SIZE / 2,
-    borderWidth: 2,
-    borderColor: COLORS.primary + "80",
-    borderStyle: "dashed",
-    backgroundColor: COLORS.primary + "10",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#fff",
+    borderWidth: 4,
+    borderColor: "#F0F0FF", // Very light colored border
+    overflow: "hidden",
+  },
+  pulsingRing: {
+    position: "absolute",
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
+    backgroundColor: "#6FE7D8",
+    zIndex: -1,
   },
   uploadContent: {
     alignItems: "center",
   },
   uploadText: {
-    marginTop: 5,
+    marginTop: 8,
     fontSize: 16,
     fontFamily: 'Manrope-SemiBold',
     color: COLORS.primary,
@@ -441,7 +519,20 @@ const styles = StyleSheet.create({
   profileImage: {
     width: "100%",
     height: "100%",
-    borderRadius: CIRCLE_SIZE / 2,
+  },
+
+  // --- Hint Styles ---
+  hintContainer: {
+    marginTop: 40,
+    height: 30, // Fixed height to prevent layout jumps
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hintText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: 'Manrope-Regular',
+    textAlign: 'center',
   },
 
   // --- Footer/Button Styles (Consistent) ---
@@ -470,8 +561,15 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    
     fontFamily: "Manrope-SemiBold",
+  },
+  buttonLoadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonSpinner: {
+    marginRight: 8,
   },
 });
 
