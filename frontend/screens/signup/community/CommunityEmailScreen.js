@@ -125,7 +125,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
         <SignupHeader onBack={() => {
           triggerTransitionHaptic();
           navigation.goBack();
-        }} role="Communities" />
+        }} role="Community" />
 
         <ScrollView
           contentContainerStyle={styles.scrollContainer}

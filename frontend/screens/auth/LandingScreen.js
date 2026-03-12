@@ -237,10 +237,16 @@ const LandingScreen = ({ navigation }) => {
   // Draft recovery state
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [activeDraft, setActiveDraft] = useState(null); // { type: "Member"|"Community", email: string, step: string }
+  // Prevent draft modal from re-appearing when navigating back from signup flow
+  const draftModalShown = useRef(false);
 
   // Check for any existing drafts when landing screen appears
   useFocusEffect(
     useCallback(() => {
+      // Only show draft modal once per session to avoid re-showing it
+      // when the user navigates back from within the signup flow
+      if (draftModalShown.current) return;
+
       const checkForDrafts = async () => {
         try {
           // Check both drafts
@@ -258,6 +264,7 @@ const LandingScreen = ({ navigation }) => {
               step: communityDraft.currentStep,
               data: communityDraft.data,
             });
+            draftModalShown.current = true;
             setShowDraftModal(true);
           } else if (memberDraft && memberDraft.data?.email) {
              setActiveDraft({
@@ -266,6 +273,7 @@ const LandingScreen = ({ navigation }) => {
                step: memberDraft.currentStep,
                data: memberDraft.data,
              });
+             draftModalShown.current = true;
              setShowDraftModal(true);
           }
         } catch (e) {
@@ -274,7 +282,8 @@ const LandingScreen = ({ navigation }) => {
       };
       
       // Delay slightly to not interrupt splash screen transition
-      setTimeout(checkForDrafts, 600);
+      const timer = setTimeout(checkForDrafts, 600);
+      return () => clearTimeout(timer);
     }, [])
   );
 
@@ -286,6 +295,7 @@ const LandingScreen = ({ navigation }) => {
 
     if (activeDraft.type === "Community") {
       const resumeScreen = getCommunityResumeScreen(activeDraft.step);
+      console.log("[LandingScreen] Resuming community draft at:", resumeScreen, "from step:", activeDraft.step);
       // Navigate to CommunitySignup stack, targeting the specific screen
       navigation.navigate("CommunitySignup", { 
         screen: resumeScreen, 
@@ -318,6 +328,8 @@ const LandingScreen = ({ navigation }) => {
       await deleteSignupDraft();
     }
     setActiveDraft(null);
+    // Reset so a fresh draft can be shown if user starts again
+    draftModalShown.current = false;
   };
 
   const CARD_WIDTH   = width * 0.85;

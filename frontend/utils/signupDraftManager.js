@@ -377,7 +377,6 @@ export function getCommunityNextScreenForStep(currentStep) {
 export function getCommunityResumeScreen(lastStep) {
   // Return the current step directly - we want to resume WHERE the user was,
   // not navigate to the next screen. The screen will hydrate data from draft.
-  // If step isn't recognized, default to CommunityName (safe starting point after OTP)
   const validSteps = [
     "CommunityTypeSelect",
     "CollegeSearch",
@@ -402,8 +401,14 @@ export function getCommunityResumeScreen(lastStep) {
     return lastStep;
   }
 
-  // Default fallback
-  return "CommunityName";
+  // 'CommunityOtp' step means email was verified but type not yet selected
+  // Resume at CommunityTypeSelect (first screen after OTP)
+  if (lastStep === "CommunityOtp") {
+    return "CommunityTypeSelect";
+  }
+
+  // Default fallback — safe starting point after OTP
+  return "CommunityTypeSelect";
 }
 
 export default {

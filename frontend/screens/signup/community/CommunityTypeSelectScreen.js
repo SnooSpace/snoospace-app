@@ -159,7 +159,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader
           onBack={handleBack}
-          role="Communities"
+          role="Community"
           showCancel={false}
         />
 
