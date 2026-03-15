@@ -8,7 +8,26 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Heart,
+  MessageCircle,
+  AtSign,
+  Ticket,
+  ChevronRight,
+  ChevronLeft,
+  Pencil,
+  Calendar,
+  Bell,
+  AlertCircle,
+  Banknote,
+  Trash2,
+  XCircle,
+  Gift,
+  Mail,
+  Hand,
+  CheckCircle,
+  MinusCircle,
+} from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
 import { followMember, unfollowMember } from "../../api/members";
 
@@ -144,10 +163,10 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="heart"
+          <Heart
             size={20}
             color="#FF3B30"
+            fill="#FF3B30"
             style={styles.icon}
           />
         </TouchableOpacity>
@@ -173,8 +192,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chatbubble"
+          <MessageCircle
             size={18}
             color="#007AFF"
             style={styles.icon}
@@ -201,7 +219,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons name="at" size={18} color="#34C759" style={styles.icon} />
+          <AtSign size={18} color="#34C759" style={styles.icon} />
         </TouchableOpacity>
       );
     }
@@ -228,7 +246,7 @@ export default function NotificationsScreen({ navigation }) {
                 { backgroundColor: "#34C75920" },
               ]}
             >
-              <Ionicons name="ticket" size={22} color="#34C759" />
+              <Ticket size={22} color="#34C759" />
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.title}>
@@ -239,8 +257,7 @@ export default function NotificationsScreen({ navigation }) {
                 {new Date(firstItem.created_at).toLocaleString()}
               </Text>
             </View>
-            <Ionicons
-              name="chevron-forward"
+            <ChevronRight
               size={18}
               color="#8E8E93"
               style={styles.icon}
@@ -264,8 +281,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="ticket"
+          <Ticket
             size={18}
             color="#34C759"
             style={styles.icon}
@@ -289,7 +305,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF950020" },
             ]}
           >
-            <Ionicons name="create" size={22} color="#FF9500" />
+            <Pencil size={22} color="#FF9500" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -327,7 +343,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF3B3020" },
             ]}
           >
-            <Ionicons name="calendar" size={22} color="#FF3B30" />
+            <Calendar size={22} color="#FF3B30" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -362,8 +378,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#007AFF20" },
             ]}
           >
-            <Ionicons
-              name={isOnehour ? "alarm" : "calendar"}
+            <Bell
               size={22}
               color="#007AFF"
             />
@@ -400,7 +415,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#8E8E9320" },
             ]}
           >
-            <Ionicons name="alert-circle" size={22} color="#8E8E93" />
+            <AlertCircle size={22} color="#8E8E93" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -430,7 +445,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#34C75920" },
             ]}
           >
-            <Ionicons name="cash" size={22} color="#34C759" />
+            <Banknote size={22} color="#34C759" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -460,7 +475,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF3B3020" },
             ]}
           >
-            <Ionicons name="trash" size={22} color="#FF3B30" />
+            <Trash2 size={22} color="#FF3B30" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -486,7 +501,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF950020" },
             ]}
           >
-            <Ionicons name="close-circle" size={22} color="#FF9500" />
+            <XCircle size={22} color="#FF9500" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -515,7 +530,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF69B420" },
             ]}
           >
-            <Ionicons name="gift" size={22} color="#FF69B4" />
+            <Gift size={22} color="#FF69B4" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -528,8 +543,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
+          <ChevronRight
             size={18}
             color="#8E8E93"
             style={styles.icon}
@@ -552,7 +566,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#007AFF20" },
             ]}
           >
-            <Ionicons name="mail" size={22} color="#007AFF" />
+            <Mail size={22} color="#007AFF" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -565,8 +579,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
+          <ChevronRight
             size={18}
             color="#8E8E93"
             style={styles.icon}
@@ -586,7 +599,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF3B3020" },
             ]}
           >
-            <Ionicons name="close-circle" size={22} color="#FF3B30" />
+            <XCircle size={22} color="#FF3B30" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -617,7 +630,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#FF950020" },
             ]}
           >
-            <Ionicons name="hand-left" size={22} color="#FF9500" />
+            <Hand size={22} color="#FF9500" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -630,8 +643,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
+          <ChevronRight
             size={18}
             color="#8E8E93"
             style={styles.icon}
@@ -654,7 +666,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#34C75920" },
             ]}
           >
-            <Ionicons name="checkmark-circle" size={22} color="#34C759" />
+            <CheckCircle size={22} color="#34C759" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -667,8 +679,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
+          <ChevronRight
             size={18}
             color="#8E8E93"
             style={styles.icon}
@@ -688,7 +699,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#8E8E9320" },
             ]}
           >
-            <Ionicons name="remove-circle" size={22} color="#8E8E93" />
+            <MinusCircle size={22} color="#8E8E93" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -730,7 +741,7 @@ export default function NotificationsScreen({ navigation }) {
               { backgroundColor: "#007AFF20" },
             ]}
           >
-            <Ionicons name="ticket" size={22} color="#007AFF" />
+            <Ticket size={22} color="#007AFF" />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.title}>
@@ -743,8 +754,7 @@ export default function NotificationsScreen({ navigation }) {
               {new Date(firstItem.created_at).toLocaleString()}
             </Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
+          <ChevronRight
             size={18}
             color="#8E8E93"
             style={styles.icon}
@@ -764,7 +774,7 @@ export default function NotificationsScreen({ navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="chevron-back" size={24} color="#1D1D1F" />
+          <ChevronLeft size={24} color="#1D1D1F" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 40 }} />

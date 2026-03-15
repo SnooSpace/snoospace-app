@@ -18,6 +18,7 @@ import CommunityEventsListScreen from "../screens/home/community/CommunityEvents
 import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 import CelebrationScreen from "../screens/signup/CelebrationScreen";
+import PeopleProfilePromptScreen from "../screens/signup/community/PeopleProfilePromptScreen";
 
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
@@ -51,6 +52,7 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
       <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
       <Stack.Screen name="Celebration" component={CelebrationScreen} />
+      <Stack.Screen name="PeopleProfilePromptScreen" component={PeopleProfilePromptScreen} />
       <Stack.Screen
         name="MemberHome"
         component={BottomTabNavigator}

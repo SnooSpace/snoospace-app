@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,7 @@ import {
   Image,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for icons
+import { ArrowLeft, Camera } from "lucide-react-native";
 import { useCrop } from "../../../components/MediaCrop";
 import ProgressBar from "../../../components/Progressbar";
 
@@ -93,7 +93,7 @@ const VenueLogoScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <ArrowLeft size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -123,8 +123,7 @@ const VenueLogoScreen = ({ navigation, route }) => {
               {/* Content when no photo is uploaded */}
               {!imageUri && (
                 <View style={styles.uploadContent}>
-                  <Ionicons
-                    name="camera-outline"
+                  <Camera
                     size={35}
                     color={COLORS.primary}
                   />

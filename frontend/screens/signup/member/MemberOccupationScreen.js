@@ -54,6 +54,8 @@ const OccupationScreen = ({ navigation, route }) => {
     location,
     interests,
     occupation: initialOccupation,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
 
   const [selectedOccupation, setSelectedOccupation] = useState(initialOccupation || null);
@@ -104,10 +106,19 @@ const OccupationScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const selectOccupation = (value) => {
@@ -152,6 +163,8 @@ const OccupationScreen = ({ navigation, route }) => {
       location,
       interests,
       occupation: finalOccupation,
+      prefill,
+      fromCommunitySignup,
     });
   };
 

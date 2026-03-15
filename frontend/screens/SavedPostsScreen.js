@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, SafeAreaView, StatusBar } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Image as LucideImage, Play, Bookmark, ArrowLeft } from "lucide-react-native";
 import { getSavedPosts } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import ProfilePostFeed from "../components/ProfilePostFeed";
@@ -112,8 +112,7 @@ const SavedPostsScreen = ({ navigation }) => {
           <Image source={{ uri: imageUrl }} style={styles.postImage} />
         ) : (
           <View style={[styles.postImage, styles.placeholderImage]}>
-            <Ionicons
-              name="image-outline"
+            <LucideImage
               size={40}
               color={COLORS.textSecondary}
             />
@@ -121,7 +120,7 @@ const SavedPostsScreen = ({ navigation }) => {
         )}
         {isVideo && (
           <View style={styles.videoIndicator}>
-            <Ionicons name="play-circle" size={24} color="#FFF" />
+            <Play size={24} color="#FFF" fill="#FFF" />
           </View>
         )}
       </TouchableOpacity>
@@ -132,8 +131,7 @@ const SavedPostsScreen = ({ navigation }) => {
     if (loading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons
-          name="bookmark-outline"
+        <Bookmark
           size={80}
           color={COLORS.textSecondary}
         />
@@ -164,7 +162,7 @@ const SavedPostsScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Saved</Text>
         <View style={styles.backButton} />

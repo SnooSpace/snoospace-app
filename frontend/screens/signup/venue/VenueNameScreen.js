@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import ProgressBar from "../../../components/Progressbar";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+
 
 // --- Design Constants ---
 import { LinearGradient } from "expo-linear-gradient";

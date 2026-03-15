@@ -22,7 +22,7 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+
 import { LinearGradient } from "expo-linear-gradient";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -37,6 +37,10 @@ import {
   Image as LucideImage,
   Star,
   X,
+  Clock,
+  Video,
+  MapPin,
+  AlertCircle,
 } from "lucide-react-native";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import {
@@ -96,6 +100,7 @@ import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import GradientSafeArea from "../../../components/GradientSafeArea";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -534,6 +539,7 @@ export default function CommunityProfileScreen({ navigation }) {
         banner_url: fullProfile?.banner_url || null,
         sponsor_types: fullProfile?.sponsor_types || [],
         heads: fullProfile?.heads || [],
+        show_heads: fullProfile?.show_heads !== false, // default true
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
@@ -923,8 +929,7 @@ export default function CommunityProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons
-            name="alert-circle-outline"
+          <AlertCircle
             size={64}
             color={COLORS.error || "#FF4B2B"}
           />
@@ -1215,6 +1220,7 @@ export default function CommunityProfileScreen({ navigation }) {
             />
           </View>
 
+          {profile.show_heads !== false && (
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
@@ -1295,6 +1301,7 @@ export default function CommunityProfileScreen({ navigation }) {
               <Text style={styles.emptyText}>No hosts added yet</Text>
             )}
           </View>
+          )}
 
           {profile.sponsor_types && profile.sponsor_types.length > 0 && (
             <View style={styles.sectionCard}>
@@ -1810,8 +1817,7 @@ export default function CommunityProfileScreen({ navigation }) {
                               marginBottom: 6,
                             }}
                           >
-                            <Ionicons
-                              name="time-outline"
+                            <Clock
                               size={14}
                               color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
                             />
@@ -1839,15 +1845,17 @@ export default function CommunityProfileScreen({ navigation }) {
                               marginBottom: 6,
                             }}
                           >
-                            <Ionicons
-                              name={
-                                item.event_type === "virtual"
-                                  ? "videocam-outline"
-                                  : "location-outline"
-                              }
-                              size={14}
-                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
-                            />
+                            {item.event_type === "virtual" ? (
+                              <Video
+                                size={14}
+                                color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                              />
+                            ) : (
+                              <MapPin
+                                size={14}
+                                color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                              />
+                            )}
                             <Text
                               style={{
                                 fontSize: 13,

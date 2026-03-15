@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,7 +10,7 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow and location icon
+import { ArrowLeft, MapPin, Building2 } from "lucide-react-native";
 import ProgressBar from "../../../components/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -54,7 +54,7 @@ const VenueLocationScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <ArrowLeft size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           {/* Progress bar and Skip button removed as per request */}
         </View>
@@ -76,8 +76,7 @@ const VenueLocationScreen = ({ navigation, route }) => {
           {/* Location Input Field */}
           {/* Location Input Field */}
           <View style={[styles.inputWrapper, isAddressFocused && styles.inputFocused]}>
-            <Ionicons
-              name="location-outline"
+            <MapPin
               size={20}
               color={COLORS.textSecondary}
               style={styles.locationIcon}
@@ -98,8 +97,7 @@ const VenueLocationScreen = ({ navigation, route }) => {
           </View>
 
           <View style={[styles.inputWrapper, { marginTop: 12 }, isCityFocused && styles.inputFocused]}>
-            <Ionicons
-              name="business-outline"
+            <Building2
               size={20}
               color={COLORS.textSecondary}
               style={styles.locationIcon}

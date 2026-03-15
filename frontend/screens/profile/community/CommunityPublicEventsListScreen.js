@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, MapPin, Calendar } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 import { getCommunityPublicEvents } from "../../../api/events";
@@ -26,20 +26,6 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [upcomingData, pastData] = await Promise.all([
-          getCommunityPublicEvents(communityId, {
-            limit: 1,
-            offset: 0,
-            type: "upcoming",
-          }),
-          getCommunityPublicEvents(communityId, {
-            limit: 1,
-            offset: 0,
-            type: "past",
-          }),
-        ]);
-        // The API returns events array; we need total count
-        // For now, load all to get accurate count (or add count endpoint later)
         const [upcomingFull, pastFull] = await Promise.all([
           getCommunityPublicEvents(communityId, {
             limit: 100,
@@ -159,8 +145,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
             {item.title}
           </Text>
           <View style={styles.eventMeta}>
-            <Ionicons
-              name="location-outline"
+            <MapPin
               size={14}
               color={LIGHT_TEXT_COLOR}
             />
@@ -190,7 +175,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Community Events</Text>
         <View style={{ width: 40 }} />
@@ -268,7 +253,7 @@ export default function CommunityPublicEventsListScreen({ navigation, route }) {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={64} color="#E5E5EA" />
+              <Calendar size={64} color="#E5E5EA" />
               <Text style={[styles.emptyText, { fontFamily: 'Manrope-Medium' }]}>No {activeTab} events found</Text>
             </View>
           }

@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { X } from "lucide-react-native";
 import { FONTS } from "../../constants/theme";
-import LogoDark from "../../assets/SnooSpace_Master_Logo_Dark.svg";
+import LogoDark from "../../components/SnooSpaceLogoDark";
 
 const { width, height } = Dimensions.get("window");
 
@@ -81,16 +81,16 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 0,
-          duration: 1200,
+          duration: 1500,
           useNativeDriver: true,
         }),
         Animated.timing(logoScale, {
           toValue: 0.85,
-          duration: 1200,
+          duration: 1500,
           useNativeDriver: true,
         }),
       ]).start();
-    }, 600);
+    }, 1500);
 
     // 3. Divider line draws across
     setTimeout(() => {
@@ -99,7 +99,7 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
         duration: 800,
         useNativeDriver: false, // width can't use native driver
       }).start();
-    }, 1400);
+    }, 2800);
 
     // 4. Farewell lines stagger in — one every 700ms
     FAREWELL_LINES.forEach((_, i) => {
@@ -117,7 +117,7 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
             useNativeDriver: true,
           }),
         ]).start();
-      }, 1800 + i * 700);
+      }, 3400 + i * 700);
     });
 
     // 5. Final goodbye after lines are done
@@ -134,7 +134,7 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
           useNativeDriver: true,
         }),
       ]).start();
-    }, 1800 + FAREWELL_LINES.length * 700 + 400);
+    }, 3400 + FAREWELL_LINES.length * 700 + 500);
 
     // 6. Dust particles drift
     dust.forEach((d) => {
@@ -173,7 +173,7 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
         type: "RESET",
         payload: { index: 0, routes: [{ name: nextRoute }] },
       });
-    }, 1800 + FAREWELL_LINES.length * 700 + 3200);
+    }, 3400 + FAREWELL_LINES.length * 700 + 3500);
 
     return () => clearTimeout(navTimer);
   }, [nextRoute, dust, navigation]); // Added dependencies

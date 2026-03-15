@@ -8,8 +8,7 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Play } from "lucide-react-native";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -127,33 +126,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           isLiked: post.is_liked === true,
         }));
 
-        console.log(
-          "[MemberPublicProfile] About to merge like states, posts count:",
-          normalizedPosts.length,
-        );
-        if (normalizedPosts.length > 0) {
-          normalizedPosts.forEach((post, idx) => {
-            console.log(`[MemberPublicProfile] Post ${idx + 1} before merge:`, {
-              id: post.id,
-              author: post.author_name,
-              is_liked: post.is_liked,
-            });
-          });
-        }
-
         // Merge with cached like states to fix backend returning stale is_liked data
         const mergedPosts =
           await LikeStateManager.mergeLikeStates(normalizedPosts);
-
-        if (mergedPosts.length > 0) {
-          mergedPosts.forEach((post, idx) => {
-            console.log(`[MemberPublicProfile] Post ${idx + 1} after merge:`, {
-              id: post.id,
-              author: post.author_name,
-              is_liked: post.is_liked,
-            });
-          });
-        }
 
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
@@ -239,42 +214,18 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   }, []);
 
   const openPostModal = (post) => {
-    console.log("[MemberPublicProfile] openPostModal called with post:", {
-      id: post.id,
-      author: post.author_name,
-      is_liked: post.is_liked,
-    });
-    // Find the latest version of this post from the posts array
     const latestPost = posts.find((p) => p.id === post.id) || post;
-    console.log("[MemberPublicProfile] Latest post from state:", {
-      id: latestPost.id,
-      is_liked: latestPost.is_liked,
-    });
-    // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = latestPost.is_liked === true;
     const normalizedPost = {
       ...latestPost,
       is_liked: normalizedIsLiked,
       isLiked: normalizedIsLiked,
     };
-    console.log("[MemberPublicProfile] Normalized post for modal:", {
-      id: normalizedPost.id,
-      is_liked: normalizedPost.is_liked,
-    });
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
   };
 
-  const handlePostLike = (postId, isLiked, likeCount) => {
-    pendingPostUpdateRef.current = {
-      postId,
-      is_liked: isLiked,
-      like_count: likeCount,
-    };
-  };
-
   const closePostModal = () => {
-    // Apply any buffered like updates once when the modal closes
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
       setPosts((prevPosts) =>
@@ -296,14 +247,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   };
 
   const renderGridItem = ({ item, index }) => {
-    const isLastInRow = (index + 1) % 3 === 0;
     const firstImageUrl = Array.isArray(item?.image_urls)
       ? item.image_urls
           .flat()
           .find((u) => typeof u === "string" && u.startsWith("http"))
       : undefined;
 
-    // Detect video by: explicit video_url OR URL extension
     const isVideo =
       !!item.video_url ||
       (firstImageUrl &&
@@ -311,8 +260,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           firstImageUrl.toLowerCase().includes(".mov") ||
           firstImageUrl.toLowerCase().includes(".webm")));
 
-    // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-    // video_thumbnail might be stored as JSON array string '["url"]' in database
     let mediaUrl = null;
     if (item.video_thumbnail) {
       try {
@@ -336,7 +283,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       videoSourceUrl &&
       videoSourceUrl.includes("cloudinary.com")
     ) {
-      // Convert Cloudinary video URL to thumbnail with transformation params
       mediaUrl = videoSourceUrl
         .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
         .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
@@ -350,7 +296,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         activeOpacity={0.9}
         style={{
           width: ITEM_SIZE,
-          height: ITEM_SIZE * 1.35, // Increased height for portrait/taller look
+          height: ITEM_SIZE * 1.35,
           marginBottom: 0,
           borderRadius: 3,
           overflow: "hidden",
@@ -375,7 +321,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   padding: 4,
                 }}
               >
-                <Ionicons name="play" size={16} color="#FFF" />
+                <Play size={16} color="#FFF" />
               </View>
             )}
           </>
@@ -386,7 +332,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     );
   };
 
-  // Render bio preserving explicit newlines exactly as typed
   const renderBio = (bioText) => {
     if (!bioText) return null;
     const lines = String(bioText).replace(/\r\n/g, "\n").split("\n");
@@ -435,10 +380,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             columnWrapperStyle={{
               justifyContent: "flex-start",
               marginBottom: GAP,
-              gap: GAP, // Use gap property for cleaner spacing between columns
+              gap: GAP,
             }}
             contentContainerStyle={{
-              paddingHorizontal: 0, // Padding handled by internal sections
+              paddingHorizontal: 0,
               paddingTop: 0,
               paddingBottom: 120,
               flexGrow: posts.length === 0 ? 1 : 0,
@@ -530,7 +475,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <Text style={styles.statLabel}>Following</Text>
                   </TouchableOpacity>
                 </View>
-                {/* Interests below stats */}
                 {Array.isArray(profile?.interests) &&
                 profile.interests.length > 0 ? (
                   <View style={styles.metaChipsSection}>
@@ -594,7 +538,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     colors={
                       isFollowing
                         ? ["transparent", "transparent"]
-                        : ["#448AFF", "#2962FF"] // Match Create Post
+                        : ["#448AFF", "#2962FF"]
                     }
                     textStyle={
                       isFollowing
@@ -623,7 +567,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                       try {
                         if (next) {
                           await followMember(memberId);
-                          // Optimistically increment target's followers count
                           setProfile((prev) =>
                             prev
                               ? {
@@ -635,7 +578,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           );
                         } else {
                           await unfollowMember(memberId);
-                          // Optimistically decrement target's followers count (not below 0)
                           setProfile((prev) =>
                             prev
                               ? {
@@ -654,7 +596,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         });
                       } catch (e) {
                         setIsFollowing(!next);
-                        // Rollback followers count change on error
                         setProfile((prev) => {
                           if (!prev) return prev;
                           const delta = next ? -1 : 1;
@@ -673,10 +614,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     title="Message"
                     style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
                     gradientStyle={{ borderRadius: 16 }}
-                    colors={["#111827", "#111827"]} // Charcoal Black
+                    colors={["#111827", "#111827"]}
                     textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                     onPress={() => {
-                      // Navigate to Chat screen via Home stack
                       const root = navigation
                         .getParent()
                         ?.getParent()
@@ -690,7 +630,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           },
                         });
                       } else {
-                        // Fallback: try to navigate through parent
                         const parent = navigation.getParent();
                         if (parent) {
                           parent.navigate("Home", {
@@ -729,7 +668,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         </>
       )}
 
-      {/* Post Modal */}
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
@@ -740,7 +678,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           currentUserType="member"
           navigation={navigation}
           onLikeUpdate={(postId, isLiked, count) => {
-            // Update local state
             setPosts((prevPosts) =>
               prevPosts.map((p) =>
                 p.id === postId
@@ -754,18 +691,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               );
             }
           }}
-          onComment={(postId) => {
-            // Open comments modal logic
-          }}
-          onShare={(postId) => {
-            // Share logic
-          }}
-          onSave={(postId, isSaved) => {
-            // Save logic
-          }}
+          onComment={(postId) => {}}
+          onShare={(postId) => {}}
+          onSave={(postId, isSaved) => {}}
           onFollow={() => {}}
           onUserPress={(userId, userType) => {
-            // Navigate to user profile
             if (userType === "community") {
               navigation.navigate("CommunityPublicProfile", {
                 communityId: userId,
@@ -802,16 +732,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
-  headerLeft: {
-    // keeping for consistency if needed, but unused in new layout
-    flexDirection: "row",
-    alignItems: "center",
-  },
   headerUsername: {
     fontFamily: FONTS.primary,
     fontSize: 18,
     color: "#3B82F6",
-    marginTop: 10, // Separate line
+    marginTop: 10,
     fontWeight: "600",
   },
   backBtn: {
@@ -828,12 +753,6 @@ const styles = StyleSheet.create({
     elevation: 3,
     alignSelf: "flex-start",
   },
-  profileHeader: {
-    alignItems: "center",
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 20,
-  },
   profileSection: {
     alignItems: "center",
     paddingHorizontal: 20,
@@ -842,12 +761,6 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     marginBottom: 20,
     ...SHADOWS.medium,
-  },
-  avatarLarge: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#F2F2F7",
   },
   profileImage: {
     width: 125,
@@ -863,17 +776,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     textAlign: "center",
   },
-  displayName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
-    textAlign: "center",
-  },
-  handleText: {
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    marginTop: 4,
-  },
   nameAndPronounsContainer: {
     alignItems: "center",
     marginBottom: 5,
@@ -885,16 +787,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     marginTop: 8,
-  },
-  expandedPronounsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 8,
-    marginBottom: 8,
-    width: "100%",
   },
   pronounChipSmall: {
     paddingHorizontal: 8,
@@ -917,13 +809,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: "center",
   },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-    alignItems: "center",
-  },
   chipGridRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -935,13 +820,12 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999, // Pill shape
+    borderRadius: 999,
     marginRight: 8,
     marginBottom: 8,
     backgroundColor: "#F2F2F7",
   },
   chipGridItem: {
-    // width removed to prevent truncation
     alignItems: "center",
   },
   chipText: {
@@ -956,32 +840,14 @@ const styles = StyleSheet.create({
     color: "#007AFF",
     fontWeight: "600",
   },
-  chipRed: {
-    backgroundColor: "#FFE5E5",
-  },
-  chipTextRed: {
-    color: "#FF3B30",
-    fontWeight: "600",
-  },
   statsContainer: {
     flexDirection: "row",
     justifyContent: "space-evenly",
     width: "100%",
     marginBottom: 20,
   },
-  countsRowCenter: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 20,
-    paddingHorizontal: 24,
-    marginTop: 14,
-  },
   statItem: {
     flex: 1,
-    alignItems: "center",
-  },
-  countItem: {
     alignItems: "center",
   },
   statNumber: {
@@ -990,51 +856,9 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     marginBottom: 5,
   },
-  countNumLg: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: TEXT_COLOR,
-    marginBottom: 5,
-  },
   statLabel: {
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#6B7280",
-  },
-  countLabel: {
-    fontSize: 14,
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
-  },
-  followCta: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  followPrimary: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
-  },
-  followPrimaryText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  followingCta: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#E5E5EA",
-  },
-  followingCtaText: {
-    color: "#1D1D1F",
-    fontWeight: "700",
-  },
-  messageCta: {
-    backgroundColor: "#1D1D1F",
-    borderColor: "#1D1D1F",
-  },
-  messageCtaText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
   },
 });

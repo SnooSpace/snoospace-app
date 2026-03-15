@@ -57,6 +57,21 @@ const CommunityNameScreen = ({ navigation, route }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showTypeSelectModal, setShowTypeSelectModal] = useState(false);
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   // Animation values
   const buttonScale = useSharedValue(1);
 
@@ -74,15 +89,37 @@ const CommunityNameScreen = ({ navigation, route }) => {
     }
   }, [name.trim().length > 0]);
 
-  // Hydrate from draft if route.params is missing name
+  // Hydrate from draft if route.params is missing data
   useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!route.params?.name) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.name) {
-          console.log("[CommunityNameScreen] Hydrating from draft");
-          setName(draftData.name);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      if (!route.params?.name && draftData.name) {
+        console.log("[CommunityNameScreen] Hydrating name from draft");
+        setName(draftData.name);
+      }
+
+      // Hydrate all shared parameters to ensure forward navigation doesn't lose them
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "community_type",
+        "college_id", "college_name", "college_subtype", "club_type",
+        "community_theme", "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityNameScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -103,19 +140,8 @@ const CommunityNameScreen = ({ navigation, route }) => {
     }
 
     navigation.navigate("CommunityLogo", {
-      email,
-      accessToken,
-      refreshToken,
+      ...params,
       name,
-      // Pass community type fields forward
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     });
   };
 
@@ -143,17 +169,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
         navigation.goBack();
       } else {
         navigation.navigate("CollegeSubtypeSelect", {
-          email,
-          accessToken,
-          refreshToken,
-          community_type,
-          college_id,
-          college_name,
-          college_subtype,
-          club_type,
-          community_theme,
-          college_pending,
-          isStudentCommunity,
+          ...params,
         });
       }
     } else {
@@ -182,9 +198,9 @@ const CommunityNameScreen = ({ navigation, route }) => {
       console.log("[CommunityName] Draft reset failed (non-critical):", e.message);
     }
     navigation.navigate("CommunityTypeSelect", {
-      email,
-      accessToken,
-      refreshToken,
+      email: params.email,
+      accessToken: params.accessToken,
+      refreshToken: params.refreshToken,
     });
   };
 
@@ -198,7 +214,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
       const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
       return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [community_type, college_id, email, accessToken, refreshToken])
+    }, [params.community_type, params.college_id, params.email, params.accessToken, params.refreshToken])
   );
 
   const isButtonDisabled = name.trim().length === 0;

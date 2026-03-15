@@ -44,12 +44,58 @@ export async function createSignupDraft(email, originAccountId) {
       occupation: null,
       phone: null,
       username: null,
+      fromCommunitySignup: false,
     },
     originAccountId: originAccountId || null,
   };
 
   await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   console.log("[SignupDraft] ✅ Created draft:", draft.id, "for email:", email);
+  return draft;
+}
+
+/**
+ * Create a "People profile" draft — used when a community account holder
+ * starts creating a People profile from PeopleProfilePromptScreen.
+ * There is no email/OTP step here; the draft allows crash recovery.
+ *
+ * @param {object} prefill - Pre-filled data copied from the community account
+ *   (name, photo, phone, location)
+ * @param {string} originAccountId - ID of the currently logged-in community account
+ * @returns {Promise<object>} The created draft
+ */
+export async function createPeopleProfileDraft(prefill = {}, originAccountId = null) {
+  const draft = {
+    id: `draft_${uuid()}`,
+    createdAt: Date.now(),
+    lastUpdatedAt: Date.now(),
+    // Resume starts at MemberName (the first real step in this flow)
+    currentStep: "MemberName",
+    data: {
+      email: prefill.email ?? null,
+      name: prefill.name ?? null,
+      profile_photo_url: prefill.photo ?? null,
+      dob: null,
+      pronouns: [],
+      showPronouns: true,
+      gender: null,
+      location: prefill.location ?? null,
+      interests: [],
+      occupation: null,
+      phone: prefill.phone ?? null,
+      username: null,
+      fromCommunitySignup: true,
+      prefill,
+    },
+    originAccountId: originAccountId || null,
+  };
+
+  await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  console.log(
+    "[SignupDraft] ✅ Created People-profile draft:",
+    draft.id,
+    "(fromCommunitySignup)"
+  );
   return draft;
 }
 
@@ -175,6 +221,28 @@ export function getNextScreenForStep(currentStep) {
     MemberUsername: "COMPLETE",
   };
   return stepToNextScreen[currentStep] || "MemberName";
+}
+
+/**
+ * Get the resume screen for a People-profile draft
+ * (fromCommunitySignup flow — no email/OTP step).
+ * Always starts from MemberName since there's no email step.
+ */
+export function getPeopleProfileResumeScreen(lastStep) {
+  const validSteps = [
+    "MemberName",
+    "MemberProfilePic",
+    "MemberAge",
+    "MemberPronouns",
+    "MemberGender",
+    "MemberLocation",
+    "MemberInterests",
+    "MemberOccupation",
+    "MemberPhone",
+    "MemberUsername",
+  ];
+  if (validSteps.includes(lastStep)) return lastStep;
+  return "MemberName";
 }
 
 /**
@@ -363,7 +431,8 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityCategory: "CommunityLocation", // Default, varies by type
     IndividualLocation: "CommunityHeadName",
     CommunityLocation: "CommunityHeadName",
-    CommunityHeadName: "CommunityPhone",
+    CommunityHeadName: "CommunityHeadProfilePic",
+    CommunityHeadProfilePic: "CommunityPhone",
     CommunityPhone: "CommunitySponsorType", // Default, varies by type
     CommunitySponsorType: "CommunityUsername",
     CommunityUsername: "COMPLETE",
@@ -394,8 +463,9 @@ export function getCommunityResumeScreen(lastStep) {
     "CommunityLocation",
     "IndividualLocation",
     "CollegeHeads",
-    "CommunityPhone",
     "CommunityHeadName",
+    "CommunityHeadProfilePic",
+    "CommunityPhone",
     "CommunitySponsorType",
     "CommunityUsername",
   ];
@@ -470,11 +540,16 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   // - Individual -> CommunityHeadName -> CommunityPhone -> CommunityUsername (no SponsorType)
   const orgPostStack = [
     "CommunityHeadName",
+    "CommunityHeadProfilePic",
     "CommunityPhone",
     "CommunitySponsorType",
   ];
   const collegePostStack = ["CollegeHeads", "CommunitySponsorType"];
-  const individualPostStack = ["CommunityHeadName", "CommunityPhone"];
+  const individualPostStack = [
+    "CommunityHeadName",
+    "CommunityHeadProfilePic",
+    "CommunityPhone",
+  ];
 
   // Build the full ordered path based on community type
   let fullPath;
@@ -523,6 +598,7 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
 export default {
   // Member signup functions
   createSignupDraft,
+  createPeopleProfileDraft,
   updateSignupDraft,
   getSignupDraft,
   deleteSignupDraft,
@@ -530,6 +606,7 @@ export default {
   hasSignupDraft,
   getNextScreenForStep,
   getResumeScreen,
+  getPeopleProfileResumeScreen,
   // Community signup functions
   createCommunitySignupDraft,
   updateCommunitySignupDraft,

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CollegeHeadsScreen.js
  *
  * Heads screen for College-affiliated communities.
@@ -21,7 +21,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { XCircle, PlusCircle } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -83,7 +83,7 @@ const HeadEntry = ({
         </Text>
         {showRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeButton}>
-            <Ionicons name="close-circle" size={22} color={COLORS.error} />
+            <XCircle size={22} color={COLORS.error} />
           </TouchableOpacity>
         )}
       </View>
@@ -142,6 +142,27 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     isResumingDraft,
   } = route.params || {};
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   // Initial 2 entries
   const [heads, setHeads] = useState([
     { name: "", role: "" },
@@ -179,8 +200,11 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
 
       // Hydrate from draft
       const draftData = await getCommunityDraftData();
-      if (draftData?.heads && draftData.heads.length > 0) {
-        console.log("[CollegeHeadsScreen] Hydrating from draft");
+      if (!draftData) return;
+
+      // 1. Hydrate heads
+      if (draftData.heads && draftData.heads.length > 0) {
+        console.log("[CollegeHeadsScreen] Hydrating heads from draft");
         const hydratedHeads = draftData.heads.map((h) => ({
           name: h.name || "",
           role: h.role || "",
@@ -191,6 +215,29 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
         }
         setHeads(hydratedHeads);
       }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "location", "community_type", "college_id",
+        "college_name", "college_subtype", "club_type", "community_theme",
+        "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CollegeHeadsScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
+      }
     };
     initScreen();
   }, []);
@@ -199,30 +246,13 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      // Student communities skip Category AND Location, go back to Bio
-      // Other college types go back to Location
-      const previousScreen = isStudentCommunity
-        ? "CommunityBio"
-        : "CommunityLocation";
+    const previousScreen = params.isStudentCommunity
+      ? "CommunityBio"
+      : "CommunityLocation";
 
-      navigation.replace(previousScreen, {
-        email,
-        accessToken,
-        refreshToken,
-        name,
-        logo_url,
-        bio,
-        category,
-        categories,
-        community_type,
-        college_id,
-        college_name,
-        college_subtype,
-        club_type,
-        community_theme,
-        college_pending,
-        isStudentCommunity,
-      });
+    navigation.replace(previousScreen, {
+      ...params,
+    });
     }
   };
 
@@ -270,26 +300,10 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
       );
     }
 
-    // College communities go directly to Username (skip Phone and SponsorType)
-    navigation.navigate("CommunityUsername", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
-      location,
+    // College communities now go through HeadProfilePic → Phone → Username
+    navigation.navigate("CommunityHeadProfilePic", {
+      ...params,
       heads: validHeads,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     });
   };
 
@@ -318,7 +332,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
         <View style={styles.container}>
           {/* Header */}
           <SignupHeader
-            role={isStudentCommunity ? "People" : "Communities"}
+            role={params.isStudentCommunity ? "People" : "Communities"}
             onBack={handleBack}
             onCancel={() => setShowCancelModal(true)}
           />
@@ -377,8 +391,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
 
                   {/* Add More Button */}
                   <TouchableOpacity style={styles.addButton} onPress={addHead}>
-                    <Ionicons
-                      name="add-circle"
+                    <PlusCircle
                       size={24}
                       color={COLORS.primary}
                     />

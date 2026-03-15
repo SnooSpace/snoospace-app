@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { Award, School, Users, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -24,21 +24,21 @@ const CLUB_TYPES = [
     id: "official_club",
     title: "Official Club",
     subtitle: "Recognized student organizations, cultural/tech clubs",
-    icon: "ribbon-outline",
+    icon: "Award",
     gradientColors: ["#667eea", "#764ba2"],
   },
   {
     id: "department",
     title: "Department",
     subtitle: "Department societies, academic groups",
-    icon: "school-outline",
+    icon: "School",
     gradientColors: ["#11998e", "#38ef7d"],
   },
   {
     id: "society",
     title: "Society",
     subtitle: "Literary, cultural, or special interest societies",
-    icon: "people-outline",
+    icon: "Users",
     gradientColors: ["#FF512F", "#F09819"],
   },
 ];
@@ -60,14 +60,16 @@ const ClubTypeCard = ({ clubType, onPress }) => (
       end={{ x: 1, y: 1 }}
       style={styles.cardGradient}
     >
-      <Ionicons name={clubType.icon} size={28} color="#fff" />
+      {(() => {
+        const Icon = { Award, School, Users }[clubType.icon];
+        return <Icon size={28} color="#fff" />;
+      })()}
     </LinearGradient>
     <View style={styles.clubTypeContent}>
       <Text style={styles.clubTypeTitle}>{clubType.title}</Text>
       <Text style={styles.clubTypeSubtitle}>{clubType.subtitle}</Text>
     </View>
-    <Ionicons
-      name="chevron-forward"
+    <ChevronRight
       size={24}
       color={COLORS.textSecondary}
       style={styles.cardArrow}
@@ -92,19 +94,53 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
     club_type: routeClubType,
   } = route.params || {};
 
-  const [selectedClubType, setSelectedClubType] = React.useState(
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    college_pending,
+  });
+
+  const [selectedClubType, setSelectedClubType] = useState(
     routeClubType || null,
   );
 
   // Hydrate from draft if needed
-  React.useEffect(() => {
+  useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!routeClubType) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.club_type) {
-          console.log("[CollegeClubType] Hydrating from draft");
-          setSelectedClubType(draftData.club_type);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate club type
+      if (!routeClubType && draftData?.club_type) {
+        console.log("[CollegeClubType] Hydrating from draft");
+        setSelectedClubType(draftData.club_type);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "community_type",
+        "college_id", "college_name", "college_subtype", "college_pending"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CollegeClubType] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -129,15 +165,8 @@ const CollegeClubTypeScreen = ({ navigation, route }) => {
 
     // Navigate to name screen with all params
     navigation.navigate("CommunityName", {
-      email,
-      accessToken,
-      refreshToken,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
+      ...params,
       club_type: clubType.id,
-      college_pending,
     });
   };
 

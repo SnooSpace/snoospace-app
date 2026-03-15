@@ -13,7 +13,8 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+
+import { ArrowDownToLine } from "lucide-react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -50,8 +51,11 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
     interests,
     occupation,
     phone: initialPhone,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
   const [phoneNumber, setPhoneNumber] = useState(initialPhone || "");
+  const [isPrefilled, setIsPrefilled] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -72,10 +76,19 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
     }
   }, [phoneNumber.length === 10]);
 
+  // Apply prefill phone from community signup
+  useEffect(() => {
+    if (prefill?.phone && !initialPhone) {
+      console.log("[MemberPhoneScreen] Applying prefill phone:", prefill.phone);
+      setPhoneNumber(prefill.phone);
+      setIsPrefilled(true);
+    }
+  }, []);
+
   // Hydrate from draft if route.params is missing phone
   useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!initialPhone) {
+      if (!initialPhone && !prefill?.phone) {
         const draftData = await getDraftData();
         if (draftData?.phone) {
           console.log("[MemberPhoneScreen] Hydrating from draft");
@@ -89,10 +102,19 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const handleContinue = async () => {
@@ -121,6 +143,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
       },
       accessToken,
       refreshToken,
+      fromCommunitySignup,
     });
   };
 
@@ -232,6 +255,14 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                   </View>
                 </View>
               </Animated.View>
+
+              {/* Imported Badge */}
+              {isPrefilled && (
+                <View style={styles.importedBadge}>
+                  <ArrowDownToLine size={12} color="#0D9488" strokeWidth={2.5} />
+                  <Text style={styles.importedBadgeText}>Imported from community</Text>
+                </View>
+              )}
 
               {/* Next Button */}
               <View
@@ -399,6 +430,24 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
+  },
+  importedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 10,
+    backgroundColor: "rgba(13, 148, 136, 0.1)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(13, 148, 136, 0.25)",
+  },
+  importedBadgeText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#0D9488",
   },
 });
 

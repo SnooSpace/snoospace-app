@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
-import { Ionicons } from "@expo/vector-icons";
+
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 
@@ -58,6 +58,23 @@ const CommunityBioScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   // Animation values
   const buttonScale = useSharedValue(1);
 
@@ -79,9 +96,34 @@ const CommunityBioScreen = ({ navigation, route }) => {
   useEffect(() => {
     const hydrateFromDraft = async () => {
       const draftData = await getCommunityDraftData();
-      if (draftData?.bio) {
-        console.log("[CommunityBioScreen] Hydrating from draft");
+      if (!draftData) return;
+
+      // 1. Hydrate bio
+      if (draftData.bio) {
+        console.log("[CommunityBioScreen] Hydrating bio from draft");
         setBioText(draftData.bio);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url",
+        "community_type", "college_id", "college_name", "college_subtype",
+        "club_type", "community_theme", "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityBioScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -106,9 +148,9 @@ const CommunityBioScreen = ({ navigation, route }) => {
 
   const handleSkip = () => {
     // Student communities skip category AND location screens - go directly to heads
-    if (isStudentCommunity) {
+    if (params.isStudentCommunity) {
       navigation.navigate("CollegeHeads", {
-        ...commonParams,
+        ...params,
         bio: null,
         category: null,
         categories: [],
@@ -116,7 +158,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
       });
     } else {
       navigation.navigate("CommunityCategory", {
-        ...commonParams,
+        ...params,
         bio: null,
       });
     }
@@ -135,9 +177,9 @@ const CommunityBioScreen = ({ navigation, route }) => {
     }
 
     // Student communities skip category AND location screens - go directly to heads
-    if (isStudentCommunity) {
+    if (params.isStudentCommunity) {
       navigation.navigate("CollegeHeads", {
-        ...commonParams,
+        ...params,
         bio: bioText,
         category: null,
         categories: [],
@@ -145,7 +187,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
       });
     } else {
       navigation.navigate("CommunityCategory", {
-        ...commonParams,
+        ...params,
         bio: bioText,
       });
     }
@@ -185,23 +227,13 @@ const CommunityBioScreen = ({ navigation, route }) => {
               navigation.goBack();
             } else {
               navigation.replace("CommunityLogo", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
+                ...params,
               });
             }
           }}
           onCancel={handleSkip}
           cancelText="Add later"
+          cancelDisabled={isSkipDisabled}
         />
 
         <ScrollView

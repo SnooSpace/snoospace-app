@@ -15,7 +15,13 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  FadeIn,
+  FadeOut,
 } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -56,6 +62,7 @@ import PremiumHeader, { getPremiumHeaderTotalHeight } from "./PremiumHeader";
 
 import { COLORS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
+import { LinearGradient } from "expo-linear-gradient";
 
 // SnooSpace Logo SVG (full wordmark)
 const SnooSpaceLogoSvg = `<svg width="893" height="217" viewBox="0 0 893 217" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -254,6 +261,39 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Delete modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
+
+  // ── Account Switch Tutorial ───────────────────────────────────────────────
+  const [tutorialStep, setTutorialStep] = useState(0); // 0 = hidden, 1-3 = step
+  const tutorialOpacity = useSharedValue(0);
+  const tutorialContentOpacity = useSharedValue(0);
+
+  const animatedTutorialOverlay = useAnimatedStyle(() => ({
+    opacity: tutorialOpacity.value,
+  }));
+  const animatedTutorialContent = useAnimatedStyle(() => ({
+    opacity: tutorialContentOpacity.value,
+  }));
+
+  const showTutorialStep = (step) => {
+    setTutorialStep(step);
+    tutorialContentOpacity.value = 0;
+    tutorialContentOpacity.value = withTiming(1, { duration: 350 });
+  };
+
+  const advanceTutorial = () => {
+    HapticsService.triggerImpactLight();
+    if (tutorialStep < 3) {
+      showTutorialStep(tutorialStep + 1);
+    } else {
+      dismissTutorial();
+    }
+  };
+
+  const dismissTutorial = () => {
+    tutorialOpacity.value = withTiming(0, { duration: 400 });
+    tutorialContentOpacity.value = withTiming(0, { duration: 300 });
+    setTimeout(() => setTutorialStep(0), 450);
+  };
 
   // Refs for scroll handling
   const flatListRef = useRef(null);
@@ -469,6 +509,24 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     loadOpportunities();
     loadGreetingName();
     loadMessageUnreadCount();
+
+    // Check for account switch tutorial flag
+    const checkTutorialFlag = async () => {
+      try {
+        const flag = await AsyncStorage.getItem("@show_account_switch_tutorial");
+        if (flag === "true") {
+          await AsyncStorage.removeItem("@show_account_switch_tutorial");
+          setTimeout(() => {
+            tutorialOpacity.value = withTiming(1, { duration: 500 });
+            showTutorialStep(1);
+          }, 2000);
+        }
+      } catch (e) {
+        console.warn("[HomeFeed] Tutorial flag check failed:", e);
+      }
+    };
+    checkTutorialFlag();
+
     const off = EventBus.on("follow-updated", () => {
       loadFeed();
     });
@@ -1227,6 +1285,97 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }}
         onDelete={handleConfirmDelete}
       />
+
+      {/* ── Account Switch Tutorial Overlay ──────────────────────────────── */}
+      {tutorialStep > 0 && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.tutorialOverlay,
+            animatedTutorialOverlay,
+          ]}
+          pointerEvents="box-none"
+        >
+          {/* Skip button */}
+          <TouchableOpacity
+            style={styles.tutorialSkip}
+            onPress={dismissTutorial}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.tutorialSkipText}>Skip</Text>
+          </TouchableOpacity>
+
+          {/* Step indicator dots */}
+          <View style={styles.tutorialDots}>
+            {[1, 2, 3].map((s) => (
+              <View
+                key={s}
+                style={[
+                  styles.tutorialDot,
+                  s === tutorialStep && styles.tutorialDotActive,
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* Step card */}
+          <Animated.View style={[styles.tutorialCard, animatedTutorialContent]}>
+            {tutorialStep === 1 && (
+              <>
+                <View style={styles.tutorialIconContainer}>
+                  <Text style={styles.tutorialEmoji}>🔄</Text>
+                </View>
+                <Text style={styles.tutorialTitle}>You have two profiles!</Text>
+                <Text style={styles.tutorialBody}>
+                  You are now logged in as your member account. You can switch
+                  between your community and member profiles at any time.
+                </Text>
+              </>
+            )}
+            {tutorialStep === 2 && (
+              <>
+                <View style={styles.tutorialIconContainer}>
+                  <Text style={styles.tutorialEmoji}>👤</Text>
+                </View>
+                <Text style={styles.tutorialTitle}>Tap your profile icon</Text>
+                <Text style={styles.tutorialBody}>
+                  Head to your Profile tab and tap your avatar at the top to
+                  open the account switcher.
+                </Text>
+              </>
+            )}
+            {tutorialStep === 3 && (
+              <>
+                <View style={styles.tutorialIconContainer}>
+                  <Text style={styles.tutorialEmoji}>✨</Text>
+                </View>
+                <Text style={styles.tutorialTitle}>Switch anytime</Text>
+                <Text style={styles.tutorialBody}>
+                  The account switcher lets you jump between your community
+                  dashboard and your member feed instantly.
+                </Text>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.tutorialNextButton}
+              onPress={advanceTutorial}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.tutorialNextGradient}
+              >
+                <Text style={styles.tutorialNextText}>
+                  {tutorialStep < 3 ? "Next →" : "Got it!"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1295,7 +1444,109 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   feedContent: {
+    paddingBottom: 40,
+  },
+
+  // ── Tutorial Overlay Styles ─────────────────────────────────────
+  tutorialOverlay: {
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    zIndex: 9999,
+    justifyContent: "flex-end",
+    alignItems: "center",
     paddingBottom: 60,
+    paddingHorizontal: 20,
+  },
+  tutorialSkip: {
+    position: "absolute",
+    top: 60,
+    right: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  tutorialSkipText: {
+    color: "rgba(255,255,255,0.8)",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+  },
+  tutorialDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 16,
+  },
+  tutorialDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  tutorialDotActive: {
+    backgroundColor: "#FFFFFF",
+    width: 22,
+  },
+  tutorialCard: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.97)",
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  tutorialIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(53, 101, 242, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  tutorialEmoji: {
+    fontSize: 34,
+  },
+  tutorialTitle: {
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    marginBottom: 10,
+    letterSpacing: -0.3,
+  },
+  tutorialBody: {
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  tutorialNextButton: {
+    width: "100%",
+    borderRadius: 50,
+    overflow: "hidden",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  tutorialNextGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tutorialNextText: {
+    color: "#FFFFFF",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    letterSpacing: 0.2,
   },
   postContainer: {
     backgroundColor: "#FFFFFF",

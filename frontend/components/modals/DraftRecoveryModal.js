@@ -24,10 +24,19 @@ export default function DraftRecoveryModal({
   visible,
   draftEmail,
   draftType = "Member", // "Member" or "Community"
+  isPeopleProfile = false, // true when draft is a People profile from community flow
   onContinue,
   onDiscard,
 }) {
   const isCommunity = draftType === "Community";
+
+  const title = isPeopleProfile
+    ? "Continue People profile setup?"
+    : `Continue ${draftType} signup?`;
+
+  const description = isPeopleProfile
+    ? "You were in the middle of setting up your People profile. Pick up where you left off?"
+    : `You were setting up a new ${draftType.toLowerCase()} account${draftEmail ? ` for ${draftEmail}` : ""}. Would you like to continue or discard it?`;
   return (
     <Modal
       visible={visible}
@@ -48,14 +57,10 @@ export default function DraftRecoveryModal({
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Continue {draftType} signup?</Text>
+          <Text style={styles.title}>{title}</Text>
 
           {/* Description */}
-          <Text style={styles.description}>
-            You were setting up a new {draftType.toLowerCase()} account
-            {draftEmail ? ` for ${draftEmail}` : ""}. Would you like to continue
-            or discard it?
-          </Text>
+          <Text style={styles.description}>{description}</Text>
 
           {/* Actions */}
           <View style={styles.actions}>

@@ -125,6 +125,24 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState(null);
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   // Animation values
   const buttonScale = useSharedValue(1);
 
@@ -170,9 +188,34 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
   const hydrateFromDraft = async () => {
     const draftData = await getCommunityDraftData();
-    if (draftData?.categories) {
-      console.log("[CommunityCategoryScreen] Hydrating from draft");
+    if (!draftData) return;
+
+    // 1. Hydrate categories
+    if (draftData.categories) {
+      console.log("[CommunityCategoryScreen] Hydrating categories from draft");
       setSelectedCategories(draftData.categories);
+    }
+
+    // 2. Hydrate all shared parameters
+    const updatedParams = { ...params };
+    let paramChanged = false;
+
+    const keysToHydrate = [
+      "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+      "community_type", "college_id", "college_name", "college_subtype",
+      "club_type", "community_theme", "college_pending", "isStudentCommunity"
+    ];
+
+    keysToHydrate.forEach(key => {
+      if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+        updatedParams[key] = draftData[key];
+        paramChanged = true;
+      }
+    });
+
+    if (paramChanged) {
+      console.log("[CommunityCategoryScreen] Hydrated shared parameters from draft");
+      setParams(updatedParams);
     }
   };
 
@@ -222,26 +265,13 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     }
 
     const categoryParams = {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
+      ...params,
       category: selectedCategories[0],
       categories: selectedCategories,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     };
 
     // Individual organizers use GPS-based location
-    if (community_type === "individual_organizer") {
+    if (params.community_type === "individual_organizer") {
       navigation.navigate("IndividualLocation", categoryParams);
     } else {
       // Both Organizations and College-affiliated communities go directly to CommunityLocation
@@ -279,19 +309,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
               navigation.goBack();
             } else {
               navigation.replace("CommunityBio", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                logo_url,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
+                ...params,
               });
             }
           }}

@@ -17,7 +17,7 @@ import {
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
-import { Ionicons } from "@expo/vector-icons";
+
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
@@ -102,10 +102,34 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     isStudentCommunity,
     isResumingDraft,
     heads,
+    head_photo_url,
   } = route.params || {};
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+    heads,
+    head_photo_url,
+  });
+
   // Individual organizers show a simplified single-number UI
-  const isIndividual = community_type === "individual_organizer";
+  const isIndividual = params.community_type === "individual_organizer";
 
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
@@ -132,12 +156,38 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
   useEffect(() => {
     const hydrateFromDraft = async () => {
       const draftData = await getCommunityDraftData();
-      if (draftData?.phone) {
-        console.log("[CommunityPhoneNoScreen] Hydrating from draft");
+      if (!draftData) return;
+
+      // 1. Hydrate phone
+      if (draftData.phone) {
+        console.log("[CommunityPhoneNoScreen] Hydrating phone from draft");
         setPrimaryNumber(draftData.phone);
         if (draftData.secondary_phone) {
           setSecondaryNumber(draftData.secondary_phone);
         }
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "location", "community_type", "college_id",
+        "college_name", "college_subtype", "club_type", "community_theme",
+        "college_pending", "isStudentCommunity", "heads", "head_photo_url"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityPhoneNoScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -145,23 +195,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
 
   const handleSkip = () => {
     navigation.navigate("CommunityHeadName", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
-      location,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
+      ...params,
       phone: null,
       secondary_phone: null,
     });
@@ -205,37 +239,19 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       );
     }
 
-    // Individual organizers go directly to Username; Org/College go to SponsorType
-    if (isIndividual) {
+    // Individual organizers and College communities go directly to Username; Org goes to SponsorType
+    const isCollege = params.community_type === "college_affiliated";
+    if (isIndividual || isCollege) {
       navigation.navigate("CommunityUsername", {
-        email,
-        accessToken,
-        refreshToken,
-        name,
-        logo_url,
-        bio,
-        category,
-        categories,
-        location,
-        community_type,
+        ...params,
         phone: phoneDigits,
-        secondary_phone: null,
-        heads,
+        secondary_phone: secondaryPhoneDigits || null,
       });
     } else {
       navigation.navigate("CommunitySponsorType", {
-        email,
-        accessToken,
-        refreshToken,
-        name,
-        logo_url,
-        bio,
-        category,
-        categories,
-        location,
+        ...params,
         phone: phoneDigits,
         secondary_phone: secondaryPhoneDigits || null,
-        heads,
       });
     }
   };
@@ -271,25 +287,8 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityHeadName", {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                logo_url,
-                bio,
-                category,
-                categories,
-                location,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
-                heads,
+              navigation.replace("CommunityHeadProfilePic", {
+                ...params,
               });
             }
           }}

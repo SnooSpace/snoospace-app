@@ -14,6 +14,7 @@ import ReAnimated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, BORDER_RADIUS } from "../../constants/theme";
 import { triggerCelebrationHaptics } from "../../hooks/useCelebrationHaptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
@@ -51,7 +52,7 @@ function buildParticles(count) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const CelebrationScreen = ({ navigation, route }) => {
-  const { role } = route.params || { role: "People" };
+  const { role, fromCommunitySignup, createdPeopleProfile } = route.params || { role: "People" };
 
   // Gradient cycling
   const [gradientIndex, setGradientIndex] = useState(0);
@@ -198,11 +199,34 @@ const CelebrationScreen = ({ navigation, route }) => {
   };
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  const handleFinish = () => {
-    const targetHome = role === "People" ? "MemberHome" : "CommunityHome";
+  const handleFinish = async () => {
+    let targetHome;
+    if (role === "People") {
+      targetHome = "MemberHome";
+    } else if (role === "Community") {
+      targetHome = fromCommunitySignup && createdPeopleProfile ? "MemberHome" : "CommunityHome";
+    } else {
+      targetHome = role === "People" ? "MemberHome" : "CommunityHome";
+    }
+
+    // Set tutorial flag when community head also created a people profile
+    if (fromCommunitySignup && createdPeopleProfile) {
+      try {
+        await AsyncStorage.setItem("@show_account_switch_tutorial", "true");
+      } catch (e) {
+        console.warn("[Celebration] Failed to set tutorial flag:", e);
+      }
+    }
+
     navigation.reset({
       index: 0,
-      routes: [{ name: targetHome }],
+      routes: [{
+        name: targetHome,
+        params: {
+          fromCommunitySignup: fromCommunitySignup ?? false,
+          createdPeopleProfile: createdPeopleProfile ?? false,
+        },
+      }],
     });
   };
 
@@ -294,7 +318,9 @@ const CelebrationScreen = ({ navigation, route }) => {
               </Animated.View>
             </View>
             <Text style={styles.subtitle}>
-              The best events, the right people — they're all waiting.
+              {fromCommunitySignup && createdPeopleProfile
+                ? "You've created both a community and a member profile. Switch between them anytime!"
+                : "The best events, the right people — they're all waiting."}
             </Text>
           </ReAnimated.View>
 

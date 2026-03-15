@@ -61,6 +61,26 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     location: initialLocation,
   } = route.params || {};
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   const [location, setLocation] = useState(
     initialLocation || {
       address: "",
@@ -109,12 +129,38 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       }
 
       // Hydrate from draft
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate location
       if (!initialLocation || !initialLocation.city) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.location && draftData.location.city) {
-          console.log("[IndividualLocationScreen] Hydrating from draft");
+        if (draftData.location && draftData.location.city) {
+          console.log("[IndividualLocationScreen] Hydrating location from draft");
           setLocation(draftData.location);
         }
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "community_type", "college_id",
+        "college_name", "college_subtype", "club_type", "community_theme",
+        "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[IndividualLocationScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     initScreen();
@@ -126,22 +172,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     } else {
       // No navigation history (resumed from draft) - replace to previous screen
       navigation.replace("CommunityCategory", {
-        email,
-        accessToken,
-        refreshToken,
-        name,
-        logo_url,
-        bio,
-        category,
-        categories,
-        community_type,
-        college_id,
-        college_name,
-        college_subtype,
-        club_type,
-        community_theme,
-        college_pending,
-        isStudentCommunity,
+        ...params,
       });
     }
   };
@@ -237,23 +268,8 @@ const IndividualLocationScreen = ({ navigation, route }) => {
 
     // Individual organizers now go to Head Name screen first
     navigation.navigate("CommunityHeadName", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
+      ...params,
       location,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     });
   };
 

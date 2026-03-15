@@ -10,7 +10,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Sparkles, School, Briefcase, ChevronRight } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -30,7 +30,7 @@ const COMMUNITY_TYPES = [
     id: "individual_organizer",
     title: "Individual Organizer",
     subtitle: "For solo creators & hosts running events",
-    icon: "sparkles-outline",
+    icon: "Sparkles",
     gradientColors: ["#FF6B6B", "#FF8E53"],
     nextScreen: "CommunityName", // Same flow, simplified
   },
@@ -38,7 +38,7 @@ const COMMUNITY_TYPES = [
     id: "college_affiliated",
     title: "College",
     subtitle: "For college clubs, fests & student communities",
-    icon: "school-outline",
+    icon: "School",
     gradientColors: ["#667eea", "#764ba2"],
     nextScreen: "CollegeSearch",
   },
@@ -46,7 +46,7 @@ const COMMUNITY_TYPES = [
     id: "organization",
     title: "Community / Organization",
     subtitle: "For NGOs, startups, run clubs, brands & more",
-    icon: "business-outline",
+    icon: "Briefcase",
     gradientColors: ["#11998e", "#38ef7d"],
     nextScreen: "CommunityName",
   },
@@ -75,15 +75,17 @@ const TypeCard = ({ type, onPress, isLast, index }) => (
         style={styles.cardGradient}
       >
         <View style={styles.cardIconContainer}>
-          <Ionicons name={type.icon} size={32} color="#fff" />
+          {(() => {
+            const Icon = { Sparkles, School, Briefcase }[type.icon];
+            return <Icon size={32} color="#fff" />;
+          })()}
         </View>
       </LinearGradient>
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle}>{type.title}</Text>
         <Text style={styles.cardSubtitle}>{type.subtitle}</Text>
       </View>
-      <Ionicons
-        name="chevron-forward"
+      <ChevronRight
         size={24}
         color={COLORS.textSecondary}
         style={styles.cardArrow}
@@ -99,6 +101,14 @@ const TypeCard = ({ type, onPress, isLast, index }) => (
 const CommunityTypeSelectScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, isResumingDraft } =
     route.params || {};
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = React.useState({
+    email,
+    accessToken,
+    refreshToken,
+  });
+
   const [selectedType, setSelectedType] = React.useState(
     route.params?.community_type || null,
   );
@@ -106,12 +116,31 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
   // Hydrate from draft if needed
   React.useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!route.params?.community_type) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.community_type) {
-          console.log("[CommunityTypeSelect] Hydrating from draft");
-          setSelectedType(draftData.community_type);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate community_type
+      if (!route.params?.community_type && draftData?.community_type) {
+        console.log("[CommunityTypeSelect] Hydrating from draft");
+        setSelectedType(draftData.community_type);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = ["email", "accessToken", "refreshToken"];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityTypeSelect] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -137,9 +166,7 @@ const CommunityTypeSelectScreen = ({ navigation, route }) => {
 
     // Navigate to appropriate next screen based on type
     navigation.navigate(type.nextScreen, {
-      email,
-      accessToken,
-      refreshToken,
+      ...params,
       community_type: type.id,
     });
   };

@@ -7,7 +7,15 @@ import React, {
 } from "react";
 import { View, TextInput, FlatList, Text, Image, TouchableOpacity, StyleSheet, Keyboard, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Search,
+  ArrowLeft,
+  XCircle,
+  X,
+  Calendar,
+  Clock,
+  Users,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { searchMembers, globalSearch } from "../../api/search";
@@ -418,8 +426,7 @@ export default function SearchScreen({ navigation }) {
                 { justifyContent: "center", alignItems: "center" },
               ]}
             >
-              <Ionicons
-                name="calendar-outline"
+              <Calendar
                 size={24}
                 color="rgba(255,255,255,0.8)"
               />
@@ -462,12 +469,11 @@ export default function SearchScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.eventMeta}>
-            <Ionicons name="time-outline" size={12} color="#8E8E93" />
+            <Clock size={12} color="#8E8E93" />
             <Text style={styles.eventMetaText}>{item.formatted_time}</Text>
             {item.attendee_count > 0 && (
               <>
-                <Ionicons
-                  name="people-outline"
+                <Users
                   size={12}
                   color="#8E8E93"
                   style={{ marginLeft: 8 }}
@@ -646,7 +652,7 @@ export default function SearchScreen({ navigation }) {
           hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
           style={[styles.followBtn, styles.followingBtn]}
         >
-          <Ionicons name="close" size={16} color="#1D1D1F" />
+          <X size={16} color="#1D1D1F" />
         </TouchableOpacity>
       </View>
     );
@@ -689,11 +695,11 @@ export default function SearchScreen({ navigation }) {
             }}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1D1D1F" />
+            <ArrowLeft size={24} color="#1D1D1F" />
           </TouchableOpacity>
         )}
         <View style={[styles.searchBox, focused && { flex: 1 }]}>
-          <Ionicons name="search" size={20} color="#8E8E93" />
+          <Search size={20} color="#8E8E93" />
           <TextInput
             ref={inputRef}
             style={styles.input}
@@ -711,7 +717,7 @@ export default function SearchScreen({ navigation }) {
               onPress={() => setQuery("")}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
-              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+              <XCircle size={20} color="#8E8E93" />
             </TouchableOpacity>
           )}
         </View>

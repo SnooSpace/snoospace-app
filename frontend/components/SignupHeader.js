@@ -26,6 +26,7 @@ const SignupHeader = ({
   onCancel,
   showCancel = true,
   cancelText = "Cancel",
+  cancelDisabled = false,
   role,
 }) => {
   const insets = useSafeAreaInsets();
@@ -44,7 +45,7 @@ const SignupHeader = ({
       ]}
     >
       <View style={styles.leftColumn}>
-        <GlassBackButton onPress={onBack} />
+        {onBack ? <GlassBackButton onPress={onBack} /> : <View style={styles.placeholder} />}
       </View>
 
       <View style={styles.centerColumn}>
@@ -59,8 +60,20 @@ const SignupHeader = ({
 
       <View style={styles.rightColumn}>
         {showCancelButton ? (
-          <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
-            <Text numberOfLines={1} style={styles.cancelText}>{cancelText}</Text>
+          <TouchableOpacity
+            onPress={onCancel}
+            style={[styles.cancelButton, cancelDisabled && { opacity: 0.5 }]}
+            disabled={cancelDisabled}
+          >
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.cancelText,
+                cancelDisabled && { color: COLORS.textMuted || "#9CA3AF" },
+              ]}
+            >
+              {cancelText}
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.placeholder} />

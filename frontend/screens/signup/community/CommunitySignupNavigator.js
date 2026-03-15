@@ -22,6 +22,7 @@ import CommunityHeadNameScreen from "./CommunityHeadNameScreen";
 import CollegeHeadsScreen from "./CollegeHeadsScreen";
 import CommunitySponsorTypeSelect from "./CommunitySponsorTypeSelect";
 import CommunityUsernameScreen from "./CommunityUsernameScreen";
+import CommunityHeadProfilePicScreen from "./CommunityHeadProfilePicScreen";
 
 const Stack = createStackNavigator();
 
@@ -106,6 +107,10 @@ export default function CommunitySignupNavigator() {
       <Stack.Screen
         name="CommunityHeadName"
         component={CommunityHeadNameScreen}
+      />
+      <Stack.Screen
+        name="CommunityHeadProfilePic"
+        component={CommunityHeadProfilePicScreen}
       />
       <Stack.Screen name="CollegeHeads" component={CollegeHeadsScreen} />
       <Stack.Screen

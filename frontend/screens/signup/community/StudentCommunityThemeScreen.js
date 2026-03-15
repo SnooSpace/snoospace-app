@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { MessageSquare, Smile, MessagesSquare, Sparkles, Lock, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -24,28 +24,28 @@ const COMMUNITY_THEMES = [
     id: "confessions",
     title: "Confessions",
     subtitle: "Anonymous campus confessions and stories",
-    icon: "chatbox-ellipses-outline",
+    icon: "MessageSquare",
     gradientColors: ["#667eea", "#764ba2"],
   },
   {
     id: "memes",
     title: "Memes",
     subtitle: "Campus humor, jokes, and relatable content",
-    icon: "happy-outline",
+    icon: "Smile",
     gradientColors: ["#FF512F", "#F09819"],
   },
   {
     id: "discussions",
     title: "Discussions",
     subtitle: "Campus news, debates, and conversations",
-    icon: "chatbubbles-outline",
+    icon: "MessagesSquare",
     gradientColors: ["#11998e", "#38ef7d"],
   },
   {
     id: "other",
     title: "Other",
     subtitle: "Something else - you decide the theme",
-    icon: "sparkles-outline",
+    icon: "Sparkles",
     gradientColors: ["#6366f1", "#8b5cf6"],
   },
 ];
@@ -67,14 +67,16 @@ const ThemeCard = ({ theme, onPress }) => (
       end={{ x: 1, y: 1 }}
       style={styles.cardGradient}
     >
-      <Ionicons name={theme.icon} size={26} color="#fff" />
+      {(() => {
+        const Icon = { MessageSquare, Smile, MessagesSquare, Sparkles }[theme.icon];
+        return <Icon size={26} color="#fff" />;
+      })()}
     </LinearGradient>
     <View style={styles.themeContent}>
       <Text style={styles.themeTitle}>{theme.title}</Text>
       <Text style={styles.themeSubtitle}>{theme.subtitle}</Text>
     </View>
-    <Ionicons
-      name="chevron-forward"
+    <ChevronRight
       size={24}
       color={COLORS.textSecondary}
       style={styles.cardArrow}
@@ -99,17 +101,51 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
     community_theme: routeTheme,
   } = route.params || {};
 
-  const [selectedTheme, setSelectedTheme] = React.useState(routeTheme || null);
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    college_pending,
+  });
+
+  const [selectedTheme, setSelectedTheme] = useState(routeTheme || null);
 
   // Hydrate from draft if needed
-  React.useEffect(() => {
+  useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!routeTheme) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.community_theme) {
-          console.log("[StudentCommunityTheme] Hydrating from draft");
-          setSelectedTheme(draftData.community_theme);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate theme
+      if (!routeTheme && draftData?.community_theme) {
+        console.log("[StudentCommunityTheme] Hydrating from draft");
+        setSelectedTheme(draftData.community_theme);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "community_type",
+        "college_id", "college_name", "college_subtype", "college_pending"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[StudentCommunityTheme] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -134,15 +170,8 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
 
     // Navigate to name screen with all params
     navigation.navigate("CommunityName", {
-      email,
-      accessToken,
-      refreshToken,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
+      ...params,
       community_theme: theme.id,
-      college_pending,
       isStudentCommunity: true,
     });
   };
@@ -203,8 +232,7 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
               <View style={styles.cardContent}>
                 {/* Privacy notice */}
                 <View style={styles.privacyNotice}>
-                  <Ionicons
-                    name="lock-closed"
+                  <Lock
                     size={16}
                     color={COLORS.primary}
                   />

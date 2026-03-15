@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+
 import { ChevronDown, ChevronRight, X } from "lucide-react-native";
 
 import HapticsService from "../../../services/HapticsService";
@@ -58,6 +58,8 @@ const InterestsScreen = ({ navigation, route }) => {
     gender,
     location,
     interests: initialInterests,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
   const [selectedInterests, setSelectedInterests] = useState(
     initialInterests || [],
@@ -122,10 +124,19 @@ const InterestsScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const toggleInterest = (interest) => {
@@ -167,6 +178,8 @@ const InterestsScreen = ({ navigation, route }) => {
       gender,
       location,
       interests: selectedInterests,
+      prefill,
+      fromCommunitySignup,
     });
   };
 

@@ -15,7 +15,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { LocateFixed, CheckCircle2, XCircle, MapPin } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 
@@ -67,9 +67,29 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     isResumingDraft, // True when resumed from draft (no navigation history)
   } = route.params || {};
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
   // Both Individual and Organization go through Phone/HeadName.
   // Only College (with college_id) has a separate path.
-  const isCollege = community_type === "college_affiliated" && college_id;
+  const isCollege = params.community_type === "college_affiliated" && params.college_id;
 
   // Build common params to pass forward
   const commonParams = {
@@ -148,8 +168,11 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   useEffect(() => {
     const hydrateFromDraft = async () => {
       const draftData = await getCommunityDraftData();
-      if (draftData?.location) {
-        console.log("[CommunityLocationScreen] Hydrating from draft");
+      if (!draftData) return;
+
+      // 1. Hydrate location
+      if (draftData.location) {
+        console.log("[CommunityLocationScreen] Hydrating location from draft");
         setLocation(draftData.location);
         if (draftData.location.address) {
           setDisplayAddress(draftData.location.address);
@@ -159,6 +182,29 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           setLocationUrl(draftData.location.googleMapsUrl);
           setUrlValid(true);
         }
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "community_type", "college_id",
+        "college_name", "college_subtype", "club_type", "community_theme",
+        "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityLocationScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -318,13 +364,13 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     // All non-college types (Individual + Organization) go through HeadName -> Phone
     if (!isCollege) {
       navigation.navigate("CommunityHeadName", {
-        ...commonParams,
+        ...params,
         location,
       });
     } else {
       // College communities go to heads screen
       navigation.navigate("CollegeHeads", {
-        ...commonParams,
+        ...params,
         location,
       });
     }
@@ -346,22 +392,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       }
 
       navigation.replace(previousScreen, {
-        email,
-        accessToken,
-        refreshToken,
-        name,
-        logo_url,
-        bio,
-        category,
-        categories,
-        community_type,
-        college_id,
-        college_name,
-        college_subtype,
-        club_type,
-        community_theme,
-        college_pending,
-        isStudentCommunity,
+        ...params,
       });
     }
   };
@@ -439,8 +470,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                     {isLoadingGps ? (
                       <SnooLoader size="small" color={COLORS.primary} />
                     ) : (
-                      <Ionicons
-                        name="locate"
+                      <LocateFixed
                         size={22}
                         color={COLORS.primary}
                       />
@@ -498,8 +528,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
                   {urlValid === true && !isParsingUrl && (
                     <View style={styles.validationRow}>
-                      <Ionicons
-                        name="checkmark-circle"
+                      <CheckCircle2
                         size={20}
                         color={COLORS.success || "#34C759"}
                       />
@@ -511,8 +540,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
                   {urlValid === false && (
                     <View style={styles.validationRow}>
-                      <Ionicons
-                        name="close-circle"
+                      <XCircle
                         size={20}
                         color={COLORS.error}
                       />
@@ -524,8 +552,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                   {/* Display Address - show decoded location like event cards */}
                   {location && !isParsingUrl && (
                     <View style={styles.addressContainer}>
-                      <Ionicons
-                        name="location"
+                      <MapPin
                         size={20}
                         color={COLORS.primary}
                       />

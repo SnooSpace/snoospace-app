@@ -12,7 +12,7 @@ import {
   Alert,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+
 import { apiPost } from "../../../api/client";
 import { getSponsorTypes } from "../../../api/client";
 import { BlurView } from "expo-blur";
@@ -90,6 +90,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     phone,
     secondary_phone,
     heads,
+    head_photo_url,
     community_type,
     college_id,
     college_name,
@@ -100,6 +101,31 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     isStudentCommunity,
     isResumingDraft,
   } = route.params || {};
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    phone,
+    secondary_phone,
+    heads,
+    head_photo_url,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
   const [sponsorTypes, setSponsorTypes] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,14 +170,41 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       getCommunityDraftData,
     } = require("../../../utils/signupDraftManager");
     const draftData = await getCommunityDraftData();
-    if (draftData?.sponsor_types) {
-      console.log("[CommunitySponsorTypeSelect] Hydrating from draft");
+    if (!draftData) return;
+
+    // 1. Hydrate sponsor types
+    if (draftData.sponsor_types) {
+      console.log("[CommunitySponsorTypeSelect] Hydrating sponsor types from draft");
       if (draftData.sponsor_types.includes("Open to All")) {
         setIsOpenToAll(true);
         setSelectedTypes([...sponsorTypes]);
       } else {
         setSelectedTypes(draftData.sponsor_types);
       }
+    }
+
+    // 2. Hydrate all shared parameters
+    const updatedParams = { ...params };
+    let paramChanged = false;
+
+    const keysToHydrate = [
+      "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+      "category", "categories", "location", "phone", "secondary_phone", "heads",
+      "head_photo_url", "community_type", "college_id", "college_name",
+      "college_subtype", "club_type", "community_theme", "college_pending",
+      "isStudentCommunity"
+    ];
+
+    keysToHydrate.forEach(key => {
+      if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+        updatedParams[key] = draftData[key];
+        paramChanged = true;
+      }
+    });
+
+    if (paramChanged) {
+      console.log("[CommunitySponsorTypeSelect] Hydrated shared parameters from draft");
+      setParams(updatedParams);
     }
   };
 
@@ -222,25 +275,10 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     // DON'T create the community record here - pass all data to username screen
     // Record will be created when username is set (final step)
     const userData = {
-      name,
-      logo_url,
-      bio,
+      ...params,
       category: categoryList[0],
       categories: categoryList,
-      location: location ?? null,
-      email,
-      phone,
-      secondary_phone,
       sponsor_types,
-      heads,
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     };
 
     // Save sponsor_types to draft
@@ -260,8 +298,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
 
     navigation.navigate("CommunityUsername", {
       userData,
-      accessToken,
-      refreshToken,
+      accessToken: params.accessToken,
+      refreshToken: params.refreshToken,
     });
   };
 

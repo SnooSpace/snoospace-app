@@ -14,7 +14,7 @@ import {
   ScrollView,
 } from "react-native";
 import wave from "../../../assets/wave.png";
-import { Camera } from "lucide-react-native";
+import { Camera, X } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import Animated, {
   FadeInDown,
@@ -27,11 +27,9 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { useCrop } from "../../../components/MediaCrop";
-
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
-  SPACING,
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
@@ -39,7 +37,6 @@ import SignupHeader from "../../../components/SignupHeader";
 
 const CIRCLE_SIZE = 180;
 
-import { apiPost } from "../../../api/client";
 import { uploadImage } from "../../../api/cloudinary";
 import {
   updateCommunitySignupDraft,
@@ -49,13 +46,21 @@ import {
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-const CommunityLogoScreen = ({ navigation, route }) => {
+const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
   const {
     email,
     accessToken,
     refreshToken,
     name,
-    // NEW: Community type fields
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    phone,
+    secondary_phone,
+    heads,
+    head_photo_url: existingHeadPhoto,
     community_type,
     college_id,
     college_name,
@@ -64,11 +69,7 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
-    isResumingDraft,
   } = route.params || {};
-  const [imageUri, setImageUri] = useState(route.params?.logo_url || null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // States for shared params that need hydration from draft if missing
   const [params, setParams] = useState({
@@ -76,6 +77,14 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     accessToken,
     refreshToken,
     name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    phone,
+    secondary_phone,
+    heads,
     community_type,
     college_id,
     college_name,
@@ -85,6 +94,14 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     college_pending,
     isStudentCommunity,
   });
+
+  const isIndividual = params.community_type === "individual_organizer";
+
+  const [imageUri, setImageUri] = useState(existingHeadPhoto || null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -96,60 +113,52 @@ const CommunityLogoScreen = ({ navigation, route }) => {
   const animatedButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
-
   const animatedPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
   }));
-
   const animatedBounceStyle = useAnimatedStyle(() => ({
     transform: [{ scale: bounceScale.value }],
   }));
-
   const animatedHintStyle = useAnimatedStyle(() => ({
     opacity: hintOpacity.value,
   }));
 
   const [currentHintIndex, setCurrentHintIndex] = useState(0);
   const HINTS = [
-    "A logo makes you recognizable",
-    "Keep it simple and bold",
-    "Square images work best",
+    "Use a clear face photo",
+    "Builds trust with your members",
+    "Good lighting works best",
   ];
 
-  // Trigger button bounce when validity changes to true (imageUri)
   useEffect(() => {
     if (imageUri) {
       buttonScale.value = withSequence(
         withSpring(1.05, { damping: 10, stiffness: 100 }),
-        withSpring(1, { damping: 12, stiffness: 90 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
       );
     }
   }, [imageUri]);
 
   useEffect(() => {
-    // 1. Bounce Animation on Load
     bounceScale.value = withSpring(1, { damping: 12, stiffness: 90 });
 
-    // 2. Slow Pulsing Animation Loop
     pulseScale.value = withRepeat(
       withTiming(1.15, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
       -1,
-      true,
+      true
     );
     pulseOpacity.value = withRepeat(
       withTiming(0.2, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
       -1,
-      true,
+      true
     );
 
-    // 3. Rotating Hints Animation
     const hintInterval = setInterval(() => {
       hintOpacity.value = withSequence(
         withTiming(0, { duration: 500 }),
-        withTiming(1, { duration: 500 }),
+        withTiming(1, { duration: 500 })
       );
-
       setTimeout(() => {
         setCurrentHintIndex((prev) => (prev + 1) % HINTS.length);
       }, 500);
@@ -158,24 +167,24 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     return () => clearInterval(hintInterval);
   }, []);
 
-  // Update step on mount AND hydrate from draft
+  // Update step on mount and hydrate from draft
   useEffect(() => {
     const initScreen = async () => {
-      // Mark that we are now on CommunityLogo step
+      // Mark step
       try {
-        await updateCommunitySignupDraft("CommunityLogo", {});
-        console.log("[CommunityLogoScreen] Step set");
+        await updateCommunitySignupDraft("CommunityHeadProfilePic", {});
+        console.log("[CommunityHeadProfilePicScreen] Step set");
       } catch (e) {
-        console.log("[CommunityLogoScreen] Step update failed:", e.message);
+        console.log("[CommunityHeadProfilePicScreen] Step update failed:", e.message);
       }
 
       const draftData = await getCommunityDraftData();
       if (!draftData) return;
 
-      // 1. Hydrate logo if missing from route
-      if (!imageUri && !route.params?.logo_url && draftData.logo_url) {
-        console.log("[CommunityLogoScreen] Hydrating logo from draft");
-        setImageUri(draftData.logo_url);
+      // 1. Hydrate photo
+      if (!imageUri && !existingHeadPhoto && draftData.head_photo_url) {
+        console.log("[CommunityHeadProfilePicScreen] Hydrating photo from draft");
+        setImageUri(draftData.head_photo_url);
       }
 
       // 2. Hydrate all shared parameters
@@ -183,9 +192,10 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       let paramChanged = false;
 
       const keysToHydrate = [
-        "email", "accessToken", "refreshToken", "name", "community_type",
-        "college_id", "college_name", "college_subtype", "club_type",
-        "community_theme", "college_pending", "isStudentCommunity"
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "location", "phone", "secondary_phone", "heads",
+        "community_type", "college_id", "college_name", "college_subtype",
+        "club_type", "community_theme", "college_pending", "isStudentCommunity"
       ];
 
       keysToHydrate.forEach(key => {
@@ -196,21 +206,18 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       });
 
       if (paramChanged) {
-        console.log("[CommunityLogoScreen] Hydrated shared parameters from draft");
+        console.log("[CommunityHeadProfilePicScreen] Hydrated shared parameters from draft");
         setParams(updatedParams);
       }
     };
     initScreen();
   }, []);
 
-  // Instagram-style crop hook for logo
   const { pickAndCrop } = useCrop();
 
   const handleAddPhoto = async () => {
     try {
-      // Use Instagram-style crop for 1:1 avatar/logo
       const result = await pickAndCrop("avatar");
-
       if (result) {
         setImageUri(result.uri);
       }
@@ -220,15 +227,15 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     }
   };
 
+  const navigateNext = (headPhotoUrl) => {
+    navigation.navigate("CommunityPhone", {
+      ...params,
+      head_photo_url: headPhotoUrl,
+    });
+  };
+
   const handleNext = async () => {
-    if (!imageUri) {
-      Alert.alert(
-        "Photo Required",
-        "Please add a community logo before proceeding.",
-        [{ text: "OK" }],
-      );
-      return;
-    }
+    if (!imageUri) return;
 
     setIsLoading(true);
     try {
@@ -237,34 +244,23 @@ const CommunityLogoScreen = ({ navigation, route }) => {
         // Only upload if it's a local file URI (not already uploaded)
         secureUrl = await uploadImage(imageUri, () => {});
       } else {
-        // Already a remote URL (e.g. came back from next screen)
+        // Already a remote URL (e.g. came back from next screen or resumed from draft)
         secureUrl = imageUri;
       }
 
-      // Save logo_url to draft
       try {
-        await updateCommunitySignupDraft("CommunityLogo", {
-          logo_url: secureUrl,
+        await updateCommunitySignupDraft("CommunityHeadProfilePic", {
+          head_photo_url: secureUrl,
         });
-        console.log("[CommunityLogoScreen] Draft updated with logo_url");
+        console.log("[CommunityHeadProfilePicScreen] Draft updated");
       } catch (e) {
-        console.log(
-          "[CommunityLogoScreen] Draft update failed (non-critical):",
-          e.message,
-        );
+        console.log("[CommunityHeadProfilePicScreen] Draft update failed:", e.message);
       }
 
-      // Navigate on success
-      navigation.navigate("CommunityBio", {
-        ...params,
-        logo_url: secureUrl,
-      });
+      navigateNext(secureUrl);
     } catch (e) {
       console.error("Image upload failed:", e);
-      Alert.alert(
-        "Upload failed",
-        e?.message || "Unable to upload logo. Please try again.",
-      );
+      Alert.alert("Upload failed", e?.message || "Unable to upload photo. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -277,32 +273,25 @@ const CommunityLogoScreen = ({ navigation, route }) => {
       CommonActions.reset({
         index: 0,
         routes: [{ name: "AuthGate" }],
-      }),
+      })
     );
   };
-
-  // Button is disabled if no photo is selected OR if it is loading
-  const isButtonDisabled = !imageUri || isLoading;
 
   return (
     <ImageBackground
       source={wave}
       style={styles.backgroundImage}
-      imageStyle={{
-        opacity: 0.3,
-        transform: [{ scaleX: -1 }, { scaleY: -1 }],
-      }}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       resizeMode="cover"
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
         <SignupHeader
           onBack={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityName", {
+              navigation.replace("CommunityHeadName", {
                 ...params,
               });
             }
@@ -315,63 +304,57 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Content Section */}
           <View style={styles.contentContainer}>
             <Animated.Text
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
-              Create your Identity
+              {isIndividual ? "Add your photo" : "Head's profile photo"}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.subtitle}
             >
-              A strong logo helps others identify and trust your community.
+              {isIndividual
+                ? "Put a face to your community — members love seeing who's behind it."
+                : "Help members recognise the person heading this community."}
             </Animated.Text>
 
             <Animated.View
               entering={FadeInDown.delay(300).duration(600).springify()}
               style={styles.card}
             >
-              <BlurView
-                intensity={60}
-                tint="light"
-                style={StyleSheet.absoluteFill}
-              />
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
-                {/* Animated Logo Upload Area */}
                 <Animated.View style={[animatedBounceStyle]}>
-                  {/* Pulsing Ring Background */}
-                  <Animated.View
-                    style={[styles.pulsingRing, animatedPulseStyle]}
-                  />
+                  {/* Pulsing Ring */}
+                  <Animated.View style={[styles.pulsingRing, animatedPulseStyle]} />
 
-                  {/* Main Upload Circle */}
-                  <TouchableOpacity
-                    style={styles.photoUploadArea}
-                    onPress={handleAddPhoto}
-                    activeOpacity={0.9}
-                  >
-                    {/* Glow Shadow Container */}
-                    <View style={styles.glowContainer}>
-                      {/* Content when no photo is uploaded */}
-                      {!imageUri && (
-                        <View style={styles.uploadContent}>
-                          <Camera size={40} color={COLORS.primary} />
-                          <Text style={styles.uploadText}>Add Logo</Text>
-                        </View>
-                      )}
-                      {/* Content when photo IS uploaded */}
-                      {imageUri && (
-                        <Image
-                          source={{ uri: imageUri }}
-                          style={styles.profileImage}
-                          resizeMode="cover"
-                        />
-                      )}
-                    </View>
-                  </TouchableOpacity>
+                  {/* Main Upload Circle Container */}
+                  <View>
+                    <TouchableOpacity
+                      style={styles.photoUploadArea}
+                      onPress={handleAddPhoto}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.glowContainer}>
+                        {!imageUri && (
+                          <View style={styles.uploadContent}>
+                            <Camera size={40} color={COLORS.primary} />
+                            <Text style={styles.uploadText}>Add Photo</Text>
+                          </View>
+                        )}
+                        {imageUri && (
+                          <Image
+                            source={{ uri: imageUri }}
+                            style={styles.profileImage}
+                            resizeMode="cover"
+                          />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                  </View>
                 </Animated.View>
 
                 {/* Rotating Hints */}
@@ -383,10 +366,9 @@ const CommunityLogoScreen = ({ navigation, route }) => {
               </View>
             </Animated.View>
 
-            {/* Next Button Moved Outside Card */}
-            <View
-              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
-            >
+            {/* Buttons row */}
+            <View style={styles.buttonsRow}>
+              {/* Next */}
               <Animated.View
                 entering={FadeInDown.delay(500).duration(600).springify()}
                 style={animatedButtonStyle}
@@ -394,11 +376,10 @@ const CommunityLogoScreen = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={[
                     styles.nextButtonContainer,
-                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                    isButtonDisabled && styles.disabledButton,
+                    !imageUri && styles.disabledButton,
                   ]}
                   onPress={handleNext}
-                  disabled={isButtonDisabled}
+                  disabled={isLoading || !imageUri}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
@@ -414,24 +395,12 @@ const CommunityLogoScreen = ({ navigation, route }) => {
                           color={COLORS.textInverted}
                           style={styles.buttonSpinner}
                         />
-                        <Text
-                          style={[
-                            styles.buttonText,
-                            { fontFamily: "Manrope-Medium" },
-                          ]}
-                        >
+                        <Text style={[styles.buttonText, { fontFamily: "Manrope-Medium" }]}>
                           Uploading...
                         </Text>
                       </View>
                     ) : (
-                      <Text
-                        style={[
-                          styles.buttonText,
-                          { fontFamily: "Manrope-SemiBold" },
-                        ]}
-                      >
-                        Next
-                      </Text>
+                      <Text style={styles.buttonText}>Next</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -440,7 +409,6 @@ const CommunityLogoScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
 
-        {/* Cancel Confirmation Modal */}
         <CancelSignupModal
           visible={showCancelModal}
           onKeepEditing={() => setShowCancelModal(false)}
@@ -450,8 +418,6 @@ const CommunityLogoScreen = ({ navigation, route }) => {
     </ImageBackground>
   );
 };
-
-// --- Styles ---
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -470,7 +436,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-
   contentContainer: {
     flex: 1,
     paddingTop: 40,
@@ -479,8 +444,16 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontFamily: "BasicCommercial-Black",
     color: "#1a2d4a",
-    marginBottom: 40,
+    marginBottom: 12,
     letterSpacing: -1,
+    lineHeight: 42,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 36,
+    lineHeight: 22,
   },
   card: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
@@ -498,15 +471,6 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: "center",
   },
-
-  subtitle: {
-    fontSize: 16,
-    fontFamily: "Manrope-Regular",
-    color: COLORS.textSecondary,
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  // --- Photo Upload Area Styles ---
   photoUploadArea: {
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
@@ -528,7 +492,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
     borderWidth: 4,
-    borderColor: "#F0F0FF", // Very light colored border
+    borderColor: "#F0F0FF",
     overflow: "hidden",
   },
   pulsingRing: {
@@ -552,47 +516,45 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-
-  // --- Hint Styles ---
   hintContainer: {
-    marginTop: 40,
-    height: 30, // Fixed height to prevent layout jumps
+    marginTop: 32,
+    height: 28,
     alignItems: "center",
     justifyContent: "center",
   },
   hintText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#8E8E93",
     fontFamily: "Manrope-Regular",
     textAlign: "center",
   },
-
-  // --- Footer/Button Styles (Consistent) ---
-  footer: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 50,
-    borderTopWidth: 0,
+  // Buttons
+  buttonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginTop: 32,
+    gap: 12,
   },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
+    minWidth: 120,
   },
   nextButton: {
-    paddingVertical: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    height: 60,
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
     shadowOpacity: 0,
   },
   buttonText: {
     color: COLORS.textInverted,
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
   },
   buttonLoadingContainer: {
@@ -605,4 +567,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CommunityLogoScreen;
+export default CommunityHeadProfilePicScreen;

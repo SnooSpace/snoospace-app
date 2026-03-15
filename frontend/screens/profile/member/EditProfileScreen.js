@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { CheckCircle, XCircle } from "lucide-react-native";
 // Use transparent Lucid icons if available or standard Ionicons
 import {
   Camera,
@@ -537,12 +537,12 @@ export default function EditProfileScreen({ route, navigation }) {
                 <SnooLoader size="small" color={ACCENT_COLOR} />
               )}
               {!usernameChecking && usernameAvailable === true && (
-                <Ionicons name="checkmark-circle" size={18} color="green" />
+                <CheckCircle size={18} color="green" />
               )}
               {!usernameChecking &&
                 usernameAvailable === false &&
                 username !== profile?.username && (
-                  <Ionicons name="close-circle" size={18} color="red" />
+                  <XCircle size={18} color="red" />
                 )}
             </View>
             <Text style={styles.helperText}>Your public handle</Text>

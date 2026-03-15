@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, Image, Alert } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming, withRepeat, Easing } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons"; // Used for icons
+
 import { BlurView } from "expo-blur";
 import { ImageBackground } from "react-native";
 import { useCrop } from "../../../components/MediaCrop";
+import { ArrowDownToLine, Camera } from "lucide-react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -14,8 +15,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-// Removed local constants in favor of theme constants
-const CIRCLE_SIZE = 180; // Diameter of the profile picture circle
+const CIRCLE_SIZE = 180;
 
 import { uploadImage } from "../../../api/cloudinary";
 import {
@@ -27,10 +27,11 @@ import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const ProfilePictureScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, name } = route.params || {};
+  const { email, accessToken, refreshToken, name, prefill, fromCommunitySignup } = route.params || {};
   const [imageUri, setImageUri] = useState(
     route.params?.profile_photo_url || null
   );
+  const [isPrefilled, setIsPrefilled] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -67,6 +68,15 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
   // Instagram-style crop hook for avatar
   const { pickAndCrop } = useCrop();
+
+  // Apply prefill photo from community signup (runs once on mount)
+  useEffect(() => {
+    if (prefill?.photo && !route.params?.profile_photo_url) {
+      console.log("[MemberProfilePicScreen] Applying prefill photo:", prefill.photo);
+      setImageUri(prefill.photo);
+      setIsPrefilled(true);
+    }
+  }, []);
 
   // Hydrate from draft if route.params is missing profile_photo_url
   useEffect(() => {
@@ -114,6 +124,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   }, []);
 
   // Trigger button bounce when validity changes
+  const isButtonDisabled = !imageUri || uploading;
   useEffect(() => {
     if (!isButtonDisabled) {
       buttonScale.value = withSequence(
@@ -124,15 +135,13 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   }, [isButtonDisabled]);
 
   const handleAddPhoto = async () => {
-    console.log("handleAddPhoto called"); // Debug log
+    console.log("handleAddPhoto called");
     try {
-      // Use Instagram-style crop for 1:1 avatar
-      // ... (Rest of the function remains same)
       const result = await pickAndCrop("avatar");
-
       if (result) {
         setImageUri(result.uri);
-        console.log("Image selected:", result.uri); // Debug log
+        setIsPrefilled(false); // User replaced prefill with their own pick
+        console.log("Image selected:", result.uri);
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -148,7 +157,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         // Upload to Cloudinary and use secure URL (only if local file)
         profileUrl = await uploadImage(imageUri, () => {});
       } else {
-        profileUrl = imageUri; // Already a URL (from resume)
+        profileUrl = imageUri; // Already a URL (from resume or prefill)
       }
 
       // Update client-side draft
@@ -171,6 +180,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
         refreshToken,
         name,
         profile_photo_url: profileUrl || null,
+        prefill,
+        fromCommunitySignup,
       });
     } catch (e) {
       alert(e.message || "Failed to upload image");
@@ -182,14 +193,20 @@ const ProfilePictureScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
-  };
 
-  // Button is disabled if no image or while uploading
-  const isButtonDisabled = !imageUri || uploading;
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
+  };
 
   return (
     <ImageBackground
@@ -210,6 +227,8 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                 accessToken,
                 refreshToken,
                 name,
+                prefill,
+                fromCommunitySignup,
               });
             }
           }}
@@ -223,29 +242,27 @@ const ProfilePictureScreen = ({ navigation, route }) => {
       >
         {/* Content Section */}
         <View style={styles.contentContainer}>
-          <Animated.Text 
+          <Animated.Text
             entering={FadeInDown.delay(100).duration(600).springify()}
             style={styles.title}
           >
             Time to be iconic
           </Animated.Text>
-          <Animated.Text 
+          <Animated.Text
             entering={FadeInDown.delay(200).duration(600).springify()}
             style={styles.subtitle}
           >
             People are more likely to connect with you when they can see you.
           </Animated.Text>
 
-          <Animated.View 
+          <Animated.View
             entering={FadeInDown.delay(300).duration(600).springify()}
             style={styles.card}
           >
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.cardContent}>
               {/* Animated Profile Picture Upload Area */}
-              <Animated.View
-                style={[animatedBounceStyle]}
-              >
+              <Animated.View style={[animatedBounceStyle]}>
             {/* Pulsing Ring Background */}
             <Animated.View
               style={[
@@ -265,7 +282,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
                 {/* Content when no photo is uploaded */}
                 {!imageUri && (
                   <View style={styles.uploadContent}>
-                    <Ionicons name="camera" size={40} color={COLORS.primary} />
+                    <Camera size={40} color={COLORS.primary} />
                     <Text style={styles.uploadText}>Add Photo</Text>
                   </View>
                 )}
@@ -280,6 +297,14 @@ const ProfilePictureScreen = ({ navigation, route }) => {
               </View>
             </TouchableOpacity>
           </Animated.View>
+
+          {/* Imported Badge */}
+          {isPrefilled && (
+            <View style={styles.importedBadge}>
+              <ArrowDownToLine size={12} color="#0D9488" strokeWidth={2.5} />
+              <Text style={styles.importedBadgeText}>Imported from community</Text>
+            </View>
+          )}
 
           {/* Rotating Hints */}
           <View style={styles.hintContainer}>
@@ -297,7 +322,7 @@ const ProfilePictureScreen = ({ navigation, route }) => {
 
       {/* Next Button Moved Outside Card */}
       <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
-        <Animated.View 
+        <Animated.View
           entering={FadeInDown.delay(500).duration(600).springify()}
           style={animatedButtonStyle}
         >
@@ -366,19 +391,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    flex: 1,
-    textAlign: "center",
-    marginLeft: -40, // Visual centering adjustment
-  },
   contentContainer: {
     paddingTop: 30,
     flex: 0,
@@ -436,7 +448,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
     borderWidth: 4,
-    borderColor: "#F0F0FF", // Very light colored border
+    borderColor: "#F0F0FF",
     overflow: "hidden",
   },
   pulsingRing: {
@@ -447,9 +459,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#6FE7D8",
     zIndex: -1,
   },
-  dashedCircle: {
-    // Deprecated/Removed
-  },
   uploadContent: {
     alignItems: "center",
   },
@@ -459,18 +468,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     color: COLORS.primary,
   },
-  imagePlaceholderText: {
-    color: COLORS.primary,
-  },
   profileImage: {
     width: "100%",
     height: "100%",
   },
 
+  // --- Imported Badge ---
+  importedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    marginTop: 14,
+    backgroundColor: "rgba(13, 148, 136, 0.1)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(13, 148, 136, 0.25)",
+  },
+  importedBadgeText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#0D9488",
+  },
+
   // --- Hint Styles ---
   hintContainer: {
     marginTop: 40,
-    height: 30, // Fixed height to prevent layout jumps
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -482,11 +508,6 @@ const styles = StyleSheet.create({
   },
 
   // --- Footer/Button Styles ---
-  footer: {
-    padding: 20,
-    backgroundColor: COLORS.background,
-    marginBottom: 50,
-  },
   nextButtonContainer: {
     borderRadius: BORDER_RADIUS.pill,
     ...SHADOWS.primaryGlow,
@@ -504,7 +525,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.textInverted,
     fontSize: 18,
-    
     fontFamily: "Manrope-SemiBold",
   },
   buttonLoadingContainer: {
@@ -518,9 +538,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfilePictureScreen;
-
-
-
-
-
-

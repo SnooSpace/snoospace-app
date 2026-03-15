@@ -7,6 +7,8 @@ import {
   ShoppingBag,
   Store,
   Zap,
+  Compass,
+  User,
 } from "lucide-react-native";
 
 // --- Community Categories Configuration ---
@@ -32,7 +34,7 @@ export const COMMUNITY_CATEGORIES_CONFIG = {
     label: "Lifestyle",
     bg: "#FFF3E0", // Orange-ish
     text: "#E65100",
-    icon: Globe,
+    icon: User,
     keywords: ["food", "drink", "travel", "outdoor", "adventure", "explore"],
   },
   ACTIVITY: {

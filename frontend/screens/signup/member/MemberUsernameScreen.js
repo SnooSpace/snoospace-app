@@ -71,7 +71,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     }
   }, [isAvailable === true]);
 
-  const { userData, accessToken, refreshToken } = route.params;
+  const { userData, accessToken, refreshToken, fromCommunitySignup } = route.params;
 
   // Track email separately so we can hydrate from draft if needed
   const [hydratedEmail, setHydratedEmail] = useState(userData?.email || null);
@@ -99,10 +99,18 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   // Debounced username availability check
@@ -251,7 +259,14 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       // Step 6: Navigate to celebration screen
       navigation.reset({
         index: 0,
-        routes: [{ name: "Celebration", params: { role: "People" } }],
+        routes: [{
+          name: "Celebration",
+          params: {
+            role: "People",
+            fromCommunitySignup: fromCommunitySignup ?? false,
+            createdPeopleProfile: true,
+          },
+        }],
       });
     } catch (error) {
       console.error("Error completing signup:", error);

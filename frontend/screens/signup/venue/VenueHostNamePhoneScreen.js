@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,7 +10,7 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
+import { ArrowLeft, ChevronDown } from "lucide-react-native";
 import { apiPost } from '../../../api/client';
 
 // --- Design Constants ---
@@ -36,7 +36,7 @@ const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = 
           {/* Using a flag emoji for simplicity */}
           <Text style={styles.flagEmoji}>ðŸ‡®ðŸ‡³</Text>
           <Text style={styles.countryCodeText}>+91</Text>
-          <Ionicons name="caret-down" size={12} color={COLORS.textPrimary} style={{ marginLeft: 5 }} />
+          <ChevronDown size={12} color={COLORS.textPrimary} style={{ marginLeft: 5 }} />
         </View>
 
         {/* Actual Phone Number Input Field */}
@@ -175,7 +175,7 @@ const VenueHostNamePhoneScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+             <ArrowLeft size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
         

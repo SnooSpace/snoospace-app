@@ -12,7 +12,23 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  X,
+  Image as ImageIcon,
+  Trash2,
+  LogOut,
+  AlertCircle,
+  Settings,
+  Building2,
+  MapPin,
+  Users,
+  Banknote,
+  Clock,
+  Calendar,
+  User,
+  Mail,
+  Phone,
+} from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CommonActions } from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
@@ -263,7 +279,7 @@ export default function VenueProfileScreen({ navigation }) {
               onPress={() => setShowSettingsModal(false)}
               style={styles.closeButton}
             >
-              <Ionicons name="close" size={24} color={TEXT_COLOR} />
+              <X size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
 
@@ -306,7 +322,7 @@ export default function VenueProfileScreen({ navigation }) {
               }
             }}
           >
-            <Ionicons name="image-outline" size={24} color={TEXT_COLOR} />
+            <ImageIcon size={24} color={TEXT_COLOR} />
             <Text style={styles.settingsText}>Change Logo</Text>
           </TouchableOpacity>
 
@@ -314,14 +330,14 @@ export default function VenueProfileScreen({ navigation }) {
             style={styles.settingsItem}
             onPress={() => setShowDeleteModal(true)}
           >
-            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <Trash2 size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
               Delete Account
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingsItem} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+            <LogOut size={24} color="#FF3B30" />
             <Text style={[styles.settingsText, { color: "#FF3B30" }]}>
               Logout
             </Text>
@@ -348,7 +364,7 @@ export default function VenueProfileScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <AlertCircle size={64} color="#FF3B30" />
           <Text style={styles.errorText}>
             Unexpected error. Please re-login
           </Text>
@@ -374,7 +390,7 @@ export default function VenueProfileScreen({ navigation }) {
               onPress={() => setShowSettingsModal(true)}
               style={styles.settingsButton}
             >
-              <Ionicons name="settings-outline" size={24} color={TEXT_COLOR} />
+              <Settings size={24} color={TEXT_COLOR} />
             </TouchableOpacity>
           </View>
         </View>
@@ -383,14 +399,13 @@ export default function VenueProfileScreen({ navigation }) {
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
             <View style={styles.venueImageContainer}>
-              <Ionicons name="business" size={40} color={PRIMARY_COLOR} />
+              <Building2 size={40} color={PRIMARY_COLOR} />
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.venueName}>{profile.name}</Text>
               <Text style={styles.username}>@{profile.username}</Text>
               <View style={styles.locationContainer}>
-                <Ionicons
-                  name="location-outline"
+                <MapPin
                   size={16}
                   color={LIGHT_TEXT_COLOR}
                 />
@@ -422,26 +437,26 @@ export default function VenueProfileScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Venue Details</Text>
             <View style={styles.detailsGrid}>
               <View style={styles.detailItem}>
-                <Ionicons name="people" size={20} color={PRIMARY_COLOR} />
+                <Users size={20} color={PRIMARY_COLOR} />
                 <Text style={styles.detailLabel}>Capacity</Text>
                 <Text style={styles.detailValue}>
                   {profile.capacity_min} - {profile.capacity_max} people
                 </Text>
               </View>
               <View style={styles.detailItem}>
-                <Ionicons name="cash" size={20} color={PRIMARY_COLOR} />
+                <Banknote size={20} color={PRIMARY_COLOR} />
                 <Text style={styles.detailLabel}>Per Head</Text>
                 <Text style={styles.detailValue}>
                   ₹{profile.price_per_head}
                 </Text>
               </View>
               <View style={styles.detailItem}>
-                <Ionicons name="time" size={20} color={PRIMARY_COLOR} />
+                <Clock size={20} color={PRIMARY_COLOR} />
                 <Text style={styles.detailLabel}>Hourly</Text>
                 <Text style={styles.detailValue}>₹{profile.hourly_price}</Text>
               </View>
               <View style={styles.detailItem}>
-                <Ionicons name="calendar" size={20} color={PRIMARY_COLOR} />
+                <Calendar size={20} color={PRIMARY_COLOR} />
                 <Text style={styles.detailLabel}>Daily</Text>
                 <Text style={styles.detailValue}>₹{profile.daily_price}</Text>
               </View>
@@ -460,15 +475,15 @@ export default function VenueProfileScreen({ navigation }) {
           <View style={styles.contactContainer}>
             <Text style={styles.sectionTitle}>Contact Information</Text>
             <View style={styles.contactItem}>
-              <Ionicons name="person" size={16} color={LIGHT_TEXT_COLOR} />
+              <User size={16} color={LIGHT_TEXT_COLOR} />
               <Text style={styles.contactText}>{profile.contact_name}</Text>
             </View>
             <View style={styles.contactItem}>
-              <Ionicons name="mail" size={16} color={LIGHT_TEXT_COLOR} />
+              <Mail size={16} color={LIGHT_TEXT_COLOR} />
               <Text style={styles.contactText}>{profile.contact_email}</Text>
             </View>
             <View style={styles.contactItem}>
-              <Ionicons name="call" size={16} color={LIGHT_TEXT_COLOR} />
+              <Phone size={16} color={LIGHT_TEXT_COLOR} />
               <Text style={styles.contactText}>{profile.contact_phone}</Text>
             </View>
           </View>
@@ -517,7 +532,7 @@ export default function VenueProfileScreen({ navigation }) {
                 onPress={() => setShowDeleteModal(false)}
                 style={styles.closeButton}
               >
-                <Ionicons name="close" size={24} color={TEXT_COLOR} />
+                <X size={24} color={TEXT_COLOR} />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>

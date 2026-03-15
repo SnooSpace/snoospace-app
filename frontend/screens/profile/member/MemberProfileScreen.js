@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -9,7 +8,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { Settings, Bookmark, ChevronDown } from "lucide-react-native";
+import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage } from "lucide-react-native";
 import {
   clearAuthSession,
   getAuthToken,
@@ -49,7 +48,7 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
-import { useAuthState } from "../../../contexts/AuthStateContext";
+// import { useAuthState } from "../../../contexts/AuthStateContext"; // Unused
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -129,8 +128,8 @@ export default function MemberProfileScreen({ navigation }) {
     await HapticsService.setEnabled(value);
   };
   // Buffer for avoiding parent re-renders during like/unlike inside PostModal
-  const pendingPostUpdateRef = React.useRef(null);
-  const loadProfileRef = React.useRef(null);
+  const pendingPostUpdateRef = useRef(null);
+  const loadProfileRef = useRef(null);
 
   const loadProfile = async (isRefresh = false) => {
     console.log("[Profile] loadProfile: start", isRefresh ? "(refresh)" : "");
@@ -300,7 +299,7 @@ export default function MemberProfileScreen({ navigation }) {
 
   // Refresh profile when screen gains focus
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadProfile(true);
     }, []),
   );
@@ -769,7 +768,7 @@ export default function MemberProfileScreen({ navigation }) {
                             padding: 4,
                           }}
                         >
-                          <Ionicons name="play" size={16} color="#FFF" />
+                          <Play size={16} color="#FFF" />
                         </View>
                       )}
                     </>
@@ -777,8 +776,7 @@ export default function MemberProfileScreen({ navigation }) {
                 })()
               ) : (
                 <View style={styles.placeholderPost}>
-                  <Ionicons
-                    name="image-outline"
+                  <LucideImage
                     size={30}
                     color={COLORS.textSecondary}
                   />
@@ -842,8 +840,7 @@ export default function MemberProfileScreen({ navigation }) {
       return (
         <SafeAreaView style={styles.container}>
           <View style={styles.errorContainer}>
-            <Ionicons
-              name="alert-circle-outline"
+            <AlertCircle
               size={64}
               color={COLORS.error || "#FF4B2B"}
             />

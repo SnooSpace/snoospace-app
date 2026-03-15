@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Platform,
   StatusBar} from 'react-native';
 import ProgressBar from "../../../components/Progressbar";
-import { Ionicons } from "@expo/vector-icons"; 
+import { ArrowLeft } from "lucide-react-native"; 
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
@@ -62,7 +62,7 @@ const VenueBioScreen = ({ navigation, route }) => {
           {/* Custom Header with Back and Skip */}
           <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+              <ArrowLeft size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
             
             <Text style={styles.headerTitle}>About You</Text>

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { School, ChevronRight, Search, XCircle, PlusCircle, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -46,6 +46,14 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, community_type } =
     route.params || {};
 
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+  });
+
   const [searchQuery, setSearchQuery] = useState(route.params?.college_name || "");
   const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -65,16 +73,31 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   // Hydrate from draft if needed
   useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!route.params?.college_id) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.college_name) {
-          console.log("[CollegeSearch] Hydrating from draft");
-          setSearchQuery(draftData.college_name);
-          // We could also trigger a search here, but if it's already selected and they are at this screen,
-          // it might be because they want to RE-SELECT or they are at this step.
-          // Since getCommunityResumeScreen returns CURRENT step, if they are here,
-          // it means they haven't finished this step.
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate search query
+      if (!route.params?.college_id && draftData?.college_name) {
+        console.log("[CollegeSearch] Hydrating search query from draft");
+        setSearchQuery(draftData.college_name);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = ["email", "accessToken", "refreshToken", "community_type"];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CollegeSearch] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -138,10 +161,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     }
 
     navigation.navigate("CollegeSubtypeSelect", {
-      email,
-      accessToken,
-      refreshToken,
-      community_type,
+      ...params,
       college_id: college.id,
       college_name: college.name,
     });
@@ -175,10 +195,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
       // If the college was auto-approved or already exists, navigate to subtype
       if (response?.status === "approved") {
         navigation.navigate("CollegeSubtypeSelect", {
-          email,
-          accessToken,
-          refreshToken,
-          community_type,
+          ...params,
           college_id: response.college_id,
           college_name: newCollegeName.trim(),
         });
@@ -193,10 +210,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
               onPress: () => {
                 // Navigate with pending college
                 navigation.navigate("CollegeSubtypeSelect", {
-                  email,
-                  accessToken,
-                  refreshToken,
-                  community_type,
+                  ...params,
                   college_id: response?.college_id,
                   college_name: newCollegeName.trim(),
                   college_pending: true,
@@ -252,9 +266,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
       console.log("[CollegeSearch] Draft reset failed (non-critical):", e.message);
     }
     navigation.navigate("CommunityTypeSelect", {
-      email,
-      accessToken,
-      refreshToken,
+      ...params,
       community_type: null,
     });
   };
@@ -276,14 +288,13 @@ const CollegeSearchScreen = ({ navigation, route }) => {
         activeOpacity={0.7}
       >
         <View style={styles.collegeIcon}>
-          <Ionicons name="school-outline" size={24} color={COLORS.primary} />
+          <School size={24} color={COLORS.primary} />
         </View>
         <View style={styles.collegeInfo}>
           <Text style={styles.collegeName}>{displayName}</Text>
           <Text style={styles.collegeLocation}>{subtitle}</Text>
         </View>
-        <Ionicons
-          name="chevron-forward"
+        <ChevronRight
           size={20}
           color={COLORS.textSecondary}
         />
@@ -336,8 +347,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
             <View style={styles.cardContent}>
               {/* Search Input */}
                 <Animated.View style={[styles.searchContainer, animatedSearchStyle]}>
-                  <Ionicons
-                    name="search"
+                  <Search
                     size={20}
                     color={COLORS.textSecondary}
                     style={styles.searchIcon}
@@ -354,8 +364,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                   />
                   {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery("")}>
-                      <Ionicons
-                        name="close-circle"
+                      <XCircle
                         size={20}
                         color={COLORS.textSecondary}
                       />
@@ -384,8 +393,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
               {/* Empty state */}
               {!loading && searchQuery.length >= 2 && colleges.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Ionicons
-                    name="search-outline"
+                  <Search
                     size={48}
                     color={COLORS.textSecondary}
                   />
@@ -403,8 +411,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                     onPress={() => setShowRequestModal(true)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons
-                      name="add-circle-outline"
+                    <PlusCircle
                       size={24}
                       color={COLORS.primary}
                     />
@@ -430,7 +437,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Request New College</Text>
                 <TouchableOpacity onPress={() => setShowRequestModal(false)}>
-                  <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                  <X size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
               </View>
 

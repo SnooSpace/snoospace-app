@@ -35,6 +35,7 @@ import {
   getSignupDraft,
   deleteSignupDraft,
   getResumeScreen as getMemberResumeScreen,
+  getPeopleProfileResumeScreen,
   getCommunitySignupDraft,
   deleteCommunitySignupDraft,
   getCommunityResumeScreen,
@@ -276,6 +277,18 @@ const LandingScreen = ({ navigation }) => {
              });
              draftModalShown.current = true;
              setShowDraftModal(true);
+          } else if (memberDraft && memberDraft.data?.fromCommunitySignup) {
+            // People-profile draft: no email (flow started from community account)
+            setActiveDraft({
+              type: "Member",
+              // Show a friendly label since there's no email in this flow
+              email: "your People profile",
+              step: memberDraft.currentStep,
+              data: memberDraft.data,
+              fromCommunitySignup: true,
+            });
+            draftModalShown.current = true;
+            setShowDraftModal(true);
           }
         } catch (e) {
           console.log("[LandingScreen] Draft check failed:", e.message);
@@ -315,6 +328,23 @@ const LandingScreen = ({ navigation }) => {
             },
           },
         ],
+      });
+    } else if (activeDraft.fromCommunitySignup) {
+      // People-profile draft: the community session is still active.
+      // Resume from whichever member step they left off at.
+      const resumeScreen = getPeopleProfileResumeScreen(activeDraft.step);
+      console.log(
+        "[LandingScreen] Resuming People-profile draft at:",
+        resumeScreen
+      );
+      navigation.navigate("MemberSignup", {
+        screen: resumeScreen,
+        params: {
+          ...activeDraft.data,
+          prefill: activeDraft.data?.prefill || {},
+          fromCommunitySignup: true,
+          isResumingDraft: true,
+        },
       });
     } else {
       const resumeScreen = getMemberResumeScreen(activeDraft.step);
@@ -474,8 +504,9 @@ const LandingScreen = ({ navigation }) => {
       {activeDraft && (
         <DraftRecoveryModal
           visible={showDraftModal}
-          draftEmail={activeDraft.email}
+          draftEmail={activeDraft.fromCommunitySignup ? null : activeDraft.email}
           draftType={activeDraft.type}
+          isPeopleProfile={!!activeDraft.fromCommunitySignup}
           onContinue={handleContinueDraft}
           onDiscard={handleDiscardDraft}
         />

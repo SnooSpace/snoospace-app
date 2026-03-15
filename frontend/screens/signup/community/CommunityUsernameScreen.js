@@ -40,16 +40,92 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Support both organization flow (userData object) and non-org flow (direct params)
+  const routeParams = route.params || {};
+  const {
+    userData: existingUserData,
+    accessToken: initialAccessToken,
+    refreshToken: initialRefreshToken,
+    // Direct params for non-organization flow
+    email: initialEmail,
+    name: initialName,
+    logo_url: initialLogo,
+    bio: initialBio,
+    category: initialCategory,
+    categories: initialCategories,
+    location: initialLocation,
+    heads: initialHeads, // College-affiliated communities pass heads from CollegeHeadsScreen
+    community_type: initialType,
+    college_id: initialCollegeId,
+    college_name: initialCollegeName,
+    college_subtype: initialCollegeSubtype,
+    club_type: initialClubType,
+    community_theme: initialTheme,
+    college_pending: initialPending,
+    isStudentCommunity: initialIsStudent,
+    phone: initialPhone,
+    head_photo_url: initialHeadPhoto,
+  } = routeParams;
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email: initialEmail || existingUserData?.email,
+    accessToken: initialAccessToken,
+    refreshToken: initialRefreshToken,
+    name: initialName || existingUserData?.name,
+    logo_url: initialLogo || existingUserData?.logo_url,
+    bio: initialBio || existingUserData?.bio,
+    category: initialCategory || existingUserData?.category,
+    categories: initialCategories || existingUserData?.categories,
+    location: initialLocation || existingUserData?.location,
+    heads: initialHeads || existingUserData?.heads,
+    community_type: initialType || existingUserData?.community_type,
+    college_id: initialCollegeId || existingUserData?.college_id,
+    college_name: initialCollegeName || existingUserData?.college_name,
+    college_subtype: initialCollegeSubtype || existingUserData?.college_subtype,
+    club_type: initialClubType || existingUserData?.club_type,
+    community_theme: initialTheme || existingUserData?.community_theme,
+    college_pending: initialPending || existingUserData?.college_pending,
+    isStudentCommunity: initialIsStudent || existingUserData?.isStudentCommunity,
+    phone: initialPhone || existingUserData?.phone,
+    head_photo_url: initialHeadPhoto || existingUserData?.head_photo_url,
+    sponsor_types: existingUserData?.sponsor_types,
+  });
+
   // Hydrate from draft if needed
   useEffect(() => {
     const hydrateFromDraft = async () => {
-      // route.params.username usually comes from a previous attempt or passing data forward
-      if (!route.params?.username) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.username) {
-          console.log("[CommunityUsername] Hydrating from draft");
-          setUsername(draftData.username);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate username
+      if (!route.params?.username && draftData.username) {
+        console.log("[CommunityUsername] Hydrating username from draft");
+        setUsername(draftData.username);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "location", "heads", "community_type",
+        "college_id", "college_name", "college_subtype", "club_type",
+        "community_theme", "college_pending", "isStudentCommunity", "phone",
+        "head_photo_url", "sponsor_types"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityUsername] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -81,57 +157,17 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     inputScale.value = withSpring(isFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
   }, [isFocused]);
 
-  // Support both organization flow (userData object) and non-org flow (direct params)
-  const routeParams = route.params || {};
-  const {
-    userData: existingUserData,
-    accessToken,
-    refreshToken,
-    // Direct params for non-organization flow
-    email,
-    name,
-    logo_url,
-    bio,
-    category,
-    categories,
-    location,
-    heads, // College-affiliated communities pass heads from CollegeHeadsScreen
-    community_type,
-    college_id,
-    college_name,
-    college_subtype,
-    club_type,
-    community_theme,
-    college_pending,
-    isStudentCommunity,
-  } = routeParams;
-
-  // Build userData from either existing userData or direct params
-  const userData = existingUserData || {
-    email,
-    name,
-    logo_url,
-    bio,
-    category,
-    categories,
-    location,
-    heads, // Include heads for college-affiliated communities
-    community_type,
-    college_id,
-    college_name,
-    college_subtype,
-    club_type,
-    community_theme,
-    college_pending,
-    isStudentCommunity,
+  // Build userData from hydrated params
+  const userData = {
+    ...params,
   };
 
-  console.log("[CommunityUsername] Route params:", {
-    userDataEmail: userData?.email,
-    accessTokenLength: accessToken?.length,
-    refreshTokenLength: refreshToken?.length,
-    userDataKeys: Object.keys(userData || {}),
-    community_type: userData?.community_type,
+  console.log("[CommunityUsername] params:", {
+    userDataEmail: params?.email,
+    accessTokenLength: params?.accessToken?.length,
+    refreshTokenLength: params?.refreshToken?.length,
+    paramsKeys: Object.keys(params || {}),
+    community_type: params?.community_type,
   });
 
   // Debounced username availability check
@@ -239,7 +275,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         "/communities/signup",
         signupPayload,
         15000,
-        accessToken,
+        params.accessToken,
       );
       const communityProfile = signupResult?.community;
       // Get tokens from signup response (backend now returns them)
@@ -294,10 +330,18 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         );
       }
 
-      // Step 5: Navigate to celebration screen
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Celebration", params: { role: "Community" } }],
+      // Step 5: Navigate to PeopleProfilePromptScreen
+      // Use head_photo_url for the member prefill; fall back to community logo
+      const effectiveHeadPhoto =
+        userData?.head_photo_url ?? head_photo_url ?? null;
+
+      navigation.navigate("PeopleProfilePromptScreen", {
+        userData: {
+          ...userData,
+          username: username.toLowerCase().trim(),
+          // Expose head photo explicitly for prefill
+          head_photo_url: effectiveHeadPhoto,
+        },
       });
     } catch (error) {
       console.error("Error completing signup:", error);

@@ -12,7 +12,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 
@@ -105,6 +105,8 @@ const GenderSelectionScreen = ({ navigation, route }) => {
     pronouns,
     showPronouns,
     gender: initialGender,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
   const [selectedGender, setSelectedGender] = useState(initialGender || null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -145,10 +147,19 @@ const GenderSelectionScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const handleBack = () => {
@@ -165,6 +176,8 @@ const GenderSelectionScreen = ({ navigation, route }) => {
         dob,
         pronouns,
         showPronouns,
+        prefill,
+        fromCommunitySignup,
       });
     }
   };
@@ -189,6 +202,8 @@ const GenderSelectionScreen = ({ navigation, route }) => {
       pronouns,
       showPronouns,
       gender: selectedGender,
+      prefill,
+      fromCommunitySignup,
     });
   };
 

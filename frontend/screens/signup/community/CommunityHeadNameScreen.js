@@ -14,7 +14,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -112,8 +112,31 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     college_pending,
     isStudentCommunity,
     isResumingDraft,
-    heads,
+    heads: initialHeads,
   } = route.params || {};
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    location,
+    phone,
+    secondary_phone,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
 
   const [headName, setHeadName] = useState("");
   const [optionalName1, setOptionalName1] = useState("");
@@ -121,7 +144,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Individual organizers show a simplified single-name UI
-  const isIndividual = community_type === "individual_organizer";
+  const isIndividual = params.community_type === "individual_organizer";
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -144,11 +167,37 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   useEffect(() => {
     const hydrateFromDraft = async () => {
       const draftData = await getCommunityDraftData();
-      if (draftData?.heads && draftData.heads.length > 0) {
-        console.log("[CommunityHeadNameScreen] Hydrating from draft");
+      if (!draftData) return;
+
+      // 1. Hydrate heads
+      if (draftData.heads && draftData.heads.length > 0) {
+        console.log("[CommunityHeadNameScreen] Hydrating heads from draft");
         setHeadName(draftData.heads[0].name || "");
         if (draftData.heads[1]) setOptionalName1(draftData.heads[1].name || "");
         if (draftData.heads[2]) setOptionalName2(draftData.heads[2].name || "");
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "location", "phone", "secondary_phone",
+        "community_type", "college_id", "college_name", "college_subtype",
+        "club_type", "community_theme", "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityHeadNameScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -188,30 +237,10 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       );
     }
 
-    // Individual organizers go directly to Username; Org/College go to SponsorType
-    // Navigate to Phone screen (new sequence: HeadName -> Phone)
-    navigation.navigate("CommunityPhone", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
-      location,
-      phone,
-      secondary_phone,
+    // Navigate to Head Profile Pic screen (new step between HeadName and Phone)
+    navigation.navigate("CommunityHeadProfilePic", {
+      ...params,
       heads,
-      // Pass type fields
-      community_type,
-      college_id,
-      college_name,
-      college_subtype,
-      club_type,
-      community_theme,
-      college_pending,
-      isStudentCommunity,
     });
   };
 
@@ -246,25 +275,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
               // Resumed from draft - replace with previous screen based on type
               const prevScreen = isIndividual ? "IndividualLocation" : "CommunityLocation";
               navigation.replace(prevScreen, {
-                email,
-                accessToken,
-                refreshToken,
-                name,
-                logo_url,
-                bio,
-                category: category || null,
-                categories: categories || [],
-                location: location || null,
-                phone: phone || null,
-                secondary_phone: secondary_phone || null,
-                community_type: community_type || null,
-                college_id: college_id || null,
-                college_name: college_name || null,
-                college_subtype: college_subtype || null,
-                club_type: club_type || null,
-                community_theme: community_theme || null,
-                college_pending: college_pending || false,
-                isStudentCommunity: isStudentCommunity || false,
+                ...params,
               });
             }
           }}

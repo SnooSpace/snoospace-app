@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
+import { ArrowLeft } from "lucide-react-native";
 import ProgressBar from "../../../components/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -109,7 +109,7 @@ const VenueInterestScreen = ({ navigation, route }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <ArrowLeft size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+
 import { useFocusEffect } from "@react-navigation/native";
 import {
   Settings,
@@ -32,6 +32,9 @@ import {
   Play,
   Star,
   Image as LucideImage,
+  Clock,
+  Video,
+  AlertCircle,
 } from "lucide-react-native";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import GradientSafeArea from "../../../components/GradientSafeArea";
@@ -1226,6 +1229,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             />
           </View>
 
+          {profile?.show_heads !== false && (
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
@@ -1301,6 +1305,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               <Text style={styles.emptyText}>No hosts listed</Text>
             )}
           </View>
+          )}
 
           {profile?.sponsor_types &&
             profile.sponsor_types.length > 0 &&
@@ -1672,8 +1677,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                               marginBottom: 6,
                             }}
                           >
-                            <Ionicons
-                              name="time-outline"
+                            <Clock
                               size={14}
                               color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
                             />
@@ -1701,15 +1705,17 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                               marginBottom: 6,
                             }}
                           >
-                            <Ionicons
-                              name={
-                                item.event_type === "virtual"
-                                  ? "videocam-outline"
-                                  : "location-outline"
-                              }
-                              size={14}
-                              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
-                            />
+                            {item.event_type === "virtual" ? (
+                              <Video
+                                size={14}
+                                color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                              />
+                            ) : (
+                              <MapPin
+                                size={14}
+                                color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
+                              />
+                            )}
                             <Text
                               style={{
                                 fontSize: 13,

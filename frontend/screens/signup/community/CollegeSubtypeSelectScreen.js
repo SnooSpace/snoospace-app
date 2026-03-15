@@ -10,7 +10,7 @@ import {
   ScrollView,
 StatusBar } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { Calendar, Trophy, MessagesSquare, Lock, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -23,21 +23,21 @@ const COLLEGE_SUBTYPES = [
     id: "event",
     title: "Event",
     subtitle: "College fests, hackathons, concerts, workshops",
-    icon: "calendar-outline",
+    icon: "Calendar",
     gradientColors: ["#FF512F", "#F09819"],
   },
   {
     id: "club",
     title: "Club",
     subtitle: "Official clubs, departments, societies",
-    icon: "trophy-outline",
+    icon: "Trophy",
     gradientColors: ["#667eea", "#764ba2"],
   },
   {
     id: "student_community",
     title: "Student Community",
     subtitle: "Confessions, memes, discussions, campus life",
-    icon: "chatbubbles-outline",
+    icon: "MessagesSquare",
     gradientColors: ["#11998e", "#38ef7d"],
     isPrivate: true, // Never visible to sponsors
   },
@@ -61,7 +61,10 @@ const SubtypeCard = ({ subtype, collegeName, onPress, isLast }) => (
       style={styles.cardGradient}
     >
       <View style={styles.cardIconContainer}>
-        <Ionicons name={subtype.icon} size={32} color="#fff" />
+        {(() => {
+          const Icon = { Calendar, Trophy, MessagesSquare }[subtype.icon];
+          return <Icon size={32} color="#fff" />;
+        })()}
       </View>
     </LinearGradient>
     <View style={styles.subtypeContent}>
@@ -69,15 +72,14 @@ const SubtypeCard = ({ subtype, collegeName, onPress, isLast }) => (
       <Text style={styles.subtypeSubtitle}>{subtype.subtitle}</Text>
       {subtype.isPrivate && (
         <View style={styles.privateTag}>
-          <Ionicons name="lock-closed" size={12} color={COLORS.textSecondary} />
+          <Lock size={12} color={COLORS.textSecondary} />
           <Text style={styles.privateTagText}>
             Private - Not visible to sponsors
           </Text>
         </View>
       )}
     </View>
-    <Ionicons
-      name="chevron-forward"
+    <ChevronRight
       size={24}
       color={COLORS.textSecondary}
       style={styles.cardArrow}
@@ -101,19 +103,52 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
     college_subtype: routeSubtype,
   } = route.params || {};
 
-  const [selectedSubtype, setSelectedSubtype] = React.useState(
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    college_name,
+    college_pending,
+  });
+
+  const [selectedSubtype, setSelectedSubtype] = useState(
     routeSubtype || null,
   );
 
   // Hydrate from draft if needed
-  React.useEffect(() => {
+  useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!routeSubtype) {
-        const draftData = await getCommunityDraftData();
-        if (draftData?.college_subtype) {
-          console.log("[CollegeSubtypeSelect] Hydrating from draft");
-          setSelectedSubtype(draftData.college_subtype);
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate subtype
+      if (!routeSubtype && draftData?.college_subtype) {
+        console.log("[CollegeSubtypeSelect] Hydrating from draft");
+        setSelectedSubtype(draftData.college_subtype);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "community_type",
+        "college_id", "college_name", "college_pending"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
         }
+      });
+
+      if (paramChanged) {
+        console.log("[CollegeSubtypeSelect] Hydrated shared parameters from draft");
+        setParams(updatedParams);
       }
     };
     hydrateFromDraft();
@@ -146,38 +181,20 @@ const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
     if (subtype.id === "student_community") {
       // Student community goes to theme selection first
       navigation.navigate("StudentCommunityTheme", {
-        email,
-        accessToken,
-        refreshToken,
-        community_type,
-        college_id,
-        college_name,
+        ...params,
         college_subtype: subtype.id,
-        college_pending,
       });
     } else if (subtype.id === "club") {
       // Club needs club type selection next
       navigation.navigate("CollegeClubType", {
-        email,
-        accessToken,
-        refreshToken,
-        community_type,
-        college_id,
-        college_name,
+        ...params,
         college_subtype: subtype.id,
-        college_pending,
       });
     } else {
       // Event goes directly to name
       navigation.navigate("CommunityName", {
-        email,
-        accessToken,
-        refreshToken,
-        community_type,
-        college_id,
-        college_name,
+        ...params,
         college_subtype: subtype.id,
-        college_pending,
       });
     }
   };

@@ -22,6 +22,7 @@ import {
   getSignupDraft,
   deleteSignupDraft,
   getResumeScreen,
+  getPeopleProfileResumeScreen,
   getCommunitySignupDraft,
   deleteCommunitySignupDraft,
   getCommunityResumeScreen,
@@ -233,27 +234,59 @@ export default function AuthGate({ navigation }) {
     setShowRecoveryModal(false);
 
     if (draftType === "member") {
-      const resumeScreen = getResumeScreen(draft.currentStep);
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "MemberSignup",
-            state: {
-              index: 0,
-              routes: [
-                {
-                  name: resumeScreen,
-                  params: {
-                    ...draft.data,
-                    isResumingDraft: true,
+      const isPeopleProfile = !!draft.data?.fromCommunitySignup;
+
+      if (isPeopleProfile) {
+        // People-profile draft: community session is still active.
+        // Resume inside MemberSignup at the correct step.
+        const resumeScreen = getPeopleProfileResumeScreen(draft.currentStep);
+        console.log("[AuthGate] Resuming People-profile draft at:", resumeScreen);
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: "MemberSignup",
+              state: {
+                index: 0,
+                routes: [
+                  {
+                    name: resumeScreen,
+                    params: {
+                      ...draft.data,
+                      prefill: draft.data?.prefill || {},
+                      fromCommunitySignup: true,
+                      isResumingDraft: true,
+                    },
                   },
-                },
-              ],
+                ],
+              },
             },
-          },
-        ],
-      });
+          ],
+        });
+      } else {
+        // Normal member draft (has email + OTP)
+        const resumeScreen = getResumeScreen(draft.currentStep);
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: "MemberSignup",
+              state: {
+                index: 0,
+                routes: [
+                  {
+                    name: resumeScreen,
+                    params: {
+                      ...draft.data,
+                      isResumingDraft: true,
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }
     } else if (draftType === "community") {
       const screenStack = getCommunityResumeStack(draft.currentStep, draft.data || {});
       const sharedParams = {
@@ -283,6 +316,8 @@ export default function AuthGate({ navigation }) {
   async function handleDiscardDraft() {
     console.log("[AuthGate] 🗑️ Discarding", draftType, "draft");
 
+    const isPeopleProfile = draftType === "member" && !!draft?.data?.fromCommunitySignup;
+
     if (draftType === "member") {
       await deleteSignupDraft();
     } else if (draftType === "community") {
@@ -293,8 +328,13 @@ export default function AuthGate({ navigation }) {
     setDraft(null);
     setDraftType(null);
 
-    // Navigate to origin account home
-    if (pendingNavigation) {
+    if (isPeopleProfile) {
+      // User is still logged into their community account — go back to community home
+      const token = await getAuthToken();
+      const email = await getAuthEmail();
+      await navigateToHome(email, token);
+    } else if (pendingNavigation) {
+      // Navigate to origin account home
       const token = await getAuthToken();
       const email = await getAuthEmail();
       await navigateToHome(email, token);
@@ -307,8 +347,9 @@ export default function AuthGate({ navigation }) {
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
       <DraftRecoveryModal
         visible={showRecoveryModal}
-        draftEmail={draft?.data?.email}
+        draftEmail={draft?.data?.fromCommunitySignup ? null : draft?.data?.email}
         draftType={draftType === "community" ? "Community" : "Member"}
+        isPeopleProfile={!!(draftType === "member" && draft?.data?.fromCommunitySignup)}
         onContinue={handleContinueDraft}
         onDiscard={handleDiscardDraft}
       />

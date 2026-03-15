@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import ProgressBar from '../../../components/Progressbar';
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Plus } from "lucide-react-native";
 
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
@@ -179,7 +179,7 @@ const VenueCategoryScreen = ({ navigation, route }) => {
           {/* Custom Header with Back button */}
           <View style={styles.header}>
             <TouchableOpacity onPress={handleBack} accessibilityLabel="Go back" style={styles.headerButton}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+              <ArrowLeft size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Choose Venue Category</Text>
             <View style={styles.headerButton} /> 
@@ -219,8 +219,7 @@ const VenueCategoryScreen = ({ navigation, route }) => {
                 accessibilityRole="button"
                 accessibilityLabel="Create New Category"
               >
-                {/* Plus Icon placeholder */}
-                <Text style={styles.createNewIcon}>+</Text>
+                <Plus size={22} color={COLORS.primary} strokeWidth={2.5} style={{ marginRight: 8 }} />
                 <Text style={styles.createNewText}>Create New Category</Text>
               </TouchableOpacity>
             </View>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Animated as RNAnimated,
   StyleSheet,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withTiming, withSequence } from "react-native-reanimated";
 
-import { Ionicons } from "@expo/vector-icons";
+
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,6 +45,8 @@ export default function MemberAgeScreen({ navigation, route }) {
     name,
     profile_photo_url,
     dob: initialDob,
+    prefill,
+    fromCommunitySignup,
   } = route?.params || {};
   const [form, setForm] = useState(
     initialDob ? { dateOfBirth: initialDob } : {},
@@ -177,10 +179,19 @@ export default function MemberAgeScreen({ navigation, route }) {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const handleNext = async () => {
@@ -243,6 +254,8 @@ export default function MemberAgeScreen({ navigation, route }) {
       name,
       profile_photo_url,
       dob: form.dateOfBirth,
+      prefill,
+      fromCommunitySignup,
     });
   };
 
@@ -256,6 +269,8 @@ export default function MemberAgeScreen({ navigation, route }) {
         accessToken,
         refreshToken,
         name,
+        prefill,
+        fromCommunitySignup,
       });
     }
   };

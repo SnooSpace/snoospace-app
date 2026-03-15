@@ -3,7 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl, PanResponder } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
 import { getConversations } from "../../api/messages";
 import { getMemberFollowers, getMemberFollowing } from "../../api/members";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
@@ -297,7 +297,7 @@ export default function ConversationsListScreen({ navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>
           <View style={{ width: 40 }} />
@@ -316,7 +316,7 @@ export default function ConversationsListScreen({ navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Messages</Text>
         <View style={{ width: 40 }} />

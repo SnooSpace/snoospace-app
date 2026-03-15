@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import {
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
 import { BlurView } from "expo-blur";
-import { User } from "lucide-react-native";
+import { User, ArrowDownToLine } from "lucide-react-native";
 
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { LinearGradient } from "expo-linear-gradient";
@@ -37,16 +37,27 @@ import SignupHeader from "../../../components/SignupHeader";
 // Removed local constants in favor of theme constants
 
 const NameInputScreen = ({ navigation, route }) => {
-  const { email, accessToken, refreshToken, isResumingDraft } =
+  const { email, accessToken, refreshToken, isResumingDraft, prefill, fromCommunitySignup } =
     route.params || {};
-  const [name, setName] = useState(route.params?.name || "");
+  // If resuming a People-profile draft, restore prefill from draft data too
+  const [name, setName] = useState(route.params?.name || prefill?.name || "");
+  const [isPrefilled, setIsPrefilled] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Apply prefill from community signup
+  useEffect(() => {
+    if (prefill?.name && !route.params?.name) {
+      console.log("[MemberNameScreen] Applying prefill name:", prefill.name);
+      setName(prefill.name);
+      setIsPrefilled(true);
+    }
+  }, []);
 
   // Hydrate from draft if route.params is missing name
   useEffect(() => {
     const hydrateFromDraft = async () => {
-      if (!route.params?.name) {
+      if (!route.params?.name && !prefill?.name) {
         const draftData = await getDraftData();
         if (draftData?.name) {
           console.log("[MemberNameScreen] Hydrating from draft");
@@ -80,17 +91,53 @@ const NameInputScreen = ({ navigation, route }) => {
       accessToken,
       refreshToken,
       name,
+      prefill,
+      fromCommunitySignup,
     });
   };
 
+  /**
+   * Cancel the People / Member signup.
+   * • fromCommunitySignup: true  → user is already in their community account.
+   *   Delete the draft and return to CommunityHome, not AuthGate.
+   * • Normal flow → reset to AuthGate as before.
+   */
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    // Return to home (will use origin account)
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      // Show celebrations screen instead of just resetting to community home
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
+  };
+
+  /**
+   * Back arrow on the first step of People-profile creation.
+   * Goes back to PeopleProfilePromptScreen and deletes the draft so that
+   * LandingScreen won't show a stale draft recovery modal.
+   */
+  const handleBack = async () => {
+    await deleteSignupDraft();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Fallback: Show celebrations screen instead of just resetting to community home
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    }
   };
 
   // Determine if the button should be disabled (e.g., if the name is empty)
@@ -127,7 +174,11 @@ const NameInputScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        <SignupHeader onCancel={() => setShowCancelModal(true)} role="People" />
+        <SignupHeader
+          onBack={fromCommunitySignup ? handleBack : undefined}
+          onCancel={() => setShowCancelModal(true)}
+          role="People"
+        />
 
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
@@ -157,7 +208,7 @@ const NameInputScreen = ({ navigation, route }) => {
                     <User size={20} color="#8AADC4" style={styles.inputIcon} />
                     <TextInput
                       style={styles.input}
-                      onChangeText={setName}
+                      onChangeText={(text) => { setName(text); }}
                       onFocus={() => {
                         setIsFocused(true);
                         inputScale.value = withSpring(1.02);
@@ -177,6 +228,13 @@ const NameInputScreen = ({ navigation, route }) => {
                     />
                   </View>
                 </Animated.View>
+                {/* Imported badge */}
+                {isPrefilled && (
+                  <View style={styles.importedBadge}>
+                    <ArrowDownToLine size={12} color="#0D9488" strokeWidth={2.5} />
+                    <Text style={styles.importedBadgeText}>Imported from community</Text>
+                  </View>
+                )}
               </View>
             </Animated.View>
 
@@ -289,6 +347,24 @@ const styles = StyleSheet.create({
   },
   inputIcon: {
     marginRight: 12,
+  },
+  importedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 8,
+    backgroundColor: "rgba(13, 148, 136, 0.1)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(13, 148, 136, 0.25)",
+  },
+  importedBadgeText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#0D9488",
   },
   input: {
     flex: 1,

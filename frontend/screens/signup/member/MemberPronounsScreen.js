@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
+import { Check } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -57,7 +57,7 @@ const PronounRow = ({ label, isSelected, onPress, disabled }) => {
         ]}
       >
         {isSelected && (
-          <Ionicons name="checkmark" size={16} color={COLORS.textInverted} />
+          <Check size={16} color={COLORS.textInverted} />
         )}
       </View>
     </TouchableOpacity>
@@ -74,6 +74,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     dob,
     pronouns: initialPronouns,
     showPronouns: initialShowPronouns,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
   const [selectedPronouns, setSelectedPronouns] = useState(
     initialPronouns || [],
@@ -173,10 +175,19 @@ const MemberPronounsScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const handleNext = async () => {
@@ -209,6 +220,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
       dob,
       pronouns: pronounsToSave,
       showPronouns: shouldShowPronouns,
+      prefill,
+      fromCommunitySignup,
     });
   };
 
@@ -234,6 +247,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
                 name,
                 profile_photo_url,
                 dob,
+                prefill,
+                fromCommunitySignup,
               });
             }
           }}
@@ -334,8 +349,7 @@ const MemberPronounsScreen = ({ navigation, route }) => {
                     ]}
                   >
                     {visibleOnProfile && !preferNotToSaySelected && (
-                      <Ionicons
-                        name="checkmark"
+                      <Check
                         size={16}
                         color={COLORS.textInverted}
                       />

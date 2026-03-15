@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,8 +13,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
-import { MapPin } from "lucide-react-native";
+import { MapPin, CheckCircle2 } from "lucide-react-native";
 
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
@@ -49,9 +48,15 @@ const LocationInputScreen = ({ navigation, route }) => {
     showPronouns,
     gender,
     location: initialLocation,
+    prefill,
+    fromCommunitySignup,
   } = route.params || {};
+
+  // Use prefill.location as fallback when no explicit location was passed
+  const prefillLocation = prefill?.location ?? null;
+
   const [location, setLocation] = useState(
-    initialLocation || {
+    initialLocation || prefillLocation || {
       address: "",
       city: "",
       state: "",
@@ -59,6 +64,10 @@ const LocationInputScreen = ({ navigation, route }) => {
       lat: null,
       lng: null,
     },
+  );
+  // Track whether the current value came from the community prefill
+  const [isPrefilled, setIsPrefilled] = useState(
+    !initialLocation && !!prefillLocation?.city,
   );
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -81,14 +90,17 @@ const LocationInputScreen = ({ navigation, route }) => {
     }
   }, [location.city && location.city.trim().length > 0]);
 
-  // Hydrate from draft if route.params is missing location
+  // Hydrate from draft if route.params is missing location AND no prefill
   useEffect(() => {
     const hydrateFromDraft = async () => {
       if (!initialLocation || !initialLocation.city) {
+        // Skip draft hydration if we already have a prefill location
+        if (prefillLocation?.city) return;
         const draftData = await getDraftData();
         if (draftData?.location && draftData.location.city) {
           console.log("[MemberLocationScreen] Hydrating from draft");
           setLocation(draftData.location);
+          setIsPrefilled(false);
         }
       }
     };
@@ -98,10 +110,19 @@ const LocationInputScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteSignupDraft();
     setShowCancelModal(false);
-    navigation.getParent()?.reset({
-      index: 0,
-      routes: [{ name: "AuthGate" }],
-    });
+
+    if (fromCommunitySignup) {
+      navigation.navigate("Celebration", {
+        role: "Community",
+        fromCommunitySignup: true,
+        createdPeopleProfile: false,
+      });
+    } else {
+      navigation.getParent()?.reset({
+        index: 0,
+        routes: [{ name: "AuthGate" }],
+      });
+    }
   };
 
   const handleGetLocation = async () => {
@@ -147,6 +168,7 @@ const LocationInputScreen = ({ navigation, route }) => {
           lng: longitude,
         };
         setLocation(resolved);
+        setIsPrefilled(false);
         if (!navigatedRef.current) {
           navigatedRef.current = true;
           // Update client-side draft with location
@@ -170,6 +192,8 @@ const LocationInputScreen = ({ navigation, route }) => {
             showPronouns,
             gender,
             location: resolved,
+            prefill,
+            fromCommunitySignup,
           });
         } else {
           // Location was updated (user came back) - just update draft, don't auto-navigate
@@ -208,6 +232,8 @@ const LocationInputScreen = ({ navigation, route }) => {
             showPronouns,
             gender,
             location: resolved,
+            prefill,
+            fromCommunitySignup,
           });
         } else {
           // Location was updated - just update draft
@@ -250,6 +276,8 @@ const LocationInputScreen = ({ navigation, route }) => {
       showPronouns,
       gender,
       location: location,
+      prefill,
+      fromCommunitySignup,
     });
   };
 
@@ -318,8 +346,7 @@ const LocationInputScreen = ({ navigation, route }) => {
                 {hasLocation && (
                   <View style={styles.locationCard}>
                     <View style={styles.locationCardContent}>
-                      <Ionicons
-                        name="checkmark-circle"
+                      <CheckCircle2
                         size={24}
                         color={COLORS.success || "#00C851"}
                       />
@@ -335,6 +362,26 @@ const LocationInputScreen = ({ navigation, route }) => {
                         )}
                       </View>
                     </View>
+                    {isPrefilled && (
+                      <View style={{
+                        marginTop: 10,
+                        alignSelf: "flex-start",
+                        backgroundColor: "rgba(116, 173, 242, 0.12)",
+                        borderRadius: 20,
+                        paddingHorizontal: 12,
+                        paddingVertical: 4,
+                        borderWidth: 1,
+                        borderColor: "rgba(116, 173, 242, 0.25)",
+                      }}>
+                        <Text style={{
+                          fontSize: 12,
+                          fontFamily: "Manrope-Medium",
+                          color: COLORS.primary,
+                        }}>
+                          Imported from your community
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
