@@ -399,7 +399,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           >
             {/* Header */}
             <SignupHeader
-              role="Communities"
+              role="Community"
               onBack={handleBack}
               onCancel={() => setShowCancelModal(true)}
             />

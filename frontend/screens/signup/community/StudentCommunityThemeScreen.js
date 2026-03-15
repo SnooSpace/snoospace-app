@@ -168,7 +168,7 @@ const StudentCommunityThemeScreen = ({ navigation, route }) => {
         >
           {/* Header */}
           <SignupHeader
-            role="Communities"
+            role="Community"
             onBack={handleBack}
             onCancel={() => {}}
             hideCancel={true}

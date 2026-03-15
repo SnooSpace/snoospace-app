@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -90,6 +90,15 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     phone,
     secondary_phone,
     heads,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+    isResumingDraft,
   } = route.params || {};
   const [sponsorTypes, setSponsorTypes] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
@@ -224,6 +233,14 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       secondary_phone,
       sponsor_types,
       heads,
+      community_type,
+      college_id,
+      college_name,
+      college_subtype,
+      club_type,
+      community_theme,
+      college_pending,
+      isStudentCommunity,
     };
 
     // Save sponsor_types to draft
@@ -264,7 +281,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
         {/* Header */}
         <SignupHeader
           onBack={() => navigation.goBack()}
-          role="Communities"
+          role="Community"
           showCancel={false}
         />
 

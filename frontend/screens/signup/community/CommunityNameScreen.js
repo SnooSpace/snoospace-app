@@ -52,7 +52,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
     isStudentCommunity,
     isResumingDraft,
   } = route.params || {};
-  const [name, setName] = useState("");
+  const [name, setName] = useState(route.params?.name || "");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showTypeSelectModal, setShowTypeSelectModal] = useState(false);

@@ -46,7 +46,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const { email, accessToken, refreshToken, community_type } =
     route.params || {};
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(route.params?.college_name || "");
   const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -301,7 +301,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <SignupHeader
-          role="Communities"
+          role="Community"
           onBack={handleBack}
           onCancel={() => {}}
           hideCancel={true}

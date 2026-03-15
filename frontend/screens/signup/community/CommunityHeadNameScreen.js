@@ -112,6 +112,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     college_pending,
     isStudentCommunity,
     isResumingDraft,
+    heads,
   } = route.params || {};
 
   const [headName, setHeadName] = useState("");
@@ -237,7 +238,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <SignupHeader
-          role="Communities"
+          role="Community"
           onBack={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();

@@ -60,7 +60,7 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
       ]}
     >
       <View style={styles.countryCodePill}>
-        <Text style={styles.flagEmoji}>ðŸ‡®ðŸ‡³</Text>
+        <Text style={styles.flagEmoji}>🇮🇳</Text>
         <Text style={styles.countryCodeText}>+91</Text>
       </View>
       <TextInput
@@ -101,6 +101,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     college_pending,
     isStudentCommunity,
     isResumingDraft,
+    heads,
   } = route.params || {};
 
   // Individual organizers show a simplified single-number UI
@@ -265,6 +266,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     >
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader
+          role="Community"
           onBack={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();

@@ -310,7 +310,7 @@ const LandingScreen = ({ navigation }) => {
               index: screenStack.length - 1,
               routes: screenStack.map((screenName, i) => ({
                 name: screenName,
-                params: i === screenStack.length - 1 ? sharedParams : { isResumingDraft: true },
+                params: { ...sharedParams, isResumingDraft: true },
               })),
             },
           },

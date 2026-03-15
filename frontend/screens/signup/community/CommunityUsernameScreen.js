@@ -33,7 +33,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(route.params?.username || "");
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
