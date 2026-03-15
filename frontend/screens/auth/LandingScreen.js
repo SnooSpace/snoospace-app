@@ -38,6 +38,7 @@ import {
   getCommunitySignupDraft,
   deleteCommunitySignupDraft,
   getCommunityResumeScreen,
+  getCommunityResumeStack,
 } from "../../utils/signupDraftManager";
 
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -294,15 +295,26 @@ const LandingScreen = ({ navigation }) => {
     if (!activeDraft) return;
 
     if (activeDraft.type === "Community") {
-      const resumeScreen = getCommunityResumeScreen(activeDraft.step);
-      console.log("[LandingScreen] Resuming community draft at:", resumeScreen, "from step:", activeDraft.step);
-      // Navigate to CommunitySignup stack, targeting the specific screen
-      navigation.navigate("CommunitySignup", { 
-        screen: resumeScreen, 
-        params: { 
-          ...activeDraft.data,
-          isResumingDraft: true 
-        } 
+      const screenStack = getCommunityResumeStack(activeDraft.step, activeDraft.data || {});
+      const sharedParams = {
+        ...activeDraft.data,
+        isResumingDraft: true,
+      };
+      console.log("[LandingScreen] Resuming community draft. Stack:", screenStack);
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "CommunitySignup",
+            state: {
+              index: screenStack.length - 1,
+              routes: screenStack.map((screenName, i) => ({
+                name: screenName,
+                params: i === screenStack.length - 1 ? sharedParams : { isResumingDraft: true },
+              })),
+            },
+          },
+        ],
       });
     } else {
       const resumeScreen = getMemberResumeScreen(activeDraft.step);

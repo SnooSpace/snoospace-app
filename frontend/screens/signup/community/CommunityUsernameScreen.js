@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -117,9 +118,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     heads, // Include heads for college-affiliated communities
     community_type,
     college_id,
+    college_name,
     college_subtype,
     club_type,
     community_theme,
+    college_pending,
+    isStudentCommunity,
   };
 
   console.log("[CommunityUsername] Route params:", {

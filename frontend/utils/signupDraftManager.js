@@ -225,6 +225,9 @@ export async function createCommunitySignupDraft(email, originAccountId) {
       head_name: null,
       sponsor_type: null,
       username: null,
+      // Auth tokens — persisted so draft-resume can call the signup API
+      accessToken: null,
+      refreshToken: null,
     },
     originAccountId: originAccountId || null,
   };
@@ -357,11 +360,11 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityName: "CommunityLogo",
     CommunityLogo: "CommunityBio",
     CommunityBio: "CommunityCategory",
-    CommunityCategory: "CommunityLocationQuestion",
-    CommunityLocationQuestion: "CommunityLocation", // Or skip to CommunityPhone
-    CommunityLocation: "CommunityPhone",
-    CommunityPhone: "CommunityHeadName",
-    CommunityHeadName: "CommunitySponsorType",
+    CommunityCategory: "CommunityLocation", // Default, varies by type
+    IndividualLocation: "CommunityHeadName",
+    CommunityLocation: "CommunityHeadName",
+    CommunityHeadName: "CommunityPhone",
+    CommunityPhone: "CommunitySponsorType", // Default, varies by type
     CommunitySponsorType: "CommunityUsername",
     CommunityUsername: "COMPLETE",
   };
@@ -411,6 +414,112 @@ export function getCommunityResumeScreen(lastStep) {
   return "CommunityTypeSelect";
 }
 
+/**
+ * Get the full ordered stack of screens to reconstruct upon draft resume.
+ * Returns all screens the user would have visited up to and including the resume screen,
+ * so the navigator has a proper history and all back buttons work correctly.
+ *
+ * @param {string} lastStep - The last completed step (currentStep from draft)
+ * @param {object} draftData - The draft's data object (used to determine branch taken)
+ * @returns {string[]} Ordered array of screen names (first = bottom of stack)
+ */
+export function getCommunityResumeStack(lastStep, draftData = {}) {
+  const {
+    community_type,
+    college_id,
+    college_subtype,
+    club_type,
+    isStudentCommunity,
+  } = draftData;
+
+  const isCollege = community_type === "college_affiliated";
+
+  // Base screens that come after OTP for all types
+  // We always start the stack from CommunityTypeSelect (first screen after OTP)
+  const baseStack = ["CommunityTypeSelect"];
+
+  // College-specific branch before CommunityName
+  const collegePreNameStack = ["CollegeSearch", "CollegeSubtypeSelect"];
+  if (college_subtype === "club") {
+    collegePreNameStack.push("CollegeClubType");
+  } else if (college_subtype === "student_community") {
+    collegePreNameStack.push("StudentCommunityTheme");
+  }
+
+  // Core screens shared by all types after type selection
+  const coreStack = [
+    "CommunityName",
+    "CommunityLogo",
+    "CommunityBio",
+    "CommunityCategory",
+  ];
+
+  // Location branch
+  let locationStack = [];
+  if (!isStudentCommunity) {
+    if (community_type === "individual_organizer") {
+      locationStack = ["IndividualLocation"];
+    } else {
+      locationStack = ["CommunityLocation"];
+    }
+  }
+
+  // Post-location screens vary by type:
+  // - College -> CollegeHeads -> CommunitySponsorType -> CommunityUsername
+  // - Organization -> CommunityHeadName -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
+  // - Individual -> CommunityHeadName -> CommunityPhone -> CommunityUsername (no SponsorType)
+  const orgPostStack = [
+    "CommunityHeadName",
+    "CommunityPhone",
+    "CommunitySponsorType",
+  ];
+  const collegePostStack = ["CollegeHeads", "CommunitySponsorType"];
+  const individualPostStack = ["CommunityHeadName", "CommunityPhone"];
+
+  // Build the full ordered path based on community type
+  let fullPath;
+  if (isCollege) {
+    fullPath = [
+      ...baseStack,
+      ...collegePreNameStack,
+      ...coreStack,
+      ...locationStack,
+      ...collegePostStack,
+      "CommunityUsername",
+    ];
+  } else if (community_type === "organization") {
+    fullPath = [
+      ...baseStack,
+      ...coreStack,
+      ...locationStack,
+      ...orgPostStack,
+      "CommunityUsername",
+    ];
+  } else {
+    // Individual organizer — Phone + HeadName, then directly to Username (no SponsorType)
+    fullPath = [
+      ...baseStack,
+      ...coreStack,
+      ...locationStack,
+      ...individualPostStack,
+      "CommunityUsername",
+    ];
+  }
+
+  // Find where the resume screen falls in the full path
+  const resumeScreen = getCommunityResumeScreen(lastStep);
+  const resumeIndex = fullPath.indexOf(resumeScreen);
+
+  if (resumeIndex === -1) {
+    // Screen not in known path — safe fallback
+    return ["CommunityTypeSelect"];
+  }
+
+  // Return the stack up to and including the resume screen
+  return fullPath.slice(0, resumeIndex + 1);
+}
+
+
 export default {
   // Member signup functions
   createSignupDraft,
@@ -430,4 +539,5 @@ export default {
   hasCommunitySignupDraft,
   getCommunityNextScreenForStep,
   getCommunityResumeScreen,
+  getCommunityResumeStack,
 };

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -10,7 +10,9 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  StatusBar} from "react-native";
+  StatusBar,
+  ImageBackground,
+} from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -100,6 +102,15 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     location,
     phone,
     secondary_phone,
+    // Community type fields — needed for back handler fallback
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
     isResumingDraft,
   } = route.params || {};
 
@@ -107,6 +118,9 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   const [optionalName1, setOptionalName1] = useState("");
   const [optionalName2, setOptionalName2] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Individual organizers show a simplified single-name UI
+  const isIndividual = community_type === "individual_organizer";
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -152,12 +166,14 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
 
     const heads = [{ name: headName.trim(), is_primary: true }];
 
-    if (optionalName1.trim()) {
-      heads.push({ name: optionalName1.trim(), is_primary: false });
-    }
-
-    if (optionalName2.trim()) {
-      heads.push({ name: optionalName2.trim(), is_primary: false });
+    // Only add optional heads for non-Individual types
+    if (!isIndividual) {
+      if (optionalName1.trim()) {
+        heads.push({ name: optionalName1.trim(), is_primary: false });
+      }
+      if (optionalName2.trim()) {
+        heads.push({ name: optionalName2.trim(), is_primary: false });
+      }
     }
 
     // Save heads to draft
@@ -171,7 +187,9 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       );
     }
 
-    navigation.navigate("CommunitySponsorType", {
+    // Individual organizers go directly to Username; Org/College go to SponsorType
+    // Navigate to Phone screen (new sequence: HeadName -> Phone)
+    navigation.navigate("CommunityPhone", {
       email,
       accessToken,
       refreshToken,
@@ -184,6 +202,15 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       phone,
       secondary_phone,
       heads,
+      // Pass type fields
+      community_type,
+      college_id,
+      college_name,
+      college_subtype,
+      club_type,
+      community_theme,
+      college_pending,
+      isStudentCommunity,
     });
   };
 
@@ -215,24 +242,28 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityPhone", {
+              // Resumed from draft - replace with previous screen based on type
+              const prevScreen = isIndividual ? "IndividualLocation" : "CommunityLocation";
+              navigation.replace(prevScreen, {
                 email,
                 accessToken,
                 refreshToken,
                 name,
                 logo_url,
                 bio,
-                category,
-                categories,
-                location,
-                community_type,
-                college_id,
-                college_name,
-                college_subtype,
-                club_type,
-                community_theme,
-                college_pending,
-                isStudentCommunity,
+                category: category || null,
+                categories: categories || [],
+                location: location || null,
+                phone: phone || null,
+                secondary_phone: secondary_phone || null,
+                community_type: community_type || null,
+                college_id: college_id || null,
+                college_name: college_name || null,
+                college_subtype: college_subtype || null,
+                club_type: club_type || null,
+                community_theme: community_theme || null,
+                college_pending: college_pending || false,
+                isStudentCommunity: isStudentCommunity || false,
               });
             }
           }}
@@ -249,7 +280,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.mainTitle}
             >
-              Name of community head
+              {isIndividual ? "Meet the host" : "Name of community head"}
             </Animated.Text>
 
             <Animated.View 
@@ -265,21 +296,26 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                 {/* Input Fields Group */}
                 <View style={styles.inputGroup}>
                   <CustomInput
-                    placeholder="Enter name (required)"
+                    placeholder={isIndividual ? "Enter your name" : "Enter name (required)"}
                     required
                     value={headName}
                     onChangeText={setHeadName}
                   />
-                  <CustomInput
-                    placeholder="Enter name (optional)"
-                    value={optionalName1}
-                    onChangeText={setOptionalName1}
-                  />
-                  <CustomInput
-                    placeholder="Enter name (optional)"
-                    value={optionalName2}
-                    onChangeText={setOptionalName2}
-                  />
+                  {/* Additional heads — only for Organization/College */}
+                  {!isIndividual && (
+                    <>
+                      <CustomInput
+                        placeholder="Enter name (optional)"
+                        value={optionalName1}
+                        onChangeText={setOptionalName1}
+                      />
+                      <CustomInput
+                        placeholder="Enter name (optional)"
+                        value={optionalName2}
+                        onChangeText={setOptionalName2}
+                      />
+                    </>
+                  )}
                 </View>
               </View>
             </Animated.View>
@@ -401,7 +437,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.6)",
   },
   inputWrapperFocused: {
-    borderColor: COLORS.primary,
+    borderColor: "rgba(255, 255, 255, 0.9)",
     backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   inputInner: {

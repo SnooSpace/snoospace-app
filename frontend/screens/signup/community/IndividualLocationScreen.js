@@ -235,8 +235,8 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       console.log("[IndividualLocationScreen] Draft update failed:", e.message);
     }
 
-    // Individual organizers go directly to Username (skip Phone/Heads)
-    navigation.navigate("CommunityUsername", {
+    // Individual organizers now go to Head Name screen first
+    navigation.navigate("CommunityHeadName", {
       email,
       accessToken,
       refreshToken,
@@ -291,8 +291,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.globalHelperText}
             >
-              This city will be set as your primary event location. This doesn't
-              mean you always have to host events in this location.
+              Your location is used to help people from the same city discover your community and events. You can still host anywhere.
             </Animated.Text>
 
             <Animated.View 

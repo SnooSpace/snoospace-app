@@ -25,6 +25,7 @@ import {
   getCommunitySignupDraft,
   deleteCommunitySignupDraft,
   getCommunityResumeScreen,
+  getCommunityResumeStack,
 } from "../../utils/signupDraftManager";
 import {
   startForegroundWatch,
@@ -254,23 +255,24 @@ export default function AuthGate({ navigation }) {
         ],
       });
     } else if (draftType === "community") {
-      const resumeScreen = getCommunityResumeScreen(draft.currentStep);
+      const screenStack = getCommunityResumeStack(draft.currentStep, draft.data || {});
+      const sharedParams = {
+        ...draft.data,
+        isResumingDraft: true,
+      };
       navigation.reset({
         index: 0,
         routes: [
           {
             name: "CommunitySignup",
             state: {
-              index: 0,
-              routes: [
-                {
-                  name: resumeScreen,
-                  params: {
-                    ...draft.data,
-                    isResumingDraft: true,
-                  },
-                },
-              ],
+              index: screenStack.length - 1,
+              routes: screenStack.map((screenName, i) => ({
+                name: screenName,
+                // Only pass full params to the resume (top) screen;
+                // earlier screens hydrate from draft on their own
+                params: i === screenStack.length - 1 ? sharedParams : { isResumingDraft: true },
+              })),
             },
           },
         ],

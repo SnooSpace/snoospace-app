@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   View,
@@ -12,6 +12,7 @@ import {
   ImageBackground,
   Dimensions,
   KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
@@ -91,8 +92,20 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     category,
     categories,
     location,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
     isResumingDraft,
   } = route.params || {};
+
+  // Individual organizers show a simplified single-number UI
+  const isIndividual = community_type === "individual_organizer";
+
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -140,6 +153,14 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       category,
       categories,
       location,
+      community_type,
+      college_id,
+      college_name,
+      college_subtype,
+      club_type,
+      community_theme,
+      college_pending,
+      isStudentCommunity,
       phone: null,
       secondary_phone: null,
     });
@@ -183,19 +204,39 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       );
     }
 
-    navigation.navigate("CommunityHeadName", {
-      email,
-      accessToken,
-      refreshToken,
-      name,
-      logo_url,
-      bio,
-      category,
-      categories,
-      location,
-      phone: phoneDigits,
-      secondary_phone: secondaryPhoneDigits || null,
-    });
+    // Individual organizers go directly to Username; Org/College go to SponsorType
+    if (isIndividual) {
+      navigation.navigate("CommunityUsername", {
+        email,
+        accessToken,
+        refreshToken,
+        name,
+        logo_url,
+        bio,
+        category,
+        categories,
+        location,
+        community_type,
+        phone: phoneDigits,
+        secondary_phone: null,
+        heads,
+      });
+    } else {
+      navigation.navigate("CommunitySponsorType", {
+        email,
+        accessToken,
+        refreshToken,
+        name,
+        logo_url,
+        bio,
+        category,
+        categories,
+        location,
+        phone: phoneDigits,
+        secondary_phone: secondaryPhoneDigits || null,
+        heads,
+      });
+    }
   };
 
   const handleCancel = async () => {
@@ -228,7 +269,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityLocation", {
+              navigation.replace("CommunityHeadName", {
                 email,
                 accessToken,
                 refreshToken,
@@ -237,6 +278,16 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                 bio,
                 category,
                 categories,
+                location,
+                community_type,
+                college_id,
+                college_name,
+                college_subtype,
+                club_type,
+                community_theme,
+                college_pending,
+                isStudentCommunity,
+                heads,
               });
             }
           }}
@@ -258,13 +309,15 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                 entering={FadeInDown.delay(100).duration(600).springify()}
                 style={styles.mainTitle}
               >
-                What's your number?
+                {isIndividual ? "Your contact number" : "What's your number?"}
               </Animated.Text>
               <Animated.Text 
                 entering={FadeInDown.delay(200).duration(600).springify()}
                 style={styles.subtitle}
               >
-                Your number is private and never shared.
+                {isIndividual
+                  ? "Members & sponsors can reach you here."
+                  : "Your number is private and never shared."}
               </Animated.Text>
 
               <Animated.View 
@@ -280,16 +333,21 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                   onChangeText={setPrimaryNumber}
                 />
 
-                <View style={styles.optionalInputSection}>
-                  <Text style={styles.optionalInputLabel}>Add another number</Text>
-                  <Text style={styles.optionalLabel}>Optional</Text>
-                </View>
-                <PhoneInput
-                  placeholder="(000) 000-0000"
-                  isRequired={false}
-                  value={secondaryNumber}
-                  onChangeText={setSecondaryNumber}
-                />
+                {/* Secondary number — hidden for Individual organizers */}
+                {!isIndividual && (
+                  <>
+                    <View style={styles.optionalInputSection}>
+                      <Text style={styles.optionalInputLabel}>Add another number</Text>
+                      <Text style={styles.optionalLabel}>Optional</Text>
+                    </View>
+                    <PhoneInput
+                      placeholder="(000) 000-0000"
+                      isRequired={false}
+                      value={secondaryNumber}
+                      onChangeText={setSecondaryNumber}
+                    />
+                  </>
+                )}
               </View>
             </Animated.View>
 

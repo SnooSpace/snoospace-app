@@ -30,7 +30,7 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
-import { createCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { createCommunitySignupDraft, updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 import { LinearGradient } from "expo-linear-gradient";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
@@ -146,6 +146,13 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             const activeAccount = await accountManager.getActiveAccount();
             const originAccountId = activeAccount?.id || null;
             await createCommunitySignupDraft(email, originAccountId);
+            // Persist tokens so draft-resume can call the signup API
+            if (accessToken || refreshToken) {
+              await updateCommunitySignupDraft("CommunityOtp", {
+                accessToken,
+                refreshToken,
+              });
+            }
           } catch (draftError) {
             console.log(
               "[CommunityOtpScreen] Draft creation failed (non-critical)",
@@ -255,6 +262,13 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       const activeAccount = await accountManager.getActiveAccount();
       const originAccountId = activeAccount?.id || null;
       await createCommunitySignupDraft(email, originAccountId);
+      // Persist tokens so draft-resume can call the signup API
+      if (accessToken || refreshToken) {
+        await updateCommunitySignupDraft("CommunityOtp", {
+          accessToken,
+          refreshToken,
+        });
+      }
     } catch (draftError) {
       console.log("[CommunityOtpScreen] Draft creation failed (non-critical)");
     }

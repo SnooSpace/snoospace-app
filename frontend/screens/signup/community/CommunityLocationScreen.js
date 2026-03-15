@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { CommonActions } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -67,8 +67,9 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     isResumingDraft, // True when resumed from draft (no navigation history)
   } = route.params || {};
 
-  // Determine if this is an organization type (requires phone/heads)
-  const isOrganization = !community_type || community_type === "organization";
+  // Both Individual and Organization go through Phone/HeadName.
+  // Only College (with college_id) has a separate path.
+  const isCollege = community_type === "college_affiliated" && college_id;
 
   // Build common params to pass forward
   const commonParams = {
@@ -314,21 +315,15 @@ const CommunityLocationScreen = ({ navigation, route }) => {
       );
     }
 
-    // Skip phone/heads for non-organization types
-    if (isOrganization) {
-      navigation.navigate("CommunityPhone", {
-        ...commonParams,
-        location,
-      });
-    } else if (community_type === "college_affiliated") {
-      // College communities go to heads screen (for adding coordinator/members)
-      navigation.navigate("CollegeHeads", {
+    // All non-college types (Individual + Organization) go through HeadName -> Phone
+    if (!isCollege) {
+      navigation.navigate("CommunityHeadName", {
         ...commonParams,
         location,
       });
     } else {
-      // Individual organizers go directly to username
-      navigation.navigate("CommunityUsername", {
+      // College communities go to heads screen
+      navigation.navigate("CollegeHeads", {
         ...commonParams,
         location,
       });
@@ -341,15 +336,13 @@ const CommunityLocationScreen = ({ navigation, route }) => {
     } else {
       // Determine previous screen based on community type
       // - Student communities skip Category, go back to Bio
-      // - Other college types (event, club) skip LocationQuestion, go back to Category
-      // - Organizations go back to LocationQuestion
+      // - Other college types (event, club) go back to Category
+      // - Organizations go back to Category
       let previousScreen;
       if (isStudentCommunity) {
         previousScreen = "CommunityBio";
-      } else if (community_type === "college_affiliated") {
-        previousScreen = "CommunityCategory";
       } else {
-        previousScreen = "CommunityLocationQuestion";
+        previousScreen = "CommunityCategory";
       }
 
       navigation.replace(previousScreen, {
@@ -423,7 +416,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                 entering={FadeInDown.delay(200).duration(600).springify()}
                 style={styles.subtitle}
               >
-                This helps members and sponsors find your community
+                Your location is used to help people from the same city discover your community and events. You can still host anywhere.
               </Animated.Text>
 
               <Animated.View 

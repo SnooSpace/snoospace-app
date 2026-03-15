@@ -13,7 +13,9 @@ import {
   Alert,
   ScrollView,
   ImageBackground,
+  BackHandler,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,6 +26,7 @@ import SignupHeader from "../../../components/SignupHeader";
 import { apiGet, apiPost } from "../../../api/client";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import TypeSelectWarningModal from "../../../components/modals/TypeSelectWarningModal";
 
 // Debounce helper
 const useDebounce = (value, delay) => {
@@ -57,6 +60,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const [submitting, setSubmitting] = useState(false);
   const [pendingCollegeId, setPendingCollegeId] = useState(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showTypeSelectModal, setShowTypeSelectModal] = useState(false);
 
   // Hydrate from draft if needed
   useEffect(() => {
@@ -213,8 +217,46 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     }
   };
 
+  // Android hardware back button interception
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        setShowTypeSelectModal(true);
+        return true; // Prevent default back
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    }, [])
+  );
+
   const handleBack = () => {
-    navigation.goBack();
+    setShowTypeSelectModal(true);
+  };
+
+  // Called when user confirms reset on the TypeSelect warning modal
+  const handleConfirmGoBackToTypeSelect = async () => {
+    setShowTypeSelectModal(false);
+    // Reset type-specific draft fields so a resumed draft doesn’t carry stale College data
+    try {
+      await updateCommunitySignupDraft("CommunityTypeSelect", {
+        community_type: null,
+        college_id: null,
+        college_name: null,
+        college_subtype: null,
+        club_type: null,
+        community_theme: null,
+        college_pending: false,
+        isStudentCommunity: false,
+      });
+    } catch (e) {
+      console.log("[CollegeSearch] Draft reset failed (non-critical):", e.message);
+    }
+    navigation.navigate("CommunityTypeSelect", {
+      email,
+      accessToken,
+      refreshToken,
+      community_type: null,
+    });
   };
 
   const renderCollegeItem = ({ item }) => {
@@ -489,6 +531,11 @@ const CollegeSearchScreen = ({ navigation, route }) => {
             </View>
           </View>
         </Modal>
+        <TypeSelectWarningModal
+          visible={showTypeSelectModal}
+          onStay={() => setShowTypeSelectModal(false)}
+          onGoBack={handleConfirmGoBackToTypeSelect}
+        />
       </SafeAreaView>
     </ImageBackground>
   );

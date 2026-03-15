@@ -240,15 +240,12 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       isStudentCommunity,
     };
 
-    // Individual organizers skip LocationQuestion and use GPS-based location
+    // Individual organizers use GPS-based location
     if (community_type === "individual_organizer") {
       navigation.navigate("IndividualLocation", categoryParams);
-    } else if (community_type === "college_affiliated") {
-      // College-affiliated communities skip LocationQuestion and go directly to Google Maps URL input
-      navigation.navigate("CommunityLocation", categoryParams);
     } else {
-      // Organizations use the LocationQuestion flow
-      navigation.navigate("CommunityLocationQuestion", categoryParams);
+      // Both Organizations and College-affiliated communities go directly to CommunityLocation
+      navigation.navigate("CommunityLocation", categoryParams);
     }
   };
 

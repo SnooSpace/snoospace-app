@@ -1,5 +1,6 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { CommonActions } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import {
   StatusBar,
   ImageBackground,
   ScrollView,
+  BackHandler,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
@@ -32,6 +34,7 @@ import {
   getCommunityDraftData,
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import TypeSelectWarningModal from "../../../components/modals/TypeSelectWarningModal";
 
 const CommunityNameScreen = ({ navigation, route }) => {
   const {
@@ -52,6 +55,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
   const [name, setName] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showTypeSelectModal, setShowTypeSelectModal] = useState(false);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -83,6 +87,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
     };
     hydrateFromDraft();
   }, []);
+
 
   const handleNext = async () => {
     triggerTransitionHaptic();
@@ -127,16 +132,74 @@ const CommunityNameScreen = ({ navigation, route }) => {
 
   const handleBack = () => {
     triggerTransitionHaptic();
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+    // College communities reach CommunityName AFTER CollegeSearch/Subtype/ClubType,
+    // so back should go to the previous screen normally (not TypeSelect).
+    // Individual and Organization have TypeSelect as their immediate predecessor.
+    const isCollegeAffiliated =
+      community_type === "college_affiliated" && college_id;
+
+    if (isCollegeAffiliated) {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("CollegeSubtypeSelect", {
+          email,
+          accessToken,
+          refreshToken,
+          community_type,
+          college_id,
+          college_name,
+          college_subtype,
+          club_type,
+          community_theme,
+          college_pending,
+          isStudentCommunity,
+        });
+      }
     } else {
-      navigation.replace("CommunityTypeSelect", {
-        email,
-        accessToken,
-        refreshToken,
-      });
+      // Individual or Organization: going back resets type — warn user
+      setShowTypeSelectModal(true);
     }
   };
+
+  // Called when user confirms reset on the TypeSelect warning modal
+  const handleConfirmGoBackToTypeSelect = async () => {
+    triggerTransitionHaptic();
+    setShowTypeSelectModal(false);
+    // Reset type-specific draft fields so a resumed draft doesn't carry stale type data
+    try {
+      await updateCommunitySignupDraft("CommunityTypeSelect", {
+        community_type: null,
+        college_id: null,
+        college_name: null,
+        college_subtype: null,
+        club_type: null,
+        community_theme: null,
+        college_pending: false,
+        isStudentCommunity: false,
+      });
+    } catch (e) {
+      console.log("[CommunityName] Draft reset failed (non-critical):", e.message);
+    }
+    navigation.navigate("CommunityTypeSelect", {
+      email,
+      accessToken,
+      refreshToken,
+    });
+  };
+
+  // Android hardware back button interception — placed after handleBack is defined
+  useFocusEffect(
+    React.useCallback(() => {
+      const onHardwareBack = () => {
+        handleBack();
+        return true; // Prevent default back
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+      return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [community_type, college_id, email, accessToken, refreshToken])
+  );
 
   const isButtonDisabled = name.trim().length === 0;
 
@@ -232,6 +295,11 @@ const CommunityNameScreen = ({ navigation, route }) => {
           visible={showCancelModal}
           onKeepEditing={() => setShowCancelModal(false)}
           onDiscard={handleCancel}
+        />
+        <TypeSelectWarningModal
+          visible={showTypeSelectModal}
+          onStay={() => setShowTypeSelectModal(false)}
+          onGoBack={handleConfirmGoBackToTypeSelect}
         />
       </SafeAreaView>
     </ImageBackground>
