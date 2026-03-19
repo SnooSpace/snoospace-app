@@ -271,7 +271,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
                     autoCapitalize="words"
                     textContentType="name"
                     autoComplete="name"
-                    importantForAutofill="no"
+                    importantForAutofill="yes"
                   />
                 </View>
               </View>

@@ -59,6 +59,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     isStudentCommunity,
     isResumingDraft,
     location: initialLocation,
+    sponsor_types,
   } = route.params || {};
 
   // States for shared params that need hydration from draft if missing
@@ -79,6 +80,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    sponsor_types,
   });
 
   const [location, setLocation] = useState(
@@ -148,7 +150,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
         "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
         "category", "categories", "community_type", "college_id",
         "college_name", "college_subtype", "club_type", "community_theme",
-        "college_pending", "isStudentCommunity"
+        "college_pending", "isStudentCommunity", "sponsor_types"
       ];
 
       keysToHydrate.forEach(key => {

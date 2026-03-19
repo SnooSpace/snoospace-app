@@ -69,6 +69,7 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    sponsor_types,
   } = route.params || {};
 
   // States for shared params that need hydration from draft if missing
@@ -93,6 +94,7 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
     community_theme,
     college_pending,
     isStudentCommunity,
+    sponsor_types,
   });
 
   const isIndividual = params.community_type === "individual_organizer";
@@ -195,7 +197,8 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
         "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
         "category", "categories", "location", "phone", "secondary_phone", "heads",
         "community_type", "college_id", "college_name", "college_subtype",
-        "club_type", "community_theme", "college_pending", "isStudentCommunity"
+        "club_type", "community_theme", "college_pending", "isStudentCommunity",
+        "sponsor_types"
       ];
 
       keysToHydrate.forEach(key => {

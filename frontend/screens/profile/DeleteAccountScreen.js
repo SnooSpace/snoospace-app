@@ -88,6 +88,9 @@ const DeleteAccountScreen = ({ navigation }) => {
   const mouthRotation = useRef(new Animated.Value(0)).current; // 0=sad, 1=happy
   const faceJump      = useRef(new Animated.Value(0)).current;
   const faceBgOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Background animation
+  const bgTransitionY = useRef(new Animated.Value(height)).current;
 
   // Tears & sparkles
   const [tears]    = useState(() => buildTears(6));
@@ -289,6 +292,15 @@ const DeleteAccountScreen = ({ navigation }) => {
     // Swap content
     setTimeout(() => {
       Animated.timing(sadContentOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      
+      // Animate background sweeping up from bottom
+      Animated.spring(bgTransitionY, {
+        toValue: 0,
+        tension: 40,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+
       setTimeout(() => {
         setPhase("relieved");
         startReliefCycle();
@@ -379,18 +391,42 @@ const DeleteAccountScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={phase === "relieved" ? "dark-content" : "light-content"} />
 
-      {/* Background — shifts warm when relieved */}
-      <LinearGradient
-        colors={phase === "relieved"
-          ? ["#FFF5E6", "#FFF0F5", "#F0F5FF"]
-          : ["#EEF2FF", "#E8EDF5", "#EEF2FF"]
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {/* Dynamic Background */}
+      <View style={StyleSheet.absoluteFillObject}>
+        {/* === SAD (DARK) BACKGROUND === */}
+        <View style={StyleSheet.absoluteFillObject}>
+          <LinearGradient
+            colors={["#0B0F19", "#1A1525", "#0F172A"]} // Deep dark moody background
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <LinearGradient colors={["#4C1D95", "#1E1B4B"]} style={{ position: "absolute", top: -width * 0.3, left: -width * 0.3, width: width * 0.9, height: width * 0.9, borderRadius: width * 0.45, opacity: 0.6, transform: [{ rotate: "25deg" }] }} />
+            <LinearGradient colors={["#7F1D1D", "#450A0A"]} style={{ position: "absolute", bottom: -width * 0.2, right: -width * 0.3, width: width * 1.1, height: width * 1.1, borderRadius: width * 0.55, opacity: 0.5, transform: [{ rotate: "-15deg" }] }} />
+            <LinearGradient colors={["#1E3A8A", "#0F172A"]} style={{ position: "absolute", top: height * 0.25, right: -width * 0.4, width: width * 0.8, height: width * 0.8, borderRadius: width * 0.4, opacity: 0.4, transform: [{ rotate: "45deg" }] }} />
+          </View>
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(10, 15, 25, 0.75)" }]} pointerEvents="none" />
+        </View>
+
+        {/* === RELIEVED (LIGHT) BACKGROUND (ANIMATED FROM BOTTOM) === */}
+        <Animated.View style={[StyleSheet.absoluteFillObject, { transform: [{ translateY: bgTransitionY }] }]} pointerEvents="none">
+          <LinearGradient
+            colors={["#FFF5E6", "#FFE6E6", "#FFF0F5"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <LinearGradient colors={["#FFD6A5", "#FF9F6A"]} style={{ position: "absolute", top: -width * 0.3, left: -width * 0.3, width: width * 0.9, height: width * 0.9, borderRadius: width * 0.45, opacity: 0.45, transform: [{ rotate: "25deg" }] }} />
+            <LinearGradient colors={["#FFC8DD", "#FF6B8A"]} style={{ position: "absolute", bottom: -width * 0.2, right: -width * 0.3, width: width * 1.1, height: width * 1.1, borderRadius: width * 0.55, opacity: 0.35, transform: [{ rotate: "-15deg" }] }} />
+            <LinearGradient colors={["#FFADAD", "#FFA07A"]} style={{ position: "absolute", top: height * 0.25, right: -width * 0.4, width: width * 0.8, height: width * 0.8, borderRadius: width * 0.4, opacity: 0.3, transform: [{ rotate: "45deg" }] }} />
+          </View>
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(255, 255, 255, 0.45)" }]} pointerEvents="none" />
+        </Animated.View>
+      </View>
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.inner}>
@@ -432,7 +468,27 @@ const DeleteAccountScreen = ({ navigation }) => {
               ))}
 
               {/* Face circle */}
-              <View style={styles.face}>
+              <LinearGradient
+                colors={["#FFF1A0", "#FFCA28", "#E68A00"]}
+                locations={[0.1, 0.6, 1]}
+                start={{ x: 0.2, y: 0.1 }}
+                end={{ x: 0.8, y: 0.9 }}
+                style={styles.face}
+              >
+                {/* 3D Specular Highlight */}
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 12,
+                    left: 22,
+                    width: 32,
+                    height: 14,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(255, 255, 255, 0.55)",
+                    transform: [{ rotate: "-35deg" }],
+                  }}
+                />
+
                 {/* Warm glow overlay on happy */}
                 <Animated.View
                   pointerEvents="none"
@@ -479,13 +535,13 @@ const DeleteAccountScreen = ({ navigation }) => {
                     { transform: [{ rotate: mouthRotInterp }] },
                   ]}
                 />
-              </View>
+              </LinearGradient>
             </View>
 
             {/* Rotating text under face */}
             <View style={{ height: 48, justifyContent: "center", alignItems: "center" }}>
               {phase !== "relieved" ? (
-                <Animated.Text style={[styles.guiltLine, { opacity: guiltOpacity, position: "absolute" }]}>
+                <Animated.Text style={[styles.guiltLine, { opacity: guiltOpacity, position: "absolute", color: "#E5E7EB" }]}>
                   {GUILT_LINES[guiltIndex]}
                 </Animated.Text>
               ) : (
@@ -504,8 +560,8 @@ const DeleteAccountScreen = ({ navigation }) => {
                 transform: [{ translateY: sadContentY }],
               }]}
             >
-              <Text style={styles.headline}>You're really leaving? 🫤</Text>
-              <Text style={styles.subtext}>
+              <Text style={[styles.headline, { color: "#FFFFFF" }]}>You're really leaving? 🫤</Text>
+              <Text style={[styles.subtext, { color: "#9CA3AF" }]}>
                 Deleting your account means losing your matches, events, and
                 everything you've built on SnooSpace. Forever is a long time.
               </Text>
@@ -561,7 +617,7 @@ const DeleteAccountScreen = ({ navigation }) => {
                   style={styles.deleteButton}
                   disabled={deleting}
                 >
-                  <Text style={styles.deleteButtonText}>
+                  <Text style={[styles.deleteButtonText, { color: "#FCA5A5" }]}>
                     {deleting ? "Deleting..." : "Yes, delete my account"}
                   </Text>
                 </TouchableOpacity>
@@ -653,16 +709,17 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#FFE066",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
+    shadowColor: "#D48B00",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 12,
     gap: 12,
     overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.45)", // adds an ambient rim light effect
   },
   eyeRow: { flexDirection: "row", gap: 22, marginTop: 12 },
   eye: {
@@ -672,6 +729,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#333",
     alignItems: "center",
     overflow: "visible",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   tear: {
     position: "absolute",
@@ -692,6 +754,11 @@ const styles = StyleSheet.create({
     borderColor: "#333",
     borderBottomWidth: 0,
     marginBottom: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 1.5,
+    elevation: 2,
   },
   guiltLine: {
     fontSize: 16,

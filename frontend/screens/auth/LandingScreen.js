@@ -331,21 +331,26 @@ const LandingScreen = ({ navigation }) => {
       });
     } else if (activeDraft.fromCommunitySignup) {
       // People-profile draft: the community session is still active.
-      // Resume from whichever member step they left off at.
-      const resumeScreen = getPeopleProfileResumeScreen(activeDraft.step);
-      console.log(
-        "[LandingScreen] Resuming People-profile draft at:",
-        resumeScreen
-      );
-      navigation.navigate("MemberSignup", {
-        screen: resumeScreen,
-        params: {
-          ...activeDraft.data,
-          prefill: activeDraft.data?.prefill || {},
-          fromCommunitySignup: true,
-          isResumingDraft: true,
-        },
-      });
+      if (activeDraft.step === "PeopleProfilePrompt") {
+        // User hadn't chosen "Set up now" yet — return to the prompt screen.
+        console.log("[LandingScreen] People-profile draft at PeopleProfilePrompt → returning to prompt screen");
+        navigation.navigate("PeopleProfilePromptScreen", {
+          prefillRecovery: activeDraft.data?.prefill || {},
+        });
+      } else {
+        // User had started filling in the member form — resume there.
+        const resumeScreen = getPeopleProfileResumeScreen(activeDraft.step);
+        console.log("[LandingScreen] Resuming People-profile draft at:", resumeScreen);
+        navigation.navigate("MemberSignup", {
+          screen: resumeScreen,
+          params: {
+            ...activeDraft.data,
+            prefill: activeDraft.data?.prefill || {},
+            fromCommunitySignup: true,
+            isResumingDraft: true,
+          },
+        });
+      }
     } else {
       const resumeScreen = getMemberResumeScreen(activeDraft.step);
       navigation.navigate("MemberSignup", { 

@@ -238,31 +238,48 @@ export default function AuthGate({ navigation }) {
 
       if (isPeopleProfile) {
         // People-profile draft: community session is still active.
-        // Resume inside MemberSignup at the correct step.
-        const resumeScreen = getPeopleProfileResumeScreen(draft.currentStep);
-        console.log("[AuthGate] Resuming People-profile draft at:", resumeScreen);
-        navigation.reset({
-          index: 0,
-          routes: [
-            {
-              name: "MemberSignup",
-              state: {
-                index: 0,
-                routes: [
-                  {
-                    name: resumeScreen,
-                    params: {
-                      ...draft.data,
-                      prefill: draft.data?.prefill || {},
-                      fromCommunitySignup: true,
-                      isResumingDraft: true,
-                    },
-                  },
-                ],
+        if (draft.currentStep === "PeopleProfilePrompt") {
+          // User was on PeopleProfilePromptScreen (hadn't chosen "Set up now" yet).
+          // Take them back there so they can make their choice.
+          console.log("[AuthGate] People-profile draft at PeopleProfilePrompt → returning to prompt screen");
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "PeopleProfilePromptScreen",
+                params: {
+                  prefillRecovery: draft.data?.prefill || {},
+                },
               },
-            },
-          ],
-        });
+            ],
+          });
+        } else {
+          // User had already chosen "Set up now" — resume inside MemberSignup.
+          const resumeScreen = getPeopleProfileResumeScreen(draft.currentStep);
+          console.log("[AuthGate] Resuming People-profile draft at:", resumeScreen);
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "MemberSignup",
+                state: {
+                  index: 0,
+                  routes: [
+                    {
+                      name: resumeScreen,
+                      params: {
+                        ...draft.data,
+                        prefill: draft.data?.prefill || {},
+                        fromCommunitySignup: true,
+                        isResumingDraft: true,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }
       } else {
         // Normal member draft (has email + OTP)
         const resumeScreen = getResumeScreen(draft.currentStep);

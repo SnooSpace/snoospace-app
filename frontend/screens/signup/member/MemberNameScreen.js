@@ -98,8 +98,9 @@ const NameInputScreen = ({ navigation, route }) => {
 
   /**
    * Cancel the People / Member signup.
-   * • fromCommunitySignup: true  → user is already in their community account.
-   *   Delete the draft and return to CommunityHome, not AuthGate.
+   * • fromCommunitySignup: true  → go back to PeopleProfilePromptScreen if possible
+   *   (it's in the parent stack when navigated normally from there).
+   *   Fall back to Celebration if the stack was restored from a draft (no history).
    * • Normal flow → reset to AuthGate as before.
    */
   const handleCancel = async () => {
@@ -107,12 +108,19 @@ const NameInputScreen = ({ navigation, route }) => {
     setShowCancelModal(false);
 
     if (fromCommunitySignup) {
-      // Show celebrations screen instead of just resetting to community home
-      navigation.navigate("Celebration", {
-        role: "Community",
-        fromCommunitySignup: true,
-        createdPeopleProfile: false,
-      });
+      // Try to go back to PeopleProfilePromptScreen in the parent stack.
+      // This works when user navigated normally (PeopleProfilePromptScreen IS in history).
+      // Falls back to Celebration if stack was reset via draft-recovery (no history).
+      const parentNav = navigation.getParent();
+      if (parentNav?.canGoBack()) {
+        parentNav.goBack();
+      } else {
+        navigation.navigate("Celebration", {
+          role: "Community",
+          fromCommunitySignup: true,
+          createdPeopleProfile: false,
+        });
+      }
     } else {
       navigation.getParent()?.reset({
         index: 0,
@@ -123,20 +131,14 @@ const NameInputScreen = ({ navigation, route }) => {
 
   /**
    * Back arrow on the first step of People-profile creation.
-   * Goes back to PeopleProfilePromptScreen and deletes the draft so that
-   * LandingScreen won't show a stale draft recovery modal.
+   * Shows a confirmation modal first — does NOT navigate without the user's consent.
    */
-  const handleBack = async () => {
-    await deleteSignupDraft();
-    if (navigation.canGoBack()) {
+  const handleBack = () => {
+    if (fromCommunitySignup) {
+      // Show modal — same confirmation flow as Cancel
+      setShowCancelModal(true);
+    } else if (navigation.canGoBack()) {
       navigation.goBack();
-    } else {
-      // Fallback: Show celebrations screen instead of just resetting to community home
-      navigation.navigate("Celebration", {
-        role: "Community",
-        fromCommunitySignup: true,
-        createdPeopleProfile: false,
-      });
     }
   };
 
@@ -224,7 +226,7 @@ const NameInputScreen = ({ navigation, route }) => {
                       autoCapitalize="words"
                       textContentType="name"
                       autoComplete="name"
-                      importantForAutofill="no"
+                      importantForAutofill="yes"
                     />
                   </View>
                 </Animated.View>
@@ -273,6 +275,16 @@ const NameInputScreen = ({ navigation, route }) => {
           visible={showCancelModal}
           onKeepEditing={() => setShowCancelModal(false)}
           onDiscard={handleCancel}
+          title={
+            fromCommunitySignup
+              ? "Cancel People profile setup?"
+              : "Discard new account?"
+          }
+          description={
+            fromCommunitySignup
+              ? "Your community account is safe. You can set up a People profile later from Settings."
+              : "Your progress will be lost. You can always start again later."
+          }
         />
       </SafeAreaView>
     </ImageBackground>

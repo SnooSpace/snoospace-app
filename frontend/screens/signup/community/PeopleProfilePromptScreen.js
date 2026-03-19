@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   ImageBackground,
   Dimensions,
+  BackHandler,
 } from "react-native";
 import Animated, {
   FadeInDown,
@@ -33,14 +34,20 @@ import {
 } from "../../../constants/theme";
 import {
   createPeopleProfileDraft,
+  updateSignupDraft,
   deleteSignupDraft,
 } from "../../../utils/signupDraftManager";
 import { getActiveAccount } from "../../../api/auth";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width } = Dimensions.get("window");
 
 export default function PeopleProfilePromptScreen({ navigation, route }) {
-  const { userData } = route.params || {};
+  // userData → normal community signup flow
+  // prefillRecovery → draft crash-recovery: we landed here from AuthGate/Landing
+  const { userData, prefillRecovery } = route.params || {};
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Animation values
   const iconScale = useSharedValue(0.8);
@@ -72,6 +79,15 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
     );
   }, []);
 
+  useEffect(() => {
+    const onBackPress = () => {
+      setShowCancelModal(true);
+      return true;
+    };
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => subscription.remove();
+  }, []);
+
   const handleSetupNow = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -80,55 +96,62 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
       withSpring(1, { damping: 12 })
     );
 
-    // Extract prefill data from community userData
-    const primaryHead = userData?.heads?.find((h) => h.is_primary);
-    const memberName =
-      primaryHead?.name ?? userData?.heads?.[0]?.name ?? "";
-    // Prefer the head's portrait; fall back to community logo
-    const memberPhoto = userData?.head_photo_url ?? userData?.logo_url ?? null;
-    const memberPhone = userData?.phone ?? "";
-    // Prefill location from the community's registered location
-    const memberLocation = userData?.location ?? null;
-    // Carry the community's email forward so MemberUsernameScreen can submit it
-    const memberEmail = userData?.email ?? null;
+    let prefill;
 
-    const prefill = {
-      name: memberName,
-      photo: memberPhoto,
-      phone: memberPhone,
-      location: memberLocation,
-      email: memberEmail,
-    };
+    if (prefillRecovery) {
+      // Draft-recovery path: prefill was stored in the draft itself
+      prefill = prefillRecovery;
+    } else {
+      // Normal community signup path: extract prefill from community userData
+      const primaryHead = userData?.heads?.find((h) => h.is_primary);
+      const memberName = primaryHead?.name ?? userData?.heads?.[0]?.name ?? "";
+      const memberPhoto = userData?.head_photo_url ?? userData?.logo_url ?? null;
+      const memberPhone = userData?.phone ?? "";
+      const memberLocation = userData?.location ?? null;
+      const memberEmail = userData?.email ?? null;
 
-    // ── Crash recovery: write a People-profile draft immediately ──
-    // This ensures that if the app crashes mid-flow, LandingScreen can
-    // detect the draft and offer to resume — without needing an email step.
+      prefill = {
+        name: memberName,
+        photo: memberPhoto,
+        phone: memberPhone,
+        location: memberLocation,
+        email: memberEmail,
+      };
+    }
+
+    // Advance the draft step to "MemberName" so AuthGate will resume there
+    // (not back on PeopleProfilePromptScreen).
     try {
+      // If draft doesn't exist yet (edge case), create it; otherwise just update step.
       const activeAccount = await getActiveAccount();
-      await createPeopleProfileDraft(prefill, activeAccount?.id ?? null);
-      console.log("[PeopleProfilePromptScreen] People-profile draft created");
+      await createPeopleProfileDraft(prefill, activeAccount?.id ?? null, "MemberName");
+      console.log("[PeopleProfilePromptScreen] Draft step advanced to MemberName");
     } catch (e) {
-      // Non-critical; navigation still proceeds
-      console.warn("[PeopleProfilePromptScreen] Could not create draft:", e.message);
+      console.warn("[PeopleProfilePromptScreen] Could not update draft:", e.message);
     }
 
     navigation.navigate("MemberSignup", {
       screen: "MemberName",
       params: {
-        email: memberEmail,
+        email: prefill.email,
         prefill,
         fromCommunitySignup: true,
       },
     });
   };
 
-  const handleCreateLater = () => {
+  const handleCreateLater = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     ghostButtonScale.value = withSequence(
       withSpring(0.95, { damping: 10 }),
       withSpring(1, { damping: 12 })
     );
+
+    // Delete the People-profile draft so it doesn't resurface later
+    try {
+      await deleteSignupDraft();
+    } catch (e) {}
 
     navigation.navigate("Celebration", {
       role: "Community",
@@ -137,25 +160,9 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
     });
   };
 
-  /**
-   * Cancel / Back from this screen.
-   * The user is already logged in as a community account, so we should never
-   * blow them out to AuthGate. Two valid destinations:
-   *  - If there is a CommunityHome in the parent navigator stack → go there
-   *  - Otherwise just pop back (e.g. they came from the community signup flow)
-   */
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      // Fallback: Show celebrations screen instead of just resetting to community home
-      navigation.navigate("Celebration", {
-        role: "Community",
-        fromCommunitySignup: true,
-        createdPeopleProfile: false,
-      });
-    }
+  const handleDiscard = () => {
+    setShowCancelModal(false);
+    handleCreateLater();
   };
 
   return (
@@ -166,6 +173,11 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleDiscard}
+        />
         <View style={styles.container}>
           {/* Illustration / Icon Area */}
           <Animated.View
@@ -261,18 +273,6 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
             You can always create a member profile from Settings later.
           </Animated.Text>
 
-          {/* Skip / Back link */}
-          <Animated.View
-            entering={FadeInDown.delay(700).duration(700).springify()}
-          >
-            <TouchableOpacity
-              onPress={handleBack}
-              hitSlop={{ top: 12, bottom: 12, left: 24, right: 24 }}
-              style={styles.backLink}
-            >
-              <Text style={styles.backLinkText}>← Go back</Text>
-            </TouchableOpacity>
-          </Animated.View>
         </View>
       </SafeAreaView>
     </ImageBackground>
@@ -458,15 +458,4 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  // --- Back link ---
-  backLink: {
-    paddingVertical: 4,
-  },
-  backLinkText: {
-    fontSize: 14,
-    fontFamily: "Manrope-Medium",
-    color: COLORS.textSecondary,
-    opacity: 0.65,
-    textAlign: "center",
-  },
 });

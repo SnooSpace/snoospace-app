@@ -72,7 +72,9 @@ const PhoneInput = ({ placeholder, isRequired, value, onChangeText }) => {
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         keyboardType="phone-pad"
-        dataDetectorTypes="phoneNumber"
+        textContentType="telephoneNumber"
+        autoComplete="tel"
+        importantForAutofill="yes"
         maxLength={10}
         autoFocus={isRequired}
       />
@@ -103,6 +105,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     isResumingDraft,
     heads,
     head_photo_url,
+    sponsor_types,
   } = route.params || {};
 
   // States for shared params that need hydration from draft if missing
@@ -126,6 +129,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     isStudentCommunity,
     heads,
     head_photo_url,
+    sponsor_types,
   });
 
   // Individual organizers show a simplified single-number UI
@@ -175,7 +179,8 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
         "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
         "category", "categories", "location", "community_type", "college_id",
         "college_name", "college_subtype", "club_type", "community_theme",
-        "college_pending", "isStudentCommunity", "heads", "head_photo_url"
+        "college_pending", "isStudentCommunity", "heads", "head_photo_url",
+        "sponsor_types"
       ];
 
       keysToHydrate.forEach(key => {
@@ -239,7 +244,8 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       );
     }
 
-    // Individual organizers and College communities go directly to Username; Org goes to SponsorType
+    // Creators collect sponsor types before location, so they skip it here.
+    // College and Creator both go directly to Username; only Organization goes to SponsorType.
     const isCollege = params.community_type === "college_affiliated";
     if (isIndividual || isCollege) {
       navigation.navigate("CommunityUsername", {

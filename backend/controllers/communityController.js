@@ -58,12 +58,12 @@ async function signup(req, res) {
       });
     }
 
-    // Organization type requires phone and sponsor_types
-    if (isOrganization) {
+    // Organization and Creator types require phone and sponsor_types
+    if (isOrganization || isIndividualOrganizer) {
       if (!phone || !Array.isArray(sponsor_types)) {
-        console.log("Validation failed - organization missing required fields");
+        console.log("Validation failed - organization/creator missing required fields");
         return res.status(400).json({
-          error: "Required for organization: phone, sponsor_types[]",
+          error: "Required for organization/creator: phone, sponsor_types[]",
         });
       }
       if (!/^\d{10}$/.test(phone)) {
@@ -193,12 +193,12 @@ async function signup(req, res) {
       // Prepare location JSONB (can be null if user skipped location)
       const locationJson = location ? JSON.stringify(location) : null;
 
-      // Prepare sponsor_types - default to empty array for non-organization types
-      const finalSponsorTypes = isOrganization ? sponsor_types : [];
+      // Prepare sponsor_types - Include for organizations and creators; empty for others
+      const finalSponsorTypes = (isOrganization || isIndividualOrganizer) ? sponsor_types : [];
 
       // Determine sponsor visibility based on community type
       // Student communities are NEVER sponsor visible
-      const isSponsorVisible = isOrganization
+      const isSponsorVisible = (isOrganization || isIndividualOrganizer)
         ? true
         : isCollegeAffiliated && college_subtype !== "student_community"
           ? false

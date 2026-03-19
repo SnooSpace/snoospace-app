@@ -62,15 +62,19 @@ export async function createSignupDraft(email, originAccountId) {
  * @param {object} prefill - Pre-filled data copied from the community account
  *   (name, photo, phone, location)
  * @param {string} originAccountId - ID of the currently logged-in community account
+ * @param {string} startStep - The step to record as currentStep. Defaults to "MemberName".
+ *   Pass "PeopleProfilePrompt" when creating the draft before the user has chosen
+ *   to set up their People profile (i.e. while they are still on the prompt screen).
+ *   This lets AuthGate route them back to PeopleProfilePromptScreen instead of
+ *   skipping straight into MemberName on crash recovery.
  * @returns {Promise<object>} The created draft
  */
-export async function createPeopleProfileDraft(prefill = {}, originAccountId = null) {
+export async function createPeopleProfileDraft(prefill = {}, originAccountId = null, startStep = "MemberName") {
   const draft = {
     id: `draft_${uuid()}`,
     createdAt: Date.now(),
     lastUpdatedAt: Date.now(),
-    // Resume starts at MemberName (the first real step in this flow)
-    currentStep: "MemberName",
+    currentStep: startStep,
     data: {
       email: prefill.email ?? null,
       name: prefill.name ?? null,
@@ -537,7 +541,7 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   // Post-location screens vary by type:
   // - College -> CollegeHeads -> CommunitySponsorType -> CommunityUsername
   // - Organization -> CommunityHeadName -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Individual -> CommunityHeadName -> CommunityPhone -> CommunityUsername (no SponsorType)
+  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName -> CommunityPhone -> CommunityUsername
   const orgPostStack = [
     "CommunityHeadName",
     "CommunityHeadProfilePic",
@@ -571,11 +575,12 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
       "CommunityUsername",
     ];
   } else {
-    // Individual organizer — Phone + HeadName, then directly to Username (no SponsorType)
+    // Creator — SponsorType comes right after Category, before IndividualLocation
     fullPath = [
       ...baseStack,
       ...coreStack,
-      ...locationStack,
+      "CommunitySponsorType",
+      "IndividualLocation",
       ...individualPostStack,
       "CommunityUsername",
     ];

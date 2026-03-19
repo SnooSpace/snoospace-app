@@ -250,6 +250,7 @@ const PhoneNumberInputScreen = ({ navigation, route }) => {
                       keyboardType="phone-pad"
                       textContentType="telephoneNumber"
                       autoComplete="tel"
+                      importantForAutofill="yes"
                       maxLength={10}
                     />
                   </View>

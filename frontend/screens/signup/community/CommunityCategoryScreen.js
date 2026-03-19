@@ -270,11 +270,11 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       categories: selectedCategories,
     };
 
-    // Individual organizers use GPS-based location
+    // Creators (individual_organizer) select sponsor types right after category
     if (params.community_type === "individual_organizer") {
-      navigation.navigate("IndividualLocation", categoryParams);
+      navigation.navigate("CommunitySponsorType", categoryParams);
     } else {
-      // Both Organizations and College-affiliated communities go directly to CommunityLocation
+      // Organizations and College-affiliated communities go to CommunityLocation
       navigation.navigate("CommunityLocation", categoryParams);
     }
   };

@@ -352,9 +352,14 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const handleSave = async () => {
     if (!hasChanges) return;
 
+    const originalSponsorTypes = profileRef.current?.sponsor_types || [];
+    const sponsorTypesChanged =
+      JSON.stringify([...sponsorTypes].sort()) !==
+      JSON.stringify([...originalSponsorTypes].sort());
+
     const isOpenToAll =
       sponsorTypes.length === 1 && sponsorTypes[0] === "Open to All";
-    if (!isOpenToAll && sponsorTypes.length < 3) {
+    if (sponsorTypesChanged && !isOpenToAll && sponsorTypes.length < 3) {
       Alert.alert(
         "Error",
         "Please select at least 3 sponsor types or 'Open to All'",

@@ -69,10 +69,10 @@ const DeleteConfirmationScreen = ({ navigation, route }) => {
 
   // ── Sequence orchestration ────────────────────────────────────────────────
   useEffect(() => {
-    // 1. Fade background in slowly
+    // 1. Fade background in quickly
     Animated.timing(bgOpacity, {
       toValue: 1,
-      duration: 800,
+      duration: 400,
       useNativeDriver: true,
     }).start();
 
@@ -307,12 +307,12 @@ const styles = StyleSheet.create({
   // ── Logo ──
   logoBlock: { alignItems: "center", gap: 12 },
   logoSvg: {
-    opacity: 0.65, // slightly dimmed to match the previous text logo's vibe
+    opacity: 1,
   },
   logoSub: {
     fontSize: 13,
     fontFamily: FONTS.regular,
-    color: "rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.7)",
     letterSpacing: 0.3,
   },
 

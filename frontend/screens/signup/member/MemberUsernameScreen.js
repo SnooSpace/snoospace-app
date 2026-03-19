@@ -141,11 +141,10 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   };
 
   const validateUsername = (text) => {
-    // Only allow alphanumeric characters, underscores, and dots
-    const regex = /^[a-zA-Z0-9_.]*$/;
-    if (regex.test(text)) {
-      setUsername(text);
-    }
+    // Keyboard suggestions often add trailing spaces. Rather than rejecting
+    // the whole string, we strip out spaces and invalid characters.
+    const formattedText = text.replace(/[^a-zA-Z0-9_.]/g, "");
+    setUsername(formattedText);
   };
 
   const handleFinish = async () => {
@@ -389,6 +388,9 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                           placeholderTextColor={COLORS.textSecondary}
                           autoCapitalize="none"
                           autoCorrect={false}
+                          textContentType="username"
+                          autoComplete="username"
+                          importantForAutofill="yes"
                           maxLength={30}
                           onFocus={() => setIsFocused(true)}
                           onBlur={() => setIsFocused(false)}

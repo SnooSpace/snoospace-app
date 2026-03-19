@@ -28,8 +28,8 @@ import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 const COMMUNITY_TYPES = [
   {
     id: "individual_organizer",
-    title: "Individual Organizer",
-    subtitle: "For solo creators & hosts running events",
+    title: "Creator",
+    subtitle: "For solo creators & independent event hosts",
     icon: "Sparkles",
     gradientColors: ["#FF6B6B", "#FF8E53"],
     nextScreen: "CommunityName", // Same flow, simplified

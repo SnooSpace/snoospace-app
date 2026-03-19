@@ -20,8 +20,8 @@ import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { apiPost, apiGet } from "../../../api/client";
 import { addAccount } from "../../../utils/accountManager";
-import { setAuthSession } from "../../../api/auth";
-import { deleteCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
+import { deleteCommunitySignupDraft, getCommunityDraftData, createPeopleProfileDraft } from "../../../utils/signupDraftManager";
+import { setAuthSession, getActiveAccount } from "../../../api/auth";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 
@@ -65,6 +65,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     isStudentCommunity: initialIsStudent,
     phone: initialPhone,
     head_photo_url: initialHeadPhoto,
+    sponsor_types: initialSponsorTypes,
   } = routeParams;
 
   // States for shared params that need hydration from draft if missing
@@ -89,7 +90,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     isStudentCommunity: initialIsStudent || existingUserData?.isStudentCommunity,
     phone: initialPhone || existingUserData?.phone,
     head_photo_url: initialHeadPhoto || existingUserData?.head_photo_url,
-    sponsor_types: existingUserData?.sponsor_types,
+    sponsor_types: initialSponsorTypes || existingUserData?.sponsor_types,
   });
 
   // Hydrate from draft if needed
@@ -205,11 +206,10 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   };
 
   const validateUsername = (text) => {
-    // Only allow alphanumeric characters, underscores, and dots
-    const regex = /^[a-zA-Z0-9_.]*$/;
-    if (regex.test(text)) {
-      setUsername(text);
-    }
+    // Keyboard suggestions often add trailing spaces. Rather than rejecting
+    // the whole string, we strip out spaces and invalid characters.
+    const formattedText = text.replace(/[^a-zA-Z0-9_.]/g, "");
+    setUsername(formattedText);
   };
 
   const getUsernameStatus = () => {
@@ -317,29 +317,53 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
       console.log("[CommunitySignup] Account added and auth session updated");
 
-      // Step 4: Delete draft on successful completion
+      // Step 4: Delete community draft on successful completion
       try {
         await deleteCommunitySignupDraft();
         console.log(
-          "[CommunityUsername] Draft deleted after successful signup",
+          "[CommunityUsername] Community draft deleted after successful signup",
         );
       } catch (e) {
         console.log(
-          "[CommunityUsername] Draft deletion failed (non-critical):",
+          "[CommunityUsername] Community draft deletion failed (non-critical):",
           e.message,
         );
       }
 
-      // Step 5: Navigate to PeopleProfilePromptScreen
-      // Use head_photo_url for the member prefill; fall back to community logo
+      // Step 5: Build the prefill data for a potential People-profile
       const effectiveHeadPhoto =
-        userData?.head_photo_url ?? head_photo_url ?? null;
+        userData?.head_photo_url ?? null;
 
+      const primaryHead = (userData?.heads || []).find((h) => h.is_primary);
+      const peoplePrefill = {
+        name: primaryHead?.name ?? userData?.heads?.[0]?.name ?? "",
+        photo: effectiveHeadPhoto ?? userData?.logo_url ?? null,
+        phone: userData?.phone ?? "",
+        location: userData?.location ?? null,
+        email: userData?.email ?? null,
+      };
+
+      // Step 6: Create a People-profile draft NOW so AuthGate can recover it
+      // if the app is killed while the user is on PeopleProfilePromptScreen.
+      // We use startStep "PeopleProfilePrompt" so AuthGate knows to send the user
+      // BACK to PeopleProfilePromptScreen (to let them choose), not MemberName.
+      try {
+        const activeAccount = await getActiveAccount();
+        await createPeopleProfileDraft(
+          peoplePrefill,
+          activeAccount?.id ?? communityId,
+          "PeopleProfilePrompt" // ← key: user hasn't chosen "Set up now" yet
+        );
+        console.log("[CommunityUsername] People-profile draft created (step=PeopleProfilePrompt)");
+      } catch (e) {
+        console.warn("[CommunityUsername] Could not create People-profile draft:", e.message);
+      }
+
+      // Step 7: Navigate to PeopleProfilePromptScreen
       navigation.navigate("PeopleProfilePromptScreen", {
         userData: {
           ...userData,
           username: username.toLowerCase().trim(),
-          // Expose head photo explicitly for prefill
           head_photo_url: effectiveHeadPhoto,
         },
       });
@@ -432,6 +456,9 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                       placeholderTextColor={COLORS.textSecondary}
                       autoCapitalize="none"
                       autoCorrect={false}
+                      textContentType="username"
+                      autoComplete="username"
+                      importantForAutofill="yes"
                       maxLength={30}
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}

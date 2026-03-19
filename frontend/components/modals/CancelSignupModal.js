@@ -23,6 +23,8 @@ export default function CancelSignupModal({
   visible,
   onKeepEditing,
   onDiscard,
+  title = "Discard new account?",
+  description = "Your progress will be lost. You can always start again later.",
 }) {
   return (
     <Modal
@@ -40,12 +42,10 @@ export default function CancelSignupModal({
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Discard new account?</Text>
+          <Text style={styles.title}>{title}</Text>
 
           {/* Description */}
-          <Text style={styles.description}>
-            Your progress will be lost. You can always start again later.
-          </Text>
+          <Text style={styles.description}>{description}</Text>
 
           {/* Actions */}
           <View style={styles.actions}>
