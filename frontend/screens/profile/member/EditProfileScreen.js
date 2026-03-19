@@ -752,7 +752,8 @@ export default function EditProfileScreen({ route, navigation }) {
                   (occ) => occ.value !== selectedOccupation
                 );
 
-                if (availableOccupations.length === 0) return null;
+                const hasAnyOccupations = category.occupations.length > 0;
+                if (!hasAnyOccupations) return null;
 
                 return (
                   <View key={key} style={styles.categoryRow}>
@@ -790,25 +791,31 @@ export default function EditProfileScreen({ route, navigation }) {
 
                     {isExpanded && (
                       <View style={styles.categoryContent}>
-                        <View style={styles.vibesContainer}>
-                          {availableOccupations.map((occ) => (
-                            <TouchableOpacity
-                              key={occ.value}
-                              onPress={() => {
-                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                setSelectedOccupation(occ.value);
-                                if (occ.value !== "other") setCustomOccupation("");
-                                setOccupationDetails({});
-                                setOccupationCategory(null);
-                                setPortfolioLink("");
-                                HapticsService.triggerSelection();
-                              }}
-                              style={styles.optionChip}
-                            >
-                              <Text style={styles.optionText}>{occ.label}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        {availableOccupations.length === 0 ? (
+                          <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                            All selected
+                          </Text>
+                        ) : (
+                          <View style={styles.vibesContainer}>
+                            {availableOccupations.map((occ) => (
+                              <TouchableOpacity
+                                key={occ.value}
+                                onPress={() => {
+                                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                  setSelectedOccupation(occ.value);
+                                  if (occ.value !== "other") setCustomOccupation("");
+                                  setOccupationDetails({});
+                                  setOccupationCategory(null);
+                                  setPortfolioLink("");
+                                  HapticsService.triggerSelection();
+                                }}
+                                style={styles.optionChip}
+                              >
+                                <Text style={styles.optionText}>{occ.label}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -985,6 +992,12 @@ export default function EditProfileScreen({ route, navigation }) {
                         ),
                     );
 
+                    const hasAnyInterests = interestsCatalog.some(
+                      (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
+                    );
+
+                    if (!hasAnyInterests) return null;
+
                     // If no interests in this category available to add, maybe skip?
                     // Spec says "Show all categories", so keeping it.
 
@@ -1055,8 +1068,8 @@ export default function EditProfileScreen({ route, navigation }) {
                                 </TouchableOpacity>
                               ))}
                               {categoryInterests.length === 0 && (
-                                <Text style={styles.helperText}>
-                                  No more interests in this category.
+                                <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                  All selected
                                 </Text>
                               )}
                             </View>

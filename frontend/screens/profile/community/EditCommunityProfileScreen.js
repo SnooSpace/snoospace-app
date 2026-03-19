@@ -651,6 +651,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                     );
                   });
 
+                  const hasAnyItems = CATEGORIES.some((c) => {
+                    const style = getCategoryStyle(c);
+                    return style.label === categoryConfig.label;
+                  });
+
+                  if (!hasAnyItems) return null;
+
                   return (
                     <View key={key} style={styles.categoryRow}>
                       <TouchableOpacity
@@ -701,9 +708,14 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
                       {isExpanded && (
                         <View style={styles.categoryContent}>
-                          <View style={styles.vibesContainer}>
-                            {categoryItems.map((item) => (
-                              <TouchableOpacity
+                          {categoryItems.length === 0 ? (
+                            <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                              All selected
+                            </Text>
+                          ) : (
+                            <View style={styles.vibesContainer}>
+                              {categoryItems.map((item) => (
+                                <TouchableOpacity
                                 key={item}
                                 onPress={() => {
                                   if (categories.length >= 3) {
@@ -718,11 +730,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                                 }}
                                 style={styles.optionChip}
                               >
-                                <Text style={styles.optionText}>{item}</Text>
-                                <Plus size={14} color={TEXT_SECONDARY} />
-                              </TouchableOpacity>
-                            ))}
-                          </View>
+                                  <Text style={styles.optionText}>{item}</Text>
+                                  <Plus size={14} color={TEXT_SECONDARY} />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>

@@ -409,7 +409,11 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
                             ),
                         );
 
-                        if (groupCats.length === 0) return null;
+                        const hasAnyCats = availableCategories.some(
+                          (cat) => categoryGroup.keywords.some((k) => cat.toLowerCase().includes(k))
+                        );
+
+                        if (!hasAnyCats) return null;
 
                         return (
                           <View key={key} style={styles.categoryRow}>
@@ -458,24 +462,30 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
 
                             {isExpanded && (
                               <View style={styles.categoryContent}>
-                                <View style={styles.chipsContainer}>
-                                  {groupCats.map((cat) => (
-                                    <TouchableOpacity
-                                      key={cat}
-                                      onPress={() => toggleCategory(cat)}
-                                      style={[
-                                        styles.optionChip,
-                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
-                                      ]}
-                                      disabled={selectedCategories.length >= MAX_CATEGORIES}
-                                    >
-                                      <Text style={[
-                                        styles.optionText,
-                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
-                                      ]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
+                                {groupCats.length === 0 ? (
+                                  <Text style={[styles.optionText, { color: COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                    All selected
+                                  </Text>
+                                ) : (
+                                  <View style={styles.chipsContainer}>
+                                    {groupCats.map((cat) => (
+                                      <TouchableOpacity
+                                        key={cat}
+                                        onPress={() => toggleCategory(cat)}
+                                        style={[
+                                          styles.optionChip,
+                                          selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
+                                        ]}
+                                        disabled={selectedCategories.length >= MAX_CATEGORIES}
+                                      >
+                                        <Text style={[
+                                          styles.optionText,
+                                          selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
+                                        ]}>{cat}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </View>
+                                )}
                               </View>
                             )}
                           </View>
