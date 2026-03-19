@@ -141,7 +141,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         ? [profile.category]
         : [];
   const [categories, setCategories] = useState(initialCategories);
-  const [expandedCategory, setExpandedCategory] = useState("LIFESTYLE");
+  const [expandedCategory, setExpandedCategory] = useState(null);
   const [sponsorTypes, setSponsorTypes] = useState(
     profile?.sponsor_types || [],
   );

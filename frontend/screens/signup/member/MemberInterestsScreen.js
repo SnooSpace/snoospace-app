@@ -321,8 +321,11 @@ const InterestsScreen = ({ navigation, route }) => {
                             ),
                         );
 
-                        // Skip rendering category if it has no unselected interests available
-                        if (categoryInterests.length === 0) return null;
+                        const hasAnyInterests = allInterests.some(
+                          (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
+                        );
+
+                        if (!hasAnyInterests) return null;
 
                         return (
                           <View key={key} style={styles.categoryRow}>
@@ -371,24 +374,30 @@ const InterestsScreen = ({ navigation, route }) => {
 
                             {isExpanded && (
                               <View style={styles.categoryContent}>
-                                <View style={styles.chipsContainer}>
-                                  {categoryInterests.map((interest) => (
-                                    <TouchableOpacity
-                                      key={interest}
-                                      onPress={() => toggleInterest(interest)}
-                                      style={[
-                                        styles.optionChip,
-                                        selectedInterests.length >= MAX_SELECTIONS && styles.optionChipDisabled
-                                      ]}
-                                      disabled={selectedInterests.length >= MAX_SELECTIONS}
-                                    >
-                                      <Text style={[
-                                        styles.optionText,
-                                        selectedInterests.length >= MAX_SELECTIONS && styles.optionTextDisabled
-                                      ]}>{interest}</Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
+                                {categoryInterests.length === 0 ? (
+                                  <Text style={[styles.optionText, { color: COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                    All selected
+                                  </Text>
+                                ) : (
+                                  <View style={styles.chipsContainer}>
+                                    {categoryInterests.map((interest) => (
+                                      <TouchableOpacity
+                                        key={interest}
+                                        onPress={() => toggleInterest(interest)}
+                                        style={[
+                                          styles.optionChip,
+                                          selectedInterests.length >= MAX_SELECTIONS && styles.optionChipDisabled
+                                        ]}
+                                        disabled={selectedInterests.length >= MAX_SELECTIONS}
+                                      >
+                                        <Text style={[
+                                          styles.optionText,
+                                          selectedInterests.length >= MAX_SELECTIONS && styles.optionTextDisabled
+                                        ]}>{interest}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </View>
+                                )}
                               </View>
                             )}
                           </View>
