@@ -262,6 +262,39 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
 
+  // Delete toast state
+  const toastOpacity = useRef(new RNAnimated.Value(0)).current;
+  const toastTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const [toastVisible, setToastVisible] = useState(false);
+
+  const showDeleteToast = () => {
+    toastOpacity.setValue(0);
+    toastTranslateY.setValue(0);
+    setToastVisible(true);
+    RNAnimated.parallel([
+      RNAnimated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setTimeout(() => {
+        RNAnimated.parallel([
+          RNAnimated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(toastTranslateY, {
+            toValue: -28,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setToastVisible(false));
+      }, 1200);
+    });
+  };
+
   // ── Account Switch Tutorial ───────────────────────────────────────────────
   const [tutorialStep, setTutorialStep] = useState(0); // 0 = hidden, 1-3 = step
   const tutorialOpacity = useSharedValue(0);
@@ -919,6 +952,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     if (postToDelete) {
       // Optimistically remove from UI
       handleDelete(postToDelete);
+      // Show mid-screen toast
+      showDeleteToast();
 
       try {
         const token = await getAuthToken();
@@ -1376,6 +1411,22 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           </Animated.View>
         </Animated.View>
       )}
+
+      {/* Delete Post Toast */}
+      {toastVisible && (
+        <RNAnimated.View
+          style={[
+            styles.deleteToast,
+            {
+              opacity: toastOpacity,
+              transform: [{ translateY: toastTranslateY }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.deleteToastText}>Post deleted</Text>
+        </RNAnimated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1690,5 +1741,26 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  deleteToast: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "50%",
+    backgroundColor: "rgba(31, 31, 31, 0.88)",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 100,
+    zIndex: 10000,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  deleteToastText: {
+    color: "#FFFFFF",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    letterSpacing: 0.1,
   },
 });

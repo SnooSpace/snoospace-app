@@ -27,7 +27,7 @@ import EntityTagSelector from "./EntityTagSelector";
 import { getAuthToken } from "../api/auth";
 import { uploadMultipleImages, uploadMultipleMedia } from "../api/cloudinary";
 import EventBus from "../utils/EventBus";
-import SuccessCard from "./feedback/SuccessCard";
+
 import HapticsService from "../services/HapticsService";
 import GradientButton from "./GradientButton";
 import { COLORS, SHADOWS, FONTS } from "../constants/theme";
@@ -51,8 +51,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
-  const [showSuccessCard, setShowSuccessCard] = useState(false); // Success Card State
-  const [successCardData, setSuccessCardData] = useState(null);
+
   const imageUploaderRef = useRef(null);
   const scrollViewRef = useRef(null);
   // ...
@@ -240,22 +239,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     }
   };
 
-  const handleViewPost = () => {
-    setShowSuccessCard(false);
-    navigation.goBack(); // Close modal first
-    setTimeout(() => {
-      navigateHome();
-    }, 100);
-  };
 
-  const handleCreateAnother = () => {
-    setShowSuccessCard(false);
-    setCaption("");
-    setImages([]);
-    setTaggedEntities([]);
-    setEntityTags([]);
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  };
 
   const handleSubmit = async () => {
     if (images.length === 0) {
@@ -344,14 +328,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       // Emit event to refresh feed
       EventBus.emit("post-created");
 
-      // 5. Success: Show confirmation card
-      setSuccessCardData({
-        thumbnail: imageUrls[0],
-        hasVideo: mediaTypes[0] === "video",
-        // If we tagged a challenge, maybe pass that info?
-        challengeTag: entityTags.find((e) => e.type === "challenge"),
-      });
-      setShowSuccessCard(true);
+      // 5. Success: Close modal and navigate home
+      navigation.goBack();
+      setTimeout(() => {
+        navigateHome();
+      }, 100);
     } catch (error) {
       console.error("Error creating post:", error);
       Alert.alert(

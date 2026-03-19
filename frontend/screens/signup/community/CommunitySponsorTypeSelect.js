@@ -10,6 +10,7 @@ import {
   Platform,
   StatusBar,
   Alert,
+  ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
@@ -18,6 +19,8 @@ import { getSponsorTypes } from "../../../api/client";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
 import { LinearGradient } from "expo-linear-gradient";
+import { X, ChevronDown, ChevronRight, Zap } from "lucide-react-native";
+import { getInterestStyle, INTEREST_CATEGORIES } from "../../profile/member/EditProfileConstants";
 import {
   COLORS,
   SPACING,
@@ -40,38 +43,6 @@ const fallbackSponsorTypes = [
 ];
 
 // --- Components ---
-
-/**
- * Sponsor Chip Component (Selectable Tag)
- */
-const SponsorChip = ({ type, isSelected, onPress }) => (
-  <TouchableOpacity
-    style={[
-      styles.chip,
-      {
-        backgroundColor: isSelected ? COLORS.primary : COLORS.background,
-        borderColor: isSelected ? COLORS.primary : COLORS.border,
-      },
-    ]}
-    onPress={() => onPress(type)}
-    activeOpacity={0.7}
-    accessibilityRole="button"
-    accessibilityState={{ selected: isSelected }}
-    accessibilityLabel={`Sponsor Type: ${type}. ${
-      isSelected ? "Selected" : "Tap to select"
-    }.`}
-  >
-    <Text
-      style={[
-        styles.chipText,
-        // Using consistent TEXT_COLOR for inactive text
-        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
-      ]}
-    >
-      {type}
-    </Text>
-  </TouchableOpacity>
-);
 
 /**
  * Main Screen Component
@@ -128,6 +99,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   });
   const [sponsorTypes, setSponsorTypes] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
+  const [isOpenToAll, setIsOpenToAll] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -361,37 +334,251 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.cardContent}>
-                {/* Sponsor Type Chips Container */}
-                <View style={styles.chipsContainer}>
+                {/* Top Section: Selected Sponsor Types */}
+                {!isOpenToAll && selectedTypes.length > 0 && (
+                  <View style={styles.selectedSection}>
+                    <View style={styles.chipsContainer}>
+                      {selectedTypes.map((type) => {
+                        const style = getInterestStyle(type);
+                        const Icon = style.icon;
+                        return (
+                          <TouchableOpacity
+                            key={`selected-${type}`}
+                            activeOpacity={0.7}
+                            onPress={() => toggleType(type)}
+                            style={[
+                              styles.vibeChip,
+                              { backgroundColor: style.bg, paddingRight: 8 },
+                            ]}
+                          >
+                            <View style={styles.vibeContent}>
+                              <Icon
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={[styles.vibeText, { color: style.text }]}
+                              >
+                                {type}
+                              </Text>
+                            </View>
+                            <View style={styles.removeIconContainer}>
+                              <X size={12} color={style.text} strokeWidth={3} />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.divider} />
+                  </View>
+                )}
+
+                {/* Available Sponsor Types (Grouped) */}
+                <View 
+                  style={[styles.categoriesContainer, { opacity: isOpenToAll ? 0.4 : 1 }]}
+                  pointerEvents={isOpenToAll ? "none" : "auto"}
+                >
                   {loading ? (
                     <Text style={styles.subtitle}>
-                      Loading sponsor types...
-                    </Text>
-                  ) : (
-                    sponsorTypes.map((type, index) => (
-                      <Animated.View 
-                        key={type}
-                        entering={FadeInDown.delay(400 + index * 50).duration(600).springify()}
-                      >
-                        <SponsorChip
-                          type={type}
-                          isSelected={isOpenToAll || selectedTypes.includes(type)}
-                          onPress={toggleType}
-                        />
-                      </Animated.View>
-                    ))
-                  )}
-                </View>
+                        Loading sponsor types...
+                      </Text>
+                    ) : (
+                      <>
+                        {Object.keys(INTEREST_CATEGORIES)
+                          .filter((key) => key !== "DEFAULT")
+                          .map((key) => {
+                            const categoryGroup = INTEREST_CATEGORIES[key];
+                            const isExpanded = expandedCategory === key;
+                            const GroupIcon = categoryGroup.icon;
+
+                            // Filter sponsors for this group
+                            const groupSponsors = sponsorTypes.filter(
+                              (type) =>
+                                !selectedTypes.includes(type) &&
+                                categoryGroup.keywords.some((k) =>
+                                  type.toLowerCase().includes(k),
+                                ),
+                            );
+
+                            const hasAnySponsors = sponsorTypes.some(
+                              (type) => categoryGroup.keywords.some((k) => type.toLowerCase().includes(k))
+                            );
+
+                            if (!hasAnySponsors) return null;
+
+                            return (
+                              <View key={key} style={styles.categoryRow}>
+                                <TouchableOpacity
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    setExpandedCategory(isExpanded ? null : key);
+                                  }}
+                                  style={[
+                                    styles.categoryHeader,
+                                    isExpanded && styles.categoryHeaderExpanded,
+                                    {
+                                      backgroundColor: isExpanded
+                                        ? categoryGroup.bg
+                                        : "transparent",
+                                    },
+                                  ]}
+                                >
+                                  <View style={styles.categoryHeaderLeft}>
+                                    <View
+                                      style={[
+                                        styles.categoryIcon,
+                                        { backgroundColor: categoryGroup.bg },
+                                      ]}
+                                    >
+                                      <GroupIcon size={14} color={categoryGroup.text} />
+                                    </View>
+                                    <Text
+                                      style={[
+                                        styles.categoryTitle,
+                                        isExpanded && {
+                                          color: categoryGroup.text,
+                                          fontWeight: "600",
+                                        },
+                                      ]}
+                                    >
+                                      {categoryGroup.label}
+                                    </Text>
+                                  </View>
+                                  {isExpanded ? (
+                                    <ChevronDown size={16} color={COLORS.textSecondary} />
+                                  ) : (
+                                    <ChevronRight size={16} color={COLORS.textSecondary} />
+                                  )}
+                                </TouchableOpacity>
+
+                                {isExpanded && (
+                                  <View style={styles.categoryContent}>
+                                    {groupSponsors.length === 0 ? (
+                                      <Text style={[styles.optionText, { color: COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                        All selected
+                                      </Text>
+                                    ) : (
+                                      <View style={styles.chipsContainer}>
+                                        {groupSponsors.map((type) => (
+                                          <TouchableOpacity
+                                            key={type}
+                                            onPress={() => toggleType(type)}
+                                            style={styles.optionChip}
+                                          >
+                                            <Text style={styles.optionText}>{type}</Text>
+                                          </TouchableOpacity>
+                                        ))}
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+
+                        {/* Uncategorized (Other) */}
+                        {(() => {
+                          const uncategorizedSponsors = sponsorTypes.filter(
+                            (type) =>
+                              !selectedTypes.includes(type) &&
+                              !Object.values(INTEREST_CATEGORIES).some((group) =>
+                                group.keywords.some((k) => type.toLowerCase().includes(k))
+                              )
+                          );
+
+                          const hasAnyUncategorized = sponsorTypes.some(
+                            (type) => !Object.values(INTEREST_CATEGORIES).some((group) =>
+                                group.keywords.some((k) => type.toLowerCase().includes(k))
+                              )
+                          );
+
+                          if (!hasAnyUncategorized) return null;
+                          const isExpanded = expandedCategory === 'OTHER';
+                          const defaultCategory = INTEREST_CATEGORIES.DEFAULT;
+
+                          return (
+                            <View key="OTHER" style={styles.categoryRow}>
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  setExpandedCategory(isExpanded ? null : 'OTHER');
+                                }}
+                                style={[
+                                  styles.categoryHeader,
+                                  isExpanded && styles.categoryHeaderExpanded,
+                                  {
+                                    backgroundColor: isExpanded
+                                      ? defaultCategory.bg
+                                      : "transparent",
+                                  },
+                                ]}
+                              >
+                                <View style={styles.categoryHeaderLeft}>
+                                  <View
+                                    style={[
+                                      styles.categoryIcon,
+                                      { backgroundColor: defaultCategory.bg },
+                                    ]}
+                                  >
+                                    <Zap size={14} color={defaultCategory.text} />
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.categoryTitle,
+                                      isExpanded && {
+                                        color: defaultCategory.text,
+                                        fontWeight: "600",
+                                      },
+                                    ]}
+                                  >
+                                    Other
+                                  </Text>
+                                </View>
+                                {isExpanded ? (
+                                  <ChevronDown size={16} color={COLORS.textSecondary} />
+                                ) : (
+                                  <ChevronRight size={16} color={COLORS.textSecondary} />
+                                )}
+                              </TouchableOpacity>
+
+                              {isExpanded && (
+                                <View style={styles.categoryContent}>
+                                  {uncategorizedSponsors.length === 0 ? (
+                                    <Text style={[styles.optionText, { color: COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                      All selected
+                                    </Text>
+                                  ) : (
+                                    <View style={styles.chipsContainer}>
+                                      {uncategorizedSponsors.map((type) => (
+                                        <TouchableOpacity
+                                          key={type}
+                                          onPress={() => toggleType(type)}
+                                          style={styles.optionChip}
+                                        >
+                                          <Text style={styles.optionText}>{type}</Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </View>
 
                 <TouchableOpacity
                   style={[
                     styles.openToAllButton,
                     {
                       backgroundColor: openToAllIsSelected
-                        ? COLORS.primary
+                        ? COLORS.textPrimary
                         : "rgba(255, 255, 255, 0.4)",
                       borderColor: openToAllIsSelected
-                        ? COLORS.primary
+                        ? COLORS.textPrimary
                         : "rgba(255, 255, 255, 0.6)",
                     },
                   ]}
@@ -542,17 +729,92 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  chip: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: BORDER_RADIUS.pill,
-    borderWidth: 1.5,
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    borderColor: "rgba(255, 255, 255, 0.5)",
+  
+  // --- Split Layout Styles ---
+  categoriesContainer: {
+    marginTop: 8,
   },
-  chipText: {
+  categoryRow: {
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  categoryHeaderExpanded: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  categoryContent: {
+    padding: 16,
+    backgroundColor: "transparent",
+  },
+  selectedSection: {
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    marginVertical: 16,
+  },
+  vibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
+    gap: 8,
+  },
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  vibeText: {
     fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+  },
+  removeIconContainer: {
+    marginLeft: 2,
+    opacity: 0.6,
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.pill,
+  },
+  optionText: {
+    fontSize: 15,
     fontFamily: "Manrope-Medium",
+    color: COLORS.textPrimary,
   },
 
   // --- Open to All Button Styles ---
