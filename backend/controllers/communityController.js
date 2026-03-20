@@ -240,9 +240,9 @@ async function signup(req, res) {
       );
       community.category = community.categories[0] || community.category;
 
-      // Clear existing heads and insert provided ones (for organization AND college-affiliated types)
+      // Clear existing heads and insert provided ones (for organization, college-affiliated, AND individual organizer types)
       if (
-        (isOrganization || isCollegeAffiliated) &&
+        (isOrganization || isCollegeAffiliated || isIndividualOrganizer) &&
         Array.isArray(heads) &&
         heads.length > 0
       ) {
@@ -338,7 +338,7 @@ async function getProfile(req, res) {
 
     // Get community profile
     const communityResult = await pool.query(
-      `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, created_at
+      `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, show_heads, created_at
        FROM communities WHERE id = $1`,
       [userId],
     );
@@ -430,6 +430,7 @@ async function getProfile(req, res) {
           : community.location,
       heads: heads,
       banner_url: community.banner_url,
+      show_heads: community.show_heads !== false, // default true
     };
     profileData.category =
       profileData.categories[0] || community.category || null;
@@ -588,6 +589,11 @@ async function patchProfile(req, res) {
       values.push(sanitizedBanner || null);
     }
 
+    if (req.body.hasOwnProperty("show_heads")) {
+      updates.push(`show_heads = $${paramIndex++}`);
+      values.push(req.body.show_heads !== false); // store true/false
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -717,7 +723,7 @@ async function getPublicCommunity(req, res) {
     }
 
     const communityR = await pool.query(
-      `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location
+      `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location, show_heads
        FROM communities
        WHERE id = $1`,
       [targetId],
@@ -805,6 +811,7 @@ async function getPublicCommunity(req, res) {
           : profile.location,
       heads: heads,
       banner_url: profile.banner_url,
+      show_heads: profile.show_heads !== false, // default true
     });
   } catch (err) {
     console.error(

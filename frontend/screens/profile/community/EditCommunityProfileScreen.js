@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, Switch } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
   ArrowLeft,
   Camera,
   User,
-  Users,
   NotebookText,
   MapPinned,
   Mail,
@@ -146,10 +145,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     profile?.sponsor_types || [],
   );
   const [location, setLocation] = useState(profile?.location || null);
-  // show_heads controls whether the Heads section is visible on the profile
-  const [showHeads, setShowHeads] = useState(
-    profile?.show_heads !== false, // default true unless explicitly false
-  );
+
 
   const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
     FALLBACK_SPONSOR_TYPES,
@@ -200,7 +196,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     sponsorTypes,
     email,
     location,
-    showHeads,
   ]);
 
   useEffect(() => {
@@ -255,8 +250,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       JSON.stringify(normalizeArray(sponsorTypes)) !==
         JSON.stringify(normalizeArray(sourceProfile?.sponsor_types || [])) ||
       JSON.stringify(location) !==
-        JSON.stringify(sourceProfile?.location || null) ||
-      showHeads !== (sourceProfile?.show_heads !== false);
+        JSON.stringify(sourceProfile?.location || null);
 
     setHasChanges(!!changed);
   };
@@ -404,7 +398,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         categories: normalizedCategories,
         sponsor_types: sponsorTypes,
         location: location,
-        show_heads: showHeads,
       };
 
       await updateCommunityProfile(updates, token);
@@ -889,34 +882,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Community Heads Visibility Toggle */}
-        <View style={styles.card}>
-          {renderSectionHeader("COMMUNITY HEADS", Users)}
-          <View style={[styles.inputGroupLast, { paddingTop: 4 }]}>
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingVertical: 8,
-            }}>
-              <View style={{ flex: 1, marginRight: 16 }}>
-                <Text style={[styles.inputLabel, { marginBottom: 2 }]}>SHOW ON PROFILE</Text>
-                <Text style={styles.helperText}>
-                  Display the community heads section on your public and own profile.
-                </Text>
-              </View>
-              <Switch
-                value={showHeads}
-                onValueChange={(val) => {
-                  setShowHeads(val);
-                }}
-                trackColor={{ false: "#E5E7EB", true: `${ACCENT_COLOR}55` }}
-                thumbColor={showHeads ? ACCENT_COLOR : "#9CA3AF"}
-                ios_backgroundColor="#E5E7EB"
-              />
-            </View>
-          </View>
-        </View>
+
 
         <View style={{ height: 40 }} />
       </KeyboardAwareScrollView>

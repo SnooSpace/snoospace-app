@@ -259,9 +259,18 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
     setIsSubmitting(true);
     try {
+      // Merge head_photo_url into the primary head's profile_pic_url before sending
+      // (head_photo_url is stored as a top-level param but the backend expects it inside the heads[] array)
+      const mergedHeads = (userData.heads || []).map((h, i) =>
+        i === 0 && userData.head_photo_url
+          ? { ...h, profile_pic_url: userData.head_photo_url }
+          : h,
+      );
+
       // Step 1: Create the community record with ALL data including username
       const signupPayload = {
         ...userData,
+        heads: mergedHeads.length > 0 ? mergedHeads : userData.heads,
         username: username.toLowerCase().trim(), // Include username in signup
       };
 

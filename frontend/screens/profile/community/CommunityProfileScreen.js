@@ -41,6 +41,9 @@ import {
   Video,
   MapPin,
   AlertCircle,
+  MoreHorizontal,
+  EyeOff,
+  Eye,
 } from "lucide-react-native";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import {
@@ -158,6 +161,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [showBannerActionSheet, setShowBannerActionSheet] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [activeEmail, setActiveEmail] = useState("");
+  const [showHeadsMenu, setShowHeadsMenu] = useState(false);
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
   const initialLoadCompletedRef = useRef(false);
@@ -181,6 +185,7 @@ export default function CommunityProfileScreen({ navigation }) {
     showLogoutModal ||
     showDeleteModal ||
     headsModalVisible ||
+    showHeadsMenu ||
     showBannerActionSheet ||
     commentsModalState.visible;
   const { pickAndCrop } = useCrop();
@@ -1229,9 +1234,17 @@ export default function CommunityProfileScreen({ navigation }) {
                   : "Meet the Host"}
               </Text>
 
-              <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
-                <Pencil size={20} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
+                  <Pencil size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowHeadsMenu(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
             </View>
             {profile.heads && profile.heads.length > 0 ? (
               <View style={{ paddingVertical: 4 }}>
@@ -1300,6 +1313,48 @@ export default function CommunityProfileScreen({ navigation }) {
             ) : (
               <Text style={styles.emptyText}>No hosts added yet</Text>
             )}
+          </View>
+          )}
+
+          {profile.show_heads === false && (
+          <View style={[styles.sectionCard, { borderColor: "rgba(0,0,0,0.05)" }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {profile.heads && profile.heads.length > 1
+                  ? "Meet the Hosts"
+                  : "Meet the Host"}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
+                  <Pencil size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowHeadsMenu(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: "rgba(245, 158, 11, 0.08)",
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+            }}>
+              <EyeOff size={15} color="#B45309" strokeWidth={2} />
+              <Text style={{
+                fontFamily: FONTS.regular,
+                fontSize: 13,
+                color: "#B45309",
+                flex: 1,
+              }}>
+                This section is hidden from your public profile
+              </Text>
+            </View>
           </View>
           )}
 
@@ -2016,6 +2071,123 @@ export default function CommunityProfileScreen({ navigation }) {
         onSave={handleHeadsSave}
         maxHeads={5}
       />
+
+      {/* Meet the Host — Hide/Show action modal */}
+      <Modal
+        visible={showHeadsMenu}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowHeadsMenu(false)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            justifyContent: "flex-end",
+          }}
+          activeOpacity={1}
+          onPress={() => setShowHeadsMenu(false)}
+        >
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 12,
+              paddingBottom: 36,
+              paddingHorizontal: 20,
+            }}
+          >
+            {/* Handle bar */}
+            <View
+              style={{
+                width: 40,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: "#E5E7EB",
+                alignSelf: "center",
+                marginBottom: 20,
+              }}
+            />
+            <Text
+              style={{
+                fontFamily: FONTS.primary,
+                fontSize: 16,
+                color: TEXT_COLOR,
+                marginBottom: 16,
+              }}
+            >
+              Meet the Host
+            </Text>
+
+            {/* Hide / Show option */}
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 14,
+                paddingVertical: 14,
+                borderRadius: 16,
+              }}
+              onPress={async () => {
+                setShowHeadsMenu(false);
+                const newVal = profile.show_heads === false ? true : false;
+                // Optimistic local update
+                setProfile((prev) =>
+                  prev ? { ...prev, show_heads: newVal } : prev,
+                );
+                try {
+                  await updateCommunityProfile({ show_heads: newVal });
+                } catch (e) {
+                  // Revert on error
+                  setProfile((prev) =>
+                    prev ? { ...prev, show_heads: !newVal } : prev,
+                  );
+                  Alert.alert("Error", "Could not update visibility.");
+                }
+              }}
+            >
+              {profile.show_heads === false ? (
+                <Eye size={20} color={PRIMARY_COLOR} strokeWidth={2} />
+              ) : (
+                <EyeOff size={20} color="#B45309" strokeWidth={2} />
+              )}
+              <Text
+                style={{
+                  fontFamily: FONTS.medium,
+                  fontSize: 15,
+                  color: profile.show_heads === false ? PRIMARY_COLOR : "#B45309",
+                }}
+              >
+                {profile.show_heads === false
+                  ? "Show on public profile"
+                  : "Hide from public profile"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Cancel */}
+            <TouchableOpacity
+              style={{
+                paddingVertical: 14,
+                alignItems: "center",
+                marginTop: 4,
+              }}
+              onPress={() => setShowHeadsMenu(false)}
+            >
+              <Text
+                style={{
+                  fontFamily: FONTS.medium,
+                  fontSize: 15,
+                  color: LIGHT_TEXT_COLOR,
+                }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {selectedPost && (
         <ProfilePostFeed
