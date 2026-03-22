@@ -16,7 +16,8 @@ import {
 } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
-import { ArrowRight, Users, Building2 } from "lucide-react-native";
+import { ArrowRight, Users, Building2, ArrowLeft } from "lucide-react-native";
+import GlassBackButton from "../../components/GlassBackButton";
 import { SvgXml } from "react-native-svg";
 import { BlurView } from "expo-blur";
 import Animated, {
@@ -52,7 +53,8 @@ const PARTICIPATION_ROLES = [
   {
     id: "member",
     title: "People",
-    subtitle: "Join events, discover communities, and connect with people nearby.",
+    subtitle:
+      "Join events, discover communities, and connect with people nearby.",
     quote: "Where every event is a chance to meet someone worth knowing.",
     buttonText: "Start Exploring",
     animation: require("../../assets/animations/gossipers.json"),
@@ -72,164 +74,207 @@ const PARTICIPATION_ROLES = [
 ];
 
 // ─── Animated Card ────────────────────────────────────────────────────────────
-const AnimatedCard = memo(({
-  item,
-  index,
-  cardBaseHeight,
-  selectedIndex,
-  onSelect,
-  onContinue,
-  cardWidth,
-}) => {
-  const isSelected = selectedIndex === index;
-  const isOtherSelected = selectedIndex !== -1 && selectedIndex !== index;
-  const IconComponent = item.icon;
+const AnimatedCard = memo(
+  ({
+    item,
+    index,
+    cardBaseHeight,
+    selectedIndex,
+    onSelect,
+    onContinue,
+    cardWidth,
+  }) => {
+    const isSelected = selectedIndex === index;
+    const isOtherSelected = selectedIndex !== -1 && selectedIndex !== index;
+    const IconComponent = item.icon;
 
-  const cardStyle = useAnimatedStyle(() => {
-    const currentScale   = withTiming(isOtherSelected ? 0.88 : 1, { duration: 350 });
-    const currentOpacity = withTiming(isOtherSelected ? 0.75 : 1, { duration: 350 });
-    const currentHeight  = withTiming(isSelected ? cardBaseHeight + 130 : cardBaseHeight, { duration: 420 });
-    return {
-      transform: [{ scale: currentScale }],
-      opacity: currentOpacity,
-      height: currentHeight,
-      zIndex: isSelected ? 10 : 1,
-    };
-  });
+    const cardStyle = useAnimatedStyle(() => {
+      const currentScale = withTiming(isOtherSelected ? 0.88 : 1, {
+        duration: 350,
+      });
+      const currentOpacity = withTiming(isOtherSelected ? 0.75 : 1, {
+        duration: 350,
+      });
+      const currentHeight = withTiming(
+        isSelected ? cardBaseHeight + 130 : cardBaseHeight,
+        { duration: 420 },
+      );
+      return {
+        transform: [{ scale: currentScale }],
+        opacity: currentOpacity,
+        height: currentHeight,
+        zIndex: isSelected ? 10 : 1,
+      };
+    });
 
-  const expandedAreaStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(isSelected ? 1 : 0, { duration: 280, easing: Easing.out(Easing.quad) }),
-    transform: [{
-      translateY: withTiming(isSelected ? 0 : 16, { duration: 380, easing: Easing.out(Easing.cubic) }),
-    }],
-    height: withTiming(isSelected ? 140 : 0, { duration: 420, easing: Easing.bezier(0.33, 1, 0.68, 1) }),
-    overflow: "hidden",
-  }));
+    const expandedAreaStyle = useAnimatedStyle(() => ({
+      opacity: withTiming(isSelected ? 1 : 0, {
+        duration: 280,
+        easing: Easing.out(Easing.quad),
+      }),
+      transform: [
+        {
+          translateY: withTiming(isSelected ? 0 : 16, {
+            duration: 380,
+            easing: Easing.out(Easing.cubic),
+          }),
+        },
+      ],
+      height: withTiming(isSelected ? 140 : 0, {
+        duration: 420,
+        easing: Easing.bezier(0.33, 1, 0.68, 1),
+      }),
+      overflow: "hidden",
+    }));
 
-  return (
-    <Animated.View
-      style={[
-        styles.cardContainer,
-        { width: cardWidth, marginHorizontal: 8 },
-        cardStyle,
-      ]}
-    >
-      {/* ── Outer glow ring — colored border + deep shadow ── */}
-      <View
+    return (
+      <Animated.View
         style={[
-          styles.cardGlowRing,
-          {
-            borderColor: isSelected
-              ? item.accentColor + "55"
-              : "rgba(255,255,255,0.18)",
-          },
+          styles.cardContainer,
+          { width: cardWidth, marginHorizontal: 8 },
+          cardStyle,
         ]}
       >
-        <Pressable onPress={() => onSelect(index)} style={styles.cardPressable}>
-          <View style={styles.cardInner}>
+        {/* ── Outer glow ring — colored border + deep shadow ── */}
+        <View
+          style={[
+            styles.cardGlowRing,
+            {
+              borderColor: isSelected
+                ? item.accentColor + "55"
+                : "rgba(255,255,255,0.18)",
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => onSelect(index)}
+            style={styles.cardPressable}
+          >
+            <View style={styles.cardInner}>
+              {/* Lottie Background */}
+              <LottieView
+                source={item.animation}
+                autoPlay
+                loop
+                style={[
+                  styles.lottieAnimation,
+                  item.id === "member" && styles.gossipersAnimation,
+                ]}
+                resizeMode="cover"
+              />
 
-            {/* Lottie Background */}
-            <LottieView
-              source={item.animation}
-              autoPlay
-              loop
-              style={[styles.lottieAnimation, item.id === "member" && styles.gossipersAnimation]}
-              resizeMode="cover"
-            />
+              {/* ── Cinematic gradient — 4-stop, stays clear longer ── */}
+              <LinearGradient
+                colors={[
+                  "transparent",
+                  "rgba(8,10,20,0.12)",
+                  "rgba(8,10,20,0.58)",
+                  "rgba(8,10,20,0.92)",
+                ]}
+                locations={[0.25, 0.5, 0.72, 1]}
+                style={styles.cardGradientOverlay}
+              />
 
-            {/* ── Cinematic gradient — 4-stop, stays clear longer ── */}
-            <LinearGradient
-              colors={[
-                "transparent",
-                "rgba(8,10,20,0.12)",
-                "rgba(8,10,20,0.58)",
-                "rgba(8,10,20,0.92)",
-              ]}
-              locations={[0.25, 0.5, 0.72, 1]}
-              style={styles.cardGradientOverlay}
-            />
-
-            {/* ── Card Content ── */}
-            <View style={styles.cardContent}>
-
-              {/* ── Frosted glass header panel ── */}
-              <BlurView
-                intensity={22}
-                tint="dark"
-                style={styles.glassPanel}
-              >
-                {/* Accent hairline on top of glass panel */}
-                <View
-                  style={[
-                    styles.glassPanelAccentLine,
-                    { backgroundColor: item.accentColor + "60" },
-                  ]}
-                />
-
-                <View style={styles.cardHeaderRow}>
-                  {/* Icon badge — tinted with accent */}
+              {/* ── Card Content ── */}
+              <View style={styles.cardContent}>
+                {/* ── Frosted glass header panel ── */}
+                <BlurView intensity={22} tint="dark" style={styles.glassPanel}>
+                  {/* Accent hairline on top of glass panel */}
                   <View
                     style={[
-                      styles.cardIconContainer,
-                      {
-                        backgroundColor: item.accentColor + "28",
-                        borderColor: item.accentColor + "55",
-                      },
+                      styles.glassPanelAccentLine,
+                      { backgroundColor: item.accentColor + "60" },
                     ]}
-                  >
-                    <IconComponent size={20} color={COLORS.surface} strokeWidth={2.2} />
-                  </View>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                </View>
+                  />
 
-                {/* Collapsed subtitle */}
-                {!isSelected && (
-                  <View style={styles.cardSubtitleClipContainer}>
-                    <Text style={styles.cardSubtitleCollapsed} numberOfLines={2} ellipsizeMode="tail">
-                      {item.subtitle}
-                    </Text>
+                  <View style={styles.cardHeaderRow}>
+                    {/* Icon badge — tinted with accent */}
+                    <View
+                      style={[
+                        styles.cardIconContainer,
+                        {
+                          backgroundColor: item.accentColor + "28",
+                          borderColor: item.accentColor + "55",
+                        },
+                      ]}
+                    >
+                      <IconComponent
+                        size={20}
+                        color={COLORS.surface}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
                   </View>
-                )}
-              </BlurView>
 
-              {/* Expanded area — outside glass panel, below it */}
-              {isSelected && (
-                <Animated.View style={[expandedAreaStyle, styles.expandedArea]}>
-                  {item.quote ? (
-                    <Text style={styles.cardQuoteExpanded}>{item.quote}</Text>
-                  ) : (
-                    <Text style={styles.cardSubtitleExpanded}>{item.subtitle}</Text>
+                  {/* Collapsed subtitle */}
+                  {!isSelected && (
+                    <View style={styles.cardSubtitleClipContainer}>
+                      <Text
+                        style={styles.cardSubtitleCollapsed}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                      >
+                        {item.subtitle}
+                      </Text>
+                    </View>
                   )}
-                  <TouchableOpacity
-                    activeOpacity={0.82}
-                    onPress={onContinue}
-                    style={[
-                      styles.cardContinueButton,
-                      {
-                        backgroundColor: item.accentColor,
-                        shadowColor: item.accentColor,
-                      },
-                    ]}
+                </BlurView>
+
+                {/* Expanded area — outside glass panel, below it */}
+                {isSelected && (
+                  <Animated.View
+                    style={[expandedAreaStyle, styles.expandedArea]}
                   >
-                    <Text style={styles.cardContinueButtonText}>{item.buttonText}</Text>
-                    <ArrowRight size={18} color={COLORS.surface} strokeWidth={2.5} />
-                  </TouchableOpacity>
-                </Animated.View>
+                    {item.quote ? (
+                      <Text style={styles.cardQuoteExpanded}>{item.quote}</Text>
+                    ) : (
+                      <Text style={styles.cardSubtitleExpanded}>
+                        {item.subtitle}
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      activeOpacity={0.82}
+                      onPress={onContinue}
+                      style={[
+                        styles.cardContinueButton,
+                        {
+                          backgroundColor: item.accentColor,
+                          shadowColor: item.accentColor,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.cardContinueButtonText}>
+                        {item.buttonText}
+                      </Text>
+                      <ArrowRight
+                        size={18}
+                        color={COLORS.surface}
+                        strokeWidth={2.5}
+                      />
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+              </View>
+
+              {/* Blur overlay for de-emphasised cards */}
+              {isOtherSelected && Platform.OS !== "web" && (
+                <BlurView
+                  intensity={4}
+                  style={StyleSheet.absoluteFill}
+                  tint="light"
+                />
               )}
             </View>
+          </Pressable>
+        </View>
+      </Animated.View>
+    );
+  },
+);
 
-            {/* Blur overlay for de-emphasised cards */}
-            {isOtherSelected && Platform.OS !== "web" && (
-              <BlurView intensity={4} style={StyleSheet.absoluteFill} tint="light" />
-            )}
-          </View>
-        </Pressable>
-      </View>
-    </Animated.View>
-  );
-});
-
-const LandingScreen = ({ navigation }) => {
+const LandingScreen = ({ navigation, route }) => {
+  const fromSwitcher = route?.params?.fromSwitcher || false;
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -254,7 +299,7 @@ const LandingScreen = ({ navigation }) => {
           // Check both drafts
           const [communityDraft, memberDraft] = await Promise.all([
             getCommunitySignupDraft(),
-            getSignupDraft()
+            getSignupDraft(),
           ]);
 
           // Priority: Community draft if exists, else Member draft
@@ -269,14 +314,14 @@ const LandingScreen = ({ navigation }) => {
             draftModalShown.current = true;
             setShowDraftModal(true);
           } else if (memberDraft && memberDraft.data?.email) {
-             setActiveDraft({
-               type: "Member",
-               email: memberDraft.data.email,
-               step: memberDraft.currentStep,
-               data: memberDraft.data,
-             });
-             draftModalShown.current = true;
-             setShowDraftModal(true);
+            setActiveDraft({
+              type: "Member",
+              email: memberDraft.data.email,
+              step: memberDraft.currentStep,
+              data: memberDraft.data,
+            });
+            draftModalShown.current = true;
+            setShowDraftModal(true);
           } else if (memberDraft && memberDraft.data?.fromCommunitySignup) {
             // People-profile draft: no email (flow started from community account)
             setActiveDraft({
@@ -294,26 +339,32 @@ const LandingScreen = ({ navigation }) => {
           console.log("[LandingScreen] Draft check failed:", e.message);
         }
       };
-      
+
       // Delay slightly to not interrupt splash screen transition
       const timer = setTimeout(checkForDrafts, 600);
       return () => clearTimeout(timer);
-    }, [])
+    }, []),
   );
 
   const handleContinueDraft = () => {
     HapticsService.triggerImpactLight();
     setShowDraftModal(false);
-    
+
     if (!activeDraft) return;
 
     if (activeDraft.type === "Community") {
-      const screenStack = getCommunityResumeStack(activeDraft.step, activeDraft.data || {});
+      const screenStack = getCommunityResumeStack(
+        activeDraft.step,
+        activeDraft.data || {},
+      );
       const sharedParams = {
         ...activeDraft.data,
         isResumingDraft: true,
       };
-      console.log("[LandingScreen] Resuming community draft. Stack:", screenStack);
+      console.log(
+        "[LandingScreen] Resuming community draft. Stack:",
+        screenStack,
+      );
       navigation.reset({
         index: 0,
         routes: [
@@ -333,14 +384,19 @@ const LandingScreen = ({ navigation }) => {
       // People-profile draft: the community session is still active.
       if (activeDraft.step === "PeopleProfilePrompt") {
         // User hadn't chosen "Set up now" yet — return to the prompt screen.
-        console.log("[LandingScreen] People-profile draft at PeopleProfilePrompt → returning to prompt screen");
+        console.log(
+          "[LandingScreen] People-profile draft at PeopleProfilePrompt → returning to prompt screen",
+        );
         navigation.navigate("PeopleProfilePromptScreen", {
           prefillRecovery: activeDraft.data?.prefill || {},
         });
       } else {
         // User had started filling in the member form — resume there.
         const resumeScreen = getPeopleProfileResumeScreen(activeDraft.step);
-        console.log("[LandingScreen] Resuming People-profile draft at:", resumeScreen);
+        console.log(
+          "[LandingScreen] Resuming People-profile draft at:",
+          resumeScreen,
+        );
         navigation.navigate("MemberSignup", {
           screen: resumeScreen,
           params: {
@@ -353,12 +409,12 @@ const LandingScreen = ({ navigation }) => {
       }
     } else {
       const resumeScreen = getMemberResumeScreen(activeDraft.step);
-      navigation.navigate("MemberSignup", { 
-        screen: resumeScreen, 
-        params: { 
+      navigation.navigate("MemberSignup", {
+        screen: resumeScreen,
+        params: {
           ...activeDraft.data,
-          isResumingDraft: true 
-        } 
+          isResumingDraft: true,
+        },
       });
     }
   };
@@ -366,7 +422,7 @@ const LandingScreen = ({ navigation }) => {
   const handleDiscardDraft = async () => {
     HapticsService.triggerImpactLight();
     setShowDraftModal(false);
-    
+
     if (!activeDraft) return;
 
     if (activeDraft.type === "Community") {
@@ -379,9 +435,9 @@ const LandingScreen = ({ navigation }) => {
     draftModalShown.current = false;
   };
 
-  const CARD_WIDTH   = width * 0.85;
+  const CARD_WIDTH = width * 0.85;
   const CARD_SPACING = 16;
-  const ITEM_SIZE    = CARD_WIDTH + CARD_SPACING;
+  const ITEM_SIZE = CARD_WIDTH + CARD_SPACING;
   const CARD_BASE_HEIGHT = height * 0.42;
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -390,14 +446,20 @@ const LandingScreen = ({ navigation }) => {
     },
   });
 
-  const handleSelect = useCallback((index) => {
-    HapticsService.triggerImpactLight();
-    setSelectedIndex((prev) => {
-      if (prev === index) return -1;
-      flatListRef.current?.scrollToOffset({ offset: index * ITEM_SIZE, animated: true });
-      return index;
-    });
-  }, [ITEM_SIZE]);
+  const handleSelect = useCallback(
+    (index) => {
+      HapticsService.triggerImpactLight();
+      setSelectedIndex((prev) => {
+        if (prev === index) return -1;
+        flatListRef.current?.scrollToOffset({
+          offset: index * ITEM_SIZE,
+          animated: true,
+        });
+        return index;
+      });
+    },
+    [ITEM_SIZE],
+  );
 
   const handleContinue = useCallback(() => {
     if (selectedIndex === -1) return;
@@ -415,18 +477,21 @@ const LandingScreen = ({ navigation }) => {
     navigation.navigate("Login");
   };
 
-  const renderCard = useCallback(({ item, index }) => (
-    <AnimatedCard
-      key={item.id}
-      item={item}
-      index={index}
-      cardBaseHeight={CARD_BASE_HEIGHT}
-      selectedIndex={selectedIndex}
-      onSelect={handleSelect}
-      onContinue={handleContinue}
-      cardWidth={CARD_WIDTH}
-    />
-  ), [selectedIndex, CARD_BASE_HEIGHT, CARD_WIDTH, handleSelect, handleContinue]);
+  const renderCard = useCallback(
+    ({ item, index }) => (
+      <AnimatedCard
+        key={item.id}
+        item={item}
+        index={index}
+        cardBaseHeight={CARD_BASE_HEIGHT}
+        selectedIndex={selectedIndex}
+        onSelect={handleSelect}
+        onContinue={handleContinue}
+        cardWidth={CARD_WIDTH}
+      />
+    ),
+    [selectedIndex, CARD_BASE_HEIGHT, CARD_WIDTH, handleSelect, handleContinue],
+  );
 
   return (
     <ImageBackground
@@ -439,14 +504,21 @@ const LandingScreen = ({ navigation }) => {
       <View style={styles.screenContainer}>
         <DynamicStatusBar style="dark-content" />
         <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
-
           {/* ── Header ── */}
           <View style={styles.headerContainer}>
+            {fromSwitcher && (
+              <GlassBackButton
+                style={styles.closeButtonAbsolute}
+                onPress={() => navigation.goBack()}
+              />
+            )}
             <View style={styles.logoContainer}>
               <SvgXml xml={SnooSpaceIconSvg} width={48} height={48} />
             </View>
             <Text style={styles.headerTitle}>
-              <Text style={{ color: COLORS.textPrimary }}>Welcome to{"\n"}</Text>
+              <Text style={{ color: COLORS.textPrimary }}>
+                Welcome to{"\n"}
+              </Text>
               <Text style={{ color: COLORS.primary }}>SnooSpace</Text>
             </Text>
             <Text style={styles.headerSubtitle}>Step into your experience</Text>
@@ -481,9 +553,14 @@ const LandingScreen = ({ navigation }) => {
               const dotStyle = useAnimatedStyle(() => {
                 const progress = scrollX.value / ITEM_SIZE;
                 const distanceFromActive = Math.abs(progress - i);
-                const dotWidth = withTiming(distanceFromActive < 0.5 ? 24 : 8, { duration: 250 });
-                const opacity = withTiming(distanceFromActive < 0.5 ? 1 : 0.3, { duration: 250 });
-                const backgroundColor = distanceFromActive < 0.5 ? COLORS.primary : COLORS.textMuted;
+                const dotWidth = withTiming(distanceFromActive < 0.5 ? 24 : 8, {
+                  duration: 250,
+                });
+                const opacity = withTiming(distanceFromActive < 0.5 ? 1 : 0.3, {
+                  duration: 250,
+                });
+                const backgroundColor =
+                  distanceFromActive < 0.5 ? COLORS.primary : COLORS.textMuted;
                 return { width: dotWidth, opacity, backgroundColor };
               });
               return <Animated.View key={i} style={[styles.dot, dotStyle]} />;
@@ -491,9 +568,16 @@ const LandingScreen = ({ navigation }) => {
           </View>
 
           {/* ── Footer ── */}
-          <View style={[styles.footerContainer, { bottom: insets.bottom > 0 ? insets.bottom + 32 : 56 }]}>
+          <View
+            style={[
+              styles.footerContainer,
+              { bottom: insets.bottom > 0 ? insets.bottom + 32 : 56 },
+            ]}
+          >
             <View style={styles.loginPromptContainer}>
-              <Text style={styles.loginPromptText}>Already have an account? </Text>
+              <Text style={styles.loginPromptText}>
+                Already have an account?{" "}
+              </Text>
               <TouchableOpacity
                 onPress={handleLoginPress}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
@@ -502,14 +586,15 @@ const LandingScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
-
         </SafeAreaView>
       </View>
 
       {activeDraft && (
         <DraftRecoveryModal
           visible={showDraftModal}
-          draftEmail={activeDraft.fromCommunitySignup ? null : activeDraft.email}
+          draftEmail={
+            activeDraft.fromCommunitySignup ? null : activeDraft.email
+          }
           draftType={activeDraft.type}
           isPeopleProfile={!!activeDraft.fromCommunitySignup}
           onContinue={handleContinueDraft}
@@ -536,6 +621,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 24,
     paddingHorizontal: 24,
+    position: "relative",
+  },
+  closeButtonAbsolute: {
+    position: "absolute",
+    top: 24,
+    left: 24,
+    zIndex: 10,
   },
   logoContainer: { marginBottom: 20 },
   headerTitle: {

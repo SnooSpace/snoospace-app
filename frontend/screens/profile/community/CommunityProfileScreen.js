@@ -2664,34 +2664,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     width: "60%", // Give it some width
   },
-  editProfileText: {
-    // Used in GradientButton? No, handled by component props
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 15,
-  },
   sectionCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
     marginBottom: 16,
-    // Soft premium shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.03)",
+    borderColor: "rgba(255, 255, 255, 0.9)",
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontFamily: FONTS.primary, // Bold font
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
     color: "#0F172A",
     letterSpacing: -0.3,

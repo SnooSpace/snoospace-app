@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground } from "react-native";
+import { BlurView } from "expo-blur";
+import wave from "../../assets/wave.png";
 import {
   User,
   Camera,
@@ -434,6 +436,7 @@ export default function HeadsEditorModal({
   const renderItem = useCallback(
     ({ item, index }) => (
       <View style={styles.card}>
+        <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
         <AnimatedStar
           isPrimary={item.is_primary}
           onPress={() => setPrimary(index)}
@@ -559,7 +562,12 @@ export default function HeadsEditorModal({
         <TouchableWithoutFeedback onPress={onCancel}>
           <View style={styles.overlay}>
             <TouchableWithoutFeedback>
-              <View style={styles.modalContainer}>
+              <ImageBackground 
+                source={wave} 
+                style={styles.modalContainer}
+                imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+                blurRadius={10}
+              >
                 <View style={styles.header}>
                   <Text style={styles.title}>Edit Community Heads</Text>
                   <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
@@ -582,6 +590,7 @@ export default function HeadsEditorModal({
                     disabled={!canAdd}
                     activeOpacity={0.7}
                   >
+                    <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
                     <View style={styles.addIconContainer}>
                       <PlusCircle size={18} color="#6366F1" />
                     </View>
@@ -607,15 +616,8 @@ export default function HeadsEditorModal({
                       <Text style={[styles.saveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Save Changes</Text>
                     )}
                   </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={onCancel}
-                    style={styles.discardButton}
-                  >
-                    <Text style={styles.discardButtonText}>Discard</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
+              </ImageBackground>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
@@ -842,7 +844,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   modalContainer: {
-    backgroundColor: BG,
+    backgroundColor: COLORS.background,
     borderRadius: 24,
     width: "100%",
     maxWidth: 500,
@@ -872,13 +874,12 @@ const styles = StyleSheet.create({
   },
   // Card Styles
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 16,
-    ...SHADOWS.sm,
     borderWidth: 1,
-    borderColor: "#F2F2F7",
+    borderColor: "rgba(255, 255, 255, 0.9)",
     position: "relative",
   },
   starContainer: {
@@ -950,27 +951,30 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   inputName: {
-    fontFamily: FONTS.primary, // BasicCommercial Bold
+    fontFamily: "Manrope-SemiBold",
     fontSize: 16,
     color: TEXT_COLOR,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 50,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     marginBottom: 4,
   },
   inputGroup: {
     gap: 10,
   },
   input: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    fontFamily: FONTS.medium, // Manrope Medium
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
     color: TEXT_COLOR,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 50,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
   },
   linkedSection: {
     marginTop: 4,
@@ -1040,13 +1044,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
     paddingVertical: 16,
-    backgroundColor: "#F8FAFC", // Slate 50
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#E2E8F0", // Slate 200
-    ...SHADOWS.sm,
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
+    borderColor: "rgba(255, 255, 255, 0.9)",
   },
   addIconContainer: {
     width: 28,
