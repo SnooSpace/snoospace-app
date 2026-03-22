@@ -35,6 +35,7 @@ import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { createSignupDraft } from "../../../utils/signupDraftManager";
 import { LinearGradient } from "expo-linear-gradient";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
+import { useToast } from "../../../context/ToastContext";
 import {
   COLORS,
   SPACING,
@@ -101,10 +102,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
 
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState(false);
-
-  const [showResendToast, setShowResendToast] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateYAnim = useRef(new Animated.Value(20)).current;
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -115,7 +113,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+      showToast("Error", "Please enter the 6-digit code", "error");
       return;
     }
 
@@ -263,36 +261,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
     setError("");
     try {
       await sessionManager.sendOtp(email);
-      setShowResendToast(true);
-
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateYAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(translateYAnim, {
-            toValue: 20,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start(() => setShowResendToast(false));
-      }, 5000);
-
+      showToast("Success", `Code resent to ${email}`, "success");
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
       setError(e.message || "Failed to resend code");
@@ -498,7 +467,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
         >
           <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
             <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={() => {}}>
                 <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Go Back?</Text>
                   <Text style={styles.modalMessage}>
@@ -530,21 +499,6 @@ const MemberOtpScreen = ({ route, navigation }) => {
           </TouchableWithoutFeedback>
         </Modal>
 
-        {showResendToast && (
-          <Animated.View
-            style={[
-              styles.toastContainer,
-              {
-                bottom: 50 + insets.bottom,
-                opacity: fadeAnim,
-                transform: [{ translateY: translateYAnim }],
-              },
-            ]}
-          >
-            <Check size={24} color="#fff" strokeWidth={2.5} />
-            <Text style={styles.toastText}>Code resent to {email}</Text>
-          </Animated.View>
-        )}
       </SafeAreaView>
     </ImageBackground>
   );
@@ -758,26 +712,6 @@ const styles = StyleSheet.create({
   },
   modalPrimaryButtonText: {
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
-  },
-  toastContainer: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    backgroundColor: COLORS.success,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    ...SHADOWS.md,
-    zIndex: 1000,
-  },
-  toastText: {
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: "Manrope-SemiBold",
-    marginLeft: 10,
-    flex: 1,
   },
 });
 

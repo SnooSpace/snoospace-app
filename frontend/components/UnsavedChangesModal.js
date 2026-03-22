@@ -31,7 +31,7 @@ export default function UnsavedChangesModal({
     >
       <TouchableWithoutFeedback onPress={onKeepEditing}>
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.modalContent}>
               {/* Drag Handle */}
               <View style={styles.dragHandleContainer}>

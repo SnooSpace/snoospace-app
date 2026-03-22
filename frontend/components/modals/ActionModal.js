@@ -59,7 +59,7 @@ export default function ActionModal({
             tint="dark"
           />
 
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.container}>
               <View style={styles.contentContainer}>
                 {/* Header with Title and Dismiss Button */}

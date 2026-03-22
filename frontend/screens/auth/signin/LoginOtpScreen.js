@@ -30,6 +30,7 @@ import {
 } from "../../../services/LocationTracker";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
 import { LinearGradient } from "expo-linear-gradient";
+import { useToast } from "../../../context/ToastContext";
 import {
   COLORS,
   SPACING,
@@ -71,11 +72,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showGoBackModal, setShowGoBackModal] = useState(false);
   const insets = useSafeAreaInsets();
-
-  // Toast state
-  const [showResendToast, setShowResendToast] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateYAnim = useRef(new Animated.Value(20)).current;
+  const { showToast } = useToast();
 
   // Account picker state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -255,7 +252,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
    */
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+      showToast("Error", "Please enter the 6-digit code", "error");
       return;
     }
 
@@ -404,36 +401,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
     setError("");
     try {
       await sessionManager.sendOtp(email);
-      // toast logic
-      setShowResendToast(true);
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateYAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(translateYAnim, {
-            toValue: 20,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start(() => setShowResendToast(false));
-      }, 5000);
-
+      showToast("Success", `Code resent to ${email}`, "success");
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
       setError(e.message || "Failed to resend code");
@@ -577,7 +545,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         >
           <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
             <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={() => {}}>
                 <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Go Back?</Text>
                   <Text style={styles.modalMessage}>
@@ -612,22 +580,6 @@ const LoginOtpScreen = ({ navigation, route }) => {
           </TouchableWithoutFeedback>
         </Modal>
 
-        {/* Resend Success Toast */}
-        {showResendToast && (
-          <Animated.View
-            style={[
-              styles.toastContainer,
-              {
-                bottom: 50 + insets.bottom,
-                opacity: fadeAnim,
-                transform: [{ translateY: translateYAnim }],
-              },
-            ]}
-          >
-            <Ionicons name="checkmark-circle" size={24} color="#fff" />
-            <Text style={styles.toastText}>Code resent to {email}</Text>
-          </Animated.View>
-        )}
       </SafeAreaView>
     </ImageBackground>
   );
@@ -841,32 +793,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
     // Color handled by GradientText
-  },
-  toastContainer: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    backgroundColor: COLORS.success || "#34C759",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 1000,
-  },
-  toastText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 10,
-    flex: 1,
   },
 });
 

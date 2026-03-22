@@ -12,6 +12,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
+import { useToast } from "../../../context/ToastContext";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import wave from "../../../assets/wave.png";
@@ -26,11 +27,12 @@ const LoginScreen = ({ navigation, route }) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const { showToast } = useToast();
   const inputRef = useRef(null);
 
   const handleLogin = async () => {
     if (!emailOrUsername) {
-      Alert.alert("Error", "Please enter your email or username.");
+      showToast("Error", "Please enter your email or username", "error");
       return;
     }
 

@@ -105,7 +105,7 @@ export default function SettingsModal({
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: textColor }]}>

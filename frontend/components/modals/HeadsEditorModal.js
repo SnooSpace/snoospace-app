@@ -561,7 +561,7 @@ export default function HeadsEditorModal({
       >
         <TouchableWithoutFeedback onPress={onCancel}>
           <View style={styles.overlay}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={() => {}}>
               <ImageBackground 
                 source={wave} 
                 style={styles.modalContainer}
@@ -632,7 +632,7 @@ export default function HeadsEditorModal({
       >
         <TouchableWithoutFeedback onPress={closeLinkModal}>
           <View style={styles.linkOverlay}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={() => {}}>
               <View style={[styles.linkSheet, SHADOWS.md]}>
                 <View style={styles.linkHeader}>
                   <Text style={styles.linkTitle}>Link Member Profile</Text>
@@ -731,7 +731,7 @@ export default function HeadsEditorModal({
           }
         >
           <View style={styles.alertOverlay}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.alertContainer}>
                 {alertConfig.type === "options" && (
                   <TouchableOpacity

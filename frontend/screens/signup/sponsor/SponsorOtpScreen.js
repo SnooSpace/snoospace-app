@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { setAuthSession, clearPendingOtp } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
+import { useToast } from "../../../context/ToastContext";
 import {
   COLORS,
   SPACING,
@@ -23,6 +24,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
   const [resendTimer, setResendTimer] = useState(0);
   const [error, setError] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -33,7 +35,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+      showToast("Error", "Please enter the 6-digit code", "error");
       return;
     }
 
@@ -76,7 +78,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
     try {
       // Use V2 endpoint for sending OTP
       await sessionManager.sendOtp(email);
-      Alert.alert("Success", `Code resent to ${email}.`);
+      showToast("Success", `Code resent to ${email}`, "success");
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
       setError(e.message || "Failed to resend code");

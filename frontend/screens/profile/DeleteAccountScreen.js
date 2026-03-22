@@ -658,7 +658,7 @@ const DeleteAccountScreen = ({ navigation }) => {
       >
         <TouchableWithoutFeedback onPress={() => setShowConfirmModal(false)}>
           <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
+            <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Wait! Are you absolutely sure?</Text>

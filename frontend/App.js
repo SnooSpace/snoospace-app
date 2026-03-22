@@ -31,6 +31,8 @@ import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 import { VideoProvider } from "./context/VideoContext";
 import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
 
+import { ToastProvider } from "./context/ToastContext";
+
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
   const navigationRef = React.useRef(null);
@@ -96,7 +98,9 @@ export default function App() {
             <AuthStateProvider>
               <NotificationsProvider>
                 <VideoProvider>
-                  <AppContent />
+                  <ToastProvider>
+                    <AppContent />
+                  </ToastProvider>
                   
                   {!isSplashAnimationComplete && (
                     <AnimatedSplashScreen

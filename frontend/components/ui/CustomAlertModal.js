@@ -27,7 +27,7 @@ const CustomAlertModal = ({
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.alertBox}>
               <View style={styles.content}>
                 {title && <Text style={styles.title}>{title}</Text>}

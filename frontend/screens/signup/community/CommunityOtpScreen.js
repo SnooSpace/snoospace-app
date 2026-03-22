@@ -34,6 +34,7 @@ import { createCommunitySignupDraft, updateCommunitySignupDraft } from "../../..
 
 import { LinearGradient } from "expo-linear-gradient";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
+import { useToast } from "../../../context/ToastContext";
 import {
   COLORS,
   SPACING,
@@ -96,6 +97,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
   const [accounts, setAccounts] = useState([]);
   const [accountPickerLoading, setAccountPickerLoading] = useState(false);
   const [verificationResult, setVerificationResult] = useState(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -106,7 +108,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code.");
+      showToast("Error", "Please enter the 6-digit code", "error");
       return;
     }
 
@@ -182,7 +184,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     setError("");
     try {
       await sessionManager.sendOtp(email);
-      Alert.alert("Success", `Code resent to ${email}.`);
+      showToast("Success", `Code resent to ${email}`, "success");
       setResendTimer(RESEND_COOLDOWN);
     } catch (e) {
       setError(e.message || "Failed to resend code");
@@ -463,7 +465,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         >
           <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
             <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={() => {}}>
                 <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Go Back?</Text>
                   <Text style={styles.modalMessage}>

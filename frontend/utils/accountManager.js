@@ -145,7 +145,7 @@ export async function addAccount(accountData) {
     // Previously we called getAllAccounts() which DECRYPTS all tokens, then saved
     // them back as plaintext - corrupting other accounts' tokens!
     const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
-    const accounts = accountsJson ? JSON.parse(accountsJson) : [];
+    let accounts = accountsJson ? JSON.parse(accountsJson) : [];
     const accountId = String(accountData.id); // Always convert to string
     const accountType = accountData.type || "unknown";
     const compositeId = `${accountType}_${accountId}`;
@@ -155,6 +155,35 @@ export async function addAccount(accountData) {
       const accCompositeId = `${acc.type}_${acc.id}`;
       return accCompositeId === compositeId;
     });
+
+    // CRITICAL FIX: Purge corrupted/undecryptable accounts before checking the limit.
+    // The raw JSON may contain stale entries that fail decryption (e.g. after encryption
+    // key rotation or manual backend deletion). getAllAccounts() already skips these, so
+    // counting raw entries inflates the limit and blocks legitimate logins.
+    if (existingIndex === -1) {
+      const validAccounts = [];
+      for (const acc of accounts) {
+        try {
+          await decryptToken(acc.authToken); // will throw if corrupted
+          validAccounts.push(acc);
+        } catch {
+          console.warn(
+            "[addAccount] Removing corrupted/undecryptable account from storage:",
+            acc.id,
+            acc.email,
+          );
+        }
+      }
+      if (validAccounts.length !== accounts.length) {
+        // Persist the cleaned list so the bad entries don't come back
+        accounts = validAccounts;
+        await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+        console.log(
+          "[addAccount] Purged stale accounts. Remaining:",
+          accounts.length,
+        );
+      }
+    }
 
     // Check max limit (only if adding new account)
     if (existingIndex === -1 && accounts.length >= MAX_ACCOUNTS) {

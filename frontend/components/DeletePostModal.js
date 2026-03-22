@@ -28,7 +28,7 @@ export default function DeletePostModal({ visible, onCancel, onDelete }) {
     >
       <TouchableWithoutFeedback onPress={onCancel}>
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.modalContent}>
               {/* Drag Handle */}
               <View style={styles.dragHandleContainer}>
