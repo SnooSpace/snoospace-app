@@ -279,30 +279,11 @@ async function saveSession(user, session) {
     let rawSessions = sessionsJson ? JSON.parse(sessionsJson) : [];
     const compositeId = `${user.type}_${user.id}`;
 
-    // === DIAGNOSTIC LOG: Dump raw storage state ===
-    console.log("🔍 [SessionManager] saveSession called for:", compositeId);
-    console.log("🔍 [SessionManager] Raw sessions in storage:", rawSessions.length);
-    for (let i = 0; i < rawSessions.length; i++) {
-      const s = rawSessions[i];
-      console.log(`🔍 [SessionManager] Session[${i}]:`, {
-        id: s.id,
-        type: s.type,
-        email: s.email,
-        compositeId: `${s.type}_${s.id}`,
-        hasAccessToken: !!s.accessToken,
-        accessTokenLength: s.accessToken?.length || 0,
-        isLoggedIn: s.isLoggedIn,
-      });
-    }
-
     const existingIndex = rawSessions.findIndex(
       (s) => `${s.type}_${s.id}` === compositeId
     );
-    console.log("🔍 [SessionManager] existingIndex:", existingIndex);
 
-    // CRITICAL FIX: Purge invalid sessions before checking limit.
-    // decryptToken() NEVER throws - it returns null on failure. So we must
-    // check the return value, not catch exceptions.
+    // Purge invalid sessions (decryptToken returns null on failure, never throws).
     if (existingIndex === -1) {
       const validSessions = [];
       for (const s of rawSessions) {
@@ -311,20 +292,14 @@ async function saveSession(user, session) {
           validSessions.push(s);
         } else {
           console.warn(
-            "🧹 [SessionManager] Removing invalid session (decryption returned null/empty):",
-            s.id, s.email, s.type
+            "[SessionManager] Removing invalid session:",
+            s.id, s.type, s.email
           );
         }
       }
       if (validSessions.length !== rawSessions.length) {
-        console.log(
-          "🧹 [SessionManager] Purged", rawSessions.length - validSessions.length,
-          "invalid sessions. Remaining:", validSessions.length
-        );
         rawSessions = validSessions;
         await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(rawSessions));
-      } else {
-        console.log("🔍 [SessionManager] All", rawSessions.length, "sessions passed decryption check");
       }
     }
 
@@ -332,10 +307,6 @@ async function saveSession(user, session) {
     const finalExistingIndex = rawSessions.findIndex(
       (s) => `${s.type}_${s.id}` === compositeId
     );
-
-    console.log("🔍 [SessionManager] Final state: sessions=" + rawSessions.length +
-      ", finalExistingIndex=" + finalExistingIndex +
-      ", MAX_ACCOUNTS=" + MAX_ACCOUNTS);
 
     if (finalExistingIndex === -1 && rawSessions.length >= MAX_ACCOUNTS) {
       // CRITICAL FIX: Before giving up, reconcile local sessions against the backend.

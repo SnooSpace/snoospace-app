@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   Platform,
   ImageBackground,
   ScrollView,
-StatusBar } from "react-native";
+  StatusBar
+} from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Calendar, Trophy, MessagesSquare, Lock, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";

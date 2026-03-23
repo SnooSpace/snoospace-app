@@ -156,41 +156,28 @@ export async function addAccount(accountData) {
       return accCompositeId === compositeId;
     });
 
-    // CRITICAL FIX: Purge invalid accounts before checking the limit.
-    // decryptToken() NEVER throws - it returns null on failure. Must check return value.
+    // Purge invalid accounts (decryptToken returns null on failure, never throws).
     if (existingIndex === -1) {
-      console.log("🔍 [addAccount] Checking", accounts.length, "accounts for validity...");
       const validAccounts = [];
       for (const acc of accounts) {
         const decrypted = await decryptToken(acc.authToken);
         if (decrypted && decrypted.length > 0) {
           validAccounts.push(acc);
-          console.log("🔍 [addAccount] Valid:", acc.id, acc.type, acc.email);
         } else {
           console.warn(
-            "🧹 [addAccount] Removing invalid account (decryption returned null/empty):",
+            "[addAccount] Removing invalid account:",
             acc.id, acc.type, acc.email,
           );
         }
       }
       if (validAccounts.length !== accounts.length) {
-        console.log(
-          "🧹 [addAccount] Purged", accounts.length - validAccounts.length,
-          "invalid accounts. Remaining:", validAccounts.length,
-        );
         accounts = validAccounts;
         await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-      } else {
-        console.log("🔍 [addAccount] All", accounts.length, "accounts passed validation");
       }
     }
 
     // Check max limit (only if adding new account)
     if (existingIndex === -1 && accounts.length >= MAX_ACCOUNTS) {
-      console.error("❌ [addAccount] BLOCKED: Still have", accounts.length, "valid accounts after purge");
-      accounts.forEach((acc, i) => {
-        console.error(`❌ [addAccount] Account[${i}]:`, acc.id, acc.type, acc.email);
-      });
       throw new Error(`Maximum ${MAX_ACCOUNTS} accounts allowed`);
     }
 
