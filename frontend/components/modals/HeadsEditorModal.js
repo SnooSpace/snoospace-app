@@ -70,11 +70,11 @@ const AnimatedStar = ({ isPrimary, onPress }) => {
     >
       {isPrimary ? (
         <LinearGradient
-          colors={["#FFF1F2", "#FFE4E6"]}
+          colors={["#FFFBEB", "#FEF3C7"]}
           style={styles.starGradient}
         >
           <Animated.View style={{ transform: [{ scale }] }}>
-            <Star size={18} color="#E11D48" fill="#E11D48" />
+            <Star size={18} color="#D97706" fill="#D97706" />
           </Animated.View>
         </LinearGradient>
       ) : (
@@ -437,10 +437,7 @@ export default function HeadsEditorModal({
     ({ item, index }) => (
       <View style={styles.card}>
         <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
-        <AnimatedStar
-          isPrimary={item.is_primary}
-          onPress={() => setPrimary(index)}
-        />
+        {/* Star icon removed as per user request */}
 
         <View style={styles.cardHeader}>
           <View style={styles.avatarContainer}>
@@ -893,7 +890,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   starContainerPrimary: {
-    shadowColor: "#E11D48",
+    shadowColor: "#D97706",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,

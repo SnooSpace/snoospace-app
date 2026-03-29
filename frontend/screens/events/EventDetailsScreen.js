@@ -1845,7 +1845,7 @@ const styles = StyleSheet.create({
   },
   hostNamePremium: {
     fontSize: 16,
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     marginBottom: 4,
   },
@@ -1892,7 +1892,7 @@ const styles = StyleSheet.create({
   },
   galleryOverlayText: {
     color: "#FFFFFF",
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 16,
   },
   seeAllGalleryBtn: {
@@ -1920,7 +1920,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   eventEndedTitle: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 16,
     color: TEXT_COLOR,
     marginBottom: 6,
@@ -1960,7 +1960,7 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     fontSize: 26,
-    fontFamily: "BasicCommercialBlack",
+    fontFamily: "BasicCommercial-Black",
     marginBottom: 8,
   },
   bannerMetaRow: {

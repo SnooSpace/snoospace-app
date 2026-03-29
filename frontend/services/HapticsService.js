@@ -57,6 +57,15 @@ class HapticsService {
   }
 
   /**
+   * Trigger a heavy impact (for significant or restricted actions)
+   */
+  triggerImpactHeavy() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+  }
+
+  /**
    * Trigger a selection feedback (Toggle/Selection)
    */
   triggerSelection() {

@@ -53,9 +53,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.m,
-    marginRight: 8,
-    marginBottom: 8,
-    alignSelf: "flex-start",
   },
   content: {
     flexDirection: "row",

@@ -31,6 +31,7 @@ import CommunityPublicProfileScreen from "../screens/profile/community/Community
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
 import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";
+import SavedPostsScreen from "../screens/SavedPostsScreen";
 
 const Stack = createStackNavigator();
 
@@ -162,6 +163,11 @@ export default function AppNavigator({ initialRouteName }) {
         name="DeleteConfirmation"
         component={DeleteConfirmationScreen}
         options={{ headerShown: false, animation: "fade" }}
+      />
+      <Stack.Screen
+        name="SavedPostsScreen"
+        component={SavedPostsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

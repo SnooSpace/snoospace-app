@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontFamily: "BasicCommercialBlack",
+    fontFamily: "BasicCommercial-Black",
     fontSize: 20,
     color: TEXT_COLOR,
   },
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   revenueText: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 36,
     color: TEXT_COLOR,
     lineHeight: 40,
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroSubValue: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 24,
     color: PRIMARY_COLOR,
   },
@@ -692,13 +692,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   sectionHeader: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
     color: TEXT_COLOR,
     marginBottom: 20,
   },
   sectionHeaderSmall: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 15,
     color: TEXT_COLOR,
     marginBottom: 8,
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metricValue: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
     color: TEXT_COLOR,
   },
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   funnelValuePrimary: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
     color: "#FFFFFF",
   },

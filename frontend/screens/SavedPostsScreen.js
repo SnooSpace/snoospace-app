@@ -1,16 +1,31 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, SafeAreaView, StatusBar } from "react-native";
-import { Image as LucideImage, Play, Bookmark, ArrowLeft } from "lucide-react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  RefreshControl,
+  StatusBar,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Image as LucideImage,
+  Play,
+  Bookmark,
+  ArrowLeft,
+} from "lucide-react-native";
 import { getSavedPosts } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import ProfilePostFeed from "../components/ProfilePostFeed";
 import SnooLoader from "../components/ui/SnooLoader";
 
 const COLORS = {
-  background: "#000",
-  text: "#FFF",
+  background: "#FFFFFF",
+  text: "#000000",
   textSecondary: "#8E8E93",
-  border: "#2C2C2E",
+  border: "#E5E5EA",
 };
 
 const SavedPostsScreen = ({ navigation }) => {
@@ -82,7 +97,7 @@ const SavedPostsScreen = ({ navigation }) => {
     setPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
-  const renderPost = ({ item, index }) => {
+  const renderPost = ({ item }) => {
     // Get first image from post
     const getFirstImage = () => {
       if (!item.image_urls) return null;
@@ -97,7 +112,7 @@ const SavedPostsScreen = ({ navigation }) => {
 
     const imageUrl = getFirstImage();
     const isVideo = item.image_urls?.some(
-      (url) =>
+    (url) =>
         (typeof url === "string" ? url : url?.url)?.includes(".mp4") ||
         (typeof url === "object" && url?.type === "video"),
     );
@@ -112,10 +127,7 @@ const SavedPostsScreen = ({ navigation }) => {
           <Image source={{ uri: imageUrl }} style={styles.postImage} />
         ) : (
           <View style={[styles.postImage, styles.placeholderImage]}>
-            <LucideImage
-              size={40}
-              color={COLORS.textSecondary}
-            />
+            <LucideImage size={40} color={COLORS.textSecondary} />
           </View>
         )}
         {isVideo && (
@@ -131,10 +143,7 @@ const SavedPostsScreen = ({ navigation }) => {
     if (loading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Bookmark
-          size={80}
-          color={COLORS.textSecondary}
-        />
+        <Bookmark size={80} color={COLORS.textSecondary} strokeWidth={1.5} />
         <Text style={styles.emptyTitle}>No saved posts yet</Text>
         <Text style={styles.emptySubtitle}>
           Posts you save will appear here
@@ -153,8 +162,8 @@ const SavedPostsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -162,9 +171,9 @@ const SavedPostsScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <ArrowLeft size={24} color={COLORS.text} />
+          <ArrowLeft size={24} color={COLORS.text} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved</Text>
+        <Text style={styles.headerTitle}>Saved Posts</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -220,20 +229,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.text,
   },
   loadingContainer: {
@@ -242,11 +251,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gridContainer: {
-    paddingTop: 2,
+    paddingHorizontal: 1,
+    paddingTop: 1,
   },
   postItem: {
     width: "33.33%",
-    aspectRatio: 3 / 4,
+    aspectRatio: 1, // Grid usually looks better square or 4/5
     padding: 1,
   },
   postImage: {
@@ -267,16 +277,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 100,
+    paddingVertical: 150,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: COLORS.text,
     marginTop: 16,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginTop: 8,
   },

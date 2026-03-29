@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert, Animated } from "react-native";
 import { CheckCircle2, XCircle, PlusCircle } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
+import hapticsService from "../../services/HapticsService";
 import SnooLoader from "../ui/SnooLoader";
 
 /**
@@ -22,10 +23,13 @@ export default function AccountSwitcherModal({
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
+  const [showCurrentAccountSubtitle, setShowCurrentAccountSubtitle] = useState(false);
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       loadAccounts();
+      setShowCurrentAccountSubtitle(false);
     }
   }, [visible]);
 
@@ -100,9 +104,20 @@ export default function AccountSwitcherModal({
       String(account.id) === String(currentAccountId)
     ) {
       console.log(
-        "[AccountSwitcher] Clicked on current account, closing modal"
+        "[AccountSwitcher] Clicked on current account, showing subtitle"
       );
-      onClose();
+      hapticsService.triggerNotificationWarning();
+      setShowCurrentAccountSubtitle(true);
+      
+      // Shake animation
+      shakeAnimation.setValue(0);
+      Animated.sequence([
+        Animated.timing(shakeAnimation, { toValue: 6, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnimation, { toValue: -6, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnimation, { toValue: 6, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnimation, { toValue: 0, duration: 40, useNativeDriver: true }),
+      ]).start();
+      
       return;
     }
 
@@ -266,7 +281,7 @@ export default function AccountSwitcherModal({
     return (
       <View style={styles.accountRowContainer}>
         <TouchableOpacity
-          style={[styles.accountRow, isLoggedOut && styles.accountRowLoggedOut]}
+          style={[styles.accountRow, isLoggedOut && styles.accountRowLoggedOut, isActive && styles.accountRowActive]}
           onPress={() => handleSwitchAccount(item)}
           disabled={isSwitching}
         >
@@ -285,6 +300,10 @@ export default function AccountSwitcherModal({
             </Text>
             {isLoggedOut ? (
               <Text style={styles.loginRequired}>Tap to log in</Text>
+            ) : isActive && showCurrentAccountSubtitle ? (
+              <Animated.Text style={[styles.currentAccountSubtitle, { transform: [{ translateX: shakeAnimation }] }]}>
+                Current account !
+              </Animated.Text>
             ) : item.unreadCount > 0 ? (
               <View style={styles.badgeContainer}>
                 <View style={styles.badge}>
@@ -429,6 +448,9 @@ const styles = StyleSheet.create({
   accountRowLoggedOut: {
     opacity: 0.6,
   },
+  accountRowActive: {
+    opacity: 0.6,
+  },
   avatar: {
     width: 50,
     height: 50,
@@ -453,6 +475,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Manrope-Regular",
     color: "#8E8E93",
+    marginTop: 2,
+  },
+  currentAccountSubtitle: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: "#D97706",
     marginTop: 2,
   },
   badgeContainer: {

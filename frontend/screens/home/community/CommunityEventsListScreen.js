@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontFamily: "BasicCommercialBlack",
+    fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
   },
   centerContainer: {
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
   },
   ticketTitle: {
-    fontFamily: "BasicCommercialBold",
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 16,
     color: TEXT_COLOR,
     lineHeight: 20,

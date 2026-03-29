@@ -1290,14 +1290,7 @@ export default function CommunityProfileScreen({ navigation }) {
                       )}
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.headName}>{head.name}</Text>
-                        {head.is_primary && (
-                          <LinearGradient
-                            colors={["#FFF1F2", "#FFE4E6"]}
-                            style={styles.primaryStarGradient}
-                          >
-                            <Star size={14} color="#E11D48" fill="#E11D48" />
-                          </LinearGradient>
-                        )}
+                        {/* Primary star removed as per user request */}
                         {/* Hide contacts in premium card view for cleaner look, usually click to see details? 
                             Ref image only shows Name + Role. 
                             I'll hide phone/email to match "Premium" minimalist look unless space permits.
