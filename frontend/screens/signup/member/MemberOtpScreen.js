@@ -31,7 +31,13 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
-import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import {
+  setAuthSession,
+  clearPendingOtp,
+  setPendingAccountSelection,
+  getPendingAccountSelection,
+  clearPendingAccountSelection,
+} from "../../../api/auth";
 import { createSignupDraft } from "../../../utils/signupDraftManager";
 import { LinearGradient } from "expo-linear-gradient";
 import AccountPickerModal from "../../../components/modals/AccountPickerModal";
@@ -111,6 +117,18 @@ const MemberOtpScreen = ({ route, navigation }) => {
     }
   }, [resendTimer]);
 
+  // Restore pending account selection if app was killed mid-picker
+  useEffect(() => {
+    (async () => {
+      const pending = await getPendingAccountSelection();
+      if (pending && pending.flow === 'signup_member' && pending.accounts?.length > 0) {
+        console.log('[MemberOtpScreen] Restoring pending account selection from storage');
+        setAccounts(pending.accounts);
+        setShowAccountPicker(true);
+      }
+    })();
+  }, []);
+
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
       showToast("Error", "Please enter the 6-digit code", "error");
@@ -132,6 +150,8 @@ const MemberOtpScreen = ({ route, navigation }) => {
         await clearPendingOtp();
 
         if (result.accounts && result.accounts.length > 0) {
+          // Persist accounts list so if the app is killed mid-picker it can restore
+          await setPendingAccountSelection(email, result.accounts, 'signup_member');
           setAccounts(result.accounts);
           setShowAccountPicker(true);
         } else {
@@ -200,6 +220,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
       );
 
       await clearPendingOtp();
+      await clearPendingAccountSelection();
       setShowAccountPicker(false);
 
       const rootNav = navigation.getParent() || navigation;
@@ -227,6 +248,7 @@ const MemberOtpScreen = ({ route, navigation }) => {
 
   const handleCreateNewProfile = async () => {
     setShowAccountPicker(false);
+    await clearPendingAccountSelection();
 
     let accessToken = null;
     let refreshToken = null;
@@ -451,6 +473,11 @@ const MemberOtpScreen = ({ route, navigation }) => {
         <AccountPickerModal
           visible={showAccountPicker}
           onClose={() => setShowAccountPicker(false)}
+          onGoBack={async () => {
+            await clearPendingAccountSelection();
+            setShowAccountPicker(false);
+            setShowGoBackModal(true);
+          }}
           accounts={accounts}
           onSelectAccount={handleSelectAccount}
           onCreateNewProfile={handleCreateNewProfile}

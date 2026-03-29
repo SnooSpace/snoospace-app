@@ -75,6 +75,7 @@ function getInitials(name) {
 export default function AccountPickerModal({
   visible,
   onClose,
+  onGoBack,
   accounts = [],
   onSelectAccount,
   onSelectMultiple,
@@ -209,13 +210,11 @@ export default function AccountPickerModal({
       visible={visible}
       transparent={true}
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={() => {}}
       statusBarTranslucent={true}
     >
-      <TouchableOpacity
+      <View
         style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
       >
         <TouchableOpacity
           activeOpacity={1}
@@ -282,10 +281,10 @@ export default function AccountPickerModal({
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={styles.cancelButton}
-              onPress={onClose}
+              onPress={onGoBack || onClose}
               disabled={loading}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>← Go Back to Email</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -313,7 +312,7 @@ export default function AccountPickerModal({
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
@@ -551,6 +550,7 @@ const styles = StyleSheet.create({
 AccountPickerModal.propTypes = {
   visible: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
+  onGoBack: PropTypes.func,
   accounts: PropTypes.array,
   onSelectAccount: PropTypes.func.isRequired,
   onSelectMultiple: PropTypes.func,

@@ -23,7 +23,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as sessionManager from "../../../utils/sessionManager";
 import { addAccount, getAllAccounts } from "../../../utils/accountManager";
-import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import {
+  setAuthSession,
+  clearPendingOtp,
+  setPendingAccountSelection,
+  getPendingAccountSelection,
+  clearPendingAccountSelection,
+} from "../../../api/auth";
 import {
   startForegroundWatch,
   attachAppStateListener,
@@ -86,6 +92,24 @@ const LoginOtpScreen = ({ navigation, route }) => {
       return () => clearTimeout(timer);
     }
   }, [resendTimer]);
+
+  // Restore pending account selection if app was killed mid-picker
+  useEffect(() => {
+    (async () => {
+      const pending = await getPendingAccountSelection();
+      if (pending && pending.flow === 'login' && pending.accounts?.length > 0) {
+        console.log('[LoginOtpScreen] Restoring pending account selection from storage');
+        // Recompute loggedInAccountIds from local storage (no server call needed)
+        const loggedInAccounts = await getAllAccounts();
+        const loggedInIds = loggedInAccounts
+          .filter((acc) => acc.isLoggedIn !== false)
+          .map((acc) => `${acc.type}_${acc.id}`);
+        setAccounts(pending.accounts);
+        setLoggedInAccountIds(loggedInIds);
+        setShowAccountPicker(true);
+      }
+    })();
+  }, []);
 
   /**
    * Navigate to appropriate home screen based on user type
@@ -159,6 +183,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
       );
 
       await completeLogin(result.user, result.session);
+      await clearPendingAccountSelection();
       setShowAccountPicker(false);
     } catch (e) {
       console.error("[LoginOtpV2] Account selection error:", e);
@@ -237,6 +262,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
         );
 
         setShowAccountPicker(false);
+        await clearPendingAccountSelection();
         navigateToHome(primaryUser.type);
       }
     } catch (e) {
@@ -364,6 +390,8 @@ const LoginOtpScreen = ({ navigation, route }) => {
         }
 
         // Case 3: Multiple non-logged-in accounts → show picker with greyed-out logged-in ones
+        // Persist accounts list so if app is killed mid-picker it can restore
+        await setPendingAccountSelection(email, result.accounts, 'login');
         setAccounts(result.accounts);
         setLoggedInAccountIds(loggedInIds);
         setShowAccountPicker(true);
@@ -527,6 +555,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
         <AccountPickerModal
           visible={showAccountPicker}
           onClose={() => setShowAccountPicker(false)}
+          onGoBack={async () => {
+            await clearPendingAccountSelection();
+            setShowAccountPicker(false);
+            setShowGoBackModal(true);
+          }}
           accounts={accounts}
           onSelectAccount={handleAccountSelected}
           onSelectMultiple={handleMultipleAccountsSelected}

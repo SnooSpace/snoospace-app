@@ -15,6 +15,7 @@ import {
   getAuthToken,
   getAuthEmail,
   getRefreshToken,
+  getPendingAccountSelection,
 } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import { COLORS } from "../../constants/theme";
@@ -84,6 +85,52 @@ export default function AuthGate({ navigation }) {
                 },
               },
             ],
+          });
+          return;
+        }
+      }
+
+      // STEP 2.5: Check for pending account selection (mid-picker crash/kill recovery)
+      // This takes priority over session navigation — user must finish account selection.
+      const pendingSelection = await getPendingAccountSelection();
+      if (pendingSelection && pendingSelection.email && pendingSelection.accounts?.length > 0) {
+        console.log('[AuthGate] Pending account selection found, redirecting to OTP screen for picker restore');
+        if (pendingSelection.flow === 'login') {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'LoginOtp', params: { email: pendingSelection.email } }],
+          });
+          return;
+        }
+        if (pendingSelection.flow === 'signup_member') {
+          navigation.reset({
+            index: 0,
+            routes: [{
+              name: 'MemberSignup',
+              state: {
+                index: 1,
+                routes: [
+                  { name: 'MemberEmail' },
+                  { name: 'MemberOtp', params: { email: pendingSelection.email } },
+                ],
+              },
+            }],
+          });
+          return;
+        }
+        if (pendingSelection.flow === 'signup_community') {
+          navigation.reset({
+            index: 0,
+            routes: [{
+              name: 'CommunitySignup',
+              state: {
+                index: 1,
+                routes: [
+                  { name: 'CommunityEmail' },
+                  { name: 'CommunityOtp', params: { email: pendingSelection.email } },
+                ],
+              },
+            }],
           });
           return;
         }

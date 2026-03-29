@@ -285,6 +285,56 @@ export async function clearPendingOtp() {
   } catch {}
 }
 
+// --- Pending Account Selection (for crash/kill resume mid-account-picker) ---
+const KEY_PENDING_ACCOUNT_SELECTION = "pending_account_selection";
+
+/**
+ * Persist the accounts list returned by verifyOtp so that if the app is killed
+ * while the AccountPickerModal is open, we can restore it on next launch
+ * without requiring re-authentication.
+ *
+ * @param {string} email  - The email used for OTP
+ * @param {Array}  accounts - The accounts array from verifyOtp
+ * @param {string} flow   - 'login' | 'signup_member' | 'signup_community'
+ * @param {number} ttlSeconds - Time-to-live (default 10 minutes = OTP window)
+ */
+export async function setPendingAccountSelection(email, accounts, flow, ttlSeconds = 600) {
+  try {
+    const expiresAt = Date.now() + ttlSeconds * 1000;
+    const payload = JSON.stringify({ email, accounts, flow, expiresAt });
+    await AsyncStorage.setItem(KEY_PENDING_ACCOUNT_SELECTION, payload);
+  } catch {}
+}
+
+/**
+ * Read the persisted pending account selection.
+ * Returns null if missing or expired.
+ */
+export async function getPendingAccountSelection() {
+  try {
+    const raw = await AsyncStorage.getItem(KEY_PENDING_ACCOUNT_SELECTION);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.expiresAt || Date.now() > obj.expiresAt) {
+      await AsyncStorage.removeItem(KEY_PENDING_ACCOUNT_SELECTION);
+      return null;
+    }
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear the persisted pending account selection.
+ * Call this after a successful account selection OR when the user goes back.
+ */
+export async function clearPendingAccountSelection() {
+  try {
+    await AsyncStorage.removeItem(KEY_PENDING_ACCOUNT_SELECTION);
+  } catch {}
+}
+
 // --- Active Signup Tracking (for crash resume with new email) ---
 const KEY_ACTIVE_SIGNUP = "active_signup";
 

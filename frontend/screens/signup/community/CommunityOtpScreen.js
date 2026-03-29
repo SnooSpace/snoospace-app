@@ -29,7 +29,13 @@ import Reanimated, {
 import MaskedView from "@react-native-masked-view/masked-view";
 import * as sessionManager from "../../../utils/sessionManager";
 import * as accountManager from "../../../utils/accountManager";
-import { setAuthSession, clearPendingOtp } from "../../../api/auth";
+import {
+  setAuthSession,
+  clearPendingOtp,
+  setPendingAccountSelection,
+  getPendingAccountSelection,
+  clearPendingAccountSelection,
+} from "../../../api/auth";
 import { createCommunitySignupDraft, updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -106,6 +112,18 @@ const CommunityOtpScreen = ({ navigation, route }) => {
     }
   }, [resendTimer]);
 
+  // Restore pending account selection if app was killed mid-picker
+  useEffect(() => {
+    (async () => {
+      const pending = await getPendingAccountSelection();
+      if (pending && pending.flow === 'signup_community' && pending.accounts?.length > 0) {
+        console.log('[CommunityOtpScreen] Restoring pending account selection from storage');
+        setAccounts(pending.accounts);
+        setShowAccountPicker(true);
+      }
+    })();
+  }, []);
+
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
       showToast("Error", "Please enter the 6-digit code", "error");
@@ -130,6 +148,8 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         await clearPendingOtp();
 
         if (result.accounts && result.accounts.length > 0) {
+          // Persist accounts list so if app is killed mid-picker it can restore
+          await setPendingAccountSelection(email, result.accounts, 'signup_community');
           setAccounts(result.accounts);
           setShowAccountPicker(true);
         } else {
@@ -221,6 +241,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       );
 
       await clearPendingOtp();
+      await clearPendingAccountSelection();
       setShowAccountPicker(false);
 
       const rootNav = navigation.getParent() || navigation;
@@ -248,6 +269,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
   const handleCreateNewProfile = async () => {
     setShowAccountPicker(false);
+    await clearPendingAccountSelection();
 
     let accessToken = null;
     let refreshToken = null;
@@ -449,6 +471,11 @@ const CommunityOtpScreen = ({ navigation, route }) => {
         <AccountPickerModal
           visible={showAccountPicker}
           onClose={() => setShowAccountPicker(false)}
+          onGoBack={async () => {
+            await clearPendingAccountSelection();
+            setShowAccountPicker(false);
+            setShowGoBackModal(true);
+          }}
           accounts={accounts}
           onSelectAccount={handleSelectAccount}
           onCreateNewProfile={handleCreateNewProfile}
