@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground, Pressable } from "react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../assets/wave.png";
 import {
@@ -437,7 +437,6 @@ export default function HeadsEditorModal({
     ({ item, index }) => (
       <View style={styles.card}>
         <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
-        {/* Star icon removed as per user request */}
 
         <View style={styles.cardHeader}>
           <View style={styles.avatarContainer}>
@@ -525,7 +524,7 @@ export default function HeadsEditorModal({
 
             {/* Delete Row */}
             <View style={styles.footerRow}>
-              <View /> {/* Spacer */}
+              <View />
               <TouchableOpacity
                 onPress={() => removeHead(index)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -556,29 +555,28 @@ export default function HeadsEditorModal({
         onRequestClose={onCancel}
         statusBarTranslucent={true}
       >
-        <TouchableWithoutFeedback onPress={onCancel}>
-          <View style={styles.overlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <ImageBackground 
-                source={wave} 
-                style={styles.modalContainer}
-                imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
-                blurRadius={10}
-              >
-                <View style={styles.header}>
-                  <Text style={styles.title}>Edit Community Heads</Text>
-                  <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
-                    <X size={24} color={TEXT_COLOR} />
-                  </TouchableOpacity>
-                </View>
+        <Pressable style={styles.overlay} onPress={onCancel}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 500 }}>
+            <ImageBackground 
+              source={wave} 
+              style={styles.modalContainer}
+              imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+              blurRadius={10}
+            >
+              <View style={styles.header}>
+                <Text style={styles.title}>Edit Community Heads</Text>
+                <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
+                  <X size={24} color={TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
 
-                <FlatList
-                  data={heads}
-                  keyExtractor={(_, i) => String(i)}
-                  renderItem={renderItem}
-                  contentContainerStyle={styles.listContent}
-                  style={styles.list}
-                />
+              <FlatList
+                data={heads}
+                keyExtractor={(_, i) => String(i)}
+                renderItem={renderItem}
+                contentContainerStyle={styles.listContent}
+                style={styles.list}
+              />
 
                 <View style={styles.footerContainer}>
                   <TouchableOpacity
@@ -615,9 +613,8 @@ export default function HeadsEditorModal({
                   </TouchableOpacity>
                 </View>
               </ImageBackground>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+            </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -627,10 +624,9 @@ export default function HeadsEditorModal({
         onRequestClose={closeLinkModal}
         statusBarTranslucent={true}
       >
-        <TouchableWithoutFeedback onPress={closeLinkModal}>
-          <View style={styles.linkOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={[styles.linkSheet, SHADOWS.md]}>
+        <Pressable style={styles.linkOverlay} onPress={closeLinkModal}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.linkSheet, SHADOWS.md]}>
                 <View style={styles.linkHeader}>
                   <Text style={styles.linkTitle}>Link Member Profile</Text>
                   <TouchableOpacity
@@ -707,9 +703,8 @@ export default function HeadsEditorModal({
                   />
                 )}
               </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+            </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Custom Alert Modal */}
@@ -722,14 +717,14 @@ export default function HeadsEditorModal({
         }
         statusBarTranslucent={true}
       >
-        <TouchableWithoutFeedback
+        <Pressable
+          style={styles.alertOverlay}
           onPress={() =>
             setAlertConfig((prev) => ({ ...prev, visible: false }))
           }
         >
-          <View style={styles.alertOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.alertContainer}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={styles.alertContainer}>
                 {alertConfig.type === "options" && (
                   <TouchableOpacity
                     style={styles.alertCloseBtn}
@@ -820,9 +815,8 @@ export default function HeadsEditorModal({
                   </View>
                 )}
               </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+            </Pressable>
+        </Pressable>
       </Modal>
     </>
   );
