@@ -492,7 +492,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                   {/* Google Maps URL Input */}
                   <Text style={styles.label}>Paste a Google Maps link</Text>
                   <Text style={styles.helperText}>
-                    Open Google Maps â†’ Search location â†’ Tap Share â†’ Copy link
+                    Open Google Maps → Search location → Tap Share → Copy link
                   </Text>
 
                     <Animated.View style={animatedInputStyle}>
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   urlInputFocused: {
-    borderColor: COLORS.primary,
+    borderColor: "rgba(255, 255, 255, 0.9)",
     backgroundColor: "rgba(255, 255, 255, 0.8)",
   },
   urlInputValid: {

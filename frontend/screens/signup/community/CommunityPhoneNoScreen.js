@@ -293,7 +293,12 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityHeadProfilePic", {
+              // College communities come from CollegeHeads (which now includes photos)
+              const isCollege = params.community_type === "college_affiliated";
+              const prevScreen = isCollege
+                ? "CollegeHeads"
+                : "CommunityHeadProfilePic";
+              navigation.replace(prevScreen, {
                 ...params,
               });
             }

@@ -432,9 +432,10 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityName: "CommunityLogo",
     CommunityLogo: "CommunityBio",
     CommunityBio: "CommunityCategory",
-    CommunityCategory: "CommunityLocation", // Default, varies by type
+    CommunityCategory: "CollegeHeads", // Default for college; org goes to CommunityLocation separately
     IndividualLocation: "CommunityHeadName",
     CommunityLocation: "CommunityHeadName",
+    CollegeHeads: "CommunityPhone", // College heads now includes photos inline
     CommunityHeadName: "CommunityHeadProfilePic",
     CommunityHeadProfilePic: "CommunityPhone",
     CommunityPhone: "CommunitySponsorType", // Default, varies by type
@@ -529,26 +530,29 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   ];
 
   // Location branch
+  // College communities no longer go through the Location screen
   let locationStack = [];
-  if (!isStudentCommunity) {
+  if (!isStudentCommunity && !isCollege) {
     if (community_type === "individual_organizer") {
       locationStack = ["IndividualLocation"];
     } else {
+      // Organization
       locationStack = ["CommunityLocation"];
     }
   }
 
   // Post-location screens vary by type:
-  // - College -> CollegeHeads -> CommunitySponsorType -> CommunityUsername
-  // - Organization -> CommunityHeadName -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName -> CommunityPhone -> CommunityUsername
+  // - College -> CollegeHeads (w/ inline photos) -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
+  // - Organization -> CommunityHeadName -> CommunityHeadProfilePic -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
+  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName -> CommunityHeadProfilePic -> CommunityPhone -> CommunityUsername
   const orgPostStack = [
     "CommunityHeadName",
     "CommunityHeadProfilePic",
     "CommunityPhone",
     "CommunitySponsorType",
   ];
-  const collegePostStack = ["CollegeHeads", "CommunitySponsorType"];
+  // College: photos are inline on CollegeHeads now, so HeadProfilePic is NOT in the stack
+  const collegePostStack = ["CollegeHeads", "CommunityPhone"];
   const individualPostStack = [
     "CommunityHeadName",
     "CommunityHeadProfilePic",
@@ -558,11 +562,15 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   // Build the full ordered path based on community type
   let fullPath;
   if (isCollege) {
+    // Student communities skip CommunityCategory; event/club communities include it
+    const collegeCoreStack = isStudentCommunity
+      ? ["CommunityName", "CommunityLogo", "CommunityBio"]
+      : ["CommunityName", "CommunityLogo", "CommunityBio", "CommunityCategory"];
     fullPath = [
       ...baseStack,
       ...collegePreNameStack,
-      ...coreStack,
-      ...locationStack,
+      ...collegeCoreStack,
+      // No location step for college communities
       ...collegePostStack,
       "CommunityUsername",
     ];

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
-import { School, ChevronRight, Search, XCircle, PlusCircle, X } from "lucide-react-native";
+import { School, ChevronRight, Search, XCircle, Plus, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -275,11 +275,11 @@ const CollegeSearchScreen = ({ navigation, route }) => {
     // If campus_name exists, show it as the primary name (for multi-campus colleges)
     // Otherwise, show the college name
     const displayName = item.campus_name ? item.campus_name : item.name;
-    // For subtitle: if there's a campus, show "College Name â€¢ City"
-    // Otherwise, just show "City,"
+    // For subtitle: if there's a campus, show "College Name • City"
+    // Otherwise, just show "City"
     const subtitle = item.campus_name
-      ? `${item.name} â€¢ ${item.city}`
-      : `${item.city},`;
+      ? `${item.name} • ${item.city}`
+      : `${item.city}`;
 
     return (
       <TouchableOpacity
@@ -393,10 +393,13 @@ const CollegeSearchScreen = ({ navigation, route }) => {
               {/* Empty state */}
               {!loading && searchQuery.length >= 2 && colleges.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Search
-                    size={48}
-                    color={COLORS.textSecondary}
-                  />
+                  <View style={styles.emptyStateIconContainer}>
+                    <Search
+                      size={32}
+                      color={COLORS.textSecondary}
+                      strokeWidth={1.5}
+                    />
+                  </View>
                   <Text style={styles.emptyStateText}>No colleges found</Text>
                   <Text style={styles.emptyStateSubtext}>
                     Can't find your college? Request to add it below.
@@ -411,13 +414,22 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                     onPress={() => setShowRequestModal(true)}
                     activeOpacity={0.7}
                   >
-                    <PlusCircle
-                      size={24}
-                      color={COLORS.primary}
-                    />
-                    <Text style={styles.requestButtonText}>
-                      Can't find your college? Request add
-                    </Text>
+                    <View style={styles.requestIconContainer}>
+                      <Plus
+                        size={20}
+                        color={COLORS.primary}
+                        strokeWidth={2.5}
+                      />
+                    </View>
+                    <View style={styles.requestButtonTextContainer}>
+                      <Text style={styles.requestButtonText}>
+                        Can't find your college?
+                      </Text>
+                      <Text style={styles.requestButtonSubtext}>
+                        Request to add it
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={COLORS.primary} style={{ opacity: 0.5 }} />
                   </TouchableOpacity>
                 </Animated.View>
               </View>
@@ -435,9 +447,15 @@ const CollegeSearchScreen = ({ navigation, route }) => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Request New College</Text>
-                <TouchableOpacity onPress={() => setShowRequestModal(false)}>
-                  <X size={24} color={COLORS.textPrimary} />
+                <View>
+                  <Text style={styles.modalTitle}>Request New College</Text>
+                  <Text style={styles.modalSubtitle}>Fill in the details below</Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => setShowRequestModal(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <X size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
               </View>
 
@@ -673,6 +691,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
   },
+  emptyStateIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   emptyStateText: {
     fontSize: 18,
     fontFamily: "Manrope-SemiBold",
@@ -689,81 +716,107 @@ const styles = StyleSheet.create({
   requestButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    marginTop: 8,
+    backgroundColor: "rgba(116, 173, 242, 0.08)",
+    padding: 12,
+    marginTop: 16,
     marginBottom: 24,
-    borderWidth: 2,
-    borderColor: "rgba(116, 173, 242, 0.5)",
-    borderStyle: "dashed",
-    borderRadius: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.15)",
+  },
+  requestIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(116, 173, 242, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  requestButtonTextContainer: {
+    flex: 1,
   },
   requestButtonText: {
-    fontSize: 15,
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    marginBottom: 2,
+  },
+  requestButtonSubtext: {
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
     color: COLORS.primary,
-    marginLeft: 8,
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: COLORS.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
-    maxHeight: "80%",
+    paddingTop: 32,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
+    alignItems: "flex-start",
+    marginBottom: 32,
   },
   modalTitle: {
-    fontSize: 20,
-    fontFamily: "BasicCommercial-Black",
+    fontSize: 24,
+    fontFamily: "BasicCommercial-Bold",
     color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 14,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   modalInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     fontSize: 16,
     fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
+    borderColor: "rgba(0,0,0,0.02)",
   },
   submitButton: {
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 32,
     borderRadius: BORDER_RADIUS.pill,
-    shadowColor: "#74adf2",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   submitButtonDisabled: {
     opacity: 0.6,
-    shadowOpacity: 0,
   },
   submitButtonGradient: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: BORDER_RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
@@ -772,6 +825,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#fff",
     fontFamily: "Manrope-SemiBold",
+    letterSpacing: 0.5,
   },
 });
 

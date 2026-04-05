@@ -29,7 +29,7 @@ const PricingInput = ({ title, placeholder, unit, value, onChangeText }) => {
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{title}</Text>
       <View style={[styles.inputContainer, isFocused && styles.inputFocused]}>
-        <Text style={styles.currencySymbol}>â‚¹</Text>
+        <Text style={styles.currencySymbol}>₹</Text>
         <TextInput
           style={styles.textInput}
           onChangeText={handleTextChange}
@@ -114,7 +114,7 @@ const EventPricingScreen = ({ navigation, route }) => {
         {/* Mandatory Pricing Message */}
         <View style={styles.mandatoryMessage}>
           <Text style={styles.mandatoryText}>
-            âš ï¸ At least one pricing type is mandatory. You can specify all three or any combination.
+            ⚠️ At least one pricing type is mandatory. You can specify all three or any combination.
           </Text>
         </View>
 
