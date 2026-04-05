@@ -27,6 +27,7 @@ import { apiGet, apiPost } from "../../../api/client";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import TypeSelectWarningModal from "../../../components/modals/TypeSelectWarningModal";
+import RequestSubmittedModal from "../../../components/modals/RequestSubmittedModal";
 
 // Debounce helper
 const useDebounce = (value, delay) => {
@@ -69,6 +70,8 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   const [pendingCollegeId, setPendingCollegeId] = useState(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showTypeSelectModal, setShowTypeSelectModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successResponse, setSuccessResponse] = useState(null);
 
   // Hydrate from draft if needed
   useEffect(() => {
@@ -144,12 +147,16 @@ const CollegeSearchScreen = ({ navigation, route }) => {
   };
 
   const handleCollegeSelect = async (college) => {
-    console.log("[CollegeSearch] Selected college:", college.id, college.name);
+    // college.id = campus_id, college.college_id = actual colleges table FK
+    const realCollegeId = college.college_id || college.id;
+    const campusId = college.id;
+    console.log("[CollegeSearch] Selected college:", realCollegeId, college.name, "campus:", campusId);
 
     // Save college data to draft
     try {
       await updateCommunitySignupDraft("CollegeSearch", {
-        college_id: college.id,
+        college_id: realCollegeId,
+        campus_id: campusId,
         college_name: college.name,
       });
       console.log("[CollegeSearch] Draft updated with college data");
@@ -162,7 +169,8 @@ const CollegeSearchScreen = ({ navigation, route }) => {
 
     navigation.navigate("CollegeSubtypeSelect", {
       ...params,
-      college_id: college.id,
+      college_id: realCollegeId,
+      campus_id: campusId,
       college_name: college.name,
     });
   };
@@ -200,25 +208,9 @@ const CollegeSearchScreen = ({ navigation, route }) => {
           college_name: newCollegeName.trim(),
         });
       } else {
-        // Show confirmation and let user continue
-        Alert.alert(
-          "Request Submitted",
-          "Thanks! We'll add this college shortly. You can continue setting up your profile.",
-          [
-            {
-              text: "Continue",
-              onPress: () => {
-                // Navigate with pending college
-                navigation.navigate("CollegeSubtypeSelect", {
-                  ...params,
-                  college_id: response?.college_id,
-                  college_name: newCollegeName.trim(),
-                  college_pending: true,
-                });
-              },
-            },
-          ],
-        );
+        // Show our premium custom modal instead of a native Alert
+        setSuccessResponse(response);
+        setShowSuccessModal(true);
       }
     } catch (error) {
       console.error("Error requesting college:", error);
@@ -318,6 +310,22 @@ const CollegeSearchScreen = ({ navigation, route }) => {
           hideCancel={true}
         />
 
+          {/* Custom success modal after request */}
+        <RequestSubmittedModal
+          visible={showSuccessModal}
+          onContinue={() => {
+            setShowSuccessModal(false);
+            // Navigate with pending college data
+            navigation.navigate("CollegeSubtypeSelect", {
+              ...params,
+              college_id: successResponse?.college_id,
+              college_name: newCollegeName.trim(),
+              college_pending: true,
+            });
+          }}
+        />
+
+        {/* Cancel modal */}
           {/* Content */}
           <View style={styles.content}>
             <View style={styles.headerTitle}>
@@ -560,6 +568,18 @@ const CollegeSearchScreen = ({ navigation, route }) => {
           visible={showTypeSelectModal}
           onStay={() => setShowTypeSelectModal(false)}
           onGoBack={handleConfirmGoBackToTypeSelect}
+        />
+        <RequestSubmittedModal
+          visible={showSuccessModal}
+          onContinue={() => {
+            setShowSuccessModal(false);
+            navigation.navigate("CollegeSubtypeSelect", {
+              ...params,
+              college_id: successResponse?.college_id,
+              college_name: newCollegeName.trim(),
+              college_pending: true,
+            });
+          }}
         />
       </SafeAreaView>
     </ImageBackground>

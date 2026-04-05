@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   View,
   Text,
@@ -196,13 +196,7 @@ const CommunityBioScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    // Use CommonActions.reset for proper navigation from nested navigator
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      }),
-    );
+    exitSignupToAuthGate(navigation);
   };
 
   // 1. Next button is disabled if: text is empty OR text exceeds 500 characters.

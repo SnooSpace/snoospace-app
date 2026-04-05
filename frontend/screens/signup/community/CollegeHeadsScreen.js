@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   View,
   Text,
@@ -234,7 +234,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const isButtonDisabled = !heads[0].name.trim() || isSubmitting;
+  const isButtonDisabled = !heads[0].name.trim() || !heads[0].photoUri || isSubmitting;
 
   useEffect(() => {
     if (!isButtonDisabled) {
@@ -340,8 +340,8 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
   // Next — upload all local photos in parallel, then navigate
   // ---------------------------------------------------------------------------
   const handleNext = async () => {
-    if (!heads[0].name.trim()) {
-      Alert.alert("Required", "Please enter at least one head name.");
+    if (!heads[0].name.trim() || !heads[0].photoUri) {
+      Alert.alert("Required", "Please provide a name and profile photo for the primary head.");
       return;
     }
 
@@ -420,12 +420,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      })
-    );
+    exitSignupToAuthGate(navigation);
   };
 
   // ---------------------------------------------------------------------------
@@ -467,7 +462,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
                   entering={FadeInDown.delay(200).duration(600).springify()}
                   style={styles.globalHelperText}
                 >
-                  Add the people who run this page. Tap the circle to add a photo.
+                  Add the people who run this page. A profile photo is required for the primary head to build trust.
                 </Animated.Text>
               </View>
 

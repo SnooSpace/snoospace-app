@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   View,
   Text,
@@ -288,15 +288,8 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      }),
-    );
+    exitSignupToAuthGate(navigation);
   };
-
-  // Button is enabled if at least one category is selected
   const isButtonDisabled = selectedCategories.length === 0;
 
   return (
@@ -307,19 +300,16 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       blurRadius={10}
     >
       <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
         <SignupHeader
-          role="Community"
           onBack={() => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.replace("CommunityBio", {
-                ...params,
-              });
+              navigation.replace("CommunityBio", { ...params });
             }
           }}
           onCancel={() => setShowCancelModal(true)}
+          role="Community"
         />
 
         <ScrollView
@@ -327,261 +317,131 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Content Section */}
           <View style={styles.contentContainer}>
-            <Animated.Text 
+            <Animated.Text
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
-              Choose your community's category
+              What's your vibe?
             </Animated.Text>
-            <Animated.Text 
+            <Animated.Text
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.subtitle}
             >
-              Select up to 3 categories that best fit your community.
+              Pick up to 3 categories that best describe your community.
             </Animated.Text>
 
-            <Animated.View 
+            <Animated.View
               entering={FadeInDown.delay(300).duration(600).springify()}
               style={styles.card}
             >
-              <BlurView
-                intensity={60}
-                tint="light"
-                style={StyleSheet.absoluteFill}
-              />
+              <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
-                {/* Top Section: Selected Categories */}
-                {selectedCategories.length > 0 && (
-                  <View style={styles.selectedSection}>
-                    <View style={styles.chipsContainer}>
-                      {selectedCategories.map((cat) => {
-                        const style = getInterestStyle(cat);
-                        const Icon = style.icon;
-                        return (
-                          <TouchableOpacity
-                            key={`selected-${cat}`}
-                            activeOpacity={0.7}
-                            onPress={() => toggleCategory(cat)}
-                            style={[
-                              styles.vibeChip,
-                              { backgroundColor: style.bg, paddingRight: 8 },
-                            ]}
-                          >
-                            <View style={styles.vibeContent}>
-                              <Icon
-                                size={14}
-                                color={style.text}
-                                strokeWidth={2.5}
-                              />
-                              <Text
-                                style={[styles.vibeText, { color: style.text }]}
-                              >
-                                {cat}
-                              </Text>
-                            </View>
-                            <View style={styles.removeIconContainer}>
-                              <X size={12} color={style.text} strokeWidth={3} />
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                    <View style={styles.divider} />
-                  </View>
-                )}
-
-                {/* Categories Accordion */}
-                <View style={styles.categoriesContainer}>
-                  {loadingCategories ? (
+                {loadingCategories ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center" }}>
                     <SnooLoader size="large" color={COLORS.primary} />
-                  ) : availableCategories.length === 0 ? (
-                    <Text style={styles.emptyText}>No categories available</Text>
-                  ) : (
-                    Object.keys(INTEREST_CATEGORIES)
-                      .filter((key) => key !== "DEFAULT")
-                      .map((key) => {
-                        const categoryGroup = INTEREST_CATEGORIES[key];
-                        const isExpanded = expandedCategory === key;
-                        const GroupIcon = categoryGroup.icon;
-
-                        // Filter categories for this group
-                        const groupCats = availableCategories.filter(
-                          (cat) =>
-                            !selectedCategories.includes(cat) &&
-                            categoryGroup.keywords.some((k) =>
-                              cat.toLowerCase().includes(k),
-                            ),
-                        );
-
-                        const hasAnyCats = availableCategories.some(
-                          (cat) => categoryGroup.keywords.some((k) => cat.toLowerCase().includes(k))
-                        );
-
-                        if (!hasAnyCats) return null;
-
-                        return (
-                          <View key={key} style={styles.categoryRow}>
+                  </View>
+                ) : (
+                  <>
+                    {/* Selected chips */}
+                    {selectedCategories.length > 0 && (
+                      <View style={styles.selectedSection}>
+                        <View style={styles.chipsContainer}>
+                          {selectedCategories.map((cat) => (
                             <TouchableOpacity
+                              key={cat}
+                              onPress={() => toggleCategory(cat)}
+                              style={[styles.chip, { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
                               activeOpacity={0.7}
-                              onPress={() => {
-                                setExpandedCategory(isExpanded ? null : key);
-                              }}
-                              style={[
-                                styles.categoryHeader,
-                                isExpanded && styles.categoryHeaderExpanded,
-                                {
-                                  backgroundColor: isExpanded
-                                    ? categoryGroup.bg
-                                    : "transparent",
-                                },
-                              ]}
                             >
-                              <View style={styles.categoryHeaderLeft}>
-                                <View
-                                  style={[
-                                    styles.categoryIcon,
-                                    { backgroundColor: categoryGroup.bg },
-                                  ]}
-                                >
-                                  <GroupIcon size={14} color={categoryGroup.text} />
-                                </View>
-                                <Text
-                                  style={[
-                                    styles.categoryTitle,
-                                    isExpanded && {
-                                      color: categoryGroup.text,
-                                      fontWeight: "600",
-                                    },
-                                  ]}
-                                >
-                                  {categoryGroup.label}
-                                </Text>
-                              </View>
-                              {isExpanded ? (
-                                <ChevronDown size={16} color={COLORS.textSecondary} />
-                              ) : (
-                                <ChevronRight size={16} color={COLORS.textSecondary} />
-                              )}
+                              <Text style={[styles.chipText, { color: COLORS.textInverted }]}>{cat}</Text>
+                              <X size={12} color={COLORS.textInverted} style={{ marginLeft: 6 }} />
                             </TouchableOpacity>
+                          ))}
+                        </View>
+                        <View style={styles.divider} />
+                      </View>
+                    )}
 
-                            {isExpanded && (
-                              <View style={styles.categoryContent}>
-                                {groupCats.length === 0 ? (
-                                  <Text style={[styles.optionText, { color: COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
-                                    All selected
-                                  </Text>
-                                ) : (
-                                  <View style={styles.chipsContainer}>
-                                    {groupCats.map((cat) => (
-                                      <TouchableOpacity
-                                        key={cat}
-                                        onPress={() => toggleCategory(cat)}
-                                        style={[
-                                          styles.optionChip,
-                                          selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
-                                        ]}
-                                        disabled={selectedCategories.length >= MAX_CATEGORIES}
-                                      >
-                                        <Text style={[
-                                          styles.optionText,
-                                          selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
-                                        ]}>{cat}</Text>
-                                      </TouchableOpacity>
-                                    ))}
+                    {/* Category accordion */}
+                    <View style={styles.categoriesContainer}>
+                      {Object.entries(INTEREST_CATEGORIES)
+                        .filter(([key]) => key !== "DEFAULT")
+                        .map(([key, group]) => {
+                          const isExpanded = expandedCategory === key;
+                          const Icon = group.icon;
+                          const unselectedInGroup = availableCategories.filter(
+                            (cat) =>
+                              !selectedCategories.includes(cat) &&
+                              group.keywords?.some((k) => cat.toLowerCase().includes(k))
+                          );
+                          const hasItems = availableCategories.some(
+                            (cat) =>
+                              group.keywords?.some((k) => cat.toLowerCase().includes(k))
+                          );
+                          if (!hasItems) return null;
+                          return (
+                            <View key={key} style={styles.categoryRow}>
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => setExpandedCategory(isExpanded ? null : key)}
+                                style={[
+                                  styles.categoryHeader,
+                                  isExpanded && styles.categoryHeaderExpanded,
+                                  { backgroundColor: isExpanded ? group.bg : "transparent" },
+                                ]}
+                              >
+                                <View style={styles.categoryHeaderLeft}>
+                                  <View style={[styles.categoryIcon, { backgroundColor: group.bg }]}>
+                                    <Icon size={14} color={group.text} />
                                   </View>
+                                  <Text style={[styles.categoryTitle, isExpanded && { color: group.text, fontWeight: "600" }]}>
+                                    {group.label}
+                                  </Text>
+                                </View>
+                                {isExpanded ? (
+                                  <ChevronDown size={16} color={COLORS.textSecondary} />
+                                ) : (
+                                  <ChevronRight size={16} color={COLORS.textSecondary} />
                                 )}
-                              </View>
-                            )}
-                          </View>
-                        );
-                      })
-                  )}
-
-                  {/* Handle uncategorized categories if any */}
-                  {!loadingCategories && availableCategories.some(cat => 
-                    !selectedCategories.includes(cat) && 
-                    !Object.values(INTEREST_CATEGORIES).some(group => group.keywords.some(k => cat.toLowerCase().includes(k)))
-                  ) && (
-                    <View style={styles.categoryRow}>
-                       <TouchableOpacity
-                              activeOpacity={0.7}
-                              onPress={() => {
-                                setExpandedCategory(expandedCategory === 'OTHER' ? null : 'OTHER');
-                              }}
-                              style={[
-                                styles.categoryHeader,
-                                expandedCategory === 'OTHER' && styles.categoryHeaderExpanded,
-                                {
-                                  backgroundColor: expandedCategory === 'OTHER'
-                                    ? INTEREST_CATEGORIES.DEFAULT.bg
-                                    : "transparent",
-                                },
-                              ]}
-                            >
-                              <View style={styles.categoryHeaderLeft}>
-                                <View
-                                  style={[
-                                    styles.categoryIcon,
-                                    { backgroundColor: INTEREST_CATEGORIES.DEFAULT.bg },
-                                  ]}
-                                >
-                                  <INTEREST_CATEGORIES.DEFAULT.icon size={14} color={INTEREST_CATEGORIES.DEFAULT.text} />
+                              </TouchableOpacity>
+                              {isExpanded && (
+                                <View style={styles.categoryContent}>
+                                  {unselectedInGroup.length === 0 ? (
+                                    <Text style={styles.emptyText}>All selected</Text>
+                                  ) : (
+                                    <View style={styles.chipsContainer}>
+                                      {unselectedInGroup.map((cat) => (
+                                        <TouchableOpacity
+                                          key={cat}
+                                          onPress={() => toggleCategory(cat)}
+                                          style={[
+                                            styles.optionChip,
+                                            selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled,
+                                          ]}
+                                          disabled={selectedCategories.length >= MAX_CATEGORIES}
+                                        >
+                                          <Text style={[
+                                            styles.optionText,
+                                            selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled,
+                                          ]}>{cat}</Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </View>
+                                  )}
                                 </View>
-                                <Text
-                                  style={[
-                                    styles.categoryTitle,
-                                    expandedCategory === 'OTHER' && {
-                                      color: INTEREST_CATEGORIES.DEFAULT.text,
-                                      fontWeight: "600",
-                                    },
-                                  ]}
-                                >
-                                  {INTEREST_CATEGORIES.DEFAULT.label}
-                                </Text>
-                              </View>
-                              {expandedCategory === 'OTHER' ? (
-                                <ChevronDown size={16} color={COLORS.textSecondary} />
-                              ) : (
-                                <ChevronRight size={16} color={COLORS.textSecondary} />
                               )}
-                            </TouchableOpacity>
-                            {expandedCategory === 'OTHER' && (
-                              <View style={styles.categoryContent}>
-                                <View style={styles.chipsContainer}>
-                                  {availableCategories.filter(cat => 
-                                    !selectedCategories.includes(cat) && 
-                                    !Object.values(INTEREST_CATEGORIES).some(group => group.keywords.some(k => cat.toLowerCase().includes(k)))
-                                  ).map((cat) => (
-                                    <TouchableOpacity
-                                      key={cat}
-                                      onPress={() => toggleCategory(cat)}
-                                      style={[
-                                        styles.optionChip,
-                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionChipDisabled
-                                      ]}
-                                      disabled={selectedCategories.length >= MAX_CATEGORIES}
-                                    >
-                                      <Text style={[
-                                        styles.optionText,
-                                        selectedCategories.length >= MAX_CATEGORIES && styles.optionTextDisabled
-                                      ]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              </View>
-                            )}
+                            </View>
+                          );
+                        })}
                     </View>
-                  )}
-                </View>
+                  </>
+                )}
               </View>
             </Animated.View>
 
-            <View
-              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
-            >
-              <Animated.View 
+            <View style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}>
+              <Animated.View
                 entering={FadeInDown.delay(600).duration(600).springify()}
                 style={animatedButtonStyle}
               >
@@ -620,7 +480,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
   );
 };
 
-// --- Stylesheet ---
+
 const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,

@@ -15,6 +15,7 @@ import {
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import { signupBack } from "../../../utils/signupNavigation";
 
 const CommunityEmailScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState("");
@@ -124,7 +125,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
       <SafeAreaView style={styles.safeArea}>
         <SignupHeader onBack={() => {
           triggerTransitionHaptic();
-          navigation.goBack();
+          signupBack(navigation);
         }} role="Community" />
 
         <ScrollView

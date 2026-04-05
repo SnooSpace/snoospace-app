@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   View,
   Text,
@@ -64,6 +64,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     college_pending: initialPending,
     isStudentCommunity: initialIsStudent,
     phone: initialPhone,
+    secondary_phone: initialSecondaryPhone,
     head_photo_url: initialHeadPhoto,
     sponsor_types: initialSponsorTypes,
   } = routeParams;
@@ -89,6 +90,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     college_pending: initialPending || existingUserData?.college_pending,
     isStudentCommunity: initialIsStudent || existingUserData?.isStudentCommunity,
     phone: initialPhone || existingUserData?.phone,
+    secondary_phone: initialSecondaryPhone || existingUserData?.secondary_phone,
     head_photo_url: initialHeadPhoto || existingUserData?.head_photo_url,
     sponsor_types: initialSponsorTypes || existingUserData?.sponsor_types,
   });
@@ -114,7 +116,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         "category", "categories", "location", "heads", "community_type",
         "college_id", "college_name", "college_subtype", "club_type",
         "community_theme", "college_pending", "isStudentCommunity", "phone",
-        "head_photo_url", "sponsor_types"
+        "secondary_phone", "head_photo_url", "sponsor_types"
       ];
 
       keysToHydrate.forEach(key => {
@@ -390,12 +392,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      }),
-    );
+    exitSignupToAuthGate(navigation);
   };
 
   return (

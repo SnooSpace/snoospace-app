@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   StyleSheet,
   View,
@@ -400,12 +400,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      }),
-    );
+    exitSignupToAuthGate(navigation);
   };
 
   // Allow continuing with either GPS coordinates OR just a valid Google Maps URL

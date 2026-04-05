@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CommonActions } from "@react-navigation/native";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   StyleSheet,
   Text,
@@ -272,12 +272,7 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
   const handleCancel = async () => {
     await deleteCommunitySignupDraft();
     setShowCancelModal(false);
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: "AuthGate" }],
-      })
-    );
+    exitSignupToAuthGate(navigation);
   };
 
   return (
