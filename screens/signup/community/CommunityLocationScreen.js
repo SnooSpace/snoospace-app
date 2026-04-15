@@ -1,0 +1,801 @@
+import React, { useState, useEffect, useRef } from "react";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
+import {
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Text,
+  TextInput,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  Alert,
+  KeyboardAvoidingView,
+  ScrollView,
+  ImageBackground,
+} from "react-native";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
+import { LocateFixed, CheckCircle2, XCircle, MapPin } from "lucide-react-native";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+
+import {
+  getCurrentLocation,
+  hasLocationPermission,
+  requestLocationPermission,
+} from "../../../utils/location";
+import { reverseGeocodeStructured } from "../../../utils/geocoding";
+import { isValidGoogleMapsUrl } from "../../../utils/validateGoogleMapsUrl";
+import { parseGoogleMapsLink } from "../../../utils/googleMapsParser";
+import { useLocationName } from "../../../utils/locationNameCache";
+
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  COLORS,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+} from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
+import {
+  updateCommunitySignupDraft,
+  deleteCommunitySignupDraft,
+  getCommunityDraftData,
+} from "../../../utils/signupDraftManager";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
+import SnooLoader from "../../../components/ui/SnooLoader";
+
+const CommunityLocationScreen = ({ navigation, route }) => {
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    // NEW: Community type fields
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+    isResumingDraft, // True when resumed from draft (no navigation history)
+  } = route.params || {};
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  });
+
+  // Both Individual and Organization go through Phone/HeadName.
+  // Only College (with college_id) has a separate path.
+  const isCollege = params.community_type === "college_affiliated" && params.college_id;
+
+  // Build common params to pass forward
+  const commonParams = {
+    email,
+    accessToken,
+    refreshToken,
+    name,
+    logo_url,
+    bio,
+    category,
+    categories,
+    community_type,
+    college_id,
+    college_name,
+    college_subtype,
+    club_type,
+    community_theme,
+    college_pending,
+    isStudentCommunity,
+  };
+
+  // Location state
+  const [location, setLocation] = useState(null);
+  const [displayAddress, setDisplayAddress] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
+
+  // Loading states
+  const [isLoadingGps, setIsLoadingGps] = useState(false);
+  const [isParsingUrl, setIsParsingUrl] = useState(false);
+
+  // Validation state
+  const [urlValid, setUrlValid] = useState(null);
+  const [isUrlFocused, setIsUrlFocused] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+  const inputScale = useSharedValue(1);
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const animatedInputStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: inputScale.value }],
+  }));
+
+  // Trigger button bounce when validity changes to true (canContinue)
+  useEffect(() => {
+    if (canContinue) {
+      buttonScale.value = withSequence(
+        withSpring(1.05, { damping: 10, stiffness: 100 }),
+        withSpring(1, { damping: 12, stiffness: 90 })
+      );
+    }
+  }, [canContinue]);
+
+  // Handle focus bloom
+  useEffect(() => {
+    inputScale.value = withSpring(isUrlFocused ? 1.02 : 1, {
+      damping: 15,
+      stiffness: 120,
+    });
+  }, [isUrlFocused]);
+
+  // Track already-parsed URLs to prevent re-parsing on screen revisit
+  const parsedUrlsRef = useRef(new Set());
+
+  // Use the locationName hook to resolve the location name from Google Maps URL
+  const resolvedLocationName = useLocationName(
+    location?.googleMapsUrl || null,
+    { fallback: "Loading location..." },
+  );
+
+  // Hydrate from draft
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate location
+      if (draftData.location) {
+        console.log("[CommunityLocationScreen] Hydrating location from draft");
+        setLocation(draftData.location);
+        if (draftData.location.address) {
+          setDisplayAddress(draftData.location.address);
+        } else if (draftData.location.googleMapsUrl) {
+          // Mark this URL as already parsed to prevent re-parsing
+          parsedUrlsRef.current.add(draftData.location.googleMapsUrl);
+          setLocationUrl(draftData.location.googleMapsUrl);
+          setUrlValid(true);
+        }
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "name", "logo_url", "bio",
+        "category", "categories", "community_type", "college_id",
+        "college_name", "college_subtype", "club_type", "community_theme",
+        "college_pending", "isStudentCommunity"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CommunityLocationScreen] Hydrated shared parameters from draft");
+        setParams(updatedParams);
+      }
+    };
+    hydrateFromDraft();
+  }, []);
+
+  // Validate URL on change
+  useEffect(() => {
+    if (!locationUrl.trim()) {
+      setUrlValid(null);
+      return;
+    }
+
+    const valid = isValidGoogleMapsUrl(locationUrl);
+    setUrlValid(valid);
+
+    // Auto-parse if valid AND not already parsed
+    if (valid) {
+      // Skip parsing if this URL was already parsed (e.g., restored from draft)
+      if (!parsedUrlsRef.current.has(locationUrl)) {
+        parseUrl(locationUrl);
+      }
+    } else {
+      // Clear location if URL becomes invalid
+      parsedUrlsRef.current.delete(locationUrl);
+      setLocation(null);
+      setDisplayAddress("");
+    }
+  }, [locationUrl]);
+
+  const parseUrl = async (url) => {
+    setIsParsingUrl(true);
+    try {
+      const parsedLocation = await parseGoogleMapsLink(url);
+      if (parsedLocation && parsedLocation.lat && parsedLocation.lng) {
+        // Full location with coordinates
+        setLocation({
+          lat: parsedLocation.lat,
+          lng: parsedLocation.lng,
+          address: parsedLocation.address,
+          city: parsedLocation.city,
+          state: parsedLocation.state,
+          country: parsedLocation.country,
+          googleMapsUrl: url,
+        });
+        setDisplayAddress(
+          parsedLocation.address ||
+            `${parsedLocation.lat}, ${parsedLocation.lng}`,
+        );
+      } else {
+        // URL is valid but coordinates couldn't be extracted - store URL only
+        // This is fine for communities, they can just use the URL to show location
+        setLocation({
+          googleMapsUrl: url,
+        });
+      }
+      // Mark as parsed to prevent re-parsing on screen revisit
+      parsedUrlsRef.current.add(url);
+    } catch (error) {
+      console.error("Error parsing Google Maps URL:", error);
+      // Still allow URL-only if it's a valid Google Maps URL
+      if (isValidGoogleMapsUrl(url)) {
+        setLocation({
+          googleMapsUrl: url,
+        });
+        // Mark as parsed
+        parsedUrlsRef.current.add(url);
+      } else {
+        setLocation(null);
+        setDisplayAddress("");
+      }
+    } finally {
+      setIsParsingUrl(false);
+    }
+  };
+
+  const handleUseCurrentLocation = async () => {
+    setIsLoadingGps(true);
+    try {
+      // Check/request permission
+      const hasPermission = await hasLocationPermission();
+      if (!hasPermission) {
+        const granted = await requestLocationPermission();
+        if (!granted) {
+          Alert.alert(
+            "Location Permission Required",
+            "Please enable location permission in your device settings to use this feature.",
+          );
+          setIsLoadingGps(false);
+          return;
+        }
+      }
+
+      // Get current location
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        Alert.alert(
+          "Error",
+          "Could not get your location. Please try again or paste a Google Maps link.",
+        );
+        setIsLoadingGps(false);
+        return;
+      }
+
+      // Reverse geocode to get address
+      const addressData = await reverseGeocodeStructured(
+        currentLocation.lat,
+        currentLocation.lng,
+      );
+
+      setLocation({
+        lat: currentLocation.lat,
+        lng: currentLocation.lng,
+        address: addressData.address,
+        city: addressData.city,
+        state: addressData.state,
+        country: addressData.country,
+      });
+      setDisplayAddress(
+        addressData.address || `${currentLocation.lat}, ${currentLocation.lng}`,
+      );
+
+      // Clear URL field since we used GPS
+      setLocationUrl("");
+      setUrlValid(null);
+    } catch (error) {
+      console.error("Error getting current location:", error);
+      Alert.alert("Error", "Failed to get your location. Please try again.");
+    } finally {
+      setIsLoadingGps(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    // Allow continuing with either GPS coordinates OR just a valid Google Maps URL
+    const hasValidLocation =
+      location && (location.lat || location.googleMapsUrl);
+
+    if (!hasValidLocation) {
+      Alert.alert(
+        "Location Required",
+        "Please use your current location or paste a Google Maps link.",
+      );
+      return;
+    }
+
+    // Save location to draft
+    try {
+      await updateCommunitySignupDraft("CommunityLocation", { location });
+      console.log("[CommunityLocationScreen] Draft updated with location");
+    } catch (e) {
+      console.log(
+        "[CommunityLocationScreen] Draft update failed (non-critical):",
+        e.message,
+      );
+    }
+
+    // All non-college types (Individual + Organization) go through HeadName -> Phone
+    if (!isCollege) {
+      navigation.navigate("CommunityHeadName", {
+        ...params,
+        location,
+      });
+    } else {
+      // College communities go to heads screen
+      navigation.navigate("CollegeHeads", {
+        ...params,
+        location,
+      });
+    }
+  };
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Determine previous screen based on community type
+      // - Student communities skip Category, go back to Bio
+      // - Other college types (event, club) go back to Category
+      // - Organizations go back to Category
+      let previousScreen;
+      if (isStudentCommunity) {
+        previousScreen = "CommunityBio";
+      } else {
+        previousScreen = "CommunityCategory";
+      }
+
+      navigation.replace(previousScreen, {
+        ...params,
+      });
+    }
+  };
+
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    exitSignupToAuthGate(navigation);
+  };
+
+  // Allow continuing with either GPS coordinates OR just a valid Google Maps URL
+  const canContinue = location && (location.lat || location.googleMapsUrl);
+
+  return (
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header */}
+            <SignupHeader
+              role="Community"
+              onBack={handleBack}
+              onCancel={() => setShowCancelModal(true)}
+            />
+
+            {/* Content */}
+            <View style={styles.contentBody}>
+              <Animated.Text 
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.mainTitle}
+              >
+                Add your location
+              </Animated.Text>
+              <Animated.Text 
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.subtitle}
+              >
+                Your location is used to help people from the same city discover your community and events. You can still host anywhere.
+              </Animated.Text>
+
+              <Animated.View 
+                entering={FadeInDown.delay(300).duration(600).springify()}
+                style={styles.card}
+              >
+                <BlurView
+                  intensity={60}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.cardContent}>
+                  {/* Use Current Location Button */}
+                  <TouchableOpacity
+                    style={styles.gpsButton}
+                    onPress={handleUseCurrentLocation}
+                    disabled={isLoadingGps}
+                    activeOpacity={0.8}
+                  >
+                    {isLoadingGps ? (
+                      <SnooLoader size="small" color={COLORS.primary} />
+                    ) : (
+                      <LocateFixed
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    )}
+                    <Text style={styles.gpsButtonText}>
+                      {isLoadingGps
+                        ? "Getting location..."
+                        : "Use My Current Location"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Divider */}
+                  <View style={styles.dividerContainer}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>OR</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* Google Maps URL Input */}
+                  <Text style={styles.label}>Paste a Google Maps link</Text>
+                  <Text style={styles.helperText}>
+                    Open Google Maps → Search location → Tap Share → Copy link
+                  </Text>
+
+                    <Animated.View style={animatedInputStyle}>
+                      <TextInput
+                        style={[
+                          styles.urlInput,
+                          isUrlFocused && styles.urlInputFocused,
+                          urlValid === true && styles.urlInputValid,
+                          urlValid === false && styles.urlInputInvalid,
+                        ]}
+                        value={locationUrl}
+                        onChangeText={setLocationUrl}
+                        onFocus={() => setIsUrlFocused(true)}
+                        onBlur={() => setIsUrlFocused(false)}
+                        placeholder="Paste Google Maps link here..."
+                        placeholderTextColor={COLORS.textSecondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="url"
+                        multiline={false}
+                      />
+                    </Animated.View>
+
+                  {/* URL Validation Indicator */}
+                  {isParsingUrl && (
+                    <View style={styles.validationRow}>
+                      <SnooLoader size="small" color={COLORS.primary} />
+                      <Text style={styles.parsingText}>
+                        Parsing location...
+                      </Text>
+                    </View>
+                  )}
+
+                  {urlValid === true && !isParsingUrl && (
+                    <View style={styles.validationRow}>
+                      <CheckCircle2
+                        size={20}
+                        color={COLORS.success || "#34C759"}
+                      />
+                      <Text style={styles.validText}>
+                        Valid Google Maps link
+                      </Text>
+                    </View>
+                  )}
+
+                  {urlValid === false && (
+                    <View style={styles.validationRow}>
+                      <XCircle
+                        size={20}
+                        color={COLORS.error}
+                      />
+                      <Text style={styles.invalidText}>
+                        Invalid URL - must be from Google Maps
+                      </Text>
+                    </View>
+                  )}
+                  {/* Display Address - show decoded location like event cards */}
+                  {location && !isParsingUrl && (
+                    <View style={styles.addressContainer}>
+                      <MapPin
+                        size={20}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.addressText} numberOfLines={3}>
+                        {displayAddress || resolvedLocationName}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+
+              <View
+                style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+              >
+                <Animated.View 
+                  entering={FadeInDown.delay(500).duration(600).springify()}
+                  style={animatedButtonStyle}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.continueButtonContainer,
+                      !canContinue && styles.continueButtonDisabled,
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                    ]}
+                    onPress={handleContinue}
+                    disabled={!canContinue || isParsingUrl}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.continueButton}
+                    >
+                      <Text style={styles.continueButtonText}>Next</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        {/* Cancel Confirmation Modal */}
+        <CancelSignupModal
+          visible={showCancelModal}
+          onKeepEditing={() => setShowCancelModal(false)}
+          onDiscard={handleCancel}
+        />
+      </SafeAreaView>
+    </ImageBackground>
+  );
+};
+
+const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "transparent",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
+  },
+  contentBody: {
+    flex: 1,
+    paddingTop: 40,
+  },
+  mainTitle: {
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+    letterSpacing: -1,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 40,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        ...SHADOWS.xl,
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
+  gpsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(116, 173, 242, 0.15)", // slightly tinted primary
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.3)",
+    gap: 10,
+    marginBottom: 10,
+  },
+  gpsButtonText: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.primary,
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 25,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
+  },
+  dividerText: {
+    marginHorizontal: 15,
+    fontSize: 14,
+    color: "rgba(0,0,0,0.4)",
+    fontFamily: "Manrope-Medium",
+  },
+  label: {
+    fontSize: 16,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+  },
+  helperText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontFamily: "Manrope-Regular",
+    marginBottom: 16,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    color: COLORS.textPrimary,
+  },
+  urlInputFocused: {
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+  },
+  urlInputValid: {
+    borderColor: COLORS.success || "#34C759",
+  },
+  urlInputInvalid: {
+    borderColor: COLORS.error,
+  },
+  validationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  parsingText: {
+    fontSize: 14,
+    color: COLORS.primary,
+
+    fontFamily: "Manrope-Regular",
+  },
+  validText: {
+    fontSize: 14,
+    color: COLORS.success || "#34C759",
+    fontWeight: "500",
+  },
+  invalidText: {
+    fontSize: 14,
+    color: COLORS.error,
+    fontFamily: "Manrope-Medium",
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.2)",
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontFamily: "Manrope-SemiBold",
+    lineHeight: 20,
+  },
+
+  continueButtonContainer: {
+    borderRadius: BORDER_RADIUS.pill,
+    shadowColor: "#74adf2",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  continueButton: {
+    height: 56,
+    borderRadius: BORDER_RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  continueButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    color: COLORS.textInverted,
+    fontFamily: "Manrope-SemiBold",
+  },
+});
+
+export default CommunityLocationScreen;
+
+
+

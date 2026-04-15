@@ -1,0 +1,421 @@
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  Platform,
+  ImageBackground,
+  ScrollView,
+  StatusBar
+} from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { Calendar, Trophy, MessagesSquare, Lock, ChevronRight } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import wave from "../../../assets/wave.png";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
+import SignupHeader from "../../../components/SignupHeader";
+import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
+
+const COLLEGE_SUBTYPES = [
+  {
+    id: "event",
+    title: "Event",
+    subtitle: "College fests, hackathons, concerts, workshops",
+    icon: "Calendar",
+    gradientColors: ["#FF512F", "#F09819"],
+  },
+  {
+    id: "club",
+    title: "Club",
+    subtitle: "Official clubs, departments, societies",
+    icon: "Trophy",
+    gradientColors: ["#667eea", "#764ba2"],
+  },
+  {
+    id: "student_community",
+    title: "Student Community",
+    subtitle: "Confessions, memes, discussions, campus life",
+    icon: "MessagesSquare",
+    gradientColors: ["#11998e", "#38ef7d"],
+    isPrivate: true, // Never visible to sponsors
+  },
+];
+
+/**
+ * Subtype Selection Card Component
+ */
+const SubtypeCard = ({ subtype, collegeName, onPress, isLast }) => (
+  <TouchableOpacity
+    style={[styles.subtypeItem, isLast && styles.cardLast]}
+    onPress={() => onPress(subtype)}
+    activeOpacity={0.8}
+    accessibilityRole="button"
+    accessibilityLabel={`Select ${subtype.title}`}
+  >
+    <LinearGradient
+      colors={subtype.gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.cardGradient}
+    >
+      <View style={styles.cardIconContainer}>
+        {(() => {
+          const Icon = { Calendar, Trophy, MessagesSquare }[subtype.icon];
+          return <Icon size={32} color="#fff" />;
+        })()}
+      </View>
+    </LinearGradient>
+    <View style={styles.subtypeContent}>
+      <Text style={styles.subtypeTitle}>{subtype.title}</Text>
+      <Text style={styles.subtypeSubtitle}>{subtype.subtitle}</Text>
+      {subtype.isPrivate && (
+        <View style={styles.privateTag}>
+          <Lock size={12} color={COLORS.textSecondary} />
+          <Text style={styles.privateTagText}>
+            Private - Not visible to sponsors
+          </Text>
+        </View>
+      )}
+    </View>
+    <ChevronRight
+      size={24}
+      color={COLORS.textSecondary}
+      style={styles.cardArrow}
+    />
+  </TouchableOpacity>
+);
+
+/**
+ * College Subtype Selection Screen
+ * User selects whether they're creating an Event, Club, or Student Community
+ */
+const CollegeSubtypeSelectScreen = ({ navigation, route }) => {
+  const {
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    campus_id,
+    college_name,
+    college_pending,
+    college_subtype: routeSubtype,
+  } = route.params || {};
+
+  // States for shared params that need hydration from draft if missing
+  const [params, setParams] = useState({
+    email,
+    accessToken,
+    refreshToken,
+    community_type,
+    college_id,
+    campus_id,
+    college_name,
+    college_pending,
+  });
+
+  const [selectedSubtype, setSelectedSubtype] = useState(
+    routeSubtype || null,
+  );
+
+  // Hydrate from draft if needed
+  useEffect(() => {
+    const hydrateFromDraft = async () => {
+      const draftData = await getCommunityDraftData();
+      if (!draftData) return;
+
+      // 1. Hydrate subtype
+      if (!routeSubtype && draftData?.college_subtype) {
+        console.log("[CollegeSubtypeSelect] Hydrating from draft");
+        setSelectedSubtype(draftData.college_subtype);
+      }
+
+      // 2. Hydrate all shared parameters
+      const updatedParams = { ...params };
+      let paramChanged = false;
+
+      const keysToHydrate = [
+        "email", "accessToken", "refreshToken", "community_type",
+        "college_id", "campus_id", "college_name", "college_pending"
+      ];
+
+      keysToHydrate.forEach(key => {
+        if (!params[key] && draftData[key] !== undefined && draftData[key] !== null) {
+          updatedParams[key] = draftData[key];
+          paramChanged = true;
+        }
+      });
+
+      if (paramChanged) {
+        console.log("[CollegeSubtypeSelect] Hydrated shared parameters from draft");
+        setParams(updatedParams);
+      }
+    };
+    hydrateFromDraft();
+  }, []);
+
+  const handleSubtypeSelect = async (subtype) => {
+    console.log(
+      "[CollegeSubtypeSelect] Selected:",
+      subtype.id,
+      "for college:",
+      college_name,
+    );
+    setSelectedSubtype(subtype.id);
+
+    // Save college_subtype to draft
+    try {
+      await updateCommunitySignupDraft("CollegeSubtypeSelect", {
+        college_subtype: subtype.id,
+        isStudentCommunity: subtype.id === "student_community",
+      });
+      console.log("[CollegeSubtypeSelect] Draft updated with subtype");
+    } catch (e) {
+      console.log(
+        "[CollegeSubtypeSelect] Draft update failed (non-critical):",
+        e.message,
+      );
+    }
+
+    // Navigate to appropriate next screen based on subtype
+    if (subtype.id === "student_community") {
+      // Student community goes to theme selection first
+      navigation.navigate("StudentCommunityTheme", {
+        ...params,
+        college_subtype: subtype.id,
+      });
+    } else if (subtype.id === "club") {
+      // Club needs club type selection next
+      navigation.navigate("CollegeClubType", {
+        ...params,
+        college_subtype: subtype.id,
+      });
+    } else {
+      // Event goes directly to name
+      navigation.navigate("CommunityName", {
+        ...params,
+        college_subtype: subtype.id,
+      });
+    }
+  };
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
+  return (
+    <ImageBackground
+      source={wave}
+      style={styles.backgroundImage}
+      imageStyle={{
+        opacity: 0.3,
+        transform: [{ scaleX: -1 }, { scaleY: -1 }],
+      }}
+      blurRadius={10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <SignupHeader
+            role="Community"
+            onBack={handleBack}
+            onCancel={() => {}}
+            hideCancel={true}
+          />
+
+          {/* Content */}
+          <View style={styles.content}>
+            <View style={styles.headerTitle}>
+              <Animated.Text
+                entering={FadeInDown.delay(100).duration(600).springify()}
+                style={styles.title}
+              >
+                What are you creating?
+              </Animated.Text>
+              <Animated.Text
+                entering={FadeInDown.delay(200).duration(600).springify()}
+                style={styles.globalHelperText}
+              >
+                Choose the type for{" "}
+                <Text style={styles.collegeName}>
+                  {college_name || "your college"}
+                </Text>
+              </Animated.Text>
+            </View>
+
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(600).springify()}
+              style={styles.card}
+            >
+              <BlurView
+                intensity={60}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.cardContent}>
+                {/* Subtype Cards */}
+                <View style={styles.cardsContainer}>
+                  {COLLEGE_SUBTYPES.map((subtype, index) => (
+                    <Animated.View
+                      key={subtype.id}
+                      entering={FadeInDown.delay(400 + index * 100)
+                        .duration(600)
+                        .springify()}
+                    >
+                      <SubtypeCard
+                        subtype={subtype}
+                        collegeName={college_name}
+                        onPress={handleSubtypeSelect}
+                        isLast={index === COLLEGE_SUBTYPES.length - 1}
+                      />
+                    </Animated.View>
+                  ))}
+                </View>
+              </View>
+            </Animated.View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
+  );
+};
+
+const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "transparent",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
+  },
+  content: {
+    flex: 1,
+    marginTop: 40,
+  },
+  headerTitle: {
+    marginBottom: 40,
+    paddingRight: 10,
+  },
+  title: {
+    fontSize: 34,
+    fontFamily: "BasicCommercial-Black",
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+    letterSpacing: -1,
+    lineHeight: 38,
+  },
+  globalHelperText: {
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    lineHeight: 24,
+  },
+  collegeName: {
+    fontFamily: "Manrope-Bold",
+    color: COLORS.primary,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 24,
+  },
+  cardsContainer: {
+    gap: 16,
+  },
+  subtypeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(116, 173, 242, 0.1)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(116, 173, 242, 0.2)",
+  },
+  cardLast: {
+    marginBottom: 0,
+  },
+  cardGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardIconContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  subtypeContent: {
+    flex: 1,
+    marginLeft: 16,
+    marginRight: 8,
+  },
+  subtypeTitle: {
+    fontSize: 17,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  subtypeSubtitle: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  privateTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  privateTagText: {
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    marginLeft: 4,
+  },
+  cardArrow: {
+    opacity: 0.5,
+  },
+});
+
+export default CollegeSubtypeSelectScreen;
+
+
