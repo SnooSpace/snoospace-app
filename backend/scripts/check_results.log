@@ -1,0 +1,29 @@
+=== Duplicate conversation groups: 0 ===
+  No exact duplicate conversations found in DB!
+
+Total conversations: 7
+
+All conversations:
+  ID:3 | member(28) <-> member(29) | msgs:6 | last_msg:Sat Jan 31 2026 20:45:31 GMT+0530 (India Standard Time)
+  ID:11 | community(9) <-> member(28) | msgs:47 | last_msg:Thu Feb 05 2026 23:24:37 GMT+0530 (India Standard Time)
+  ID:13 | member(28) <-> member(37) | msgs:1 | last_msg:Sun Dec 28 2025 15:04:53 GMT+0530 (India Standard Time)
+  ID:14 | community(9) <-> member(38) | msgs:1 | last_msg:Thu Jan 08 2026 15:47:54 GMT+0530 (India Standard Time)
+  ID:15 | member(28) <-> member(38) | msgs:1 | last_msg:Fri Jan 09 2026 12:12:10 GMT+0530 (India Standard Time)
+  ID:16 | community(9) <-> member(29) | msgs:2 | last_msg:Sat Jan 10 2026 00:23:19 GMT+0530 (India Standard Time)
+  ID:18 | member(28) <-> community(9) | msgs:3 | last_msg:Wed Feb 04 2026 01:19:54 GMT+0530 (India Standard Time)
+
+=== BIDIRECTIONAL duplicates (swapped participant pairs): 1 ===
+  Conv 11: community(9) <-> member(28)
+  Conv 18: member(28) <-> community(9)
+
+
+Constraints on conversations table:
+  conversations_id_not_null (n): NOT NULL id
+  conversations_participant1_id_not_null (n): NOT NULL participant1_id
+  conversations_participant1_type_not_null (n): NOT NULL participant1_type
+  conversations_participant2_id_not_null (n): NOT NULL participant2_id
+  conversations_participant2_type_not_null (n): NOT NULL participant2_type
+  conversations_created_at_not_null (n): NOT NULL created_at
+  conversations_pkey (p): PRIMARY KEY (id)
+  conversations_participant1_id_participant2_id_key (u): UNIQUE (participant1_id, participant2_id)
+  unique_conversation_participants (u): UNIQUE (participant1_id, participant1_type, participant2_id, participant2_type)

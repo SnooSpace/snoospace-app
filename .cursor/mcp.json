@@ -1,0 +1,11 @@
+{
+  "taskmaster-ai": {
+    "command": "npx",
+    "args": [
+      "--yes",
+      "taskmaster-ai@latest",
+      "start"
+    ]
+  }
+}
+

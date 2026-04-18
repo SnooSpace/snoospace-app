@@ -1,0 +1,18 @@
+{
+  "options": [
+    {
+      "text": "Yes",
+      "index": 0,
+      "vote_count": 1
+    },
+    {
+      "text": "No",
+      "index": 1,
+      "vote_count": 0
+    }
+  ],
+  "question": "Is this working?",
+  "total_votes": 1,
+  "allow_multiple": false,
+  "show_results_before_vote": false
+}

@@ -1,0 +1,209 @@
+"filename", "language", "JavaScript", "JSON", "MS SQL", "Log", "Markdown", "TypeScript", "TypeScript JSX", "comment", "blank", "total"
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\package-lock.json", "JSON", 0, 188, 0, 0, 0, 0, 0, 0, 0, 188
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\package.json", "JSON", 0, 3, 0, 0, 0, 0, 0, 0, 0, 3
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\categories\page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 378, 11, 15, 404
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\app\(dashboard)\colleges\page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 890, 23, 40, 953
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\layout\sidebar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 6, 0, 0, 6
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\collapsible.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 28, 0, 6, 34
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\image-cropper.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 153, 3, 17, 173
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\components\ui\slider.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 58, 0, 6, 64
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\admin\src\lib\api.ts", "TypeScript", 0, 0, 0, 0, 0, 176, 0, 20, 23, 219
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\config\db.js", "JavaScript", 105, 0, 0, 0, 0, 0, 0, 0, 0, 105
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\cardExtensionController.js", "JavaScript", 281, 0, 0, 0, 0, 0, 0, 42, 52, 375
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\categoryController.js", "JavaScript", 192, 0, 0, 0, 0, 0, 0, 33, 32, 257
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\challengeController.js", "JavaScript", 472, 0, 0, 0, 0, 0, 0, 61, 63, 596
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\collegeController.js", "JavaScript", 312, 0, 0, 0, 0, 0, 0, 56, 37, 405
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\communityController.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 1, 0, 13
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\eventController.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, -1, 2, 13
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\messageController.js", "JavaScript", -7, 0, 0, 0, 0, 0, 0, 1, -2, -8
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\opportunityController.js", "JavaScript", 867, 0, 0, 0, 0, 0, 0, 70, 125, 1062
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\pollController.js", "JavaScript", 20, 0, 0, 0, 0, 0, 0, 11, 3, 34
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\postController.js", "JavaScript", 810, 0, 0, 0, 0, 0, 0, 75, 84, 969
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\qnaController.js", "JavaScript", 0, 0, 0, 0, 0, 0, 0, 1, 0, 1
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\saveController.js", "JavaScript", 162, 0, 0, 0, 0, 0, 0, 24, 25, 211
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\shareController.js", "JavaScript", 217, 0, 0, 0, 0, 0, 0, 33, 35, 285
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\uploadController.js", "JavaScript", 39, 0, 0, 0, 0, 0, 0, 5, -1, 43
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\controllers\viewsController.js", "JavaScript", 174, 0, 0, 0, 0, 0, 0, 52, 29, 255
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\routes\index.js", "JavaScript", 225, 0, 0, 0, 0, 0, 0, 22, 11, 258
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\README.md", "Markdown", 0, 0, 0, 0, 89, 0, 0, 0, 45, 134
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_crop_metadata_migration.sql", "MS SQL", 0, 0, 4, 0, 0, 0, 0, 2, 2, 8
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_expires_at_column.sql", "MS SQL", 0, 0, 3, 0, 0, 0, 0, 5, 4, 12
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_media_types_column.sql", "MS SQL", 0, 0, 2, 0, 0, 0, 0, 3, 3, 8
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_unique_conversation_constraint.sql", "MS SQL", 0, 0, 6, 0, 0, 0, 0, 4, 5, 15
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\add_video_thumbnail_migration.sql", "MS SQL", 0, 0, 3, 0, 0, 0, 0, 5, 3, 11
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\card_timing_system_migration.sql", "MS SQL", 0, 0, 50, 0, 0, 0, 0, 28, 21, 99
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\check_duplicates.js", "JavaScript", 56, 0, 0, 0, 0, 0, 0, 3, 7, 66
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\check_results.log", "Log", 0, 0, 0, 24, 0, 0, 0, 0, 5, 29
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\cleanup_duplicate_conversations.sql", "MS SQL", 0, 0, 64, 0, 0, 0, 0, 23, 13, 100
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\cleanup_duplicates_safe.sql", "MS SQL", 0, 0, 98, 0, 0, 0, 0, 38, 18, 154
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\community_categories_migration.sql", "MS SQL", 0, 0, 32, 0, 0, 0, 0, 16, 6, 54
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\create_challenge_tagging_tables.js", "JavaScript", 84, 0, 0, 0, 0, 0, 0, 13, 13, 110
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\db_state.json", "JSON", 0, 81, 0, 0, 0, 0, 0, 0, 0, 81
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\drop_sponsor_types_constraint.sql", "MS SQL", 0, 0, 1, 0, 0, 0, 0, 8, 3, 12
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_bidirectional_dupes.js", "JavaScript", 80, 0, 0, 0, 0, 0, 0, 14, 13, 107
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\fix_poll_votes_constraint.sql", "MS SQL", 0, 0, 6, 0, 0, 0, 0, 4, 5, 15
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\opportunities_migration.sql", "MS SQL", 0, 0, 112, 0, 0, 0, 0, 26, 25, 163
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\post_edit_tracking_migration.sql", "MS SQL", 0, 0, 7, 0, 0, 0, 0, 6, 5, 18
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\qualified_views_migration.sql", "MS SQL", 0, 0, 31, 0, 0, 0, 0, 17, 9, 57
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_card_timing_migration.js", "JavaScript", 30, 0, 0, 0, 0, 0, 0, 6, 9, 45
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_challenge_enhanced_migration.js", "JavaScript", 83, 0, 0, 0, 0, 0, 0, 12, 12, 107
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_fix_poll_votes_constraint.js", "JavaScript", 34, 0, 0, 0, 0, 0, 0, 2, 8, 44
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\scripts\run_qualified_views_migration.js", "JavaScript", 43, 0, 0, 0, 0, 0, 0, 12, 12, 67
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\utils\cardState.js", "JavaScript", 98, 0, 0, 0, 0, 0, 0, 42, 26, 166
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\backend\utils\cloudinaryVideo.js", "JavaScript", 41, 0, 0, 0, 0, 0, 0, 44, 10, 95
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\App.js", "JavaScript", 38, 0, 0, 0, 0, 0, 0, 2, 3, 43
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\client.js", "JavaScript", 128, 0, 0, 0, 0, 0, 0, 66, 18, 212
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\cloudinary.js", "JavaScript", 72, 0, 0, 0, 0, 0, 0, 16, 10, 98
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\api\opportunities.js", "JavaScript", 71, 0, 0, 0, 0, 0, 0, 69, 14, 154
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CategorySelector.js", "JavaScript", 5, 0, 0, 0, 0, 0, 0, 0, 0, 5
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ChipSelector.js", "JavaScript", -86, 0, 0, 0, 0, 0, 0, -1, -4, -91
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CommentsModal.js", "JavaScript", -77, 0, 0, 0, 0, 0, 0, 3, -7, -81
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CountdownTimer.js", "JavaScript", 39, 0, 0, 0, 0, 0, 0, 6, 14, 59
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\CreatePostScreen.js", "JavaScript", 286, 0, 0, 0, 0, 0, 0, 10, 15, 311
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DeletePostModal.js", "JavaScript", 148, 0, 0, 0, 0, 0, 0, 0, 8, 156
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DiscoverFilterSheet.js", "JavaScript", 340, 0, 0, 0, 0, 0, 0, 13, 25, 378
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\DynamicStatusBar.js", "JavaScript", 22, 0, 0, 0, 0, 0, 0, 11, 5, 38
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EditorialPostCard.js", "JavaScript", 767, 0, 0, 0, 0, 0, 0, 44, 60, 871
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EmailChangeModal.js", "JavaScript", 126, 0, 0, 0, 0, 0, 0, 1, 5, 132
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EntityTagSelector.js", "JavaScript", 144, 0, 0, 0, 0, 0, 0, 21, 6, 171
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\EventCard.js", "JavaScript", 1, 0, 0, 0, 0, 0, 0, 0, 0, 1
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FollowerList.js", "JavaScript", 21, 0, 0, 0, 0, 0, 0, 5, 5, 31
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\FullscreenVideoModal.js", "JavaScript", 491, 0, 0, 0, 0, 0, 0, 17, 37, 545
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GradientButton.js", "JavaScript", 3, 0, 0, 0, 0, 0, 0, 0, 0, 3
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\GradientSafeArea.js", "JavaScript", 61, 0, 0, 0, 0, 0, 0, 11, 7, 79
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\HomeFeedScreen.js", "JavaScript", 380, 0, 0, 0, 0, 0, 0, 54, 42, 476
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\HomeGreetingHeader.js", "JavaScript", 101, 0, 0, 0, 0, 0, 0, 23, 14, 138
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ImageUploader.js", "JavaScript", 697, 0, 0, 0, 0, 0, 0, 53, 52, 802
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\KeyboardAwareToolbar.js", "JavaScript", 32, 0, 0, 0, 0, 0, 0, 1, 3, 36
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\BatchCropScreen.js", "JavaScript", 182, 0, 0, 0, 0, 0, 0, 25, 25, 232
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropPresets.js", "JavaScript", 59, 0, 0, 0, 0, 0, 0, 28, 11, 98
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropScreen.js", "JavaScript", 56, 0, 0, 0, 0, 0, 0, 5, 4, 65
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropUtils.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 3, 3, 18
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\CropView.js", "JavaScript", 42, 0, 0, 0, 0, 0, 0, 12, 2, 56
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\index.js", "JavaScript", 2, 0, 0, 0, 0, 0, 0, 0, 0, 2
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MediaCrop\useCrop.js", "JavaScript", 1, 0, 0, 0, 0, 0, 0, 1, 0, 2
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MentionInput.js", "JavaScript", -100, 0, 0, 0, 0, 0, 0, 1, -4, -103
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\MentionSearchDropdown.js", "JavaScript", 253, 0, 0, 0, 0, 0, 0, 2, 12, 267
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\OpportunityFeedCard.js", "JavaScript", 678, 0, 0, 0, 0, 0, 0, 16, 34, 728
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\PostCard.js", "JavaScript", -328, 0, 0, 0, 0, 0, 0, -14, -24, -366
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\PremiumHeader.js", "JavaScript", 107, 0, 0, 0, 0, 0, 0, 20, 15, 142
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ProfilePostFeed.js", "JavaScript", 230, 0, 0, 0, 0, 0, 0, 18, 22, 270
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ProfileTabIcon.js", "JavaScript", 84, 0, 0, 0, 0, 0, 0, 1, 10, 95
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\QualifiedViewWrapper.js", "JavaScript", 6, 0, 0, 0, 0, 0, 0, 11, 3, 20
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RangeSlider.js", "JavaScript", 187, 0, 0, 0, 0, 0, 0, 0, 22, 209
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RemovalRequestsModal.js", "JavaScript", 392, 0, 0, 0, 0, 0, 0, 8, 17, 417
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\RichTextEditor.js", "JavaScript", 38, 0, 0, 0, 0, 0, 0, 1, 1, 40
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ShareModal.js", "JavaScript", 389, 0, 0, 0, 0, 0, 0, 1, 19, 409
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SharedPostCard.js", "JavaScript", 416, 0, 0, 0, 0, 0, 0, 25, 31, 472
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\SnooSpaceLogo.js", "JavaScript", 33, 0, 0, 0, 0, 0, 0, 2, 3, 38
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\StyledText.js", "JavaScript", 13, 0, 0, 0, 0, 0, 0, 12, 6, 31
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ThemeChip.js", "JavaScript", 35, 0, 0, 0, 0, 0, 0, 0, 2, 37
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\TicketMessageCard.js", "JavaScript", -360, 0, 0, 0, 0, 0, 0, -4, -11, -375
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\UnexpectedLogoutBanner.js", "JavaScript", 26, 0, 0, 0, 0, 0, 0, 0, 0, 26
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\UnsavedChangesModal.js", "JavaScript", 140, 0, 0, 0, 0, 0, 0, 0, 7, 147
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\VideoPlayer.js", "JavaScript", 545, 0, 0, 0, 0, 0, 0, 92, 63, 700
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\feedback\SuccessCard.js", "JavaScript", 403, 0, 0, 0, 0, 0, 0, 12, 26, 441
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\CreateEventModal.js", "JavaScript", 746, 0, 0, 0, 0, 0, 0, 20, 28, 794
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\DraftRecoveryModal.js", "JavaScript", 2, 0, 0, 0, 0, 0, 0, 0, 0, 2
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\HeadsEditorModal.js", "JavaScript", 421, 0, 0, 0, 0, 0, 0, 5, 19, 445
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\PollVotersModal.js", "JavaScript", 309, 0, 0, 0, 0, 0, 0, 0, 12, 321
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\modals\SettingsModal.js", "JavaScript", -3, 0, 0, 0, 0, 0, 0, 0, 0, -3
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\AnimatedProgressBar.js", "JavaScript", 36, 0, 0, 0, 0, 0, 0, 5, 8, 49
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengeCreateForm.js", "JavaScript", 72, 0, 0, 0, 0, 0, 0, 2, 9, 83
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengeEditModal.js", "JavaScript", 366, 0, 0, 0, 0, 0, 0, 2, 22, 390
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\ChallengePostCard.js", "JavaScript", 632, 0, 0, 0, 0, 0, 0, 13, 33, 678
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollCreateForm.js", "JavaScript", 75, 0, 0, 0, 0, 0, 0, 1, 4, 80
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollEditModal.js", "JavaScript", 288, 0, 0, 0, 0, 0, 0, 2, 18, 308
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PollPostCard.js", "JavaScript", 395, 0, 0, 0, 0, 0, 0, 8, 32, 435
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PostTypeSelector.js", "JavaScript", -56, 0, 0, 0, 0, 0, 0, 3, 3, -50
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptCreateForm.js", "JavaScript", 62, 0, 0, 0, 0, 0, 0, 6, 5, 73
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptEditModal.js", "JavaScript", 295, 0, 0, 0, 0, 0, 0, 2, 17, 314
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\PromptPostCard.js", "JavaScript", 298, 0, 0, 0, 0, 0, 0, 6, 24, 328
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnACreateForm.js", "JavaScript", 87, 0, 0, 0, 0, 0, 0, 5, 6, 98
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnAEditModal.js", "JavaScript", 341, 0, 0, 0, 0, 0, 0, 2, 20, 363
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\posts\QnAPostCard.js", "JavaScript", 228, 0, 0, 0, 0, 0, 0, 19, 30, 277
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ui\CustomDatePicker.js", "JavaScript", 569, 0, 0, 0, 0, 0, 0, 63, 56, 688
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\components\ui\CustomTimePicker.js", "JavaScript", 459, 0, 0, 0, 0, 0, 0, 8, 31, 498
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\constants\theme.js", "JavaScript", 73, 0, 0, 0, 0, 0, 0, 5, 5, 83
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\context\VideoContext.js", "JavaScript", 82, 0, 0, 0, 0, 0, 0, 21, 19, 122
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\contexts\StatusBarManager.js", "JavaScript", 40, 0, 0, 0, 0, 0, 0, 14, 10, 64
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useQualifiedView.js", "JavaScript", 115, 0, 0, 0, 0, 0, 0, 30, 26, 171
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\hooks\useVideoQualifiedView.js", "JavaScript", 127, 0, 0, 0, 0, 0, 0, 27, 32, 186
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\BottomTabNavigator.js", "JavaScript", 28, 0, 0, 0, 0, 0, 0, -1, 0, 27
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityBottomTabNavigator.js", "JavaScript", -14, 0, 0, 0, 0, 0, 0, -5, -3, -22
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityDashboardStackNavigator.js", "JavaScript", 14, 0, 0, 0, 0, 0, 0, 0, 0, 14
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\CommunityHomeStackNavigator.js", "JavaScript", 24, 0, 0, 0, 0, 0, 0, 0, 0, 24
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\DiscoverStackNavigator.js", "JavaScript", 7, 0, 0, 0, 0, 0, 0, 0, 0, 7
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\HomeStackNavigator.js", "JavaScript", 7, 0, 0, 0, 0, 0, 0, 0, 0, 7
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\navigation\ProfileStackNavigator.js", "JavaScript", 2, 0, 0, 0, 0, 0, 0, 0, 0, 2
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\package-lock.json", "JSON", 0, 364, 0, 0, 0, 0, 0, 0, 0, 364
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\package.json", "JSON", 0, 5, 0, 0, 0, 0, 0, 0, 0, 5
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\SavedPostsScreen.js", "JavaScript", 274, 0, 0, 0, 0, 0, 0, 3, 25, 302
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\AuthGate.js", "JavaScript", 71, 0, 0, 0, 0, 0, 0, 3, 4, 78
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\auth\LandingScreen.js", "JavaScript", 6, 0, 0, 0, 0, 0, 0, 0, 2, 8
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\ActivityInsightsScreen.js", "JavaScript", -30, 0, 0, 0, 0, 0, 0, 4, 9, -17
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\DiscoverScreen.js", "JavaScript", 20, 0, 0, 0, 0, 0, 0, -1, 2, 21
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\EditDiscoverProfileScreen.js", "JavaScript", 282, 0, 0, 0, 0, 0, 0, 7, 16, 305
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\OpenerSelectionScreen.js", "JavaScript", 75, 0, 0, 0, 0, 0, 0, 1, 0, 76
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\discover\ProfileFeedScreen.js", "JavaScript", -258, 0, 0, 0, 0, 0, 0, -16, -29, -303
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\events\YourEventsScreen.js", "JavaScript", 323, 0, 0, 0, 0, 0, 0, 7, 15, 345
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\ChallengeSubmissionsScreen.js", "JavaScript", 530, 0, 0, 0, 0, 0, 0, 9, 15, 554
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\ChallengeSubmitScreen.js", "JavaScript", 216, 0, 0, 0, 0, 0, 0, 6, 8, 230
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\QnAQuestionsScreen.js", "JavaScript", 190, 0, 0, 0, 0, 0, 0, 5, 12, 207
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\ApplicantDetailScreen.js", "JavaScript", 548, 0, 0, 0, 0, 0, 0, 0, 27, 575
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\ApplicantsListScreen.js", "JavaScript", 408, 0, 0, 0, 0, 0, 0, 0, 22, 430
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityCreatePostScreen.js", "JavaScript", 349, 0, 0, 0, 0, 0, 0, 16, 13, 378
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityDashboardScreen.js", "JavaScript", 58, 0, 0, 0, 0, 0, 0, -2, 5, 61
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CommunityHomeFeedScreen.js", "JavaScript", -471, 0, 0, 0, 0, 0, 0, -16, -34, -521
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\CreateOpportunityScreen.js", "JavaScript", 2256, 0, 0, 0, 0, 0, 0, 20, 111, 2387
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\community\OpportunitiesListScreen.js", "JavaScript", 463, 0, 0, 0, 0, 0, 0, 1, 19, 483
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\member\ApplyToOpportunityScreen.js", "JavaScript", 660, 0, 0, 0, 0, 0, 0, 7, 34, 701
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\home\member\OpportunityViewScreen.js", "JavaScript", 702, 0, 0, 0, 0, 0, 0, 1, 24, 727
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\messages\ChatScreen.js", "JavaScript", 226, 0, 0, 0, 0, 0, 0, 30, 17, 273
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\UniversalFollowersScreen.js", "JavaScript", 157, 0, 0, 0, 0, 0, 0, 9, 20, 186
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\UniversalFollowingScreen.js", "JavaScript", 153, 0, 0, 0, 0, 0, 0, 12, 22, 187
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityFollowersListScreen.js", "JavaScript", -88, 0, 0, 0, 0, 0, 0, -1, -8, -97
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityFollowingListScreen.js", "JavaScript", -88, 0, 0, 0, 0, 0, 0, -1, -8, -97
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityProfileScreen.js", "JavaScript", 198, 0, 0, 0, 0, 0, 0, 28, 15, 241
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\CommunityPublicProfileScreen.js", "JavaScript", 152, 0, 0, 0, 0, 0, 0, 3, 6, 161
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\EditCommunityProfileConstants.js", "JavaScript", 117, 0, 0, 0, 0, 0, 0, 2, 8, 127
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\community\EditCommunityProfileScreen.js", "JavaScript", 332, 0, 0, 0, 0, 0, 0, 5, 14, 351
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\EditProfileConstants.js", "JavaScript", 192, 0, 0, 0, 0, 0, 0, 3, 7, 202
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\EditProfileScreen.js", "JavaScript", 473, 0, 0, 0, 0, 0, 0, 14, 34, 521
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\FollowersListScreen.js", "JavaScript", -109, 0, 0, 0, 0, 0, 0, -6, -8, -123
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\FollowingListScreen.js", "JavaScript", -76, 0, 0, 0, 0, 0, 0, -1, -8, -85
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\MemberProfileScreen.js", "JavaScript", -159, 0, 0, 0, 0, 0, 0, 2, -3, -160
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\member\MemberPublicProfileScreen.js", "JavaScript", -350, 0, 0, 0, 0, 0, 0, 1, -13, -362
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\sponsor\SponsorProfileScreen.js", "JavaScript", 8, 0, 0, 0, 0, 0, 0, 0, 1, 9
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\profile\venue\VenueProfileScreen.js", "JavaScript", 8, 0, 0, 0, 0, 0, 0, 0, 1, 9
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\search\SearchScreen.js", "JavaScript", 25, 0, 0, 0, 0, 0, 0, 1, 0, 26
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeClubTypeScreen.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 1, 1, 14
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeHeadsScreen.js", "JavaScript", 405, 0, 0, 0, 0, 0, 0, 25, 29, 459
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeSearchScreen.js", "JavaScript", 36, 0, 0, 0, 0, 0, 0, 5, 4, 45
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CollegeSubtypeSelectScreen.js", "JavaScript", 13, 0, 0, 0, 0, 0, 0, 1, 1, 15
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityBioScreen.js", "JavaScript", 84, 0, 0, 0, 0, 0, 0, 5, 3, 92
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityCategoryScreen.js", "JavaScript", 87, 0, 0, 0, 0, 0, 0, 3, 5, 95
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityEmailScreen.js", "JavaScript", -26, 0, 0, 0, 0, 0, 0, -1, -3, -30
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityHeadNameScreen.js", "JavaScript", 67, 0, 0, 0, 0, 0, 0, 2, 4, 73
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLocationQuestionScreen.js", "JavaScript", 78, 0, 0, 0, 0, 0, 0, 3, 5, 86
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLocationScreen.js", "JavaScript", 95, 0, 0, 0, 0, 0, 0, 13, 7, 115
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityLogoscreen.js", "JavaScript", 68, 0, 0, 0, 0, 0, 0, 4, 5, 77
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityNameScreen.js", "JavaScript", 54, 0, 0, 0, 0, 0, 0, 2, 4, 60
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityOtpScreen.js", "JavaScript", 123, 0, 0, 0, 0, 0, 0, 14, 17, 154
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityPhoneNoScreen.js", "JavaScript", 70, 0, 0, 0, 0, 0, 0, 2, 4, 76
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunitySignupNavigator.js", "JavaScript", 7, 0, 0, 0, 0, 0, 0, 0, 0, 7
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunitySponsorTypeSelect.js", "JavaScript", 24, 0, 0, 0, 0, 0, 0, 1, 2, 27
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityTypeSelectScreen.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 1, 1, 14
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\CommunityUsernameScreen.js", "JavaScript", 14, 0, 0, 0, 0, 0, 0, 1, 1, 16
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\IndividualLocationScreen.js", "JavaScript", 403, 0, 0, 0, 0, 0, 0, 14, 25, 442
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\community\StudentCommunityThemeScreen.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 1, 1, 14
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\screens\signup\member\MemberOtpScreen.js", "JavaScript", 16, 0, 0, 0, 0, 0, 0, 3, 3, 22
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\LocationTracker.js", "JavaScript", 19, 0, 0, 0, 0, 0, 0, 4, -1, 22
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\ViewQueueService.js", "JavaScript", 143, 0, 0, 0, 0, 0, 0, 64, 35, 242
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\services\postService.js", "JavaScript", 46, 0, 0, 0, 0, 0, 0, 11, 11, 68
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\LikeStateManager.js", "JavaScript", 78, 0, 0, 0, 0, 0, 0, 25, 15, 118
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\accountManager.js", "JavaScript", 20, 0, 0, 0, 0, 0, 0, 2, 2, 24
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\cardTiming.js", "JavaScript", 96, 0, 0, 0, 0, 0, 0, 56, 28, 180
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\opportunityDraftStorage.js", "JavaScript", 61, 0, 0, 0, 0, 0, 0, 32, 15, 108
+"c:\Users\sanja\OneDrive\Documents\Harshith\SnooSpace\frontend\utils\signupDraftManager.js", "JavaScript", 163, 0, 0, 0, 0, 0, 0, 53, 18, 234
+"Total", "-", 28043, 641, 419, 24, 89, 176, 1513, 2345, 2620, 35870
