@@ -1396,6 +1396,30 @@ router.get(
   MessageController.getUnreadCount,
 );
 
+// Group conversations
+router.post("/messages/groups", authMiddleware, MessageController.createGroupConversation);
+router.get("/messages/groups/:conversationId/participants", authMiddleware, MessageController.getGroupParticipants);
+router.patch("/messages/groups/:conversationId", authMiddleware, MessageController.updateGroupConversation);
+router.post("/messages/groups/:conversationId/participants", authMiddleware, MessageController.addGroupParticipant);
+router.delete("/messages/groups/:conversationId/participants/:participantId", authMiddleware, MessageController.removeGroupParticipant);
+router.post("/messages/groups/:conversationId/transfer-admin", authMiddleware, MessageController.transferAdmin);
+
+// Conversation utilities
+router.post("/messages/conversations/:conversationId/hide", authMiddleware, MessageController.hideConversation);
+router.post("/messages/conversations/:conversationId/report", authMiddleware, MessageController.reportConversation);
+
+// Group auto-join invite
+router.get("/messages/groups/:conversationId/join-invite", authMiddleware, MessageController.getGroupJoinInvite);
+router.post("/messages/groups/:conversationId/dismiss-invite", authMiddleware, MessageController.dismissGroupInvite);
+
+// Message actions
+router.patch("/messages/:messageId/unsend", authMiddleware, MessageController.unsendMessage);
+
+// Admin: Chat reports
+router.get("/admin/chat-reports", adminAuthMiddleware, MessageController.getChatReports);
+router.get("/admin/chat-reports/:reportId", adminAuthMiddleware, MessageController.getChatReportById);
+router.patch("/admin/chat-reports/:reportId/resolve", adminAuthMiddleware, MessageController.resolveChatReport);
+
 // Search
 router.get("/search/accounts", authMiddleware, SearchController.searchAccounts);
 
