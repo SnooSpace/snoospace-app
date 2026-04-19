@@ -76,6 +76,8 @@ import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyCommunityState from "../../../components/EmptyCommunityState";
+import EmptyEventsState from "../../../components/EmptyEventsState";
 
 // Normalize Theme Constants
 const PRIMARY_COLOR = COLORS.primary;
@@ -1516,14 +1518,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   ))}
                 </View>
               ) : (
-                <View style={styles.emptyPostsContainer}>
-                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                    No community posts yet
-                  </Text>
-                  <Text style={styles.emptyPostsSubtext}>
-                    No polls, prompts or challenges shared yet.
-                  </Text>
-                </View>
+                <EmptyCommunityState isOwnProfile={false} />
               );
             })()}
 
@@ -1531,18 +1526,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           {activeTab === "events" &&
             (() => {
               if (communityEvents.length === 0) {
-                return (
-                  <View style={styles.emptyPostsContainer}>
-                    <Text
-                      style={[styles.emptyPostsText, { fontWeight: "bold" }]}
-                    >
-                      No events yet
-                    </Text>
-                    <Text style={styles.emptyPostsSubtext}>
-                      This community hasn't hosted any events yet.
-                    </Text>
-                  </View>
-                );
+                return <EmptyEventsState isOwnProfile={false} />;
               }
 
               const formatEventDate = (dateString) => {

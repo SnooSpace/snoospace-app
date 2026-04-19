@@ -107,6 +107,8 @@ import GradientSafeArea from "../../../components/GradientSafeArea";
 import CollegeChip from "../../../components/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyCommunityState from "../../../components/EmptyCommunityState";
+import EmptyEventsState from "../../../components/EmptyEventsState";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -1694,14 +1696,7 @@ export default function CommunityProfileScreen({ navigation }) {
                   ))}
                 </View>
               ) : (
-                <View style={styles.emptyPostsContainer}>
-                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                    No community posts yet
-                  </Text>
-                  <Text style={styles.emptyPostsSubtext}>
-                    Engage your community with polls, challenges and more.
-                  </Text>
-                </View>
+                <EmptyCommunityState isOwnProfile={true} />
               );
             })()}
 
@@ -1709,18 +1704,7 @@ export default function CommunityProfileScreen({ navigation }) {
           {activeTab === "events" &&
             (() => {
               if (communityEvents.length === 0) {
-                return (
-                  <View style={styles.emptyPostsContainer}>
-                    <Text
-                      style={[styles.emptyPostsText, { fontWeight: "bold" }]}
-                    >
-                      No events yet
-                    </Text>
-                    <Text style={styles.emptyPostsSubtext}>
-                      Create events to engage with your community
-                    </Text>
-                  </View>
-                );
+                return <EmptyEventsState isOwnProfile={true} />;
               }
 
               const formatEventDate = (dateString) => {
