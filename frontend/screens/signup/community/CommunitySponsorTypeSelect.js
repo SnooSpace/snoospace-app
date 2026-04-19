@@ -29,7 +29,9 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
-import { updateCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { updateCommunitySignupDraft, deleteCommunitySignupDraft } from "../../../utils/signupDraftManager";
+import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
+import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width } = Dimensions.get("window");
 
@@ -105,6 +107,7 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -214,6 +217,12 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
     navigation.goBack();
   };
 
+  const handleCancel = async () => {
+    await deleteCommunitySignupDraft();
+    setShowCancelModal(false);
+    exitSignupToAuthGate(navigation);
+  };
+
   const handleFinish = async () => {
     if (isSubmitting) return;
 
@@ -310,8 +319,8 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
         {/* Header */}
         <SignupHeader
           onBack={() => navigation.goBack()}
+          onCancel={() => setShowCancelModal(true)}
           role="Community"
-          showCancel={false}
         />
 
         {/* Scrollable Content */}
@@ -680,6 +689,11 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <CancelSignupModal
+        visible={showCancelModal}
+        onKeepEditing={() => setShowCancelModal(false)}
+        onDiscard={handleCancel}
+      />
     </ImageBackground>
   );
 };
