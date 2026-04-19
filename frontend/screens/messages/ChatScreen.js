@@ -23,6 +23,7 @@ import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 import SnooLoader from "../../components/ui/SnooLoader";
+import EmptyChatState from "../../components/EmptyChatState";
 
 const PRIMARY_COLOR = "#3565F2"; // Branded Blue
 const TEXT_COLOR = COLORS.textPrimary;
@@ -53,6 +54,7 @@ export default function ChatScreen({ route, navigation }) {
     useState(recipientType);
   const [currentRecipientId, setCurrentRecipientId] = useState(recipientId);
   const flatListRef = useRef(null);
+  const inputRef = useRef(null);
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
   const pollingIntervalRef = useRef(null);
@@ -743,7 +745,7 @@ export default function ChatScreen({ route, navigation }) {
             data={[...messages].reverse()}
             keyExtractor={(item) => String(item.id)}
             renderItem={renderMessage}
-            contentContainerStyle={styles.messagesList}
+            contentContainerStyle={[styles.messagesList, { flexGrow: 1 }]}
             inverted
             onLayout={() => {
               // Scroll to end after layout (for inverted list, end is visually at bottom)
@@ -755,11 +757,19 @@ export default function ChatScreen({ route, navigation }) {
               }, 100);
             }}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No messages yet</Text>
-                <Text style={styles.emptySubtext}>Start the conversation!</Text>
+              <View style={{ flex: 1, justifyContent: "center", minHeight: 500 }}>
+                <EmptyChatState
+                  onSendMessage={() => {
+                    inputRef.current?.focus();
+                  }}
+                />
               </View>
             }
+
+
+
+
+
           />
         </Animated.View>
       </KeyboardAvoidingView>
@@ -773,6 +783,7 @@ export default function ChatScreen({ route, navigation }) {
               style={StyleSheet.absoluteFill}
             />
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder="Message..."
               placeholderTextColor="#8FA1B8"
