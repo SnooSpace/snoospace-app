@@ -10,7 +10,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, MoreVertical, CornerUpLeft, Info } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, CornerUpLeft, Info, TriangleAlert, Trash2 } from "lucide-react-native";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations } from "../../api/messages";
@@ -64,23 +64,24 @@ const formatSeparatorLabel = (dateString) => {
  */
 const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
-  const GAP = 15 * 60 * 1000;
   const result = [];
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
+    const prev = messages[i - 1];
+    
+    let isNewDay = false;
+    if (!prev) {
+      isNewDay = true;
+    } else {
+      const tCur = new Date(msg.createdAt);
+      const tPrev = new Date(prev.createdAt);
+      isNewDay = tCur.toDateString() !== tPrev.toDateString();
+    }
+    
+    if (isNewDay) {
+      result.push({ type: "separator", id: `sep-${msg.id}`, label: formatSeparatorLabel(msg.createdAt) });
+    }
     result.push({ type: "message", data: msg });
-    const next = messages[i + 1];
-    if (!next) {
-      result.push({ type: "separator", id: `sep-top-${msg.id}`, label: formatSeparatorLabel(msg.createdAt) });
-      break;
-    }
-    const tCur  = new Date(msg.createdAt);
-    const tNext = new Date(next.createdAt);
-    const dayChanged = tNext.toDateString() !== tCur.toDateString();
-    const bigGap     = (tCur - tNext) > GAP;
-    if (dayChanged || bigGap) {
-      result.push({ type: "separator", id: `sep-${msg.id}`, label: formatSeparatorLabel(next.createdAt) });
-    }
   }
   return result;
 };
@@ -130,77 +131,158 @@ const replyBarStyles = StyleSheet.create({
     paddingHorizontal:16, paddingVertical:10, borderTopWidth: 1, borderTopColor: INCOMING_BORDER },
   body:    { flex:1 },
   name:    { fontFamily:"Manrope-SemiBold", fontSize:12, color: LIGHT_TEXT, marginBottom:2 },
-  preview: { fontFamily:"Manrope-Regular",  fontSize:13, color: MESSAGE_TEXT_COLOR },
-  close:   { padding:4, marginLeft:8 },
 });
 
-// ── ReplyQuote (inside bubble) ────────────────────────────────────────────────
-const ReplyQuote = ({ replyPreview, onPress, isMyMessage }) => {
-  if (!replyPreview) return null;
-  const text = replyPreview.isDeleted ? "Original message was unsent" :
-    (replyPreview.messageText || "").slice(0, 80) + ((replyPreview.messageText || "").length > 80 ? "…" : "");
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
-      <CornerUpLeft size={12} color={LIGHT_TEXT} style={{ marginRight: 6 }} />
-      <Text style={quoteStyles.text} numberOfLines={1}>{text}</Text>
+// ── ReplyQuote ────────────────────────────────────────────────────────────────
+const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => (
+  <View style={quoteStyles.wrapper}>
+    <Text style={[quoteStyles.replyLabel, isMyMessage ? quoteStyles.myReplyLabel : quoteStyles.otherReplyLabel]}>
+      {isMyMessage ? "You replied" : "Replied to you"}
+    </Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
+      <View style={[quoteStyles.verticalBar, isMyMessage ? quoteStyles.myVerticalBar : quoteStyles.otherVerticalBar]} />
+      <View style={quoteStyles.content}>
+        <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
+          {replyPreview.messageText || "Message"}
+        </Text>
+      </View>
     </TouchableOpacity>
-  );
-};
+  </View>
+);
 const quoteStyles = StyleSheet.create({
+  wrapper: {
+    marginBottom: 2,
+    maxWidth: "100%",
+  },
+  replyLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 11,
+    color: "#8FA1B8",
+    marginBottom: 4,
+  },
+  myReplyLabel: {
+    alignSelf: "flex-end",
+    marginRight: 4,
+  },
+  otherReplyLabel: {
+    alignSelf: "flex-start",
+    marginLeft: 4,
+  },
   container: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.05)",
-    borderRadius: 14,
+    borderRadius: 16,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: -8, // tuck behind main bubble
-    zIndex: -1,
-    maxWidth: "80%",
+    maxWidth: "100%",
   },
   myContainer: {
+    backgroundColor: "rgba(230, 240, 255, 0.6)",
     alignSelf: "flex-end",
-    marginRight: 12,
+    borderBottomRightRadius: 4,
   },
   otherContainer: {
+    backgroundColor: "rgba(247, 249, 252, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(229, 229, 234, 0.5)",
     alignSelf: "flex-start",
-    marginLeft: 12,
+    borderBottomLeftRadius: 4,
   },
-  text: { 
-    fontFamily: "Manrope-Medium", 
-    fontSize: 12, 
-    color: LIGHT_TEXT, 
+  verticalBar: {
+    width: 3,
+    borderRadius: 1.5,
+    marginRight: 8,
+  },
+  myVerticalBar: {
+    backgroundColor: "#A0C4FF",
+  },
+  otherVerticalBar: {
+    backgroundColor: "#C8D3E0",
+  },
+  content: {
+    flexShrink: 1,
+    justifyContent: "center",
+  },
+  text: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  myText: {
+    color: "rgba(31, 58, 95, 0.8)",
+  },
+  otherText: {
+    color: "rgba(31, 58, 95, 0.8)",
   },
 });
 
-// ── UnsendModal ───────────────────────────────────────────────────────────────
-const UnsendModal = ({ visible, onUnsend, onCancel }) => {
+// ── MessageOptionsModal ────────────────────────────────────────────────────────
+const MessageOptionsModal = ({ visible, isMyMessage, onReply, onUnsend, onCancel }) => {
   if (!visible) return null;
   return (
-    <View style={unsendStyles.overlay}>
-      <View style={unsendStyles.sheet}>
-        <Text style={unsendStyles.title}>Message Options</Text>
-        <TouchableOpacity style={unsendStyles.option} onPress={onUnsend}>
-          <Text style={unsendStyles.optionDanger}>Unsend Message</Text>
+    <View style={optionsStyles.overlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+      <View style={optionsStyles.menu}>
+        <TouchableOpacity style={optionsStyles.option} onPress={onReply}>
+          <Reply size={20} color="#FFFFFF" strokeWidth={2.5} />
+          <Text style={optionsStyles.optionText}>Reply</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={unsendStyles.option} onPress={onCancel}>
-          <Text style={unsendStyles.optionCancel}>Cancel</Text>
-        </TouchableOpacity>
+        {isMyMessage && (
+          <TouchableOpacity style={optionsStyles.option} onPress={onUnsend}>
+            <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+            <Text style={[optionsStyles.optionText, { color: "#E53935" }]}>Unsend</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
-const unsendStyles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor:"rgba(0,0,0,0.45)",
-    justifyContent:"flex-end", zIndex:999 },
-  sheet:   { backgroundColor:"#FFF", borderTopLeftRadius:20, borderTopRightRadius:20,
-    paddingBottom:36, paddingTop:12 },
-  title:   { fontFamily:"Manrope-SemiBold", fontSize:14, color:LIGHT_TEXT,
-    textAlign:"center", paddingVertical:12, borderBottomWidth:1, borderBottomColor:"#F0F0F0" },
-  option:  { paddingVertical:16, paddingHorizontal:24,
-    borderBottomWidth:1, borderBottomColor:"#F0F0F0" },
-  optionDanger: { fontFamily:"Manrope-SemiBold", fontSize:16, color:"#E53935", textAlign:"center" },
-  optionCancel: { fontFamily:"Manrope-Regular",  fontSize:16, color:MESSAGE_TEXT_COLOR, textAlign:"center" },
+const optionsStyles = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor:"rgba(0,0,0,0.5)",
+    justifyContent:"center", alignItems: "center", zIndex:999 },
+  menu:    { backgroundColor:"#262626", borderRadius:16, width: 220, paddingVertical: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
+  option:  { flexDirection: "row", alignItems: "center", paddingVertical:14, paddingHorizontal:20 },
+  optionText: { fontFamily:"Manrope-Medium", fontSize:15, color:"#FFFFFF", marginLeft: 16 },
+});
+
+// ── ReportModal ───────────────────────────────────────────────────────────────
+const ReportModal = ({ visible, onConfirm, onCancel }) => {
+  if (!visible) return null;
+  return (
+    <View style={reportStyles.overlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+      <View style={reportStyles.card}>
+        <View style={reportStyles.iconContainer}>
+          <TriangleAlert size={28} color="#E53935" strokeWidth={2} />
+        </View>
+        <Text style={reportStyles.title}>Report Chat</Text>
+        <Text style={reportStyles.subtitle}>Are you sure you want to report this chat? Our team will review the conversation history.</Text>
+        <View style={reportStyles.actions}>
+          <TouchableOpacity style={reportStyles.cancelBtn} onPress={onCancel}>
+            <Text style={reportStyles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={reportStyles.confirmBtn} onPress={onConfirm}>
+            <Text style={reportStyles.confirmText}>Report</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+const reportStyles = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center", alignItems: "center", zIndex: 1000 },
+  card: { backgroundColor: "#FFFFFF", borderRadius: 20, width: 300, padding: 24, alignItems: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(229, 57, 53, 0.1)",
+    justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  title: { fontFamily: "BasicCommercial-Bold", fontSize: 20, color: "#1F3A5F", marginBottom: 8, textAlign: "center" },
+  subtitle: { fontFamily: "Manrope-Regular", fontSize: 14, color: "#666", textAlign: "center", marginBottom: 24, lineHeight: 20 },
+  actions: { flexDirection: "row", justifyContent: "space-between", width: "100%" },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F0F4FF", marginRight: 8, alignItems: "center" },
+  cancelText: { fontFamily: "Manrope-SemiBold", fontSize: 15, color: "#3565F2" },
+  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#E53935", marginLeft: 8, alignItems: "center" },
+  confirmText: { fontFamily: "Manrope-SemiBold", fontSize: 15, color: "#FFFFFF" },
 });
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -221,7 +303,8 @@ export default function ChatScreen({ route, navigation }) {
   const [selectedSharedPost,    setSelectedSharedPost]   = useState(null);
   const [sharedPosts,           setSharedPosts]          = useState({});
   const [selectedReply,         setSelectedReply]        = useState(null); // { id, messageText, senderName, isDeleted }
-  const [unsendTarget,          setUnsendTarget]         = useState(null); // message id to unsend
+  const [optionsTarget,         setOptionsTarget]        = useState(null); // message object to show options for
+  const [reportModalVisible,    setReportModalVisible]   = useState(false);
   const [hapticFired,           setHapticFired]          = useState({});   // { [msgId]: bool }
 
   const flatListRef       = useRef(null);
@@ -377,11 +460,11 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [currentConversationId]);
 
-  // ── handleSend ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
     const text = messageText.trim();
     const replyId = selectedReply?.id || null;
+    const replyPreviewObj = selectedReply ? { ...selectedReply } : null;
     setMessageText("");
     setSelectedReply(null);
     setSending(true);
@@ -396,7 +479,7 @@ export default function ChatScreen({ route, navigation }) {
         messageText: text,
         reply_to_message_id: replyId,
       });
-      const msg = response.message;
+      const msg = { ...response.message, replyPreview: replyPreviewObj };
       if (!currentConversationId) {
         setCurrentConversationId(msg.conversationId);
       }
@@ -419,10 +502,7 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   // ── handleUnsend ───────────────────────────────────────────────────────────
-  const handleUnsend = async () => {
-    if (!unsendTarget) return;
-    const id = unsendTarget;
-    setUnsendTarget(null);
+  const handleUnsend = async (id) => {
     setMessages(prev => prev.map(m => m.id === id
       ? { ...m, isDeleted: true, deletedByType: "sender", messageText: null } : m));
     try {
@@ -554,17 +634,21 @@ export default function ChatScreen({ route, navigation }) {
 
     const bubbleContent = (
       <Pressable
-        onLongPress={() => { if (isMyMessage) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setUnsendTarget(msg.id); } }}
+        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setOptionsTarget(msg); }}
         delayLongPress={400}
       >
-        <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start" }}>
+        <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
           {msg.replyPreview && (
             <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => {
               const idx = messageIndexMap[msg.replyToMessageId];
               if (idx != null) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
             }} />
           )}
-          <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
+          <View style={[
+            styles.messageBubble, 
+            isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
+            msg.replyPreview && (isMyMessage ? styles.myMessageBubbleReplied : styles.otherMessageBubbleReplied)
+          ]}>
             <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
             <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
           </View>
@@ -634,7 +718,13 @@ export default function ChatScreen({ route, navigation }) {
                     </View>
                   </>
                 )}
-                <View style={{ width: 40 }} />
+                <View style={{ flex: 1 }} />
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => setReportModalVisible(true)}
+                >
+                  <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
+                </TouchableOpacity>
               </>
             )}
           </View>
@@ -698,7 +788,29 @@ export default function ChatScreen({ route, navigation }) {
           </View>
         </KeyboardAwareToolbar>
 
-        <UnsendModal visible={!!unsendTarget} onUnsend={handleUnsend} onCancel={() => setUnsendTarget(null)} />
+        <MessageOptionsModal 
+          visible={!!optionsTarget} 
+          isMyMessage={optionsTarget?.senderId !== (recipient?.id || recipientId)}
+          onReply={() => {
+            setSelectedReply({ id: optionsTarget.id, messageText: optionsTarget.messageText, senderName: optionsTarget.senderName || recipient?.name, isDeleted: optionsTarget.isDeleted });
+            setOptionsTarget(null);
+            setTimeout(() => inputRef.current?.focus(), 100);
+          }}
+          onUnsend={() => {
+            handleUnsend(optionsTarget.id);
+            setOptionsTarget(null);
+          }}
+          onCancel={() => setOptionsTarget(null)} 
+        />
+
+        <ReportModal 
+          visible={reportModalVisible} 
+          onCancel={() => setReportModalVisible(false)} 
+          onConfirm={() => {
+            setReportModalVisible(false);
+            setTimeout(() => Alert.alert("Reported", "Chat reported successfully."), 300);
+          }} 
+        />
 
         {sharedPostModalVisible && selectedSharedPost && (
           <ProfilePostFeed
@@ -731,15 +843,17 @@ const styles = StyleSheet.create({
   headerName:     { fontFamily: "BasicCommercial-Black", fontSize: 16, color: "#1F3A5F" },
   headerUsername: { fontFamily: "Manrope-Medium", fontSize: 12, color: LIGHT_TEXT },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  messagesList:   { paddingHorizontal: 16, paddingTop: 130, paddingBottom: 30 },
+  messagesList:   { paddingHorizontal: 16, paddingTop: 130, paddingBottom: 10 },
   messageContainer: { flexDirection: "row", marginBottom: 8, alignItems: "flex-end" },
   myMessageContainer:    { justifyContent: "flex-end" },
   otherMessageContainer: { justifyContent: "flex-start" },
   messageAvatar:  { width: 30, height: 30, borderRadius: 15, marginRight: 8 },
-  messageBubble:  { maxWidth: "75%", paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6, borderRadius: 18 },
-  myMessageBubble:    { backgroundColor: OUTGOING_MESSAGE_BG },
-  otherMessageBubble: { backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER,
+  messageBubble:  { maxWidth: "100%", paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6, borderRadius: 18 },
+  myMessageBubble:    { backgroundColor: OUTGOING_MESSAGE_BG, borderBottomRightRadius: 4 },
+  otherMessageBubble: { backgroundColor: INCOMING_MESSAGE_BG, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: INCOMING_BORDER,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  myMessageBubbleReplied: { borderTopRightRadius: 4 },
+  otherMessageBubbleReplied: { borderTopLeftRadius: 4 },
   deletedBubble:  { opacity: 0.55 },
   deletedText:    { fontFamily: "Manrope-Regular", fontSize: 13, color: LIGHT_TEXT, fontStyle: "italic" },
   messageText:    { fontFamily: "Manrope-Regular", fontSize: 15, lineHeight: 21 },
