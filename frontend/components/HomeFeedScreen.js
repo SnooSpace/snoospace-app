@@ -1525,7 +1525,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#F4C430", // Muted Yellow
+    backgroundColor: COLORS.primary, // Brand Blue
     borderWidth: 1.5,
     borderColor: COLORS.background, // Creates a gap effect against the container
   },

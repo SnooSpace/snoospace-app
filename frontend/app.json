@@ -4,11 +4,11 @@
     "slug": "snoospace",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/adaptive-icon-padded.png",
+    "icon": "./assets/adaptive-icon-scaled.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-icon-scaled.png",
       "resizeMode": "contain",
       "backgroundColor": "#F9F9F9"
     },
@@ -20,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon-padded.png",
+        "foregroundImage": "./assets/adaptive-icon-scaled.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
