@@ -61,6 +61,7 @@ import DynamicStatusBar from "./DynamicStatusBar";
 import PremiumHeader, { getPremiumHeaderTotalHeight } from "./PremiumHeader";
 
 import { COLORS } from "../constants/theme";
+import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -1294,17 +1295,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
           !loading ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No posts yet</Text>
-              <Text style={styles.emptySubtext}>
-                Follow some users to see their posts here
-              </Text>
-              {errorMsg ? (
-                <TouchableOpacity onPress={loadFeed} style={styles.retryButton}>
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            <EmptyFeedState />
           ) : null
         }
         onEndReached={() => {
@@ -1737,27 +1728,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 50,
-  },
-  emptyText: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 17,
-    color: TEXT_COLOR,
-    marginBottom: 6,
-    letterSpacing: -0.2,
-  },
-  emptySubtext: {
-    fontFamily: "Manrope-Medium",
-    fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    textAlign: "center",
-    paddingHorizontal: 40,
-    lineHeight: 20,
-  },
+
   errorBanner: {
     marginHorizontal: 20,
     marginBottom: 10,
