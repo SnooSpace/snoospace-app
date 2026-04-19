@@ -53,6 +53,7 @@ import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling"
 // import { useAuthState } from "../../../contexts/AuthStateContext"; // Unused
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import EmptyPostsState from "../../../components/EmptyPostsState";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -859,23 +860,7 @@ export default function MemberProfileScreen({ navigation }) {
         }}
         scrollEnabled={false}
         ListEmptyComponent={
-          <View
-            style={{
-              padding: 40,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: "Manrope-Medium",
-                fontSize: 15,
-                color: COLORS.textSecondary,
-              }}
-            >
-              No posts yet
-            </Text>
-          </View>
+          <EmptyPostsState isOwnProfile={isOwnProfile} />
         }
         onEndReached={() => {
           if (!loading && !loadingMorePosts && hasMorePosts) {

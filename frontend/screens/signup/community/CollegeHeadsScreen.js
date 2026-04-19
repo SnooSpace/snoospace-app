@@ -99,7 +99,7 @@ const HeadEntry = ({
       {/* Entry header row */}
       <View style={styles.entryHeader}>
         <Text style={styles.entryLabel}>
-          {isRequired ? "Head 1 (Required)" : `Head ${index + 1} (Optional)`}
+          {isRequired ? "Organizer 1 (Required)" : `Organizer ${index + 1} (Optional)`}
         </Text>
         {showRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeButton}>
@@ -464,7 +464,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
                   entering={FadeInDown.delay(200).duration(600).springify()}
                   style={styles.globalHelperText}
                 >
-                  Add the people who run this page. A profile photo is required for the primary head to build trust.
+                  Add the people who run this page. A profile photo is required for the primary organizer to build trust.
                 </Animated.Text>
               </View>
 
@@ -506,7 +506,7 @@ const CollegeHeadsScreen = ({ navigation, route }) => {
                     <View style={styles.addButtonIconContainer}>
                       <PlusCircle size={20} color={COLORS.primary} strokeWidth={2.5} />
                     </View>
-                    <Text style={styles.addButtonText}>Add Another Head</Text>
+                    <Text style={styles.addButtonText}>Add Another Organizer</Text>
                   </TouchableOpacity>
                 </View>
               </Animated.View>

@@ -64,38 +64,7 @@ const MAX_CATEGORIES = 3;
 
 // --- Components ---
 
-/**
- * Category Chip Component (Selectable Tag)
- */
-const CategoryChip = ({ category, isSelected, onPress }) => (
-  <TouchableOpacity
-    style={[
-      styles.chip,
-      {
-        backgroundColor: isSelected
-          ? COLORS.primary
-          : "rgba(255, 255, 255, 0.6)",
-        borderColor: isSelected ? COLORS.primary : "rgba(255, 255, 255, 0.5)",
-      },
-    ]}
-    onPress={() => onPress(category)}
-    activeOpacity={0.7}
-    accessibilityRole="button"
-    accessibilityState={{ selected: isSelected }}
-    accessibilityLabel={`Category: ${category}. ${
-      isSelected ? "Selected" : "Tap to select"
-    }.`}
-  >
-    <Text
-      style={[
-        styles.chipText,
-        { color: isSelected ? COLORS.textInverted : COLORS.textPrimary },
-      ]}
-    >
-      {category}
-    </Text>
-  </TouchableOpacity>
-);
+
 
 /**
  * Main Screen Component
@@ -347,17 +316,22 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
                     {selectedCategories.length > 0 && (
                       <View style={styles.selectedSection}>
                         <View style={styles.chipsContainer}>
-                          {selectedCategories.map((cat) => (
-                            <TouchableOpacity
-                              key={cat}
-                              onPress={() => toggleCategory(cat)}
-                              style={[styles.chip, { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[styles.chipText, { color: COLORS.textInverted }]}>{cat}</Text>
-                              <X size={12} color={COLORS.textInverted} style={{ marginLeft: 6 }} />
-                            </TouchableOpacity>
-                          ))}
+                          {selectedCategories.map((cat) => {
+                            const catStyle = getInterestStyle(cat);
+                            return (
+                              <TouchableOpacity
+                                key={cat}
+                                onPress={() => toggleCategory(cat)}
+                                style={[styles.vibeChip, { backgroundColor: catStyle.bg }]}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={[styles.vibeText, { color: catStyle.text }]}>{cat}</Text>
+                                <View style={styles.removeIconContainer}>
+                                  <X size={14} color={catStyle.text} />
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
                         </View>
                         <View style={styles.divider} />
                       </View>

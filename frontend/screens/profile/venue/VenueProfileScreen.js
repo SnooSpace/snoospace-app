@@ -43,6 +43,7 @@ import {
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import EmptyPostsState from "../../../components/EmptyPostsState";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";
@@ -499,17 +500,7 @@ export default function VenueProfileScreen({ navigation }) {
             scrollEnabled={false}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={{ padding: 20, alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "bold",
-                    color: LIGHT_TEXT_COLOR,
-                  }}
-                >
-                  No posts
-                </Text>
-              </View>
+              <EmptyPostsState isOwnProfile={true} />
             }
           />
         </View>

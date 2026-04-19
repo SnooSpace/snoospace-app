@@ -482,8 +482,7 @@ export function getCommunityNextScreenForStep(currentStep) {
     IndividualLocation: "CommunityHeadName",
     CommunityLocation: "CommunityHeadName",
     CollegeHeads: "CommunityPhone", // College heads now includes photos inline
-    CommunityHeadName: "CommunityHeadProfilePic",
-    CommunityHeadProfilePic: "CommunityPhone",
+    CommunityHeadName: "CommunityPhone", // Photos now collected inline on CommunityHeadName
     CommunityPhone: "CommunitySponsorType", // Default, varies by type
     CommunitySponsorType: "CommunityUsername",
     CommunityUsername: "COMPLETE",
@@ -515,7 +514,6 @@ export function getCommunityResumeScreen(lastStep) {
     "IndividualLocation",
     "CollegeHeads",
     "CommunityHeadName",
-    "CommunityHeadProfilePic",
     "CommunityPhone",
     "CommunitySponsorType",
     "CommunityUsername",
@@ -589,11 +587,10 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
 
   // Post-location screens vary by type:
   // - College -> CollegeHeads (w/ inline photos) -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Organization -> CommunityHeadName -> CommunityHeadProfilePic -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName -> CommunityHeadProfilePic -> CommunityPhone -> CommunityUsername
+  // - Organization -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
+  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunityUsername
   const orgPostStack = [
     "CommunityHeadName",
-    "CommunityHeadProfilePic",
     "CommunityPhone",
     "CommunitySponsorType",
   ];
@@ -601,7 +598,6 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   const collegePostStack = ["CollegeHeads", "CommunityPhone"];
   const individualPostStack = [
     "CommunityHeadName",
-    "CommunityHeadProfilePic",
     "CommunityPhone",
   ];
 

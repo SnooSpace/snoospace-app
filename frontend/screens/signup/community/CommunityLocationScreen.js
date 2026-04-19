@@ -418,20 +418,20 @@ const CommunityLocationScreen = ({ navigation, route }) => {
           style={styles.container}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
+          {/* Header */}
+          <SignupHeader
+            role="Community"
+            onBack={handleBack}
+            onCancel={() => setShowCancelModal(true)}
+          />
+
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header */}
-            <SignupHeader
-              role="Community"
-              onBack={handleBack}
-              onCancel={() => setShowCancelModal(true)}
-            />
-
             {/* Content */}
-            <View style={styles.contentBody}>
+            <View style={styles.contentContainer}>
               <Animated.Text 
                 entering={FadeInDown.delay(100).duration(600).springify()}
                 style={styles.mainTitle}
@@ -570,7 +570,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
                     style={[
                       styles.continueButtonContainer,
                       !canContinue && styles.continueButtonDisabled,
-                      { minWidth: 160, paddingHorizontal: 32, marginRight: -8 },
+                      { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
                     ]}
                     onPress={handleContinue}
                     disabled={!canContinue || isParsingUrl}
@@ -620,14 +620,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
+  scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 25,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  contentBody: {
+  contentContainer: {
     flex: 1,
-    paddingTop: 40,
+    marginTop: 40,
   },
   mainTitle: {
     fontSize: 34,

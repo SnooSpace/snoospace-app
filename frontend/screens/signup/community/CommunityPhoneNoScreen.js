@@ -290,11 +290,12 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              // College communities come from CollegeHeads (which now includes photos)
+              // College communities come from CollegeHeads (which includes photos)
+              // Org/Individual come from CommunityHeadName (which now includes photos)
               const isCollege = params.community_type === "college_affiliated";
               const prevScreen = isCollege
                 ? "CollegeHeads"
-                : "CommunityHeadProfilePic";
+                : "CommunityHeadName";
               navigation.replace(prevScreen, {
                 ...params,
               });

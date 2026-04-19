@@ -49,6 +49,7 @@ import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import CollegeChip from "../../../components/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
+import EmptyPostsState from "../../../components/EmptyPostsState";
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
@@ -719,18 +720,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             }
             ListEmptyComponent={
               !loading && (
-                <View
-                  style={{
-                    flex: 1,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingTop: 40,
-                  }}
-                >
-                  <Text style={{ fontFamily: "Manrope-Medium", fontSize: 15, color: "#8E8E93" }}>
-                    No posts
-                  </Text>
-                </View>
+                <EmptyPostsState isOwnProfile={false} />
               )
             }
             ListFooterComponent={

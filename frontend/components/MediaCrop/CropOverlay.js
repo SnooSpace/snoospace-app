@@ -44,7 +44,7 @@ const CropOverlay = ({
         ]}
       >
         {/* Rule of thirds grid */}
-        {showGrid && !isCircular && (
+        {showGrid && (
           <View style={styles.gridContainer}>
             {/* Vertical lines */}
             <View

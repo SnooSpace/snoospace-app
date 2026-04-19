@@ -75,6 +75,7 @@ import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
+import EmptyPostsState from "../../../components/EmptyPostsState";
 
 // Normalize Theme Constants
 const PRIMARY_COLOR = COLORS.primary;
@@ -1463,11 +1464,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   renderItem={renderGridItem}
                 />
               ) : (
-                <View style={styles.emptyPostsContainer}>
-                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                    No posts
-                  </Text>
-                </View>
+                <EmptyPostsState isOwnProfile={false} />
               );
             })()}
 

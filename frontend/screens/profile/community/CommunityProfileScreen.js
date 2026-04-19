@@ -106,6 +106,7 @@ import SnooLoader from "../../../components/ui/SnooLoader";
 import GradientSafeArea from "../../../components/GradientSafeArea";
 import CollegeChip from "../../../components/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
+import EmptyPostsState from "../../../components/EmptyPostsState";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -1641,11 +1642,7 @@ export default function CommunityProfileScreen({ navigation }) {
                   />
                 </View>
               ) : (
-                <View style={styles.emptyPostsContainer}>
-                  <Text style={[styles.emptyPostsText, { fontWeight: "bold" }]}>
-                    No posts
-                  </Text>
-                </View>
+                <EmptyPostsState isOwnProfile={true} />
               );
             })()}
 
