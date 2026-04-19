@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CropScreen.js
  * Full-screen modal crop editor with navigation integration.
  * Handles preset selection, image cropping, and export.
@@ -42,6 +42,7 @@ const CropScreen = ({ route, navigation }) => {
     imageUri,
     presetKey = "avatar",
     customPreset = null, // NEW: Custom preset object for natural video aspect ratio
+    lockedPreset = null, // If set, aspect ratio toggle is hidden (all images must match first)
     allowPresetChange = false,
     initialCropData = null, // For position restoration on re-edit
     onComplete,
@@ -64,9 +65,10 @@ const CropScreen = ({ route, navigation }) => {
     imageUri?.toLowerCase().includes(".webm");
 
   // Check if this is a feed post mode (allows toggling)
-  // Disable toggling when using a custom preset (natural video aspect ratio)
+  // Disable toggling when using a custom preset (natural video aspect ratio) OR when locked
   const isFeedMode =
     !customPreset &&
+    !lockedPreset &&
     [
       "feed_square",
       "feed_portrait",

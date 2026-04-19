@@ -645,10 +645,19 @@ const ImageUploader = forwardRef(
           });
         }
 
+        // Determine if aspect ratio should be locked:
+        // When there are multiple images, all must share the first image's aspect ratio.
+        // So we lock the preset whenever the carousel has 2+ images, preventing
+        // the user from changing the ratio during re-editing (same rule as BatchCropScreen).
+        const activeImageCount = images.filter(Boolean).length;
+        const firstImagePreset = presetKeys.find((p) => p != null);
+        const shouldLockPreset = !isVideo && activeImageCount > 1 && firstImagePreset;
+
         // Pass saved crop data for position restoration
         const result = await cropImage(originalUri, savedPreset, {
           initialCropData: savedCropData,
           customPreset: customPreset, // Use natural aspect ratio for videos
+          lockedPreset: shouldLockPreset ? firstImagePreset : null, // Enforce consistent AR
         });
 
         if (result) {

@@ -117,6 +117,7 @@ export const useCrop = () => {
             imageUri: imageUri,
             presetKey,
             customPreset: options.customPreset || null, // NEW: Custom preset for natural aspect ratio
+            lockedPreset: options.lockedPreset || null, // Lock aspect ratio when multiple images exist
             allowPresetChange: options.allowPresetChange || false,
             initialCropData: options.initialCropData || null, // For position restoration
             onComplete: (result) => {
