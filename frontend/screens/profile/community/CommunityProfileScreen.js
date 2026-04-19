@@ -55,6 +55,13 @@ import {
   getAllAccounts,
 } from "../../../api/auth";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
+import { getActiveAccount } from "../../../api/auth";
+import {
+  hasDraft,
+  loadDraft as loadDraftUtil,
+  deleteDraft as deleteDraftUtil,
+  formatLastSaved,
+} from "../../../utils/draftStorage";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import {
   getCommunityProfile,
@@ -109,6 +116,8 @@ import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 import EmptyCommunityState from "../../../components/EmptyCommunityState";
 import EmptyEventsState from "../../../components/EmptyEventsState";
+import CreateEventModal from "../../../components/modals/CreateEventModal";
+import ActionModal from "../../../components/modals/ActionModal";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -174,6 +183,18 @@ export default function CommunityProfileScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+
+  // Event Creation
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const [draftLastSaved, setDraftLastSaved] = useState(null);
+  const [resumeDraft, setResumeDraft] = useState(false);
+  const [modalConfig, setModalConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    actions: [],
+  });
 
   // Tab underline animation
   const tabUnderlineX = useRef(new Animated.Value(0)).current;
@@ -247,6 +268,35 @@ export default function CommunityProfileScreen({ navigation }) {
       tabUnderlineX.setValue(x);
       tabUnderlineScale.setValue(width);
     }
+  };
+
+  const handleCreateEvent = async () => {
+    try {
+      const account = await getActiveAccount();
+      if (!account?.id) {
+        setResumeDraft(false);
+        setShowCreateEventModal(true);
+        return;
+      }
+      const exists = await hasDraft(account.id);
+      if (exists) {
+        const draft = await loadDraftUtil(account.id);
+        setDraftLastSaved(draft.lastSaved);
+        setShowDraftPrompt(true);
+      } else {
+        setResumeDraft(false);
+        setShowCreateEventModal(true);
+      }
+    } catch (e) {
+      console.error("Draft check error:", e);
+      setResumeDraft(false);
+      setShowCreateEventModal(true);
+    }
+  };
+
+  const handleEventCreated = () => {
+    // Reload events
+    loadProfile();
   };
 
   useEffect(() => {
@@ -1644,7 +1694,14 @@ export default function CommunityProfileScreen({ navigation }) {
                   />
                 </View>
               ) : (
-                <EmptyPostsState isOwnProfile={true} />
+                <EmptyPostsState
+                  isOwnProfile={true}
+                  onCreatePost={() => {
+                    navigation.navigate("CommunityCreatePost", {
+                      role: "community",
+                    });
+                  }}
+                />
               );
             })()}
 
@@ -1696,7 +1753,14 @@ export default function CommunityProfileScreen({ navigation }) {
                   ))}
                 </View>
               ) : (
-                <EmptyCommunityState isOwnProfile={true} />
+                <EmptyCommunityState
+                  isOwnProfile={true}
+                  onCreatePost={() => {
+                    navigation.navigate("CommunityCreatePost", {
+                      role: "community",
+                    });
+                  }}
+                />
               );
             })()}
 
@@ -1704,7 +1768,12 @@ export default function CommunityProfileScreen({ navigation }) {
           {activeTab === "events" &&
             (() => {
               if (communityEvents.length === 0) {
-                return <EmptyEventsState isOwnProfile={true} />;
+                return (
+                  <EmptyEventsState
+                    isOwnProfile={true}
+                    onCreateEvent={handleCreateEvent}
+                  />
+                );
               }
 
               const formatEventDate = (dateString) => {
@@ -2528,6 +2597,45 @@ export default function CommunityProfileScreen({ navigation }) {
           setShowCollegeHub(false);
           navigation.navigate("CommunityPublicProfile", { communityId });
         }}
+      />
+
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => {
+          setShowCreateEventModal(false);
+          setResumeDraft(false);
+        }}
+        onEventCreated={handleEventCreated}
+        resumeDraft={resumeDraft}
+      />
+
+      <ActionModal
+        visible={showDraftPrompt}
+        title="Resume Draft?"
+        message={`You have an unsaved event draft from ${formatLastSaved(draftLastSaved)}. Would you like to resume where you left off?`}
+        actions={[
+          {
+            text: "Resume Draft",
+            onPress: () => {
+              setShowDraftPrompt(false);
+              setResumeDraft(true);
+              setShowCreateEventModal(true);
+            },
+            style: "primary",
+          },
+          {
+            text: "Start Fresh",
+            onPress: async () => {
+              setShowDraftPrompt(false);
+              const account = await getActiveAccount();
+              if (account?.id) await deleteDraftUtil(account.id);
+              setResumeDraft(false);
+              setShowCreateEventModal(true);
+            },
+            style: "secondary",
+          },
+        ]}
+        onClose={() => setShowDraftPrompt(false)}
       />
     </View>
   );

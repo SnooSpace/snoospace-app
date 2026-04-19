@@ -5,7 +5,7 @@ import { COLORS, FONTS } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
 import HapticsService from "../services/HapticsService";
 
-export default function EmptyEventsState({ isOwnProfile = true }) {
+export default function EmptyEventsState({ isOwnProfile = true, onCreateEvent }) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current; // Button scale
   const navigation = useNavigation();
@@ -45,8 +45,12 @@ export default function EmptyEventsState({ isOwnProfile = true }) {
 
   const handleCreateEvent = () => {
     HapticsService.triggerImpactLight();
-    // Navigate to event creation flow
-    // navigation.navigate("CreateEvent");
+    if (onCreateEvent) {
+      onCreateEvent();
+    } else {
+      // Navigate to event creation flow
+      // navigation.navigate("CreateEvent");
+    }
   };
 
   return (

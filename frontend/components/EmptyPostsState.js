@@ -5,7 +5,7 @@ import { COLORS, FONTS } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
 import HapticsService from "../services/HapticsService";
 
-export default function EmptyPostsState({ isOwnProfile = true }) {
+export default function EmptyPostsState({ isOwnProfile = true, onCreatePost }) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current; // Button scale
   const navigation = useNavigation();
@@ -45,7 +45,11 @@ export default function EmptyPostsState({ isOwnProfile = true }) {
 
   const handleCreatePost = () => {
     HapticsService.triggerImpactLight();
-    navigation.navigate("CreatePost");
+    if (onCreatePost) {
+      onCreatePost();
+    } else {
+      navigation.navigate("CreatePost");
+    }
   };
 
   return (
