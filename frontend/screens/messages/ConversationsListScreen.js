@@ -57,46 +57,21 @@ function formatRelativeTime(dateString) {
 }
 
 // ── Avatar with optional unread ring ─────────────────────────────────────────
-function ConvAvatar({ uri, size = 52, hasUnread = false, isActive = false, isGroup = false }) {
+function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false }) {
   return (
     <View style={{ width: size, height: size, marginRight: 12 }}>
-      {isActive && (
-        <View style={[avatarStyles.activeRing, { width: size + 4, height: size + 4, borderRadius: (size + 4) / 2, top: -2, left: -2 }]} />
+      {hasUnread && (
+        <View style={[avatarStyles.unreadRing, { width: size + 4, height: size + 4, borderRadius: (size + 4) / 2, top: -2, left: -2 }]} />
       )}
       <Image
         source={{ uri: uri || "https://via.placeholder.com/52" }}
         style={{ width: size, height: size, borderRadius: isGroup ? 14 : size / 2, backgroundColor: SURFACE2 }}
       />
-      {hasUnread && <View style={avatarStyles.unreadDot} />}
     </View>
   );
 }
 const avatarStyles = StyleSheet.create({
-  activeRing: { position: "absolute", borderWidth: 2, borderColor: ACTIVE_RING, zIndex: 0 },
-  unreadDot:  { position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: 6,
-    backgroundColor: UNREAD_DOT, borderWidth: 2, borderColor: BG },
-});
-
-// ── Active contacts row item ──────────────────────────────────────────────────
-function ActiveContact({ conv, onPress }) {
-  const name = conv.isGroup
-    ? (conv.groupName || "Group")
-    : (conv.otherParticipant?.name || "User");
-  const uri  = conv.isGroup
-    ? conv.groupAvatarUrl
-    : conv.otherParticipant?.profilePhotoUrl;
-  const hasUnread = (conv.unreadCount || 0) > 0;
-  return (
-    <TouchableOpacity onPress={onPress} style={activeStyles.container} activeOpacity={0.75}>
-      <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={conv.isGroup} />
-      <Text style={activeStyles.name} numberOfLines={1}>{name}</Text>
-    </TouchableOpacity>
-  );
-}
-const activeStyles = StyleSheet.create({
-  container: { width: 68, alignItems: "center", marginRight: 16 },
-  name:      { fontFamily: "Manrope-Medium", fontSize: 11, color: TEXT_SEC, marginTop: 4,
-    textAlign: "center", width: 64 },
+  unreadRing: { position: "absolute", borderWidth: 2, borderColor: ACTIVE_RING, zIndex: 0 },
 });
 
 // ── Search result row ─────────────────────────────────────────────────────────
@@ -164,8 +139,6 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
     ? conv.groupAvatarUrl
     : conv.otherParticipant?.profilePhotoUrl;
   const hasUnread    = (conv.unreadCount || 0) > 0;
-  const recentCutoff = Date.now() - 48 * 3600 * 1000;
-  const isActive     = conv.lastMessageAt && new Date(conv.lastMessageAt) > recentCutoff;
 
   return (
     <View style={{ overflow: "hidden" }}>
@@ -188,7 +161,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
       <GestureDetector gesture={pan}>
         <Reanimated.View style={rowStyle}>
           <Pressable style={swipeStyles.row} onPress={onPress} android_ripple={{ color: SURFACE2 }}>
-            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isActive={isActive} isGroup={isGroup} />
+            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} />
             <View style={swipeStyles.content}>
               <View style={swipeStyles.topRow}>
                 <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
@@ -403,14 +376,6 @@ export default function ConversationsListScreen({ navigation }) {
     }
   }, [searchText, conversations]);
 
-  // ── Active contacts (conversations with activity in last 48h) ────────────────
-  const activeContacts = useMemo(() => {
-    const cutoff = Date.now() - 48 * 3600 * 1000;
-    return conversations
-      .filter((c) => c.lastMessageAt && new Date(c.lastMessageAt) > cutoff)
-      .slice(0, 12);
-  }, [conversations]);
-
   // ── Delete / Leave handlers ────────────────────────────────────────────────────
   const handleDeleteConversation = useCallback(async (conv) => {
     Alert.alert(
@@ -502,19 +467,9 @@ export default function ConversationsListScreen({ navigation }) {
     );
   };
 
-  const ListHeader = !isSearching && activeContacts.length > 0 ? (
-    <View style={styles.activeSection}>
-      <FlatList
-        data={activeContacts}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(c) => `active-${c.id}`}
-        contentContainerStyle={styles.activeList}
-        renderItem={({ item }) => (
-          <ActiveContact conv={item} onPress={() => openConversation(item)} />
-        )}
-      />
-      <View style={styles.divider} />
+  const ListHeader = !isSearching ? (
+    <View style={styles.messagesHeaderRow}>
+      <Text style={styles.messagesHeaderText}>Messages</Text>
     </View>
   ) : null;
 
@@ -700,10 +655,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER },
   searchInput:     { flex: 1, fontFamily: "Manrope-Regular", fontSize: 14,
     color: TEXT_PRIMARY, paddingVertical: 0 },
-  activeSection:   { paddingTop: 8 },
-  activeList:      { paddingHorizontal: 16, paddingBottom: 4 },
-  divider:         { height: 1, backgroundColor: BORDER, marginTop: 12 },
-  loadingContainer:{ flex: 1, justifyContent: "center", alignItems: "center" },
+  messagesHeaderRow:{ flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 4 },
+  messagesHeaderText:{ fontFamily: "BasicCommercial-Bold", fontSize: 16, color: TEXT_PRIMARY },
+  requestsText:      { fontFamily: "Manrope-SemiBold", fontSize: 14, color: "#3B82F6" },
+  loadingContainer:  { flex: 1, justifyContent: "center", alignItems: "center" },
   emptySearch:     { paddingTop: 40, alignItems: "center" },
   emptySearchText: { fontFamily: "Manrope-Regular", fontSize: 14, color: TEXT_SEC },
   emptyContainer:  { flex: 1, justifyContent: "center", alignItems: "center",

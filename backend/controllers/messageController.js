@@ -304,14 +304,40 @@ const sendMessage = async (req, res) => {
     let convId;
 
     if (conversationId) {
-      // Group chat: verify participant
-      const cpCheck = await pool.query(
-        `SELECT id FROM conversation_participants
-         WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
-        [conversationId, userId, userType],
+      // Look up the conversation to determine if it's a group or DM
+      const convLookup = await pool.query(
+        `SELECT id, is_group FROM conversations WHERE id = $1`,
+        [conversationId],
       );
-      if (cpCheck.rows.length === 0) {
-        return res.status(403).json({ error: "Not a participant of this group" });
+      if (convLookup.rows.length === 0) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      const isGroup = convLookup.rows[0].is_group;
+
+      if (isGroup) {
+        // Group chat: verify the user is in conversation_participants
+        const cpCheck = await pool.query(
+          `SELECT id FROM conversation_participants
+           WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+          [conversationId, userId, userType],
+        );
+        if (cpCheck.rows.length === 0) {
+          return res.status(403).json({ error: "Not a participant of this group" });
+        }
+      } else {
+        // DM: verify the user is one of the two participants
+        const dmCheck = await pool.query(
+          `SELECT id FROM conversations
+           WHERE id = $1
+             AND (
+               (participant1_id = $2 AND participant1_type = $3)
+               OR (participant2_id = $2 AND participant2_type = $3)
+             )`,
+          [conversationId, userId, userType],
+        );
+        if (dmCheck.rows.length === 0) {
+          return res.status(403).json({ error: "Not a participant of this conversation" });
+        }
       }
       convId = conversationId;
     } else {
