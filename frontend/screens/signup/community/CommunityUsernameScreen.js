@@ -212,7 +212,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   const validateUsername = (text) => {
     // Keyboard suggestions often add trailing spaces. Rather than rejecting
     // the whole string, we strip out spaces and invalid characters.
-    const formattedText = text.replace(/[^a-zA-Z0-9_.]/g, "");
+    const formattedText = text.replace(/[^a-zA-Z0-9_.]/g, "").toLowerCase();
     setUsername(formattedText);
   };
 
@@ -512,31 +512,30 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
             <View
               style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
             >
-              <Animated.View 
-                entering={FadeInDown.delay(500).duration(600).springify()}
-                style={animatedButtonStyle}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.nextButtonContainer,
-                    isButtonDisabled && styles.nextButtonDisabled,
-                    { minWidth: 220, paddingHorizontal: 32, marginRight: -33 },
-                  ]}
-                  onPress={handleFinish}
-                  disabled={isButtonDisabled}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.nextButton}
+              <Animated.View entering={FadeInDown.delay(500).duration(600).springify()}>
+                <Animated.View style={animatedButtonStyle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.nextButtonContainer,
+                      isButtonDisabled && styles.nextButtonDisabled,
+                      { minWidth: 220, paddingHorizontal: 32, marginRight: -33 },
+                    ]}
+                    onPress={handleFinish}
+                    disabled={isButtonDisabled}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.nextButtonText}>
-                      {isSubmitting ? "Finishing..." : "Complete Setup"}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={COLORS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.nextButton}
+                    >
+                      <Text style={styles.nextButtonText}>
+                        {isSubmitting ? "Finishing..." : "Complete Setup"}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </Animated.View>
             </View>
           </View>

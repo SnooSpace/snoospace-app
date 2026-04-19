@@ -86,7 +86,7 @@ export default function EmptyPostsState({ isOwnProfile = true }) {
         </Text>
         <Text style={styles.subtitle}>
           {isOwnProfile
-            ? "Your gallery is a blank canvas. Capture your first moment and start building your collection today."
+            ? "It’s kinda empty in here… drop your first post 👀"
             : "This user hasn't posted anything yet. Check back later!"}
         </Text>
       </View>
