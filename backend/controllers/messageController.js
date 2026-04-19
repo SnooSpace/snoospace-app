@@ -91,7 +91,7 @@ const getConversations = async (req, res) => {
       )
       LEFT JOIN conversation_hidden ch
         ON ch.conversation_id = c.id
-        AND ch.participant_id = $1 AND ch.participant_type = $2
+        AND ch.hidden_by_id = $1 AND ch.hidden_by_type = $2
       WHERE (
         (c.participant1_id = $1 AND c.participant1_type = $2)
         OR (c.participant2_id = $1 AND c.participant2_type = $2)
@@ -127,7 +127,7 @@ const getConversations = async (req, res) => {
         AND cp.participant_id = $1 AND cp.participant_type = $2
       LEFT JOIN conversation_hidden ch
         ON ch.conversation_id = c.id
-        AND ch.participant_id = $1 AND ch.participant_type = $2
+        AND ch.hidden_by_id = $1 AND ch.hidden_by_type = $2
       WHERE c.is_group = true
         AND ch.id IS NULL
     `;
@@ -755,9 +755,9 @@ const hideConversation = async (req, res) => {
     if (check.rows.length === 0) return res.status(404).json({ error: "Conversation not found" });
 
     await pool.query(
-      `INSERT INTO conversation_hidden (conversation_id, participant_id, participant_type)
+      `INSERT INTO conversation_hidden (conversation_id, hidden_by_id, hidden_by_type)
        VALUES ($1, $2, $3)
-       ON CONFLICT (conversation_id, participant_id, participant_type) DO NOTHING`,
+       ON CONFLICT (conversation_id, hidden_by_id, hidden_by_type) DO NOTHING`,
       [conversationId, userId, userType],
     );
     res.json({ success: true });

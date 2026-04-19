@@ -114,7 +114,9 @@ const CommunityBottomTabNavigator = () => {
               routeName === "ConversationsList" ||
               routeName === "Chat" ||
               routeName === "Notifications" ||
-              routeName === "PromptReplies"
+              routeName === "PromptReplies" ||
+              routeName === "CreateGroupChat" ||
+              routeName === "GroupInfo"
             ) {
               return { display: "none" };
             }

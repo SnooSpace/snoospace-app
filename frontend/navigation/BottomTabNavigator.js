@@ -169,6 +169,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
               "Chat",
               "CreatePost",
               "PromptReplies",
+              "CreateGroupChat",
+              "GroupInfo",
             ];
             if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };

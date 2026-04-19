@@ -21,12 +21,12 @@ import { apiPost } from "../../api/client";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 // ── Palette ────────────────────────────────────────────────────────────────────
-const BG       = "#0A0A0A";
-const SURFACE  = "#141414";
-const SURFACE2 = "#1C1C1E";
-const BORDER   = "#2A2A2A";
+const BG       = "#FFFFFF";
+const SURFACE  = "#F8F8F8";
+const SURFACE2 = "#EFEFF4";
+const BORDER   = "#E5E5EA";
 const ACCENT   = "#3565F2";
-const TEXT     = "#FFFFFF";
+const TEXT     = "#000000";
 const TEXT_SEC = "#8E8E93";
 const DANGER   = "#E53935";
 const GOLD     = "#FFB800";
@@ -428,8 +428,8 @@ const styles = StyleSheet.create({
   title:     { fontFamily:"BasicCommercial-Black", fontSize:18, color:TEXT },
   centered:  { flex:1, justifyContent:"center", alignItems:"center" },
   section:   { paddingHorizontal:16, paddingTop:20, paddingBottom:8 },
-  sectionLabel: { fontFamily:"Manrope-SemiBold", fontSize:11, color:TEXT_SEC,
-    letterSpacing:0.8, textTransform:"uppercase" },
+  sectionLabel: { fontFamily:"BasicCommercial-Bold", fontSize:12, color:TEXT_SEC,
+    letterSpacing:0.5, textTransform:"uppercase" },
   nameRow:   { flexDirection:"row", alignItems:"center", marginTop:8 },
   nameDisplay: { fontFamily:"BasicCommercial-Bold", fontSize:20, color:TEXT, flex:1, marginRight:10 },
   nameInput: { flex:1, fontFamily:"BasicCommercial-Bold", fontSize:20, color:TEXT,

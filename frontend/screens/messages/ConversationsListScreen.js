@@ -9,12 +9,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Reanimated, {
-  useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS,
+  useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, withRepeat, withSequence, Easing
 } from "react-native-reanimated";
+import Svg, { Circle, Path, Rect, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 
 import {
-  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X,
+  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft,
 } from "lucide-react-native";
 
 import { getConversations, hideConversation, removeGroupParticipant } from "../../api/messages";
@@ -28,12 +29,12 @@ import AccountSwitcherModal from "../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../components/modals/AddAccountModal";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
-const BG           = "#0A0A0A";
-const SURFACE      = "#141414";
-const SURFACE2     = "#1C1C1E";
-const BORDER       = "#2A2A2A";
+const BG           = "#FFFFFF";
+const SURFACE      = "#F8F8F8";
+const SURFACE2     = "#EFEFF4";
+const BORDER       = "#E5E5EA";
 const ACCENT       = "#3565F2";
-const TEXT_PRIMARY = "#FFFFFF";
+const TEXT_PRIMARY = "#000000";
 const TEXT_SEC     = "#8E8E93";
 const UNREAD_DOT   = "#3565F2";
 const DANGER       = "#E53935";
@@ -231,8 +232,70 @@ const swipeStyles = StyleSheet.create({
   previewUnread:{ fontFamily: "Manrope-SemiBold", color: TEXT_PRIMARY },
   badge:        { backgroundColor: ACCENT, borderRadius: 10, minWidth: 20, height: 20,
     paddingHorizontal: 5, alignItems: "center", justifyContent: "center" },
-  badgeText:    { fontFamily: "Manrope-SemiBold", fontSize: 11, color: "#FFF" },
+  badgeText:    { fontFamily: "Manrope-Medium", fontSize: 11, color: "#FFF" },
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMPTY STATE ILLUSTRATION
+// ═══════════════════════════════════════════════════════════════════════════════
+function EmptyInboxIllustration() {
+  const floatAnim = useSharedValue(0);
+  const orbitAnim = useSharedValue(0);
+
+  useEffect(() => {
+    floatAnim.value = withRepeat(
+      withSequence(
+        withTiming(-10, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+    orbitAnim.value = withRepeat(
+      withTiming(2 * Math.PI, { duration: 6000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+
+  const floatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatAnim.value }]
+  }));
+
+  const orbitStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: 5 * Math.cos(orbitAnim.value) },
+      { translateY: 5 * Math.sin(orbitAnim.value) }
+    ]
+  }));
+
+  return (
+    <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 16 }}>
+      <Reanimated.View style={floatStyle}>
+        <Svg width={240} height={240} viewBox="0 0 240 240" fill="none">
+          <Circle cx="120" cy="120" r="85" fill="#2563EB" fillOpacity="0.06" />
+          <Path d="M50 130L60 170H180L190 130H160C160 145 145 155 120 155C95 155 80 145 80 130H50Z" fill="white" stroke="#0F172A" strokeWidth="4" strokeLinejoin="round" />
+          <Path d="M50 130V100C50 88.9543 58.9543 80 70 80H170C181.046 80 190 88.9543 190 100V130" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" />
+          <Rect x="75" y="100" width="90" height="6" rx="3" fill="#F0F9FF" stroke="#0F172A" strokeWidth="2" />
+          <Rect x="75" y="115" width="60" height="6" rx="3" fill="#F0F9FF" stroke="#0F172A" strokeWidth="2" />
+          <G transform="translate(130, 70) rotate(-15)">
+            <Path d="M0 15L30 0L20 28L15 20L0 15Z" fill="white" stroke="#0F172A" strokeWidth="3" strokeLinejoin="round" />
+            <Path d="M15 20L30 0" stroke="#0F172A" strokeWidth="2" />
+          </G>
+          <Circle cx="55" cy="85" r="5" fill="#2563EB" stroke="#0F172A" strokeWidth="2" />
+          <Path d="M80 50L82 55H87L83 58L84 63L80 60L76 63L77 58L73 55H78L80 50Z" fill="#2563EB" stroke="#0F172A" strokeWidth="1.5" />
+        </Svg>
+        <Reanimated.View style={[{ position: "absolute", top: 0, left: 0 }, orbitStyle]}>
+          <Svg width={240} height={240} viewBox="0 0 240 240" fill="none">
+            <Rect x="180" y="90" width="25" height="18" rx="5" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
+            <Path d="M185 108L180 113V108H185Z" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
+          </Svg>
+        </Reanimated.View>
+      </Reanimated.View>
+      <View style={{ width: 128, height: 8, backgroundColor: "rgba(30, 58, 138, 0.05)", borderRadius: 100, marginTop: -8 }} />
+    </View>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
@@ -459,9 +522,12 @@ export default function ConversationsListScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.accountBtn} onPress={() => setShowAccountSwitcher(true)}>
             <Text style={styles.accountName} numberOfLines={1}>{displayName}</Text>
-            <ChevronDown size={16} color={TEXT_PRIMARY} strokeWidth={2.5} style={{ marginLeft: 4 }} />
+            <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate("CreateGroupChat")}>
             <PenSquare size={22} color={TEXT_PRIMARY} strokeWidth={2} />
@@ -479,9 +545,12 @@ export default function ConversationsListScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         {/* ── Header ── */}
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.accountBtn} onPress={() => setShowAccountSwitcher(true)} activeOpacity={0.75}>
             <Text style={styles.accountName} numberOfLines={1}>{displayName}</Text>
-            <ChevronDown size={16} color={TEXT_PRIMARY} strokeWidth={2.5} style={{ marginLeft: 4 }} />
+            <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate("CreateGroupChat")}>
             <PenSquare size={22} color={TEXT_PRIMARY} strokeWidth={2} />
@@ -546,15 +615,11 @@ export default function ConversationsListScreen({ navigation }) {
             }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <View style={styles.emptyIconWrap}>
-                  <PenSquare size={32} color={ACCENT} strokeWidth={1.5} />
-                </View>
+                <EmptyInboxIllustration />
                 <Text style={styles.emptyTitle}>No conversations yet</Text>
-                <Text style={styles.emptySub}>Search for people above or create a group chat</Text>
-                <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate("CreateGroupChat")}>
-                  <Users size={16} color="#FFF" strokeWidth={2} style={{ marginRight: 6 }} />
-                  <Text style={styles.emptyBtnText}>Create Group Chat</Text>
-                </TouchableOpacity>
+                <Text style={styles.emptySub}>
+                  Your inbox is waiting for its first spark. Find friends or start a new chat to see them here.
+                </Text>
               </View>
             }
           />
@@ -565,12 +630,45 @@ export default function ConversationsListScreen({ navigation }) {
           visible={showAccountSwitcher}
           onClose={() => setShowAccountSwitcher(false)}
           onAddAccount={() => { setShowAccountSwitcher(false); setShowAddAccount(true); }}
-          accounts={allAccounts}
-          activeAccount={activeAccount}
-          onAccountSwitch={async () => {
+          currentAccountId={activeAccount?.id ? `${activeAccount.type || "member"}_${activeAccount.id}` : undefined}
+          currentProfile={activeAccount ? { ...activeAccount, type: activeAccount.type || "member" } : null}
+          onAccountSwitch={(account) => {
             setShowAccountSwitcher(false);
-            await loadAccountInfo();
-            await loadConversations();
+            const routeName =
+              account.type === "community" ? "CommunityHome" :
+              account.type === "sponsor"   ? "SponsorHome" :
+              account.type === "venue"     ? "VenueHome" :
+              "MemberHome";
+            // Walk up the navigator tree to find root
+            let rootNavigator = navigation;
+            try {
+              if (navigation.getParent) {
+                const parent1 = navigation.getParent();
+                if (parent1?.getParent) {
+                  const parent2 = parent1.getParent();
+                  if (parent2) rootNavigator = parent2;
+                }
+              }
+            } catch (_) {}
+            rootNavigator.reset({ index: 0, routes: [{ name: routeName }] });
+          }}
+          onLoginRequired={(account) => {
+            setShowAccountSwitcher(false);
+            let rootNavigator = navigation;
+            try {
+              if (navigation.getParent) {
+                const parent1 = navigation.getParent();
+                if (parent1?.getParent) {
+                  const parent2 = parent1.getParent();
+                  if (parent2) rootNavigator = parent2;
+                }
+              }
+            } catch (_) {}
+            try {
+              rootNavigator.navigate("Login", { email: account.email, isAddingAccount: false });
+            } catch (_) {
+              rootNavigator.reset({ index: 0, routes: [{ name: "Landing" }] });
+            }
           }}
         />
         <AddAccountModal
@@ -592,10 +690,10 @@ const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: BG },
   header:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingVertical: 12 },
-  accountBtn:      { flexDirection: "row", alignItems: "center", flex: 1 },
-  accountName:     { fontFamily: "BasicCommercial-Black", fontSize: 20, color: TEXT_PRIMARY },
-  iconBtn:         { width: 40, height: 40, alignItems: "center", justifyContent: "center",
-    backgroundColor: SURFACE, borderRadius: 20 },
+  backBtn:         { width: 40, height: 40, alignItems: "flex-start", justifyContent: "center" },
+  accountBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", flex: 1 },
+  accountName:     { fontFamily: "BasicCommercial-Black", fontSize: 20, color: "#3B82F6" },
+  iconBtn:         { width: 40, height: 40, alignItems: "flex-end", justifyContent: "center" },
   searchRow:       { paddingHorizontal: 16, paddingBottom: 12 },
   searchBar:       { flexDirection: "row", alignItems: "center", backgroundColor: SURFACE,
     borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10,
@@ -609,14 +707,9 @@ const styles = StyleSheet.create({
   emptySearch:     { paddingTop: 40, alignItems: "center" },
   emptySearchText: { fontFamily: "Manrope-Regular", fontSize: 14, color: TEXT_SEC },
   emptyContainer:  { flex: 1, justifyContent: "center", alignItems: "center",
-    paddingHorizontal: 40, paddingBottom: 80 },
-  emptyIconWrap:   { width: 72, height: 72, borderRadius: 36, backgroundColor: SURFACE,
-    alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  emptyTitle:      { fontFamily: "BasicCommercial-Bold", fontSize: 22, color: TEXT_PRIMARY,
-    marginBottom: 8, letterSpacing: -0.3 },
-  emptySub:        { fontFamily: "Manrope-Regular", fontSize: 14, color: TEXT_SEC,
-    textAlign: "center", lineHeight: 20, marginBottom: 24 },
-  emptyBtn:        { flexDirection: "row", alignItems: "center", backgroundColor: ACCENT,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24 },
-  emptyBtnText:    { fontFamily: "Manrope-SemiBold", fontSize: 14, color: "#FFF" },
+    paddingHorizontal: 32, paddingBottom: 80 },
+  emptyTitle:      { fontFamily: "BasicCommercial-Bold", fontSize: 24, color: "#0F172A",
+    marginBottom: 12, letterSpacing: -0.3 },
+  emptySub:        { fontFamily: "Manrope-Regular", fontSize: 14, color: "#64748B",
+    textAlign: "center", lineHeight: 22, marginBottom: 32, maxWidth: 280 },
 });

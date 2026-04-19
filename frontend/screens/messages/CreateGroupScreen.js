@@ -12,12 +12,12 @@ import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import SnooLoader from "../../components/ui/SnooLoader";
 
-const BG       = "#0A0A0A";
-const SURFACE  = "#141414";
-const SURFACE2 = "#1C1C1E";
-const BORDER   = "#2A2A2A";
+const BG       = "#FFFFFF";
+const SURFACE  = "#F8F8F8";
+const SURFACE2 = "#EFEFF4";
+const BORDER   = "#E5E5EA";
 const ACCENT   = "#3565F2";
-const TEXT     = "#FFFFFF";
+const TEXT     = "#000000";
 const TEXT_SEC = "#8E8E93";
 
 function SelectedChip({ user, onRemove }) {
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   title:           { fontFamily:"BasicCommercial-Black", fontSize:18, color:TEXT },
   nextBtn:         { paddingHorizontal:16, paddingVertical:8, backgroundColor:ACCENT, borderRadius:20 },
   nextBtnDisabled: { backgroundColor:SURFACE2 },
-  nextText:        { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
+  nextText:        { fontFamily:"Manrope-SemiBold", fontSize:14, color:"#FFFFFF" },
   chipsRow:        { flexDirection:"row", flexWrap:"wrap", paddingHorizontal:12, paddingTop:10,
     paddingBottom:4, borderBottomWidth:1, borderBottomColor:BORDER },
   searchRow:       { paddingHorizontal:16, paddingVertical:10 },
@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
   previewAvatar:   { width:44, height:44, borderRadius:22, marginHorizontal:4, borderWidth:2, borderColor:BG },
   previewMore:     { width:44, height:44, borderRadius:22, backgroundColor:SURFACE2,
     alignItems:"center", justifyContent:"center", marginHorizontal:4 },
-  previewMoreText: { fontFamily:"Manrope-SemiBold", fontSize:13, color:TEXT_SEC },
+  previewMoreText: { fontFamily:"Manrope-Medium", fontSize:13, color:TEXT_SEC },
   nameInputWrap:   { marginHorizontal:16, borderBottomWidth:1, borderBottomColor:BORDER, paddingVertical:4 },
   nameInput:       { fontFamily:"BasicCommercial-Bold", fontSize:22, color:TEXT, paddingVertical:10 },
-  memberCount:     { fontFamily:"Manrope-Regular", fontSize:13, color:TEXT_SEC, textAlign:"center", marginTop:16 },
+  memberCount:     { fontFamily:"Manrope-Medium", fontSize:13, color:TEXT_SEC, textAlign:"center", marginTop:16 },
 });
