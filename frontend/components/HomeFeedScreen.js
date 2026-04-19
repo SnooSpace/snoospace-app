@@ -64,6 +64,8 @@ import { COLORS } from "../constants/theme";
 import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
 import { LinearGradient } from "expo-linear-gradient";
+import JoinGroupChatModal from "./modals/JoinGroupChatModal";
+
 
 // SnooSpace Logo SVG (full wordmark)
 const SnooSpaceLogoSvg = `<svg width="893" height="217" viewBox="0 0 893 217" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1461,7 +1463,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           <Text style={styles.deleteToastText}>Post deleted</Text>
         </RNAnimated.View>
       )}
+      {/* Community group-join prompt */}
+      <JoinGroupChatModal navigation={navigation} />
     </SafeAreaView>
+
   );
 }
 

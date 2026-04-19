@@ -10,7 +10,8 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, MoreVertical, CornerUpLeft } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, MoreVertical, CornerUpLeft, Info } from "lucide-react-native";
+
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
@@ -191,7 +192,8 @@ const unsendStyles = StyleSheet.create({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
-  const { conversationId, recipientId, recipientType = "member" } = route.params || {};
+  const { conversationId, recipientId, recipientType = "member", isGroup = false, groupName } = route.params || {};
+
 
   const [messages,              setMessages]             = useState([]);
   const [messageText,           setMessageText]          = useState("");
@@ -590,16 +592,32 @@ export default function ChatScreen({ route, navigation }) {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
             </TouchableOpacity>
-            {recipient && (
+            {isGroup ? (
               <>
-                <Image source={{ uri: recipient.profilePhotoUrl || "https://via.placeholder.com/32" }} style={styles.headerAvatar} />
                 <View style={styles.headerInfo}>
-                  <Text style={styles.headerName} numberOfLines={1}>{recipient.name || "User"}</Text>
-                  <Text style={styles.headerUsername} numberOfLines={1}>@{recipient.username || "user"}</Text>
+                  <Text style={styles.headerName} numberOfLines={1}>{groupName || "Group"}</Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => navigation.navigate("GroupInfo", { conversationId: currentConversationId, groupName })}
+                >
+                  <Info size={20} color="#333333" strokeWidth={2} />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {recipient && (
+                  <>
+                    <Image source={{ uri: recipient.profilePhotoUrl || "https://via.placeholder.com/32" }} style={styles.headerAvatar} />
+                    <View style={styles.headerInfo}>
+                      <Text style={styles.headerName} numberOfLines={1}>{recipient.name || "User"}</Text>
+                      <Text style={styles.headerUsername} numberOfLines={1}>@{recipient.username || "user"}</Text>
+                    </View>
+                  </>
+                )}
+                <View style={{ width: 40 }} />
               </>
             )}
-            <View style={{ width: 40 }} />
           </View>
         </View>
 

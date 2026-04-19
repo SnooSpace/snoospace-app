@@ -20,6 +20,8 @@ import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
+import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
+
 
 
 const Stack = createStackNavigator();
@@ -55,6 +57,11 @@ export default function HomeStackNavigator() {
       <Stack.Screen
         name="CreateGroupChat"
         component={CreateGroupScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="GroupInfo"
+        component={GroupInfoScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
