@@ -168,13 +168,17 @@ const CommunityOtpScreen = ({ navigation, route }) => {
             const activeAccount = await accountManager.getActiveAccount();
             const originAccountId = activeAccount?.id || null;
             await createCommunitySignupDraft(email, originAccountId);
-            // Persist tokens so draft-resume can call the signup API
-            if (accessToken || refreshToken) {
-              await updateCommunitySignupDraft("CommunityOtp", {
-                accessToken,
-                refreshToken,
-              });
-            }
+
+            // Always persist a valid token for API calls (e.g. member search)
+            // during the signup flow. If the OTP produced no session (0-accounts
+            // path), fall back to the currently active member's token so that
+            // CommunityHeadNameScreen can authenticate its /members/search calls.
+            const tokenToStore = accessToken || activeAccount?.authToken || null;
+            const refreshToStore = refreshToken || activeAccount?.refreshToken || null;
+            await updateCommunitySignupDraft("CommunityOtp", {
+              accessToken: tokenToStore,
+              refreshToken: refreshToStore,
+            });
           } catch (draftError) {
             console.log(
               "[CommunityOtpScreen] Draft creation failed (non-critical)",
@@ -286,13 +290,17 @@ const CommunityOtpScreen = ({ navigation, route }) => {
       const activeAccount = await accountManager.getActiveAccount();
       const originAccountId = activeAccount?.id || null;
       await createCommunitySignupDraft(email, originAccountId);
-      // Persist tokens so draft-resume can call the signup API
-      if (accessToken || refreshToken) {
-        await updateCommunitySignupDraft("CommunityOtp", {
-          accessToken,
-          refreshToken,
-        });
-      }
+
+      // Always persist a valid token for API calls during the signup flow.
+      // For the multi-account path, the OTP produces no session so accessToken
+      // is null here. Fall back to the currently active member's token so that
+      // CommunityHeadNameScreen can authenticate its /members/search calls.
+      const tokenToStore = accessToken || activeAccount?.authToken || null;
+      const refreshToStore = refreshToken || activeAccount?.refreshToken || null;
+      await updateCommunitySignupDraft("CommunityOtp", {
+        accessToken: tokenToStore,
+        refreshToken: refreshToStore,
+      });
     } catch (draftError) {
       console.log("[CommunityOtpScreen] Draft creation failed (non-critical)");
     }

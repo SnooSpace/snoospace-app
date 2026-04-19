@@ -388,6 +388,9 @@ async function searchMembers(req, res) {
     let query, params;
 
     if (isMemberSearcher) {
+      // Note: self-exclusion (AND m.id <> $2) intentionally removed.
+      // Members may want to find themselves — e.g. linking their own profile
+      // as a community organizer during signup.
       query = `SELECT m.id, m.username, m.name as full_name, m.bio, m.profile_photo_url,
                       (SELECT 1 FROM follows f
                          WHERE f.follower_id = $2 AND f.follower_type = 'member'
@@ -395,7 +398,6 @@ async function searchMembers(req, res) {
                          LIMIT 1) IS NOT NULL AS is_following
                FROM members m
                WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
-                 AND m.id <> $2
                ORDER BY m.name ASC
                LIMIT $3 OFFSET $4`;
       params = [likeParam, userId, limit, offset];

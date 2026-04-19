@@ -701,22 +701,13 @@ const styles = StyleSheet.create({
   // --- Toggle Card ---
   toggleCard: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.9)",
-    marginBottom: 16,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 2 },
-    }),
+    marginBottom: 20,
   },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 10,
   },
   toggleTextGroup: {
     flex: 1,

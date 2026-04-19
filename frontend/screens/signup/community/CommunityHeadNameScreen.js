@@ -9,7 +9,7 @@
  * skipping the now-redundant CommunityHeadProfilePic screen.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   View,
@@ -19,11 +19,15 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  FlatList,
+  Modal,
+  KeyboardAvoidingView,
   Platform,
   StatusBar,
   Alert,
   ImageBackground,
   Image,
+  Pressable,
 } from "react-native";
 import Animated, {
   FadeInDown,
@@ -32,7 +36,9 @@ import Animated, {
   withSpring,
   withSequence,
 } from "react-native-reanimated";
-import { XCircle, PlusCircle, Camera } from "lucide-react-native";
+import { XCircle, PlusCircle, Camera, Link, User, X, ChevronRight } from "lucide-react-native";
+import { apiGet } from "../../../api/client";
+import { getAuthToken } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.png";
@@ -62,10 +68,13 @@ const HeadEntry = ({
   name,
   role,
   photoUri,
+  linkedMember,
   onNameChange,
   onRoleChange,
   onRemove,
   onPickPhoto,
+  onLinkMember,
+  onUnlinkMember,
   isRequired,
   showRemove,
   isIndividual,
@@ -84,17 +93,11 @@ const HeadEntry = ({
   }));
 
   useEffect(() => {
-    nameScale.value = withSpring(nameFocused ? 1.02 : 1, {
-      damping: 15,
-      stiffness: 120,
-    });
+    nameScale.value = withSpring(nameFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
   }, [nameFocused]);
 
   useEffect(() => {
-    roleScale.value = withSpring(roleFocused ? 1.02 : 1, {
-      damping: 15,
-      stiffness: 120,
-    });
+    roleScale.value = withSpring(roleFocused ? 1.02 : 1, { damping: 15, stiffness: 120 });
   }, [roleFocused]);
 
   return (
@@ -124,17 +127,12 @@ const HeadEntry = ({
           activeOpacity={0.8}
         >
           {photoUri ? (
-            <Image
-              source={{ uri: photoUri }}
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: photoUri }} style={styles.avatarImage} resizeMode="cover" />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Camera size={24} color={COLORS.textTertiary || "#999"} strokeWidth={1.5} />
             </View>
           )}
-          {/* Small camera badge */}
           <View style={styles.cameraBadge}>
             <View style={styles.cameraBadgeInner}>
               <Camera size={10} color="#fff" />
@@ -152,6 +150,7 @@ const HeadEntry = ({
               value={name}
               onChangeText={onNameChange}
               autoCapitalize="words"
+              editable={!linkedMember}
               onFocus={() => setNameFocused(true)}
               onBlur={() => setNameFocused(false)}
             />
@@ -159,12 +158,8 @@ const HeadEntry = ({
 
           <Animated.View style={animatedRoleStyle}>
             <TextInput
-              style={[
-                styles.input,
-                styles.inputRole,
-                roleFocused && styles.inputFocused,
-              ]}
-              placeholder={isIndividual ? "e.g., Organizer, Host" : "Role (e.g., President, Coordinator)"}
+              style={[styles.input, styles.inputRole, roleFocused && styles.inputFocused]}
+              placeholder={isIndividual ? "e.g., Organizer, Host (Optional)" : "Role (Optional)"}
               placeholderTextColor={COLORS.textSecondary}
               value={role}
               onChangeText={onRoleChange}
@@ -174,6 +169,26 @@ const HeadEntry = ({
             />
           </Animated.View>
         </View>
+      </View>
+
+      {/* Link Member Profile row */}
+      <View style={styles.linkRow}>
+        {linkedMember ? (
+          <View style={styles.linkedBadge}>
+            <User size={12} color="#4A90D9" />
+            <Text style={styles.linkedBadgeText} numberOfLines={1}>
+              @{linkedMember.username || linkedMember.full_name || "member"}
+            </Text>
+            <TouchableOpacity onPress={onUnlinkMember} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={13} color="#4A90D9" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.linkButton} onPress={onLinkMember} activeOpacity={0.7}>
+            <Link size={13} color="#4A90D9" />
+            <Text style={styles.linkButtonText}>Link member profile</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -233,19 +248,114 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
 
   const isIndividual = params.community_type === "individual_organizer";
 
-  // Each entry: { name, role, photoUri (local), uploadedUrl (remote) }
+  // Each entry: { name, role, photoUri (local), uploadedUrl (remote), linkedMember (object|null) }
   const initialHeadState = isIndividual
-    ? [{ name: "", role: "", photoUri: null, uploadedUrl: null }]
+    ? [{ name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null }]
     : [
-        { name: "", role: "", photoUri: null, uploadedUrl: null },
-        { name: "", role: "", photoUri: null, uploadedUrl: null },
+        { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
+        { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
       ];
 
   const [heads, setHeads] = useState(initialHeadState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Member search / link sheet state
+  const [linkingIndex, setLinkingIndex] = useState(-1);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [memberResults, setMemberResults] = useState([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const searchTimeout = useRef(null);
+  const searchInputRef = useRef(null);
+  // Keep a ref so doSearch always reads the latest token even if params hydrate after mount
+  const accessTokenRef = useRef(accessToken || null);
+  useEffect(() => {
+    if (params.accessToken) accessTokenRef.current = params.accessToken;
+  }, [params.accessToken]);
+
   const { pickAndCrop } = useCrop();
+
+  // Member search helpers — mirrors HeadsEditorModal.searchMembers exactly
+  const doSearch = useCallback(async (q) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) { setMemberResults([]); return; }
+    try {
+      setMemberLoading(true);
+      // Token resolution priority:
+      // 1. accessTokenRef (set from route params / draft hydration)
+      // 2. getAuthToken() → reads active account from accountManager
+      // 3. sessionManager.getActiveSession() → last-resort during signup flow
+      let token = accessTokenRef.current;
+      if (!token) token = await getAuthToken();
+      if (!token) {
+        try {
+          const { getActiveSession } = require("../../../utils/sessionManager");
+          const session = await getActiveSession();
+          if (session?.accessToken) token = session.accessToken;
+        } catch (_) {}
+      }
+
+      console.log("[CommunityHeadName] doSearch token present:", !!token, "length:", token?.length);
+
+      if (!token) {
+        console.warn("[CommunityHeadName] No auth token available for member search");
+        setMemberResults([]);
+        return;
+      }
+
+      const res = await apiGet(
+        `/members/search?q=${encodeURIComponent(trimmed)}`,
+        15000,
+        token,
+      );
+      const results = res?.results || [];
+      console.log("[CommunityHeadName] Search results count:", results.length);
+      setMemberResults(results);
+    } catch (e) {
+      console.error("[CommunityHeadName] Member search error:", e?.message, e?.status);
+      setMemberResults([]);
+    } finally {
+      setMemberLoading(false);
+    }
+  }, []); // no deps — reads token via ref, always fresh
+
+  useEffect(() => {
+    if (linkingIndex === -1) return;
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => doSearch(memberQuery), 350);
+    return () => clearTimeout(searchTimeout.current);
+  }, [memberQuery, linkingIndex, doSearch]);
+
+  const openLinkSheet = (idx) => {
+    setLinkingIndex(idx);
+    setMemberQuery("");
+    setMemberResults([]);
+  };
+
+  const closeLinkSheet = () => {
+    setLinkingIndex(-1);
+    setMemberQuery("");
+    setMemberResults([]);
+  };
+
+  const handleSelectMember = (member) => {
+    const next = [...heads];
+    next[linkingIndex] = {
+      ...next[linkingIndex],
+      name: member.full_name || member.name || "",
+      photoUri: member.profile_photo_url || next[linkingIndex].photoUri,
+      uploadedUrl: member.profile_photo_url || null,
+      linkedMember: member,
+    };
+    setHeads(next);
+    closeLinkSheet();
+  };
+
+  const handleUnlinkMember = (idx) => {
+    const next = [...heads];
+    next[idx] = { ...next[idx], linkedMember: null, name: "", photoUri: null, uploadedUrl: null };
+    setHeads(next);
+  };
 
   // Animation
   const buttonScale = useSharedValue(1);
@@ -316,6 +426,10 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
       });
       if (paramChanged) {
         setParams(updatedParams);
+        // Keep ref in sync immediately — don't wait for useEffect
+        if (updatedParams.accessToken) {
+          accessTokenRef.current = updatedParams.accessToken;
+        }
       }
     };
     initScreen();
@@ -515,6 +629,9 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                         isRequired={index === 0}
                         showRemove={isIndividual ? false : index >= 2}
                         isIndividual={isIndividual}
+                        linkedMember={head.linkedMember}
+                        onLinkMember={() => openLinkSheet(index)}
+                        onUnlinkMember={() => handleUnlinkMember(index)}
                       />
                     </Animated.View>
                   ))}
@@ -579,6 +696,81 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
           onKeepEditing={() => setShowCancelModal(false)}
           onDiscard={handleCancel}
         />
+
+        {/* Member search bottom sheet */}
+        <Modal
+          visible={linkingIndex !== -1}
+          transparent
+          animationType="fade"
+          onRequestClose={closeLinkSheet}
+          statusBarTranslucent
+          onShow={() => {
+            setTimeout(() => {
+              searchInputRef.current?.focus();
+            }, 100);
+          }}
+        >
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+          >
+            <Pressable style={styles.sheetOverlay} onPress={closeLinkSheet}>
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%" }}>
+                <View style={styles.sheet}>
+                  <View style={styles.sheetHeader}>
+                    <Text style={styles.sheetTitle}>Link Member Profile</Text>
+                    <TouchableOpacity onPress={closeLinkSheet} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <X size={22} color="#1a2d4a" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.sheetHint}>Search by name or @username. Their photo and name will be imported automatically.</Text>
+                  <TextInput
+                    ref={searchInputRef}
+                    style={styles.sheetInput}
+                    placeholder="Search members…"
+                    placeholderTextColor="#9CA3AF"
+                    value={memberQuery}
+                    onChangeText={setMemberQuery}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {memberLoading ? (
+                    <View style={styles.sheetLoader}>
+                      <SnooLoader size="small" color={COLORS.primary} />
+                    </View>
+                  ) : memberResults.length === 0 && memberQuery.trim().length >= 2 ? (
+                    <Text style={styles.sheetEmpty}>No members found</Text>
+                  ) : (
+                    <FlatList
+                      data={memberResults}
+                      keyExtractor={(m) => String(m.id)}
+                      style={styles.sheetList}
+                      keyboardShouldPersistTaps="handled"
+                      renderItem={({ item }) => (
+                        <TouchableOpacity style={styles.sheetItem} onPress={() => handleSelectMember(item)} activeOpacity={0.7}>
+                          {item.profile_photo_url ? (
+                            <Image source={{ uri: item.profile_photo_url }} style={styles.sheetAvatar} />
+                          ) : (
+                            <View style={[styles.sheetAvatar, styles.sheetAvatarPlaceholder]}>
+                              <User size={18} color="#9CA3AF" />
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.sheetItemName} numberOfLines={1}>{item.full_name || item.name || "Member"}</Text>
+                            <Text style={styles.sheetItemUsername} numberOfLines={1}>@{item.username || "user"}</Text>
+                          </View>
+                          <ChevronRight size={18} color="#9CA3AF" />
+                        </TouchableOpacity>
+                      )}
+                      ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.04)" }} />}
+                    />
+                  )}
+                </View>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -794,6 +986,141 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+
+  /* Link row inside each head card */
+  linkRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  linkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(74, 144, 217, 0.1)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 217, 0.2)",
+  },
+  linkButtonText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#4A90D9",
+  },
+  linkedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(74, 144, 217, 0.3)",
+    maxWidth: "80%",
+  },
+  linkedBadgeText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#4A90D9",
+    flexShrink: 1,
+  },
+
+  /* Member search bottom sheet */
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  sheet: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    maxHeight: "90%",
+    minHeight: 280,
+    width: "100%",
+    ...SHADOWS.xl,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E5E7EB",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontFamily: "Manrope-Bold",
+    color: "#1a2d4a",
+  },
+  sheetHint: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7A8D",
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  sheetInput: {
+    height: 48,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: "#1a2d4a",
+    marginBottom: 12,
+  },
+  sheetLoader: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  sheetEmpty: {
+    textAlign: "center",
+    paddingVertical: 24,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
+  },
+  sheetList: { maxHeight: 280 },
+  sheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  sheetAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  sheetAvatarPlaceholder: {
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetItemName: {
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1a2d4a",
+  },
+  sheetItemUsername: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7A8D",
   },
 });
 
