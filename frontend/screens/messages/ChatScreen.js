@@ -115,49 +115,62 @@ const ReplyBar = ({ reply, onClose }) => {
     (reply.messageText || "").slice(0, 60) + ((reply.messageText || "").length > 60 ? "…" : "");
   return (
     <Animated.View style={[replyBarStyles.container, animStyle]}>
-      <View style={replyBarStyles.accent} />
       <View style={replyBarStyles.body}>
-        <Text style={replyBarStyles.name}>{reply.senderName || "Message"}</Text>
+        <Text style={replyBarStyles.name}>Replying to {reply.senderName || "Message"}</Text>
         <Text style={replyBarStyles.preview} numberOfLines={1}>{preview}</Text>
       </View>
       <TouchableOpacity onPress={onClose} style={replyBarStyles.close} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-        <X size={16} color={LIGHT_TEXT} strokeWidth={2} />
+        <X size={16} color={LIGHT_TEXT} strokeWidth={2.5} />
       </TouchableOpacity>
     </Animated.View>
   );
 };
 const replyBarStyles = StyleSheet.create({
-  container: { flexDirection:"row", alignItems:"center", backgroundColor:"#F0F4FF",
-    borderTopWidth:1, borderTopColor:"#D6E2FF", paddingHorizontal:16, paddingVertical:8 },
-  accent:  { width:3, borderRadius:2, backgroundColor:PRIMARY_COLOR, marginRight:10, alignSelf:"stretch" },
+  container: { flexDirection:"row", alignItems:"center", backgroundColor: CHAT_CANVAS_BG,
+    paddingHorizontal:16, paddingVertical:10, borderTopWidth: 1, borderTopColor: INCOMING_BORDER },
   body:    { flex:1 },
-  name:    { fontFamily:"Manrope-SemiBold", fontSize:12, color:PRIMARY_COLOR, marginBottom:2 },
-  preview: { fontFamily:"Manrope-Regular",  fontSize:12, color:MESSAGE_TEXT_COLOR, opacity:0.7 },
+  name:    { fontFamily:"Manrope-SemiBold", fontSize:12, color: LIGHT_TEXT, marginBottom:2 },
+  preview: { fontFamily:"Manrope-Regular",  fontSize:13, color: MESSAGE_TEXT_COLOR },
   close:   { padding:4, marginLeft:8 },
 });
 
 // ── ReplyQuote (inside bubble) ────────────────────────────────────────────────
-const ReplyQuote = ({ replyPreview, onPress }) => {
+const ReplyQuote = ({ replyPreview, onPress, isMyMessage }) => {
   if (!replyPreview) return null;
   const text = replyPreview.isDeleted ? "Original message was unsent" :
     (replyPreview.messageText || "").slice(0, 80) + ((replyPreview.messageText || "").length > 80 ? "…" : "");
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={quoteStyles.container}>
-      <View style={quoteStyles.bar} />
-      <View style={quoteStyles.body}>
-        <Text style={quoteStyles.name}>{replyPreview.senderName || "Message"}</Text>
-        <Text style={quoteStyles.text} numberOfLines={2}>{text}</Text>
-      </View>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
+      <CornerUpLeft size={12} color={LIGHT_TEXT} style={{ marginRight: 6 }} />
+      <Text style={quoteStyles.text} numberOfLines={1}>{text}</Text>
     </TouchableOpacity>
   );
 };
 const quoteStyles = StyleSheet.create({
-  container: { flexDirection:"row", backgroundColor:"rgba(0,0,0,0.06)", borderRadius:8,
-    marginBottom:6, overflow:"hidden" },
-  bar:  { width:2, backgroundColor:PRIMARY_COLOR },
-  body: { flex:1, padding:6 },
-  name: { fontFamily:"Manrope-SemiBold", fontSize:11, color:PRIMARY_COLOR, marginBottom:1 },
-  text: { fontFamily:"Manrope-Regular",  fontSize:12, color:MESSAGE_TEXT_COLOR, opacity:0.8 },
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: -8, // tuck behind main bubble
+    zIndex: -1,
+    maxWidth: "80%",
+  },
+  myContainer: {
+    alignSelf: "flex-end",
+    marginRight: 12,
+  },
+  otherContainer: {
+    alignSelf: "flex-start",
+    marginLeft: 12,
+  },
+  text: { 
+    fontFamily: "Manrope-Medium", 
+    fontSize: 12, 
+    color: LIGHT_TEXT, 
+  },
 });
 
 // ── UnsendModal ───────────────────────────────────────────────────────────────
@@ -431,7 +444,6 @@ export default function ChatScreen({ route, navigation }) {
     return diff > 60000;
   }, [recipient, recipientId]);
 
-  // ── SwipeableMessage ────────────────────────────────────────────────────────
   const SwipeableMessage = useCallback(({ onReply, children }) => {
     const translateX  = useSharedValue(0);
     const iconOpacity = useSharedValue(0);
@@ -456,12 +468,17 @@ export default function ChatScreen({ route, navigation }) {
         if (didTrigger) runOnJS(onReply)();
       });
     const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-    const iconStyle   = useAnimatedStyle(() => ({ opacity: iconOpacity.value }));
+    const iconStyle   = useAnimatedStyle(() => ({ 
+      opacity: iconOpacity.value,
+      transform: [{ scale: Math.max(0.5, iconOpacity.value) }]
+    }));
     return (
       <GestureDetector gesture={pan}>
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-          <Animated.View style={[{ position: "absolute", left: -28, zIndex: 0 }, iconStyle]}>
-            <CornerUpLeft size={18} color={PRIMARY_COLOR} strokeWidth={2} />
+          <Animated.View style={[{ position: "absolute", left: 12, zIndex: -1 }, iconStyle]}>
+            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+              <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
+            </View>
           </Animated.View>
           <Animated.View style={[{ flex: 1 }, bubbleStyle]}>{children}</Animated.View>
         </View>
@@ -540,15 +557,17 @@ export default function ChatScreen({ route, navigation }) {
         onLongPress={() => { if (isMyMessage) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setUnsendTarget(msg.id); } }}
         delayLongPress={400}
       >
-        <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
+        <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start" }}>
           {msg.replyPreview && (
-            <ReplyQuote replyPreview={msg.replyPreview} onPress={() => {
+            <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => {
               const idx = messageIndexMap[msg.replyToMessageId];
               if (idx != null) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
             }} />
           )}
-          <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
-          <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
+          <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
+            <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
+            <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
+          </View>
         </View>
       </Pressable>
     );
@@ -645,37 +664,37 @@ export default function ChatScreen({ route, navigation }) {
           </Animated.View>
         </KeyboardAvoidingView>
 
-        <ReplyBar reply={selectedReply} onClose={() => setSelectedReply(null)} />
-
         <KeyboardAwareToolbar>
-          <View style={styles.inputContent}>
-            <View style={[styles.inputWrapper, { overflow: "hidden" }]}>
-              <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFill} />
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
-                placeholder="Message..."
-                placeholderTextColor="#8FA1B8"
-                selectionColor="#8FA1B8"
-                cursorColor="#8FA1B8"
-                underlineColorAndroid="transparent"
-                value={messageText}
-                onChangeText={setMessageText}
-                multiline
-                maxLength={1000}
-              />
+          <View style={{ flexDirection: "column" }}>
+            <ReplyBar reply={selectedReply} onClose={() => setSelectedReply(null)} />
+            <View style={styles.inputContent}>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  placeholder="Message..."
+                  placeholderTextColor="#8FA1B8"
+                  selectionColor="#8FA1B8"
+                  cursorColor="#8FA1B8"
+                  underlineColorAndroid="transparent"
+                  value={messageText}
+                  onChangeText={setMessageText}
+                  multiline
+                  maxLength={1000}
+                />
+              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  (!messageText.trim() || sending) && styles.sendButtonDisabled,
+                  pressed && !(!messageText.trim() || sending) && { backgroundColor: SEND_BUTTON_PRESSED },
+                ]}
+                onPress={handleSend}
+                disabled={!messageText.trim() || sending}
+              >
+                {sending ? <SnooLoader size="small" color="#FFFFFF" /> : <Send size={20} color="#FFFFFF" strokeWidth={2.6} />}
+              </Pressable>
             </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.sendButton,
-                (!messageText.trim() || sending) && styles.sendButtonDisabled,
-                pressed && !(!messageText.trim() || sending) && { backgroundColor: SEND_BUTTON_PRESSED },
-              ]}
-              onPress={handleSend}
-              disabled={!messageText.trim() || sending}
-            >
-              {sending ? <SnooLoader size="small" color="#FFFFFF" /> : <Send size={20} color="#FFFFFF" strokeWidth={2.6} />}
-            </Pressable>
           </View>
         </KeyboardAwareToolbar>
 
@@ -717,26 +736,26 @@ const styles = StyleSheet.create({
   myMessageContainer:    { justifyContent: "flex-end" },
   otherMessageContainer: { justifyContent: "flex-start" },
   messageAvatar:  { width: 30, height: 30, borderRadius: 15, marginRight: 8 },
-  messageBubble:  { maxWidth: "75%", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18 },
+  messageBubble:  { maxWidth: "75%", paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6, borderRadius: 18 },
   myMessageBubble:    { backgroundColor: OUTGOING_MESSAGE_BG },
   otherMessageBubble: { backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1 },
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
   deletedBubble:  { opacity: 0.55 },
   deletedText:    { fontFamily: "Manrope-Regular", fontSize: 13, color: LIGHT_TEXT, fontStyle: "italic" },
-  messageText:    { fontFamily: "Manrope-Regular", fontSize: 15, lineHeight: 22.5, marginBottom: 4 },
+  messageText:    { fontFamily: "Manrope-Regular", fontSize: 15, lineHeight: 21 },
   myMessageText:  { color: MESSAGE_TEXT_COLOR },
   otherMessageText: { color: MESSAGE_TEXT_COLOR },
-  messageTime:    { fontFamily: "Manrope-Medium", fontSize: 11, alignSelf: "flex-end", opacity: 0.65 },
+  messageTime:    { fontFamily: "Manrope-Medium", fontSize: 10, alignSelf: "flex-end", opacity: 0.65, marginTop: 2 },
   myMessageTime:  { color: MESSAGE_TEXT_COLOR },
   otherMessageTime: { color: MESSAGE_TEXT_COLOR },
   systemRow:      { alignItems: "center", marginVertical: 6, paddingHorizontal: 16 },
   systemText:     { fontFamily: "Manrope-Regular", fontSize: 12, color: LIGHT_TEXT, fontStyle: "italic", opacity: 0.7, textAlign: "center" },
   inputContent:   { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 16, paddingVertical: 12 },
-  inputWrapper:   { flex: 1, marginRight: 8, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1, borderColor: "#D9E2F2", minHeight: 44, paddingHorizontal: 12, paddingVertical: 4,
-    justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 4, elevation: 4 },
-  input:          { paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, minHeight: 44,
+  inputWrapper:   { flex: 1, marginRight: 8, borderRadius: 22, backgroundColor: "#FFFFFF",
+    borderWidth: 1, borderColor: "#E5E5EA", minHeight: 44,
+    justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
+  input:          { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 100, minHeight: 44,
     fontFamily: "Manrope-Regular", fontSize: 14.5, color: "#1F3A5F",
     backgroundColor: "transparent", textAlignVertical: "center", borderWidth: 0 },
   sendButton:     { width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY_COLOR,
