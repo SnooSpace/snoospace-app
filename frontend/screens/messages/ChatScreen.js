@@ -142,9 +142,15 @@ const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
       <View style={[quoteStyles.verticalBar, isMyMessage ? quoteStyles.myVerticalBar : quoteStyles.otherVerticalBar]} />
       <View style={quoteStyles.content}>
-        <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
-          {replyPreview.messageText || "Message"}
-        </Text>
+        {replyPreview.isDeleted ? (
+          <Text style={[quoteStyles.text, quoteStyles.deletedText]} numberOfLines={1}>
+            This message was unsent
+          </Text>
+        ) : (
+          <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
+            {replyPreview.messageText || "Message"}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   </View>
@@ -212,6 +218,11 @@ const quoteStyles = StyleSheet.create({
   },
   otherText: {
     color: "rgba(31, 58, 95, 0.8)",
+  },
+  deletedText: {
+    color: "#A0A0A0",
+    fontStyle: "italic",
+    fontFamily: "Manrope-Regular",
   },
 });
 
@@ -503,14 +514,30 @@ export default function ChatScreen({ route, navigation }) {
 
   // ── handleUnsend ───────────────────────────────────────────────────────────
   const handleUnsend = async (id) => {
-    setMessages(prev => prev.map(m => m.id === id
-      ? { ...m, isDeleted: true, deletedByType: "sender", messageText: null } : m));
+    setMessages(prev => prev.map(m => {
+      // Mark the deleted message itself
+      if (m.id === id) {
+        return { ...m, isDeleted: true, deletedByType: "sender", messageText: null };
+      }
+      // Mark any reply previews that reference this message
+      if (m.replyPreview && m.replyToMessageId === id) {
+        return { ...m, replyPreview: { ...m.replyPreview, isDeleted: true, messageText: null } };
+      }
+      return m;
+    }));
     try {
       await unsendMessage(id);
     } catch (err) {
       console.error("Unsend error:", err);
       Alert.alert("Error", "Could not unsend message.");
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, isDeleted: false } : m));
+      // Revert both the message and any reply previews pointing to it
+      setMessages(prev => prev.map(m => {
+        if (m.id === id) return { ...m, isDeleted: false };
+        if (m.replyPreview && m.replyToMessageId === id) {
+          return { ...m, replyPreview: { ...m.replyPreview, isDeleted: false } };
+        }
+        return m;
+      }));
     }
   };
 
