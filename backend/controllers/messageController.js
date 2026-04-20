@@ -810,8 +810,10 @@ const unsendMessage = async (req, res) => {
     if (check.rows.length === 0) return res.status(403).json({ error: "Cannot unsend this message" });
 
     await pool.query(
-      `UPDATE messages SET is_deleted = true, deleted_by_type = $1 WHERE id = $2`,
-      [userType, messageId],
+      // deleted_by_type must be 'sender' or 'recipient' (DB CHECK constraint).
+      // Unsend is only permitted by the message's own sender, so always use 'sender'.
+      `UPDATE messages SET is_deleted = true, deleted_by_type = 'sender' WHERE id = $1`,
+      [messageId],
     );
     res.json({ success: true });
   } catch (error) {
