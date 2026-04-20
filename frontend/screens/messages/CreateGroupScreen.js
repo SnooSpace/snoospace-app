@@ -124,13 +124,13 @@ export default function CreateGroupScreen({ navigation }) {
     setCreating(true);
     try {
       const res = await createGroupConversation({
-        name: groupName.trim(),
+        groupName: groupName.trim(),
         participants: selected.map((u) => ({ id: u.id, type: u.type || "member" })),
       });
       navigation.replace("Chat", {
-        conversationId: res.conversation.id,
+        conversationId: res.conversationId,
         isGroup: true,
-        groupName: res.conversation.name,
+        groupName: groupName.trim(),
       });
     } catch (err) {
       Alert.alert("Error", err?.message || "Failed to create group chat.");
