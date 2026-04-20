@@ -551,42 +551,52 @@ export default function ChatScreen({ route, navigation }) {
     return diff > 60000;
   }, [recipient, recipientId]);
 
-  const SwipeableMessage = useCallback(({ onReply, children }) => {
+  const SwipeableMessage = useCallback(({ onReply, isMyMessage: isMine, children }) => {
     const translateX  = useSharedValue(0);
     const iconOpacity = useSharedValue(0);
     const fired       = useRef(false);
+    // Own messages swipe LEFT (negative X); others swipe RIGHT (positive X)
     const pan = Gesture.Pan()
-      .activeOffsetX([8, 999])
+      .activeOffsetX(isMine ? [-999, -8] : [8, 999])
       .failOffsetY([-10, 10])
       .onUpdate((e) => {
-        const dx = Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);
-        translateX.value  = dx;
-        iconOpacity.value = dx / REPLY_SWIPE_MAX;
-        if (dx >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
+        const raw = isMine
+          ? Math.max(Math.min(e.translationX, 0), -REPLY_SWIPE_MAX)   // clamp to [-max, 0]
+          : Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);   // clamp to [0, max]
+        translateX.value  = raw;
+        iconOpacity.value = Math.abs(raw) / REPLY_SWIPE_MAX;
+        if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
           fired.current = true;
           runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
         }
       })
       .onEnd((e) => {
-        const didTrigger = e.translationX >= REPLY_HAPTIC_THRESHOLD;
+        const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
         translateX.value  = withSpring(0, { damping: 18, stiffness: 200 });
         iconOpacity.value = withTiming(0, { duration: 150 });
         fired.current = false;
         if (didTrigger) runOnJS(onReply)();
       });
     const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-    const iconStyle   = useAnimatedStyle(() => ({ 
+    const iconStyle   = useAnimatedStyle(() => ({
       opacity: iconOpacity.value,
       transform: [{ scale: Math.max(0.5, iconOpacity.value) }]
     }));
+    const iconContainer = (
+      <Animated.View style={[
+        { position: "absolute", zIndex: -1 },
+        isMine ? { right: 12 } : { left: 12 },
+        iconStyle,
+      ]}>
+        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+          <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
+        </View>
+      </Animated.View>
+    );
     return (
       <GestureDetector gesture={pan}>
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-          <Animated.View style={[{ position: "absolute", left: 12, zIndex: -1 }, iconStyle]}>
-            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-              <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
-            </View>
-          </Animated.View>
+          {iconContainer}
           <Animated.View style={[{ flex: 1 }, bubbleStyle]}>{children}</Animated.View>
         </View>
       </GestureDetector>
@@ -686,11 +696,17 @@ export default function ChatScreen({ route, navigation }) {
     return (
       <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
         {!isMyMessage && (showAvatar ? <Image source={{ uri: avatarUri }} style={styles.messageAvatar} /> : <View style={{ width: 30, marginRight: 8 }} />)}
-        {!isMyMessage ? (
-          <SwipeableMessage onReply={() => setSelectedReply({ id: msg.id, messageText: msg.messageText, senderName: msg.senderName || recipient?.name, isDeleted: msg.isDeleted })}>
-            {bubbleContent}
-          </SwipeableMessage>
-        ) : bubbleContent}
+        <SwipeableMessage
+          isMyMessage={isMyMessage}
+          onReply={() => setSelectedReply({
+            id: msg.id,
+            messageText: msg.messageText,
+            senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+            isDeleted: msg.isDeleted,
+          })}
+        >
+          {bubbleContent}
+        </SwipeableMessage>
       </View>
     );
   };
@@ -819,7 +835,13 @@ export default function ChatScreen({ route, navigation }) {
           visible={!!optionsTarget} 
           isMyMessage={optionsTarget?.senderId !== (recipient?.id || recipientId)}
           onReply={() => {
-            setSelectedReply({ id: optionsTarget.id, messageText: optionsTarget.messageText, senderName: optionsTarget.senderName || recipient?.name, isDeleted: optionsTarget.isDeleted });
+            const isOwnMsg = optionsTarget?.senderId !== (recipient?.id || recipientId);
+            setSelectedReply({
+              id: optionsTarget.id,
+              messageText: optionsTarget.messageText,
+              senderName: isOwnMsg ? "You" : (optionsTarget.senderName || recipient?.name),
+              isDeleted: optionsTarget.isDeleted,
+            });
             setOptionsTarget(null);
             setTimeout(() => inputRef.current?.focus(), 100);
           }}
