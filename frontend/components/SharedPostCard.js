@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from "react-native";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";
@@ -14,12 +14,14 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
 
 /**
  * SharedPostCard - Instagram-style shared post preview for chat messages
- * Displays a compact preview card with post thumbnail, author info, and caption
+ * Displays a compact preview card with post thumbnail, author info, and caption.
+ * Supports multi-image carousel with dot indicator and stacked-image badge.
  */
 const SharedPostCard = ({ metadata, onPress, style }) => {
   const [postData, setPostData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   // Extract metadata from message
   const { postId, authorId, authorType, imageUrl, caption } = metadata || {};
@@ -169,25 +171,29 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
     );
   }
 
-  // Default: render media post (existing logic)
+  // ── Default: render media post ────────────────────────────────────────────
 
-  // Get post media
-  const hasMedia = postData.image_urls && postData.image_urls.length > 0;
-  const mediaUrl = hasMedia ? postData.image_urls.flat()[0] : imageUrl || null;
+  // Collect all images for carousel support
+  const allImageUrls = postData.image_urls ? postData.image_urls.flat() : [];
+  const hasMedia = allImageUrls.length > 0;
+  const isCarousel = allImageUrls.length > 1;
+  const primaryMediaUrl = hasMedia ? allImageUrls[0] : imageUrl || null;
 
-  // Check if media is video
-  const isVideo =
-    postData.media_types?.[0] === "video" ||
-    (mediaUrl &&
-      (mediaUrl.includes(".mp4") ||
-        mediaUrl.includes(".mov") ||
-        mediaUrl.includes(".webm")));
+  // Helper: check if a specific index is a video
+  const checkIsVideo = (url, idx) =>
+    postData.media_types?.[idx] === "video" ||
+    (url &&
+      (url.includes(".mp4") ||
+        url.includes(".mov") ||
+        url.includes(".webm")));
+
+  // First item video check (for single-image fallback path)
+  const isVideo = checkIsVideo(primaryMediaUrl, 0);
 
   // Helper function to generate Cloudinary thumbnail from video URL
   const generateCloudinaryThumbnail = (url) => {
     if (!url || typeof url !== "string") return null;
     if (!url.includes("cloudinary.com")) return null;
-    // so_0: Start offset 0 (first frame), f_jpg: JPEG format, q_auto: Auto quality, w_800: Width
     return url
       .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
       .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
@@ -213,13 +219,12 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
     }
   }
 
-  // Get video thumbnail - prefer stored thumbnail, fallback to generating from Cloudinary URL
+  // Get video thumbnail for single-image path
   const thumbnailUrl = isVideo
-    ? parsedVideoThumbnail || generateCloudinaryThumbnail(mediaUrl)
-    : mediaUrl;
+    ? parsedVideoThumbnail || generateCloudinaryThumbnail(primaryMediaUrl)
+    : primaryMediaUrl;
 
   // Get the actual aspect ratio from the post data (default to 4:5 if not available)
-  // Handle both array format ([1.91]) and single number format (1.91)
   const rawAspectRatio = postData.aspect_ratios;
   const actualAspectRatio = Array.isArray(rawAspectRatio)
     ? rawAspectRatio[0] || 4 / 5
@@ -228,7 +233,6 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
       : 4 / 5;
 
   // Calculate media height based on actual aspect ratio
-  // For wide images (1.91:1), this will be shorter; for tall images (4:5), this will be taller
   const mediaHeight = CARD_WIDTH / actualAspectRatio;
 
   // Use 'contain' for wide images to show full content, 'cover' for tall/square images
@@ -247,6 +251,13 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
     }
   };
 
+  // Handler for carousel scroll to track active dot
+  const handleCarouselScroll = (event) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / CARD_WIDTH);
+    setActiveIndex(index);
+  };
+
   return (
     <TouchableOpacity
       style={[styles.container, style]}
@@ -256,40 +267,121 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
       <View style={styles.card}>
         {/* Post Media */}
         {hasMedia && (
-          <View
-            style={[
-              styles.mediaContainer,
-              { height: mediaHeight },
-              isWideImage && styles.wideMediaContainer,
-            ]}
-          >
-            {/* For videos without thumbnail, show placeholder */}
-            {isVideo && !thumbnailUrl ? (
-              <View style={styles.videoPlaceholder}>
-                <View style={styles.playIcon}>
-                  <Text style={styles.playIconText}>▶</Text>
-                </View>
-              </View>
-            ) : thumbnailUrl ? (
+          <View style={{ position: "relative" }}>
+            {isCarousel ? (
+              // ── Carousel (multiple images) ─────────────────────────────────
               <>
-                <Image
-                  source={{ uri: thumbnailUrl }}
-                  style={[
-                    styles.mediaImage,
-                    isWideImage && { resizeMode: "contain" },
-                  ]}
-                  resizeMode={isWideImage ? "contain" : "cover"}
-                />
-                {/* Video indicator overlay for videos with thumbnails */}
-                {isVideo && (
-                  <View style={styles.videoIndicator}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={handleCarouselScroll}
+                  scrollEventThrottle={16}
+                  style={{ width: CARD_WIDTH }}
+                  nestedScrollEnabled
+                >
+                  {allImageUrls.map((url, idx) => {
+                    const itemIsVideo = checkIsVideo(url, idx);
+                    const itemThumbnail = itemIsVideo
+                      ? generateCloudinaryThumbnail(url)
+                      : url;
+                    return (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.mediaContainer,
+                          { height: mediaHeight, width: CARD_WIDTH },
+                          isWideImage && styles.wideMediaContainer,
+                        ]}
+                      >
+                        {itemIsVideo && !itemThumbnail ? (
+                          <View style={styles.videoPlaceholder}>
+                            <View style={styles.playIcon}>
+                              <Text style={styles.playIconText}>▶</Text>
+                            </View>
+                          </View>
+                        ) : itemThumbnail ? (
+                          <>
+                            <Image
+                              source={{ uri: itemThumbnail }}
+                              style={[
+                                styles.mediaImage,
+                                isWideImage && { resizeMode: "contain" },
+                              ]}
+                              resizeMode={isWideImage ? "contain" : "cover"}
+                            />
+                            {itemIsVideo && (
+                              <View style={styles.videoIndicator}>
+                                <View style={styles.playIcon}>
+                                  <Text style={styles.playIconText}>▶</Text>
+                                </View>
+                              </View>
+                            )}
+                          </>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Counter badge (top-right) */}
+                <View style={styles.carouselBadge}>
+                  <Text style={styles.carouselBadgeText}>
+                    {activeIndex + 1}/{allImageUrls.length}
+                  </Text>
+                </View>
+
+                {/* Dot indicator */}
+                <View style={styles.dotsContainer}>
+                  {allImageUrls.map((_, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.dot,
+                        idx === activeIndex && styles.dotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              // ── Single image / video ───────────────────────────────────────
+              <View
+                style={[
+                  styles.mediaContainer,
+                  { height: mediaHeight },
+                  isWideImage && styles.wideMediaContainer,
+                ]}
+              >
+                {/* For videos without thumbnail, show placeholder */}
+                {isVideo && !thumbnailUrl ? (
+                  <View style={styles.videoPlaceholder}>
                     <View style={styles.playIcon}>
                       <Text style={styles.playIconText}>▶</Text>
                     </View>
                   </View>
-                )}
-              </>
-            ) : null}
+                ) : thumbnailUrl ? (
+                  <>
+                    <Image
+                      source={{ uri: thumbnailUrl }}
+                      style={[
+                        styles.mediaImage,
+                        isWideImage && { resizeMode: "contain" },
+                      ]}
+                      resizeMode={isWideImage ? "contain" : "cover"}
+                    />
+                    {/* Video indicator overlay for videos with thumbnails */}
+                    {isVideo && (
+                      <View style={styles.videoIndicator}>
+                        <View style={styles.playIcon}>
+                          <Text style={styles.playIconText}>▶</Text>
+                        </View>
+                      </View>
+                    )}
+                  </>
+                ) : null}
+              </View>
+            )}
           </View>
         )}
 
@@ -364,6 +456,42 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  // ── Carousel styles ───────────────────────────────────────────────────────
+  carouselBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  carouselBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: "Manrope-SemiBold",
+  },
+  dotsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 6,
+    backgroundColor: "#FFFFFF",
+    gap: 4,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#D1D1D6",
+  },
+  dotActive: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#007AFF",
+  },
+  // ─────────────────────────────────────────────────────────────────────────
   videoPlaceholder: {
     width: "100%",
     height: "100%",
@@ -417,16 +545,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#000000",
     marginBottom: 2,
+    fontFamily: "Manrope-SemiBold",
   },
   authorUsername: {
     fontSize: 12,
     color: "#8E8E93",
+    fontFamily: "Manrope-Regular",
   },
   caption: {
     fontSize: 13,
     lineHeight: 18,
     color: "#000000",
-    marginBottom: 0, // Removed bottom margin since CTA is gone
+    marginBottom: 0,
+    fontFamily: "Manrope-Regular",
   },
   loadingContainer: {
     padding: 40,
@@ -437,7 +568,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 13,
     color: "#8E8E93",
-  
     fontFamily: "Manrope-Regular",
   },
   errorCard: {
@@ -455,11 +585,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#000000",
     marginBottom: 4,
+    fontFamily: "Manrope-SemiBold",
   },
   errorSubtext: {
     fontSize: 13,
     color: "#8E8E93",
     textAlign: "center",
+    fontFamily: "Manrope-Regular",
   },
 });
 
