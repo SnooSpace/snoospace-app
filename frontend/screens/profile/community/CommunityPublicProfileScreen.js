@@ -1198,39 +1198,95 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               marginBottom: 25,
             }}
           >
-            <GradientButton
-              title={isFollowing ? "Following" : "Follow"}
-              colors={
-                isFollowing
-                  ? ["transparent", "transparent"]
-                  : ["#448AFF", "#2962FF"] // Match Create Post
-              }
-              textStyle={
-                isFollowing
-                  ? { fontFamily: FONTS.medium, color: "#2962FF" }
-                  : { fontFamily: FONTS.semiBold, color: "#FFFFFF" }
-              }
-              style={[
-                { flex: 1, borderRadius: 16, overflow: "hidden" },
-                isFollowing && {
+            {isFollowing ? (
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
                   borderWidth: 1,
                   borderColor: "rgba(68, 138, 255, 0.2)",
                   backgroundColor: "rgba(68, 138, 255, 0.12)",
-                  shadowColor: "transparent",
-                  shadowOpacity: 0,
-                  shadowRadius: 0,
-                  elevation: 0,
-                },
-              ]}
-              gradientStyle={
-                isFollowing ? { borderRadius: 0 } : { borderRadius: 16 }
-              }
-              onPress={async () => {
-                HapticsService.triggerImpactLight();
-                if (isFollowing) {
-                  // Unfollow logic
+                  justifyContent: "center",
+                  alignItems: "center",
+                  paddingVertical: 12,
+                }}
+                onPress={async () => {
+                  HapticsService.triggerImpactLight();
+                  // Optimistic update
+                  setIsFollowing(false);
+                  setProfile((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          followers_count: Math.max(
+                            0,
+                            (prev.followers_count || 0) - 1,
+                          ),
+                        }
+                      : prev,
+                  );
+                  EventBus.emit("follow-updated", {
+                    communityId,
+                    isFollowing: false,
+                  });
                   try {
                     await unfollowCommunity(communityId);
+                  } catch (e) {
+                    console.error("Unfollow failed", e);
+                    // Revert on failure
+                    setIsFollowing(true);
+                    setProfile((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            followers_count: (prev.followers_count || 0) + 1,
+                          }
+                        : prev,
+                    );
+                  }
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: FONTS.medium,
+                    color: "#2962FF",
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                >
+                  Following
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <GradientButton
+                title="Follow"
+                colors={["#448AFF", "#2962FF"]}
+                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{ borderRadius: 16 }}
+                onPress={async () => {
+                  HapticsService.triggerImpactLight();
+                  // Optimistic update
+                  setIsFollowing(true);
+                  setProfile((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          followers_count: (prev.followers_count || 0) + 1,
+                        }
+                      : prev,
+                  );
+                  EventBus.emit("follow-updated", {
+                    communityId,
+                    isFollowing: true,
+                  });
+                  // Trigger group-chat join prompt if community has autoJoin enabled
+                  EventBus.emit("community-followed", { communityId });
+                  try {
+                    await followCommunity(communityId);
+                  } catch (e) {
+                    console.error("Follow failed", e);
+                    // Revert on failure
                     setIsFollowing(false);
                     setProfile((prev) =>
                       prev
@@ -1243,38 +1299,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                           }
                         : prev,
                     );
-                    EventBus.emit("follow-updated", {
-                      communityId,
-                      isFollowing: false,
-                    });
-                  } catch (e) {
-                    console.error("Unfollow failed", e);
                   }
-                } else {
-                  // Follow logic
-                  try {
-                    await followCommunity(communityId);
-                    setIsFollowing(true);
-                    setProfile((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            followers_count: (prev.followers_count || 0) + 1,
-                          }
-                        : prev,
-                    );
-                    EventBus.emit("follow-updated", {
-                      communityId,
-                      isFollowing: true,
-                    });
-                    // Trigger group-chat join prompt if community has autoJoin enabled
-                    EventBus.emit("community-followed", { communityId });
-                  } catch (e) {
-                    console.error("Follow failed", e);
-                  }
-                }
-              }}
-            />
+                }}
+              />
+            )}
             <GradientButton
               title="Message"
               colors={["#111827", "#111827"]} // Charcoal Black

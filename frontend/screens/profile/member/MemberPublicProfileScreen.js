@@ -608,51 +608,94 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     width: "100%",
                   }}
                 >
-                  <GradientButton
-                    title={isFollowing ? "Following" : "Follow"}
-                    colors={
-                      isFollowing
-                        ? ["transparent", "transparent"]
-                        : ["#448AFF", "#2962FF"]
-                    }
-                    textStyle={
-                      isFollowing
-                        ? { fontFamily: FONTS.medium, color: "#2962FF" }
-                        : { fontFamily: FONTS.semiBold, color: "#FFFFFF" }
-                    }
-                    style={[
-                      { flex: 1, borderRadius: 16, overflow: "hidden" },
-                      isFollowing && {
+                  {isFollowing ? (
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        borderRadius: 16,
                         borderWidth: 1,
                         borderColor: "rgba(68, 138, 255, 0.2)",
                         backgroundColor: "rgba(68, 138, 255, 0.12)",
-                        shadowColor: "transparent",
-                        shadowOpacity: 0,
-                        shadowRadius: 0,
-                        elevation: 0,
-                      },
-                    ]}
-                    gradientStyle={
-                      isFollowing ? { borderRadius: 0 } : { borderRadius: 16 }
-                    }
-                    onPress={async () => {
-                      const next = !isFollowing;
-                      setIsFollowing(next);
-                      HapticsService.triggerImpactLight();
-                      try {
-                        if (next) {
-                          await followMember(memberId);
+                        justifyContent: "center",
+                        alignItems: "center",
+                        paddingVertical: 12,
+                      }}
+                      onPress={async () => {
+                        const next = false;
+                        setIsFollowing(next);
+                        HapticsService.triggerImpactLight();
+                        // Optimistic update
+                        setProfile((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                followers_count: Math.max(
+                                  0,
+                                  (prev.followers_count || 0) - 1,
+                                ),
+                              }
+                            : prev,
+                        );
+                        EventBus.emit("follow-updated", {
+                          memberId,
+                          isFollowing: next,
+                        });
+                        try {
+                          await unfollowMember(memberId);
+                        } catch (e) {
+                          // Revert
+                          setIsFollowing(true);
                           setProfile((prev) =>
                             prev
                               ? {
                                   ...prev,
-                                  followers_count:
-                                    (prev.followers_count || 0) + 1,
+                                  followers_count: (prev.followers_count || 0) + 1,
                                 }
                               : prev,
                           );
-                        } else {
-                          await unfollowMember(memberId);
+                        }
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: FONTS.medium,
+                          color: "#2962FF",
+                          fontSize: 16,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Following
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <GradientButton
+                      title="Follow"
+                      colors={["#448AFF", "#2962FF"]}
+                      textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                      style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                      gradientStyle={{ borderRadius: 16 }}
+                      onPress={async () => {
+                        const next = true;
+                        setIsFollowing(next);
+                        HapticsService.triggerImpactLight();
+                        // Optimistic update
+                        setProfile((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                followers_count: (prev.followers_count || 0) + 1,
+                              }
+                            : prev,
+                        );
+                        EventBus.emit("follow-updated", {
+                          memberId,
+                          isFollowing: next,
+                        });
+                        try {
+                          await followMember(memberId);
+                        } catch (e) {
+                          // Revert
+                          setIsFollowing(false);
                           setProfile((prev) =>
                             prev
                               ? {
@@ -665,26 +708,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                               : prev,
                           );
                         }
-                        EventBus.emit("follow-updated", {
-                          memberId,
-                          isFollowing: next,
-                        });
-                      } catch (e) {
-                        setIsFollowing(!next);
-                        setProfile((prev) => {
-                          if (!prev) return prev;
-                          const delta = next ? -1 : 1;
-                          return {
-                            ...prev,
-                            followers_count: Math.max(
-                              0,
-                              (prev.followers_count || 0) + delta,
-                            ),
-                          };
-                        });
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  )}
                   <GradientButton
                     title="Message"
                     style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
