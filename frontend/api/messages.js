@@ -144,18 +144,24 @@ export async function unsendMessage(messageId) {
 // ─── Group Auto-Join Invite ───────────────────────────────────────────────────
 
 /** Check whether a member should see the join-group modal */
-export async function getGroupJoinInvite(conversationId) {
+/**
+ * Get a group-chat join invite for a community's auto-join group.
+ * Called with a communityId — backend finds the first eligible group for that community.
+ * Returns { invite: { conversationId, groupName, groupAvatarUrl, communityName } | null }
+ */
+export async function getGroupJoinInvite(communityId) {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
-  return apiGet(`/messages/groups/${conversationId}/join-invite`, 10000, token);
+  return apiGet(`/messages/communities/${communityId}/join-invite`, 10000, token);
 }
 
-/** Dismiss the group join invite (inserts into dismissed table) */
+/** Dismiss the group join invite for a specific conversation */
 export async function dismissGroupInvite(conversationId) {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
   return apiPost(`/messages/groups/${conversationId}/dismiss-invite`, {}, 10000, token);
 }
+
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 

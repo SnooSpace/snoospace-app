@@ -820,7 +820,81 @@ const unsendMessage = async (req, res) => {
   }
 };
 
+// ─── getGroupJoinInviteByCommunity ───────────────────────────────────────────
+// Called with communityId; finds the first eligible auto-join group for that community.
+const getGroupJoinInviteByCommunity = async (req, res) => {
+  try {
+    const { communityId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Member auth required" });
+    }
+
+    // 1. Check community-level preference
+    const communityR = await pool.query(
+      `SELECT id, name, auto_join_group_chat FROM communities WHERE id = $1`,
+      [communityId],
+    );
+    if (communityR.rows.length === 0) {
+      return res.json({ invite: null });
+    }
+    const community = communityR.rows[0];
+    if (!community.auto_join_group_chat) {
+      return res.json({ invite: null });
+    }
+
+    // 2. Find group chats owned by this community with auto-join enabled
+    const groups = await pool.query(
+      `SELECT c.id, c.group_name, c.group_avatar_url
+       FROM conversations c
+       JOIN conversation_participants cp
+         ON cp.conversation_id = c.id
+         AND cp.participant_id = $1
+         AND cp.participant_type = 'community'
+         AND cp.role = 'admin'
+       WHERE c.is_group = true AND c.community_auto_join = true
+       LIMIT 5`,
+      [communityId],
+    );
+    if (groups.rows.length === 0) return res.json({ invite: null });
+
+    // 3. Find the first group the member hasn't joined and hasn't dismissed
+    for (const group of groups.rows) {
+      const inGroup = await pool.query(
+        `SELECT id FROM conversation_participants
+         WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = 'member'`,
+        [group.id, userId],
+      );
+      if (inGroup.rows.length > 0) continue;
+
+      const dismissed = await pool.query(
+        `SELECT id FROM group_auto_join_dismissed
+         WHERE conversation_id = $1 AND member_id = $2`,
+        [group.id, userId],
+      );
+      if (dismissed.rows.length > 0) continue;
+
+      return res.json({
+        invite: {
+          conversationId: group.id,
+          groupName:      group.group_name,
+          groupAvatarUrl: group.group_avatar_url,
+          communityName:  community.name,
+        },
+      });
+    }
+
+    return res.json({ invite: null });
+  } catch (error) {
+    console.error("Error getting community group join invite:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // ─── getGroupJoinInvite ───────────────────────────────────────────────────────
+
 const getGroupJoinInvite = async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -996,7 +1070,9 @@ module.exports = {
   hideConversation,
   unsendMessage,
   getGroupJoinInvite,
+  getGroupJoinInviteByCommunity,
   dismissGroupInvite,
+
   reportConversation,
   getChatReports,
   getChatReportById,

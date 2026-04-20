@@ -240,6 +240,14 @@ export default function CheckoutScreen({ route, navigation }) {
           isInterested: false,
         });
 
+        // Trigger group-chat join prompt for the event's community
+        if (event.community_id || event.organizer_id) {
+          EventBus.emit("event-registered", {
+            communityId: event.community_id || event.organizer_id,
+            eventId: event.id,
+          });
+        }
+
         // PEAK MOMENT
         setShowCelebration(true);
       } else {

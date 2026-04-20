@@ -704,6 +704,12 @@ async function patchProfile(req, res) {
       values.push(campus_id || null);
     }
 
+    // Community-level default: auto-invite followers to group chats
+    if (req.body.hasOwnProperty("auto_join_group_chat")) {
+      updates.push(`auto_join_group_chat = $${paramIndex++}`);
+      values.push(req.body.auto_join_group_chat === true);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }

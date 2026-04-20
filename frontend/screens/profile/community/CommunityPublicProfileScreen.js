@@ -1267,6 +1267,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       communityId,
                       isFollowing: true,
                     });
+                    // Trigger group-chat join prompt if community has autoJoin enabled
+                    EventBus.emit("community-followed", { communityId });
                   } catch (e) {
                     console.error("Follow failed", e);
                   }
