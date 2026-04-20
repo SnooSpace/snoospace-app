@@ -189,9 +189,23 @@ const EditorialPostCard = ({
   const [videoViewCounted, setVideoViewCounted] = useState(false);
   const [imageViewCounted, setImageViewCounted] = useState(false);
 
+  // ── Normalise image_urls ──────────────────────────────────────────────────
+  // The API may return a nested array [["url1","url2"]] when the raw DB value
+  // is a JSON string that gets double-parsed somewhere in the pipeline.
+  // .flat() guarantees we always work with ["url1", "url2"].
+  const imageUrls = Array.isArray(post.image_urls)
+    ? post.image_urls.flat()
+    : [];
+
+  console.log(
+    `[EditorialPostCard] post=${post.id} image_urls raw=`,
+    JSON.stringify(post.image_urls),
+    `→ normalised count=${imageUrls.length}`,
+  );
+
   // Check if post has media and determine type
-  const hasMedia = post.image_urls && post.image_urls.length > 0;
-  const firstMediaUrl = hasMedia ? post.image_urls.flat()[0] : null;
+  const hasMedia = imageUrls.length > 0;
+  const firstMediaUrl = hasMedia ? imageUrls[0] : null;
 
   // Determine if first media is video: check media_types OR fallback to URL extension
   const firstMediaType =
@@ -213,7 +227,7 @@ const EditorialPostCard = ({
   const isVideo = firstMediaType === "video";
   const isImage = hasMedia && !isVideo;
   const isTextOnly = !hasMedia;
-  const hasMultipleMedia = hasMedia && post.image_urls.length > 1;
+  const hasMultipleMedia = imageUrls.length > 1;
 
   // Carousel state
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -593,20 +607,29 @@ const EditorialPostCard = ({
             </View>
           ) : hasMultipleMedia ? (
             // Carousel for multiple images
-            <View>
+            <View style={{ width: CONTENT_WIDTH, overflow: 'hidden' }}>
+              {/* Counter badge */}
+              <View style={styles.carouselBadge} pointerEvents="none">
+                <Text style={styles.carouselBadgeText}>
+                  {currentMediaIndex + 1}/{imageUrls.length}
+                </Text>
+              </View>
+
               <ScrollView
                 ref={scrollViewRef}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onScroll={(event) => {
+                onMomentumScrollEnd={(event) => {
                   const offsetX = event.nativeEvent.contentOffset.x;
                   const index = Math.round(offsetX / CONTENT_WIDTH);
                   setCurrentMediaIndex(index);
                 }}
                 scrollEventThrottle={16}
+                style={{ width: CONTENT_WIDTH }}
+                decelerationRate="fast"
               >
-                {post.image_urls.map((url, index) => {
+                {imageUrls.map((url, index) => {
                   // Handle both array and single number formats for aspect_ratios
                   const aspectRatio = Array.isArray(post.aspect_ratios)
                     ? post.aspect_ratios[index] || firstAspectRatio
@@ -631,7 +654,7 @@ const EditorialPostCard = ({
 
               {/* Pagination Dots */}
               <View style={styles.paginationContainer}>
-                {post.image_urls.map((_, index) => (
+                {imageUrls.map((_, index) => (
                   <View
                     key={index}
                     style={[
@@ -859,6 +882,21 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  carouselBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.48)",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  carouselBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
   },
 
   // Engagement Row
