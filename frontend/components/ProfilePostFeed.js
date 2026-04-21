@@ -118,12 +118,20 @@ const ProfilePostFeed = ({
     setPostToDelete(null);
   };
 
-  const renderItem = ({ item }) => {
+const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
+  return prev.post.id === next.post.id &&
+    prev.isVideoPlaying === next.isVideoPlaying &&
+    prev.post.like_count === next.post.like_count &&
+    prev.post.is_liked === next.post.is_liked &&
+    prev.post.comment_count === next.post.comment_count;
+});
+
+  const renderItem = useCallback(({ item }) => {
     // Use string comparison to avoid type mismatches
     const shouldPlayVideo = String(item.id) === String(visiblePostId);
 
     return (
-      <EditorialPostCard
+      <MemoizedPostCard
         post={item}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
@@ -141,7 +149,7 @@ const ProfilePostFeed = ({
         showFollowButton={true} // Allow following if not same user
       />
     );
-  };
+  }, [visiblePostId, currentUserId, currentUserType, onLikeUpdate, handleCommentPress, handleSharePress, onSave, onFollow, onUserPress, onDelete, onPostUpdate, handleRequestDelete]);
 
   if (!visible) return null;
 

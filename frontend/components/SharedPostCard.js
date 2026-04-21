@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";

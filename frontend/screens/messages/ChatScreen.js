@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   StyleSheet, View, Platform, Alert, Text, TextInput,
-  TouchableOpacity, FlatList, Image, KeyboardAvoidingView, Pressable,
+  TouchableOpacity, Image, KeyboardAvoidingView, Pressable,
 } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView, FlatList as RNGHFlatList } from "react-native-gesture-handler";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -551,14 +551,24 @@ export default function ChatScreen({ route, navigation }) {
     return diff > 60000;
   }, [recipient, recipientId]);
 
-  const SwipeableMessage = useCallback(({ onReply, isMyMessage: isMine, children }) => {
+  const SwipeableMessage = useCallback(({ onReply, onLongPress, isMyMessage: isMine, children }) => {
     const translateX  = useSharedValue(0);
     const iconOpacity = useSharedValue(0);
     const fired       = useRef(false);
-    // Own messages swipe LEFT (negative X); others swipe RIGHT (positive X)
+
+    // Long press for options
+    const longPress = Gesture.LongPress()
+      .onStart(() => {
+        if (onLongPress) {
+          runOnJS(onLongPress)();
+        }
+      })
+      .maxDistance(20); // Allow some wiggle room for shaky fingers
+
+    // Pan for swipe-to-reply
     const pan = Gesture.Pan()
-      .activeOffsetX(isMine ? [-999, -8] : [8, 999])
-      .failOffsetY([-10, 10])
+      .activeOffsetX(isMine ? [-20, 9999] : [-9999, 20]) // require horizontal intent (swipe left if mine, swipe right if other)
+      .failOffsetY([-10, 10]) // reject vertical intent
       .onUpdate((e) => {
         const raw = isMine
           ? Math.max(Math.min(e.translationX, 0), -REPLY_SWIPE_MAX)   // clamp to [-max, 0]
@@ -577,6 +587,11 @@ export default function ChatScreen({ route, navigation }) {
         fired.current = false;
         if (didTrigger) runOnJS(onReply)();
       });
+
+    // We use Simultaneous so that the LongPress can fire even if the finger starts to move slightly (Pan starts)
+    // but the Pan threshold (18px) hasn't been met yet.
+    const composed = Gesture.Simultaneous(longPress, pan);
+
     const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
     const iconStyle   = useAnimatedStyle(() => ({
       opacity: iconOpacity.value,
@@ -594,12 +609,14 @@ export default function ChatScreen({ route, navigation }) {
       </Animated.View>
     );
     return (
-      <GestureDetector gesture={pan}>
-        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-          {iconContainer}
-          <Animated.View style={[{ flex: 1 }, bubbleStyle]}>{children}</Animated.View>
-        </View>
-      </GestureDetector>
+      <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+        {iconContainer}
+        <Animated.View style={[{ flex: 1, alignItems: isMine ? "flex-end" : "flex-start" }, bubbleStyle]}>
+          <GestureDetector gesture={composed}>
+            {children}
+          </GestureDetector>
+        </Animated.View>
+      </View>
     );
   }, []);
 
@@ -681,27 +698,22 @@ export default function ChatScreen({ route, navigation }) {
     }
 
     const bubbleContent = (
-      <Pressable
-        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setOptionsTarget(msg); }}
-        delayLongPress={400}
-      >
-        <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
-          {msg.replyPreview && (
-            <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => {
-              const idx = messageIndexMap[msg.replyToMessageId];
-              if (idx != null) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
-            }} />
-          )}
-          <View style={[
-            styles.messageBubble, 
-            isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
-            msg.replyPreview && (isMyMessage ? styles.myMessageBubbleReplied : styles.otherMessageBubbleReplied)
-          ]}>
-            <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
-            <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
-          </View>
+      <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
+        {msg.replyPreview && (
+          <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => {
+            const idx = messageIndexMap[msg.replyToMessageId];
+            if (idx != null) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+          }} />
+        )}
+        <View style={[
+          styles.messageBubble, 
+          isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
+          msg.replyPreview && (isMyMessage ? styles.myMessageBubbleReplied : styles.otherMessageBubbleReplied)
+        ]}>
+          <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
+          <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
         </View>
-      </Pressable>
+      </View>
     );
 
     return (
@@ -715,6 +727,10 @@ export default function ChatScreen({ route, navigation }) {
             senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
             isDeleted: msg.isDeleted,
           })}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setOptionsTarget(msg);
+          }}
         >
           {bubbleContent}
         </SwipeableMessage>
@@ -847,13 +863,16 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, androidContainerStyle]}>
-            <FlatList
+            <RNGHFlatList
               ref={flatListRef}
               data={[...flatListData].reverse()}
               keyExtractor={(item) => item.type === "separator" ? item.id : String(item.data.id)}
               renderItem={renderItem}
               contentContainerStyle={[styles.messagesList, { flexGrow: 1 }]}
               inverted
+              initialNumToRender={10}
+              windowSize={5}
+              removeClippedSubviews={false}
               onScrollToIndexFailed={(info) => setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 200)}
               onLayout={() => setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100)}
               ListEmptyComponent={
