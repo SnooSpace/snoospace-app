@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  StyleSheet, View, Platform, Alert, Text, TextInput,
+  StyleSheet, View, Platform, Alert, Text, TextInput, Modal,
   TouchableOpacity, Image, KeyboardAvoidingView, Pressable,
 } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS,
+  withSequence, useDerivedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView, FlatList as RNGHFlatList } from "react-native-gesture-handler";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, CornerUpLeft, Info, TriangleAlert, Trash2, AlertTriangle, PartyPopper } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { BlurView } from "expo-blur";
-import { getMessages, sendMessage, unsendMessage, getConversations } from "../../api/messages";
+import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
 import { confirmGiftRSVP } from "../../api/events";
@@ -270,6 +272,303 @@ const optionsStyles = StyleSheet.create({
 
 // ReportModal is removed in favor of CustomAlertModal logic in the main component
 
+// ── REPORT_REASONS ────────────────────────────────────────────────────────────
+const REPORT_REASONS = [
+  { key: "harassment",           label: "Harassment or bullying" },
+  { key: "spam",                 label: "Spam or unwanted content" },
+  { key: "hate_speech",          label: "Hate speech or discrimination" },
+  { key: "threats",              label: "Threats or violence" },
+  { key: "inappropriate_content",label: "Inappropriate content" },
+  { key: "other",                label: "Other" },
+];
+
+// ── ChatActionsSheet ─────────────────────────────────────────────────────────
+const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport }) => (
+  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
+      <Pressable style={actionSheetStyles.sheet} onPress={(e) => e.stopPropagation()}>
+        <View style={actionSheetStyles.handle} />
+
+        <TouchableOpacity style={actionSheetStyles.row} onPress={onDeleteChat} activeOpacity={0.7}>
+          <View style={[actionSheetStyles.iconBox, { backgroundColor: "rgba(229, 57, 53, 0.1)" }]}>
+            <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+          </View>
+          <View style={actionSheetStyles.rowText}>
+            <Text style={actionSheetStyles.rowLabel}>Delete Chat</Text>
+            <Text style={actionSheetStyles.rowSub}>Removes this chat from your inbox only</Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={actionSheetStyles.divider} />
+
+        <TouchableOpacity style={actionSheetStyles.row} onPress={onReport} activeOpacity={0.7}>
+          <View style={[actionSheetStyles.iconBox, { backgroundColor: "rgba(255, 152, 0, 0.1)" }]}>
+            <Flag size={20} color="#FF9800" strokeWidth={2.5} />
+          </View>
+          <View style={actionSheetStyles.rowText}>
+            <Text style={actionSheetStyles.rowLabel}>Report Chat</Text>
+            <Text style={actionSheetStyles.rowSub}>Report abusive or harmful content</Text>
+          </View>
+        </TouchableOpacity>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
+const actionSheetStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet:   { backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+  handle:  { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0E0E0", alignSelf: "center", marginBottom: 20 },
+  row:     { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 14 },
+  rowText: { flex: 1 },
+  rowLabel:{ fontFamily: "Manrope-SemiBold", fontSize: 16, color: "#1F3A5F" },
+  rowSub:  { fontFamily: "Manrope-Regular",  fontSize: 12, color: "#8FA1B8", marginTop: 2 },
+  divider: { height: 1, backgroundColor: "#F3F4F6" },
+});
+
+// ── ReportReasonSheet ─────────────────────────────────────────────────────────
+const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
+  const [otherMode, setOtherMode]   = React.useState(false);
+  const [otherText, setOtherText]   = React.useState("");
+  const otherInputRef               = React.useRef(null);
+
+  React.useEffect(() => {
+    if (visible) { setOtherMode(false); setOtherText(""); }
+  }, [visible]);
+
+  if (otherMode) {
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <KeyboardStickyView offset={{ closed: 0, opened: 0 }} style={{ flex: 1 }}>
+          <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
+            <Pressable style={[actionSheetStyles.sheet, { paddingBottom: 24 }]} onPress={(e) => e.stopPropagation()}>
+              <View style={actionSheetStyles.handle} />
+
+              <TouchableOpacity
+                onPress={() => { setOtherMode(false); setOtherText(""); }}
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={18} color="#8FA1B8" strokeWidth={2} />
+                <Text style={{ fontFamily: "Manrope-Medium", fontSize: 13, color: "#8FA1B8", marginLeft: 6 }}>Back</Text>
+              </TouchableOpacity>
+
+              <Text style={{ fontFamily: "BasicCommercial-Bold", fontSize: 18, color: "#1F3A5F", marginBottom: 6 }}>
+                Tell us more
+              </Text>
+              <Text style={{ fontFamily: "Manrope-Regular", fontSize: 13, color: "#8FA1B8", marginBottom: 16 }}>
+                Please describe what happened so we can review it properly.
+              </Text>
+
+              <View style={{
+                borderWidth: 1, borderColor: "#E5E5EA", borderRadius: 14,
+                backgroundColor: "#F8F9FB", paddingHorizontal: 14, paddingVertical: 10,
+                marginBottom: 4, minHeight: 90,
+              }}>
+                <TextInput
+                  ref={otherInputRef}
+                  value={otherText}
+                  onChangeText={setOtherText}
+                  placeholder="Describe the issue…"
+                  placeholderTextColor="#B0BEC5"
+                  multiline
+                  maxLength={500}
+                  autoFocus
+                  style={{
+                    fontFamily: "Manrope-Regular", fontSize: 14.5,
+                    color: "#1F3A5F", textAlignVertical: "top",
+                    minHeight: 70,
+                  }}
+                />
+              </View>
+              <Text style={{ fontFamily: "Manrope-Regular", fontSize: 11, color: "#B0BEC5", alignSelf: "flex-end", marginBottom: 14 }}>
+                {otherText.length} / 500
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => {
+                  const trimmed = otherText.trim();
+                  if (!trimmed) return;
+                  onSelect({ key: "other", label: "Other", details: trimmed });
+                }}
+                activeOpacity={otherText.trim().length > 0 ? 0.7 : 1}
+                style={{
+                  backgroundColor: otherText.trim().length > 0 ? "#1F3A5F" : "#E0E0E0",
+                  borderRadius: 14, paddingVertical: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontFamily: "Manrope-SemiBold", fontSize: 15, color: "#FFFFFF" }}>
+                  Submit Report
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardStickyView>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
+        <Pressable style={actionSheetStyles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={actionSheetStyles.handle} />
+          <Text style={{ fontFamily: "BasicCommercial-Bold", fontSize: 18, color: "#1F3A5F", marginBottom: 16 }}>
+            Why are you reporting?
+          </Text>
+          {REPORT_REASONS.map((r) => (
+            <TouchableOpacity
+              key={r.key}
+              style={[actionSheetStyles.row, { paddingVertical: 12 }]}
+              onPress={() => {
+                if (r.key === "other") { setOtherMode(true); }
+                else { onSelect(r); }
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontFamily: "Manrope-Regular", fontSize: 15, color: "#1F3A5F", flex: 1 }}>
+                {r.label}
+              </Text>
+              {r.key === "other" && (
+                <ArrowLeft size={16} color="#B0BEC5" strokeWidth={2} style={{ transform: [{ rotate: "180deg" }] }} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// ── SwipeableMessage ──────────────────────────────────────────────────────────
+// IMPORTANT: This MUST be a module-level React.memo component — NOT defined
+// inside useCallback. Defining it inside the parent with hooks would violate
+// the Rules of Hooks and cause stale-closure bugs (highlight never fires).
+//
+// highlightedIdSV is a Reanimated shared value (string). We use useDerivedValue
+// to reactively detect when *this* message becomes highlighted, entirely on the
+// UI thread with zero React re-renders.
+const SwipeableMessage = React.memo(({ messageId, highlightedIdSV, onReply, onLongPress, isMyMessage: isMine, children }) => {
+  const translateX  = useSharedValue(0);
+  const iconOpacity = useSharedValue(0);
+  const scale       = useSharedValue(1);
+  const bgOpacity   = useSharedValue(0);
+  const fired       = useRef(false);
+
+  // useDerivedValue runs on the UI thread. Every time highlightedIdSV changes,
+  // this derived value recomputes and triggers the animation worklet below.
+  const isHighlighted = useDerivedValue(() => {
+    return highlightedIdSV.value === String(messageId);
+  });
+
+  // useAnimatedReaction would be the canonical hook here, but since we need
+  // to chain multiple animations we drive them directly from useAnimatedStyle
+  // by caching a "has run" guard via a separate shared value.
+  const hasAnimated = useSharedValue(false);
+
+  const highlightOverlayStyle = useAnimatedStyle(() => {
+    const highlighted = isHighlighted.value;
+
+    if (highlighted && !hasAnimated.value) {
+      hasAnimated.value = true;
+
+      // Pulse: scale up then back
+      scale.value = withSequence(
+        withTiming(1.04, { duration: 150 }),
+        withTiming(1,    { duration: 300 })
+      );
+
+      // Glow: fade in fast, then fade out slow
+      bgOpacity.value = withTiming(1, { duration: 180 }, () => {
+        bgOpacity.value = withTiming(0, { duration: 900 });
+      });
+    }
+
+    if (!highlighted) {
+      hasAnimated.value = false;
+    }
+
+    return {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(255, 213, 79, 0.38)",
+      borderRadius: 18,
+      opacity: bgOpacity.value,
+      pointerEvents: "none",
+    };
+  });
+
+  const bubbleStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const iconStyle = useAnimatedStyle(() => ({
+    opacity: iconOpacity.value,
+    transform: [{ scale: Math.max(0.5, iconOpacity.value) }],
+  }));
+
+  // Long press for options
+  const longPress = Gesture.LongPress()
+    .onStart(() => { if (onLongPress) runOnJS(onLongPress)(); })
+    .maxDistance(20);
+
+  // Pan for swipe-to-reply
+  const pan = Gesture.Pan()
+    .activeOffsetX(isMine ? [-20, 9999] : [-9999, 20])
+    .failOffsetY([-10, 10])
+    .onUpdate((e) => {
+      const raw = isMine
+        ? Math.max(Math.min(e.translationX, 0), -REPLY_SWIPE_MAX)
+        : Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);
+      translateX.value  = raw;
+      iconOpacity.value = Math.abs(raw) / REPLY_SWIPE_MAX;
+      if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
+        fired.current = true;
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      }
+    })
+    .onEnd((e) => {
+      const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
+      translateX.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      iconOpacity.value = withTiming(0, { duration: 150 });
+      fired.current = false;
+      if (didTrigger) runOnJS(onReply)();
+    });
+
+  const composed = Gesture.Simultaneous(longPress, pan);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+      <Animated.View style={[
+        { position: "absolute", zIndex: -1 },
+        isMine ? { right: 12 } : { left: 12 },
+        iconStyle,
+      ]}>
+        <View style={{
+          width: 32, height: 32, borderRadius: 16,
+          backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER,
+          alignItems: "center", justifyContent: "center",
+          shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1,
+        }}>
+          <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
+        </View>
+      </Animated.View>
+
+      <Animated.View style={[{ flex: 1, alignItems: isMine ? "flex-end" : "flex-start" }, bubbleStyle]}>
+        <GestureDetector gesture={composed}>
+          <View collapsable={false}>
+            <Animated.View style={highlightOverlayStyle} />
+            {children}
+          </View>
+        </GestureDetector>
+      </Animated.View>
+    </View>
+  );
+});
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
   const { conversationId, recipientId, recipientType = "member", isGroup = false, groupName } = route.params || {};
@@ -298,17 +597,21 @@ export default function ChatScreen({ route, navigation }) {
     icon: null,
     iconColor: "#FF3B30",
   });
-  const [hapticFired,           setHapticFired]          = useState({});   // { [msgId]: bool }
+  const [chatActionsVisible,    setChatActionsVisible]    = useState(false);
+  const [reportSheetVisible,    setReportSheetVisible]    = useState(false);
+
+  // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
   const showAlert = (config) => setAlertConfig({ ...config, visible: true });
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
-  const flatListRef       = useRef(null);
-  const inputRef          = useRef(null);
-  const subscriptionRef   = useRef(null);
-  const supabaseRef       = useRef(null);
+  const flatListRef        = useRef(null);
+  const scrollOffsetRef    = useRef(0);   // tracks live y-offset for nudge trick
+  const inputRef           = useRef(null);
+  const subscriptionRef    = useRef(null);
+  const supabaseRef        = useRef(null);
   const pollingIntervalRef = useRef(null);
-  const insets            = useSafeAreaInsets();
+  const insets             = useSafeAreaInsets();
 
   // Reanimated keyboard tracking
   const keyboardHeight = useSharedValue(0);
@@ -336,6 +639,44 @@ export default function ChatScreen({ route, navigation }) {
     });
     return map;
   }, [flatListData]);
+
+  // ── scrollToMessage ────────────────────────────────────────────────────────
+  const scrollToMessage = useCallback((targetId) => {
+    const idx = messageIndexMap[targetId];
+    if (idx == null) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // ── Nudge trick ─────────────────────────────────────────────────────────
+    // FlatList skips scrollToIndex entirely if the item is already inside
+    // the render window ("already visible" optimisation). Scrolling 1px off
+    // the current offset forces FlatList to treat the target as out-of-view
+    // and always honour the subsequent scrollToIndex call.
+    flatListRef.current?.scrollToOffset({
+      offset: scrollOffsetRef.current + 1,
+      animated: false,
+    });
+
+    // ── Precise scroll ──────────────────────────────────────────────────────
+    // viewPosition: 1  → in an inverted FlatList this anchors the TOP edge of
+    // the item to the TOP of the visible viewport, ensuring the full message
+    // is always on screen regardless of height (critical for SharedPostCard).
+    // viewOffset: 16   → breathing room so the item isn’t flush against the header.
+    setTimeout(() => {
+      flatListRef.current?.scrollToIndex({
+        index: idx,
+        animated: true,
+        viewPosition: 1,
+        viewOffset: 16,
+      });
+    }, 30);
+
+    // Signal the UI thread to start the highlight animation.
+    // Writing directly to a shared value bypasses React scheduling entirely —
+    // no re-renders, no stale closures.
+    highlightedIdSV.value = String(targetId);
+    setTimeout(() => { highlightedIdSV.value = ""; }, 1600);
+  }, [messageIndexMap, highlightedIdSV]);
 
   // ── loadMessages ────────────────────────────────────────────────────────────
   const loadMessages = useCallback(async (convId) => {
@@ -541,6 +882,89 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
+  // ── handleDeleteChat ────────────────────────────────────────────────────
+  const handleDeleteChat = () => {
+    setChatActionsVisible(false);
+    setTimeout(() => {
+      showAlert({
+        title: "Delete Chat",
+        message: "This chat will be removed from your inbox. The other person won't be notified.",
+        icon: Trash2,
+        iconColor: "#E53935",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            hideAlert();
+            try {
+              await hideConversation(currentConversationId);
+              EventBus.emit("conversation-deleted", { conversationId: currentConversationId });
+              navigation.goBack();
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Failed to delete chat.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: AlertTriangle,
+              });
+            }
+          },
+        },
+      });
+    }, 300);
+  };
+
+  // ── handleStartReport ─────────────────────────────────────────────────
+  const handleStartReport = () => {
+    setChatActionsVisible(false);
+    setTimeout(() => setReportSheetVisible(true), 300);
+  };
+
+  const handleReportReason = async (reason) => {
+    setReportSheetVisible(false);
+
+    if (!currentConversationId) {
+      setTimeout(() => {
+        showAlert({
+          title: "Cannot Report",
+          message: "This conversation hasn't started yet. Send a message first.",
+          primaryAction: { text: "OK", onPress: hideAlert },
+          icon: AlertTriangle,
+        });
+      }, 300);
+      return;
+    }
+
+    try {
+      await reportConversation(currentConversationId, reason.key, reason.details || reason.label);
+      setTimeout(() => {
+        showAlert({
+          title: "Report Submitted",
+          message: "Thanks for letting us know. Our team will review this conversation.",
+          icon: CheckCircle,
+          iconColor: "#34C759",
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+      }, 300);
+    } catch (err) {
+      const alreadyReported = err?.message?.toLowerCase().includes("unique") ||
+                              err?.message?.toLowerCase().includes("already") ||
+                              err?.status === 409;
+      setTimeout(() => {
+        showAlert({
+          title: alreadyReported ? "Already Reported" : "Error",
+          message: alreadyReported
+            ? "You've already reported this conversation. Our team is reviewing it."
+            : (err?.message || "Failed to submit report. Please try again."),
+          primaryAction: { text: "OK", onPress: hideAlert },
+          icon: alreadyReported ? CheckCircle : AlertTriangle,
+          iconColor: alreadyReported ? "#FF9800" : undefined,
+        });
+      }, 300);
+    }
+  };
+
   // ── shouldShowAvatar ───────────────────────────────────────────────────────
   const shouldShowAvatar = useCallback((message, nextMessage) => {
     const recipientUserId = recipient?.id || recipientId;
@@ -551,74 +975,9 @@ export default function ChatScreen({ route, navigation }) {
     return diff > 60000;
   }, [recipient, recipientId]);
 
-  const SwipeableMessage = useCallback(({ onReply, onLongPress, isMyMessage: isMine, children }) => {
-    const translateX  = useSharedValue(0);
-    const iconOpacity = useSharedValue(0);
-    const fired       = useRef(false);
-
-    // Long press for options
-    const longPress = Gesture.LongPress()
-      .onStart(() => {
-        if (onLongPress) {
-          runOnJS(onLongPress)();
-        }
-      })
-      .maxDistance(20); // Allow some wiggle room for shaky fingers
-
-    // Pan for swipe-to-reply
-    const pan = Gesture.Pan()
-      .activeOffsetX(isMine ? [-20, 9999] : [-9999, 20]) // require horizontal intent (swipe left if mine, swipe right if other)
-      .failOffsetY([-10, 10]) // reject vertical intent
-      .onUpdate((e) => {
-        const raw = isMine
-          ? Math.max(Math.min(e.translationX, 0), -REPLY_SWIPE_MAX)   // clamp to [-max, 0]
-          : Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);   // clamp to [0, max]
-        translateX.value  = raw;
-        iconOpacity.value = Math.abs(raw) / REPLY_SWIPE_MAX;
-        if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
-          fired.current = true;
-          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        }
-      })
-      .onEnd((e) => {
-        const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
-        translateX.value  = withSpring(0, { damping: 18, stiffness: 200 });
-        iconOpacity.value = withTiming(0, { duration: 150 });
-        fired.current = false;
-        if (didTrigger) runOnJS(onReply)();
-      });
-
-    // We use Simultaneous so that the LongPress can fire even if the finger starts to move slightly (Pan starts)
-    // but the Pan threshold (18px) hasn't been met yet.
-    const composed = Gesture.Simultaneous(longPress, pan);
-
-    const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-    const iconStyle   = useAnimatedStyle(() => ({
-      opacity: iconOpacity.value,
-      transform: [{ scale: Math.max(0.5, iconOpacity.value) }]
-    }));
-    const iconContainer = (
-      <Animated.View style={[
-        { position: "absolute", zIndex: -1 },
-        isMine ? { right: 12 } : { left: 12 },
-        iconStyle,
-      ]}>
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-          <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
-        </View>
-      </Animated.View>
-    );
-    return (
-      <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-        {iconContainer}
-        <Animated.View style={[{ flex: 1, alignItems: isMine ? "flex-end" : "flex-start" }, bubbleStyle]}>
-          <GestureDetector gesture={composed}>
-            {children}
-          </GestureDetector>
-        </Animated.View>
-      </View>
-    );
-  }, []);
+  // highlightedIdSV lives on the UI thread — writing to it triggers
+  // animations in SwipeableMessage without any React re-renders.
+  const highlightedIdSV = useSharedValue("");
 
   // ── renderItem ─────────────────────────────────────────────────────────────
   const renderItem = ({ item, index }) => {
@@ -689,21 +1048,42 @@ export default function ChatScreen({ route, navigation }) {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
           {!isMyMessage && (showAvatar ? <Image source={{ uri: avatarUri }} style={styles.messageAvatar} /> : <View style={{ width: 30, marginRight: 8 }} />)}
-          <SharedPostCard metadata={msg.metadata} onPress={(postId, postData) => {
-            setSharedPosts(prev => ({ ...prev, [postId]: postData }));
-            setSelectedSharedPost(postData); setSharedPostModalVisible(true);
-          }} />
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => setSelectedReply({
+              id: msg.id,
+              messageText: "Shared a post",
+              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+              isDeleted: msg.isDeleted,
+            })}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setOptionsTarget(msg);
+            }}
+          >
+            <View collapsable={false}>
+              <SharedPostCard 
+                metadata={msg.metadata} 
+                onPress={(postId, postData) => {
+                  setSharedPosts(prev => ({ ...prev, [postId]: postData }));
+                  setSelectedSharedPost(postData); setSharedPostModalVisible(true);
+                }}
+                onUserPress={(userId, userType) => {
+                  navigation.navigate("MemberProfile", { memberId: userId });
+                }}
+              />
+            </View>
+          </SwipeableMessage>
         </View>
       );
     }
 
     const bubbleContent = (
-      <View style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
+      <View collapsable={false} style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
         {msg.replyPreview && (
-          <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => {
-            const idx = messageIndexMap[msg.replyToMessageId];
-            if (idx != null) flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
-          }} />
+          <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => scrollToMessage(msg.replyToMessageId)} />
         )}
         <View style={[
           styles.messageBubble, 
@@ -720,6 +1100,8 @@ export default function ChatScreen({ route, navigation }) {
       <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
         {!isMyMessage && (showAvatar ? <Image source={{ uri: avatarUri }} style={styles.messageAvatar} /> : <View style={{ width: 30, marginRight: 8 }} />)}
         <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
           isMyMessage={isMyMessage}
           onReply={() => setSelectedReply({
             id: msg.id,
@@ -777,35 +1159,9 @@ export default function ChatScreen({ route, navigation }) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ padding: 8 }}
-                  onPress={() => showAlert({
-                    title: "Report Chat",
-                    message: "Are you sure you want to report this chat? Our team will review the conversation history.",
-                    icon: TriangleAlert,
-                    iconColor: "#E53935",
-                    secondaryAction: { text: "Cancel", onPress: hideAlert },
-                    primaryAction: {
-                      text: "Report",
-                      style: "destructive",
-                      onPress: async () => {
-                        try {
-                          await apiPost("/conversations/report", { conversationId: currentConversationId });
-                          setTimeout(() => {
-                            showAlert({
-                              title: "Reported",
-                              message: "Chat reported successfully.",
-                              primaryAction: { text: "OK", onPress: hideAlert },
-                              icon: Check,
-                              iconColor: "#34C759",
-                            });
-                          }, 300);
-                        } catch (err) {
-                          showAlert({ title: "Error", message: "Failed to report chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
-                        }
-                      }
-                    }
-                  })}
+                  onPress={() => setChatActionsVisible(true)}
                 >
-                  <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
+                  <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
                 </TouchableOpacity>
               </>
             ) : (
@@ -822,35 +1178,9 @@ export default function ChatScreen({ route, navigation }) {
                 <View style={{ flex: 1 }} />
                 <TouchableOpacity
                   style={{ padding: 8 }}
-                  onPress={() => showAlert({
-                    title: "Report Chat",
-                    message: "Are you sure you want to report this chat? Our team will review the conversation history.",
-                    icon: TriangleAlert,
-                    iconColor: "#E53935",
-                    secondaryAction: { text: "Cancel", onPress: hideAlert },
-                    primaryAction: {
-                      text: "Report",
-                      style: "destructive",
-                      onPress: async () => {
-                        try {
-                          await apiPost("/conversations/report", { conversationId: currentConversationId });
-                          setTimeout(() => {
-                            showAlert({
-                              title: "Reported",
-                              message: "Chat reported successfully.",
-                              primaryAction: { text: "OK", onPress: hideAlert },
-                              icon: Check,
-                              iconColor: "#34C759",
-                            });
-                          }, 300);
-                        } catch (err) {
-                          showAlert({ title: "Error", message: "Failed to report chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
-                        }
-                      }
-                    }
-                  })}
+                  onPress={() => setChatActionsVisible(true)}
                 >
-                  <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
+                  <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
                 </TouchableOpacity>
               </>
             )}
@@ -873,7 +1203,24 @@ export default function ChatScreen({ route, navigation }) {
               initialNumToRender={10}
               windowSize={5}
               removeClippedSubviews={false}
-              onScrollToIndexFailed={(info) => setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 200)}
+              scrollEventThrottle={16}
+              onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+              onScrollToIndexFailed={(info) => {
+                // Item not rendered yet — scroll to approximate offset first,
+                // then retry with the same viewPosition:1 anchor.
+                flatListRef.current?.scrollToOffset({
+                  offset: info.averageItemLength * info.index,
+                  animated: true,
+                });
+                setTimeout(() => {
+                  flatListRef.current?.scrollToIndex({
+                    index: info.index,
+                    animated: true,
+                    viewPosition: 1,
+                    viewOffset: 16,
+                  });
+                }, 150);
+              }}
               onLayout={() => setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100)}
               ListEmptyComponent={
                 <View style={{ flex: 1, justifyContent: "center", minHeight: 500 }}>
@@ -937,6 +1284,19 @@ export default function ChatScreen({ route, navigation }) {
             setOptionsTarget(null);
           }}
           onCancel={() => setOptionsTarget(null)} 
+        />
+
+        <ChatActionsSheet
+          visible={chatActionsVisible}
+          onClose={() => setChatActionsVisible(false)}
+          onDeleteChat={handleDeleteChat}
+          onReport={handleStartReport}
+        />
+
+        <ReportReasonSheet
+          visible={reportSheetVisible}
+          onClose={() => setReportSheetVisible(false)}
+          onSelect={handleReportReason}
         />
 
         {sharedPostModalVisible && selectedSharedPost && (

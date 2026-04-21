@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
+import { ScrollView, Pressable } from "react-native-gesture-handler";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";
@@ -18,7 +18,7 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
  * Displays a compact preview card with post thumbnail, author info, and caption.
  * Supports multi-image carousel with dot indicator and stacked-image badge.
  */
-const SharedPostCard = ({ metadata, onPress, style }) => {
+const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
   const [postData, setPostData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -260,10 +260,8 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
   };
 
   return (
-    <TouchableOpacity
+    <View
       style={[styles.container, style]}
-      onPress={handleCardPress}
-      activeOpacity={0.8}
     >
       <View style={styles.card}>
         {/* Post Media */}
@@ -386,10 +384,25 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
           </View>
         )}
 
+        {/* Card Tap Area */}
+        <Pressable 
+          onPress={handleCardPress}
+          style={StyleSheet.absoluteFill}
+          // Ensure this doesn't block the Carousel ScrollView
+          pointerEvents="box-none"
+        >
+           {/* This empty view catches taps outside of the carousel/author row if needed, 
+               but since the card is covered by media and content, we use it as a logical overlay */}
+        </Pressable>
+
         {/* Post Content */}
         <View style={styles.contentContainer}>
           {/* Author Info */}
-          <View style={styles.authorRow}>
+          <TouchableOpacity 
+            style={styles.authorRow}
+            onPress={() => onUserPress && onUserPress(postData.author_id, postData.author_type)}
+            activeOpacity={0.7}
+          >
             <Image
               source={
                 postData.author_photo_url
@@ -410,7 +423,7 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
                 @{postData.author_username || "user"}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Caption */}
           {displayCaption ? (
@@ -420,7 +433,7 @@ const SharedPostCard = ({ metadata, onPress, style }) => {
           ) : null}
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
