@@ -1312,6 +1312,8 @@ export default function ChatScreen({ route, navigation }) {
             navigation={navigation}
           />
         )}
+
+        <CustomAlertModal onClose={hideAlert} {...alertConfig} />
       </View>
     </GestureHandlerRootView>
   );

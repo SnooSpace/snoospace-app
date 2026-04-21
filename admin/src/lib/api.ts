@@ -999,15 +999,54 @@ export async function getReports(params?: {
   const query = new URLSearchParams();
   if (params?.status) query.set("status", params.status);
   if (params?.type) query.set("type", params.type);
-  if (params?.page) query.set("page", String(params.page));
-  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.page) query.set("page", params.page.toString());
+  if (params?.limit) query.set("limit", params.limit.toString());
 
-  const data = await apiRequest<{
-    success: boolean;
-    reports: Report[];
-    pagination: PaginatedResponse<Report>["pagination"];
-  }>(`/admin/reports?${query.toString()}`);
-  return { reports: data.reports, pagination: data.pagination };
+  return apiRequest(`/admin/reports?${query.toString()}`);
+}
+
+// Chat Reports
+export interface ChatReport {
+  id: number;
+  conversation_id: number;
+  reporter_id: number;
+  reporter_type: string;
+  reason: string;
+  details: string | null;
+  status: "pending" | "resolved" | "dismissed";
+  resolved_at: string | null;
+  resolved_by: number | null;
+  resolution_note: string | null;
+  created_at: string;
+  reporter_name?: string | null;
+  resolved_by_email?: string | null;
+}
+
+export async function getChatReports(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{
+  reports: ChatReport[];
+  pagination: PaginatedResponse<ChatReport>["pagination"];
+}> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.page) query.set("page", params.page.toString());
+  if (params?.limit) query.set("limit", params.limit.toString());
+
+  return apiRequest(`/admin/chat-reports?${query.toString()}`);
+}
+
+export async function resolveChatReport(
+  reportId: number,
+  status: "resolved" | "dismissed",
+  resolutionNote?: string,
+): Promise<{ success: boolean; report: ChatReport }> {
+  return apiRequest(`/admin/chat-reports/${reportId}/resolve`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, resolutionNote }),
+  });
 }
 
 export async function getReportStats(): Promise<ReportStats> {
