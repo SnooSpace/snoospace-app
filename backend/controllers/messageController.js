@@ -573,6 +573,13 @@ const getGroupParticipants = async (req, res) => {
     );
     if (check.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
 
+    // Fetch conversation metadata (created_at, avatar)
+    const convInfo = await pool.query(
+      `SELECT created_at, group_avatar_url FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    const conversationMeta = convInfo.rows[0] || {};
+
     const result = await pool.query(
       `SELECT
          cp.id, cp.participant_id, cp.participant_type, cp.role, cp.joined_at,
@@ -590,16 +597,20 @@ const getGroupParticipants = async (req, res) => {
     );
 
     const participants = result.rows.map((p) => ({
-      id:          p.participant_id,
-      type:        p.participant_type,
-      role:        p.role,
-      name:        p.name,
-      username:    p.username,
-      photoUrl:    p.photo_url,
-      joinedAt:    p.joined_at,
+      participantId:   p.participant_id,
+      participantType: p.participant_type,
+      role:            p.role,
+      name:            p.name,
+      username:        p.username,
+      photoUrl:        p.photo_url,
+      joinedAt:        p.joined_at,
     }));
 
-    res.json({ participants });
+    res.json({
+      participants,
+      createdAt:      conversationMeta.created_at,
+      groupAvatarUrl: conversationMeta.group_avatar_url,
+    });
   } catch (error) {
     console.error("Error getting group participants:", error);
     res.status(500).json({ error: "Internal server error" });

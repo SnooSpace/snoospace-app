@@ -740,14 +740,19 @@ export default function ChatScreen({ route, navigation }) {
             </TouchableOpacity>
             {isGroup ? (
               <>
-                <View style={styles.headerInfo}>
-                  <Text style={styles.headerName} numberOfLines={1}>{groupName || "Group"}</Text>
-                </View>
                 <TouchableOpacity
-                  style={styles.backButton}
+                  style={styles.headerInfo}
                   onPress={() => navigation.navigate("GroupInfo", { conversationId: currentConversationId, groupName })}
+                  activeOpacity={0.7}
                 >
-                  <Info size={20} color="#333333" strokeWidth={2} />
+                  <Text style={styles.headerName} numberOfLines={1}>{groupName || "Group"}</Text>
+                  <Text style={styles.headerUsername}>Tap to view info</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => setReportModalVisible(true)}
+                >
+                  <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
                 </TouchableOpacity>
               </>
             ) : (

@@ -5,8 +5,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import {
-  ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus, MoreHorizontal,
+  ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
+  MoreHorizontal, Camera, LogOut,
 } from "lucide-react-native";
 import {
   getGroupParticipants,
@@ -20,7 +22,7 @@ import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import SnooLoader from "../../components/ui/SnooLoader";
 
-// ── Palette ────────────────────────────────────────────────────────────────────
+// ── Palette ─────────────────────────────────────────────────────────────────
 const BG       = "#FFFFFF";
 const SURFACE  = "#F8F8F8";
 const SURFACE2 = "#EFEFF4";
@@ -31,11 +33,33 @@ const TEXT_SEC = "#8E8E93";
 const DANGER   = "#E53935";
 const GOLD     = "#FFB800";
 
-// ── ParticipantRow ────────────────────────────────────────────────────────────
-function ParticipantRow({ participant, isCurrentUser, isCurrentAdmin, isMeAdmin, onKick, onTransfer }) {
+const CLOUD_NAME   = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "dulhurgt7";
+const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "harshith_unsigned";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+async function uploadToCloudinary(uri) {
+  const formData = new FormData();
+  formData.append("file", { uri, type: "image/jpeg", name: "group_avatar.jpg" });
+  formData.append("upload_preset", UPLOAD_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: "POST", body: formData,
+  });
+  const json = await res.json();
+  if (!json.secure_url) throw new Error("Upload failed");
+  return json.secure_url;
+}
+
+// ── ParticipantRow ───────────────────────────────────────────────────────────
+function ParticipantRow({ participant, isCurrentUser, isMeAdmin, onKick, onTransfer, onPress }) {
   const [showActions, setShowActions] = useState(false);
-  const name = participant.name || participant.username || "User";
-  const uri  = participant.profilePhotoUrl || participant.profile_photo_url;
+  const name    = participant.name || participant.username || "User";
+  const uri     = participant.photoUrl;
   const isAdmin = participant.role === "admin";
 
   return (
@@ -43,9 +67,20 @@ function ParticipantRow({ participant, isCurrentUser, isCurrentAdmin, isMeAdmin,
       <TouchableOpacity
         style={pStyles.row}
         activeOpacity={0.75}
-        onPress={() => { if (isMeAdmin && !isCurrentUser) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActions((v) => !v); } }}
+        onPress={() => {
+          if (isMeAdmin && !isCurrentUser) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowActions((v) => !v);
+          } else if (!isCurrentUser) {
+            onPress?.();
+          }
+        }}
+        onLongPress={() => { if (!isCurrentUser) onPress?.(); }}
       >
-        <Image source={{ uri: uri || "https://via.placeholder.com/44" }} style={pStyles.avatar} />
+        <Image
+          source={{ uri: uri || "https://via.placeholder.com/44" }}
+          style={pStyles.avatar}
+        />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text style={pStyles.name} numberOfLines={1}>{name}</Text>
@@ -55,9 +90,12 @@ function ParticipantRow({ participant, isCurrentUser, isCurrentAdmin, isMeAdmin,
                 <Text style={pStyles.adminText}>Admin</Text>
               </View>
             )}
+            {isCurrentUser && (
+              <Text style={pStyles.youTag}> (You)</Text>
+            )}
           </View>
           <Text style={pStyles.username} numberOfLines={1}>
-            {participant.username ? `@${participant.username}` : (participant.type || "member")}
+            {participant.username ? `@${participant.username}` : (participant.participantType || "member")}
           </Text>
         </View>
         {isMeAdmin && !isCurrentUser && (
@@ -82,12 +120,14 @@ function ParticipantRow({ participant, isCurrentUser, isCurrentAdmin, isMeAdmin,
     </View>
   );
 }
+
 const pStyles = StyleSheet.create({
   row:        { flexDirection:"row", alignItems:"center", paddingHorizontal:16,
     paddingVertical:12, borderBottomWidth:1, borderBottomColor:BORDER },
   avatar:     { width:44, height:44, borderRadius:22, marginRight:12, backgroundColor:SURFACE2 },
   name:       { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
   username:   { fontFamily:"Manrope-Regular",  fontSize:12, color:TEXT_SEC, marginTop:1 },
+  youTag:     { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC },
   adminBadge: { flexDirection:"row", alignItems:"center", backgroundColor:"rgba(255,184,0,0.15)",
     paddingHorizontal:7, paddingVertical:2, borderRadius:10, marginLeft:8 },
   adminText:  { fontFamily:"Manrope-SemiBold", fontSize:10, color:GOLD },
@@ -98,8 +138,8 @@ const pStyles = StyleSheet.create({
   actionText: { fontFamily:"Manrope-SemiBold", fontSize:14 },
 });
 
-// ── AddMemberSheet (simple inline search) ─────────────────────────────────────
-function AddMemberSheet({ conversationId, existingIds, currentUserType, onAdded, onClose }) {
+// ── AddMemberSheet ───────────────────────────────────────────────────────────
+function AddMemberSheet({ conversationId, existingIds, currentUserId, currentUserType, onAdded, onClose }) {
   const [query,   setQuery]   = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -112,7 +152,8 @@ function AddMemberSheet({ conversationId, existingIds, currentUserType, onAdded,
       try {
         const res = await searchAccounts(query);
         const filtered = (res.results || []).filter((r) => {
-          if (existingIds.has(r.id)) return false;
+          if (r.id === currentUserId) return false;         // exclude self
+          if (existingIds.has(r.id)) return false;          // exclude existing members
           if (currentUserType === "member") return r.type === "member";
           return true;
         });
@@ -182,6 +223,7 @@ function AddMemberSheet({ conversationId, existingIds, currentUserType, onAdded,
     </View>
   );
 }
+
 const addStyles = StyleSheet.create({
   sheet:     { backgroundColor:SURFACE, borderRadius:16, margin:16, padding:4,
     borderWidth:1, borderColor:BORDER },
@@ -205,15 +247,18 @@ const addStyles = StyleSheet.create({
 export default function GroupInfoScreen({ route, navigation }) {
   const { conversationId, groupName: initialName } = route.params || {};
 
-  const [participants, setParticipants] = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [currentUser,  setCurrentUser]  = useState(null);
-  const [editingName,  setEditingName]  = useState(false);
-  const [nameText,     setNameText]     = useState(initialName || "");
-  const [savingName,   setSavingName]   = useState(false);
-  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [participants,  setParticipants]  = useState([]);
+  const [groupAvatar,   setGroupAvatar]   = useState(null);
+  const [createdAt,     setCreatedAt]     = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [currentUser,   setCurrentUser]   = useState(null);
+  const [editingName,   setEditingName]   = useState(false);
+  const [nameText,      setNameText]      = useState(initialName || "");
+  const [savingName,    setSavingName]    = useState(false);
+  const [showAddSheet,  setShowAddSheet]  = useState(false);
 
-  // ── Load current user identity ────────────────────────────────────────────
+  // ── Load current user ──────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -226,12 +271,14 @@ export default function GroupInfoScreen({ route, navigation }) {
     })();
   }, []);
 
-  // ── Load participants ─────────────────────────────────────────────────────
+  // ── Load participants + metadata ───────────────────────────────────────────
   const loadParticipants = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getGroupParticipants(conversationId);
       setParticipants(res.participants || []);
+      if (res.groupAvatarUrl) setGroupAvatar(res.groupAvatarUrl);
+      if (res.createdAt) setCreatedAt(res.createdAt);
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -241,16 +288,42 @@ export default function GroupInfoScreen({ route, navigation }) {
 
   useEffect(() => { loadParticipants(); }, [loadParticipants]);
 
-  // ── Derived: am I admin? ──────────────────────────────────────────────────
-  const myParticipant = participants.find((p) => p.participantId === currentUser?.id);
-  const isMeAdmin     = myParticipant?.role === "admin";
+  // ── Derived ────────────────────────────────────────────────────────────────
+  // NOTE: participantId is a number from DB; currentUser.id is a string from auth API.
+  // Use String() coercion so the comparison works regardless of type.
+  const myParticipant = participants.find(
+    (p) => String(p.participantId) === String(currentUser?.id)
+  );
+  const isMeAdmin = myParticipant?.role === "admin";
 
-  // ── Save group name ───────────────────────────────────────────────────────
+  // ── Avatar upload ──────────────────────────────────────────────────────────
+  const handleAvatarPress = async () => {
+    if (!isMeAdmin) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { Alert.alert("Permission needed", "Allow photo access to set a group photo."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [1, 1], quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadToCloudinary(result.assets[0].uri);
+      await updateGroupConversation(conversationId, { groupAvatarUrl: url });
+      setGroupAvatar(url);
+    } catch (err) {
+      Alert.alert("Error", "Could not update group photo.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  // ── Save group name ────────────────────────────────────────────────────────
   const handleSaveName = async () => {
     if (!nameText.trim()) return;
     setSavingName(true);
     try {
-      await updateGroupConversation(conversationId, { name: nameText.trim() });
+      await updateGroupConversation(conversationId, { groupName: nameText.trim() });
       setEditingName(false);
     } catch (err) {
       Alert.alert("Error", err?.message || "Could not update group name.");
@@ -259,12 +332,11 @@ export default function GroupInfoScreen({ route, navigation }) {
     }
   };
 
-  // ── Kick participant ──────────────────────────────────────────────────────
+  // ── Kick member ────────────────────────────────────────────────────────────
   const handleKick = useCallback((participant) => {
-    const name = participant.name || "this member";
     Alert.alert(
       "Remove Member",
-      `Remove ${name} from the group?`,
+      `Remove ${participant.name || "this member"} from the group?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -282,12 +354,11 @@ export default function GroupInfoScreen({ route, navigation }) {
     );
   }, [conversationId]);
 
-  // ── Transfer admin ────────────────────────────────────────────────────────
+  // ── Transfer admin ─────────────────────────────────────────────────────────
   const handleTransfer = useCallback((participant) => {
-    const name = participant.name || "this member";
     Alert.alert(
       "Transfer Admin",
-      `Make ${name} the new admin? You will become a regular member.`,
+      `Make ${participant.name || "this member"} the new admin? You will become a regular member.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -305,9 +376,41 @@ export default function GroupInfoScreen({ route, navigation }) {
     );
   }, [conversationId, loadParticipants]);
 
+  // ── Leave group ────────────────────────────────────────────────────────────
+  const handleLeave = useCallback(() => {
+    const title   = isMeAdmin ? "Delete Group" : "Leave Group";
+    const message = isMeAdmin
+      ? "As admin, leaving will delete the group for everyone. Are you sure?"
+      : "Are you sure you want to leave this group?";
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: isMeAdmin ? "Delete" : "Leave", style: "destructive",
+        onPress: async () => {
+          try {
+            await removeGroupParticipant(conversationId, currentUser.id, currentUser.type || "member");
+            navigation.popToTop();
+          } catch (err) {
+            Alert.alert("Error", err?.message || "Could not leave group.");
+          }
+        },
+      },
+    ]);
+  }, [conversationId, currentUser, isMeAdmin, navigation]);
+
+  // ── Navigate to profile ────────────────────────────────────────────────────
+  const navigateToProfile = useCallback((participant) => {
+    if (String(participant.participantId) === String(currentUser?.id)) return;
+    if (participant.participantType === "community") {
+      navigation.navigate("CommunityPublicProfile", { communityId: participant.participantId });
+    } else {
+      navigation.navigate("MemberPublicProfile", { memberId: participant.participantId });
+    }
+  }, [currentUser, navigation]);
+
   const existingIds = new Set(participants.map((p) => p.participantId));
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -323,6 +426,7 @@ export default function GroupInfoScreen({ route, navigation }) {
     );
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -331,21 +435,41 @@ export default function GroupInfoScreen({ route, navigation }) {
           <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.title}>Group Info</Text>
-        {isMeAdmin && (
+        {isMeAdmin ? (
           <TouchableOpacity style={styles.iconBtn} onPress={() => setShowAddSheet((v) => !v)}>
             <UserPlus size={20} color={ACCENT} strokeWidth={2} />
           </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
         )}
-        {!isMeAdmin && <View style={{ width: 40 }} />}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
-        {/* Group name section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>GROUP NAME</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+
+        {/* Group avatar */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={isMeAdmin ? 0.7 : 1} style={styles.avatarWrap}>
+            {uploadingAvatar ? (
+              <View style={[styles.avatar, styles.avatarLoading]}>
+                <SnooLoader size="small" color={ACCENT} />
+              </View>
+            ) : (
+              <Image
+                source={{ uri: groupAvatar || "https://via.placeholder.com/88" }}
+                style={styles.avatar}
+              />
+            )}
+            {isMeAdmin && !uploadingAvatar && (
+              <View style={styles.cameraOverlay}>
+                <Camera size={16} color="#FFF" strokeWidth={2} />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Group name */}
           <View style={styles.nameRow}>
             {editingName ? (
-              <>
+              <View style={styles.nameEditRow}>
                 <TextInput
                   style={styles.nameInput}
                   value={nameText}
@@ -362,19 +486,24 @@ export default function GroupInfoScreen({ route, navigation }) {
                     ? <SnooLoader size="small" color={ACCENT} />
                     : <Check size={20} color={ACCENT} strokeWidth={2.5} />}
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
-              <>
+              <View style={styles.nameDisplayRow}>
                 <Text style={styles.nameDisplay} numberOfLines={1}>{nameText || "Group"}</Text>
                 {isMeAdmin && (
                   <TouchableOpacity onPress={() => setEditingName(true)}
-                    hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                    hitSlop={{ top:8, bottom:8, left:8, right:8 }} style={{ marginLeft: 8 }}>
                     <Edit2 size={16} color={TEXT_SEC} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
-              </>
+              </View>
             )}
           </View>
+
+          {/* Created date */}
+          {createdAt && (
+            <Text style={styles.createdAt}>Created {formatDate(createdAt)}</Text>
+          )}
         </View>
 
         {/* Add member sheet (inline) */}
@@ -382,6 +511,7 @@ export default function GroupInfoScreen({ route, navigation }) {
           <AddMemberSheet
             conversationId={conversationId}
             existingIds={existingIds}
+            currentUserId={currentUser?.id}
             currentUserType={currentUser?.type}
             onAdded={(user) => {
               setParticipants((prev) => [
@@ -391,7 +521,7 @@ export default function GroupInfoScreen({ route, navigation }) {
                   participantType: user.type || "member",
                   name:            user.display_name || user.name || user.full_name,
                   username:        user.username,
-                  profilePhotoUrl: user.profile_photo_url || user.logo_url,
+                  photoUrl:        user.profile_photo_url || user.logo_url,
                   role:            "member",
                 },
               ]);
@@ -402,36 +532,71 @@ export default function GroupInfoScreen({ route, navigation }) {
         )}
 
         {/* Members list */}
-        <View style={styles.section}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>{participants.length} MEMBERS</Text>
         </View>
+
         {participants.map((p) => (
           <ParticipantRow
             key={p.participantId}
             participant={p}
-            isCurrentUser={p.participantId === currentUser?.id}
+            isCurrentUser={String(p.participantId) === String(currentUser?.id)}
             isMeAdmin={isMeAdmin}
             onKick={() => handleKick(p)}
             onTransfer={() => handleTransfer(p)}
+            onPress={() => navigateToProfile(p)}
           />
         ))}
+
+        {/* Leave / Delete button */}
+        {currentUser && (
+          <TouchableOpacity style={styles.leaveBtn} onPress={handleLeave}>
+            <LogOut size={18} color={DANGER} strokeWidth={2} style={{ marginRight: 10 }} />
+            <Text style={styles.leaveBtnText}>
+              {isMeAdmin ? "Delete Group" : "Leave Group"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex:1, backgroundColor:BG },
-  header:    { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
+  container:    { flex:1, backgroundColor:BG },
+  header:       { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
     paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:BORDER },
-  iconBtn:   { width:40, height:40, alignItems:"center", justifyContent:"center" },
-  title:     { fontFamily:"BasicCommercial-Black", fontSize:18, color:TEXT },
-  centered:  { flex:1, justifyContent:"center", alignItems:"center" },
-  section:   { paddingHorizontal:16, paddingTop:20, paddingBottom:8 },
-  sectionLabel: { fontFamily:"BasicCommercial-Bold", fontSize:12, color:TEXT_SEC,
+  iconBtn:      { width:40, height:40, alignItems:"center", justifyContent:"center" },
+  title:        { fontFamily:"BasicCommercial-Black", fontSize:18, color:TEXT },
+  centered:     { flex:1, justifyContent:"center", alignItems:"center" },
+
+  // Avatar section
+  avatarSection:  { alignItems:"center", paddingVertical:28 },
+  avatarWrap:     { position:"relative", marginBottom:14 },
+  avatar:         { width:88, height:88, borderRadius:44, backgroundColor:SURFACE2 },
+  avatarLoading:  { alignItems:"center", justifyContent:"center" },
+  cameraOverlay:  { position:"absolute", bottom:0, right:0, width:28, height:28,
+    borderRadius:14, backgroundColor:ACCENT, alignItems:"center", justifyContent:"center",
+    borderWidth:2, borderColor:BG },
+
+  // Name
+  nameRow:        { width:"100%", alignItems:"center", paddingHorizontal:32 },
+  nameEditRow:    { flexDirection:"row", alignItems:"center" },
+  nameDisplayRow: { flexDirection:"row", alignItems:"center", justifyContent:"center" },
+  nameDisplay:    { fontFamily:"BasicCommercial-Bold", fontSize:22, color:TEXT },
+  nameInput:      { fontFamily:"BasicCommercial-Bold", fontSize:22, color:TEXT,
+    borderBottomWidth:1, borderBottomColor:ACCENT, paddingVertical:4, marginRight:10, minWidth:120 },
+  createdAt:      { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC, marginTop:6 },
+
+  // Members
+  sectionHeader:  { paddingHorizontal:16, paddingTop:8, paddingBottom:8,
+    borderTopWidth:1, borderTopColor:BORDER },
+  sectionLabel:   { fontFamily:"BasicCommercial-Bold", fontSize:12, color:TEXT_SEC,
     letterSpacing:0.5, textTransform:"uppercase" },
-  nameRow:   { flexDirection:"row", alignItems:"center", marginTop:8 },
-  nameDisplay: { fontFamily:"BasicCommercial-Bold", fontSize:20, color:TEXT, flex:1, marginRight:10 },
-  nameInput: { flex:1, fontFamily:"BasicCommercial-Bold", fontSize:20, color:TEXT,
-    borderBottomWidth:1, borderBottomColor:ACCENT, paddingVertical:4, marginRight:10 },
+
+  // Leave
+  leaveBtn:       { flexDirection:"row", alignItems:"center", justifyContent:"center",
+    marginHorizontal:16, marginTop:32, paddingVertical:14, borderRadius:14,
+    backgroundColor:"rgba(229,57,53,0.08)", borderWidth:1, borderColor:"rgba(229,57,53,0.2)" },
+  leaveBtnText:   { fontFamily:"Manrope-SemiBold", fontSize:15, color:DANGER },
 });

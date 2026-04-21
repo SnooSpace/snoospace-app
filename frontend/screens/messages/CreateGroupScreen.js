@@ -99,9 +99,11 @@ export default function CreateGroupScreen({ navigation }) {
       try {
         setSearchLoading(true);
         const res = await searchAccounts(q);
-        const filtered = (res.results || []).filter((r) =>
-          currentUser?.type === "member" ? r.type === "member" : true
-        );
+        const filtered = (res.results || []).filter((r) => {
+          if (r.id === currentUser?.id) return false;                           // exclude self
+          if (currentUser?.type === "member") return r.type === "member";
+          return true;
+        });
         setSearchResults(filtered);
       } catch { setSearchResults([]); }
       finally { setSearchLoading(false); }
