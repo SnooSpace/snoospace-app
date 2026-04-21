@@ -5,7 +5,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Search, X, Check, Users } from "lucide-react-native";
+import { ArrowLeft, Search, X, Check, Users, AlertTriangle } from "lucide-react-native";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { searchAccounts } from "../../api/search";
 import { createGroupConversation } from "../../api/messages";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
@@ -77,7 +78,19 @@ export default function CreateGroupScreen({ navigation }) {
   const [groupName,     setGroupName]     = useState("");
   const [creating,      setCreating]      = useState(false);
   const [currentUser,   setCurrentUser]   = useState(null);
+  const [alertConfig,   setAlertConfig]   = useState({
+    visible: false,
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
   const searchTimeout = useRef(null);
+
+  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
+  const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   useEffect(() => {
     (async () => {
@@ -121,8 +134,14 @@ export default function CreateGroupScreen({ navigation }) {
   const isSelected = (user) => selected.some((u) => u.id === user.id);
 
   const handleCreate = async () => {
-    if (!groupName.trim()) { Alert.alert("Name required", "Please give your group a name."); return; }
-    if (selected.length < 2) { Alert.alert("Add members", "Please select at least 2 people."); return; }
+    if (!groupName.trim()) {
+      showAlert({ title: "Name required", message: "Please give your group a name.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+      return;
+    }
+    if (selected.length < 2) {
+      showAlert({ title: "Add members", message: "Please select at least 2 people.", primaryAction: { text: "OK", onPress: hideAlert }, icon: Users, iconColor: ACCENT });
+      return;
+    }
     setCreating(true);
     try {
       const res = await createGroupConversation({
@@ -135,7 +154,7 @@ export default function CreateGroupScreen({ navigation }) {
         groupName: groupName.trim(),
       });
     } catch (err) {
-      Alert.alert("Error", err?.message || "Failed to create group chat.");
+      showAlert({ title: "Error", message: err?.message || "Failed to create group chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
     } finally {
       setCreating(false);
     }
@@ -261,6 +280,17 @@ export default function CreateGroupScreen({ navigation }) {
           {selected.length} {selected.length === 1 ? "member" : "members"} selected
         </Text>
       </KeyboardAvoidingView>
+
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </SafeAreaView>
   );
 }

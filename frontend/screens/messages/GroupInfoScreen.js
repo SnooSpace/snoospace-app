@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
+  View, Text, TextInput, TouchableOpacity,
   Image, StyleSheet, Alert, ScrollView, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
+import { useCrop } from "../../components/MediaCrop";
 import {
   ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
-  MoreHorizontal, Camera, LogOut,
+  MoreHorizontal, Camera, LogOut, AlertTriangle, Info,
 } from "lucide-react-native";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import {
   getGroupParticipants,
   updateGroupConversation,
@@ -170,7 +171,12 @@ function AddMemberSheet({ conversationId, existingIds, currentUserId, currentUse
       await addGroupParticipant(conversationId, user.id, user.type || "member");
       onAdded(user);
     } catch (err) {
-      Alert.alert("Error", err?.message || "Could not add member.");
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not add member.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
     } finally {
       setAdding((p) => ({ ...p, [user.id]: false }));
     }
@@ -257,6 +263,18 @@ export default function GroupInfoScreen({ route, navigation }) {
   const [nameText,      setNameText]      = useState(initialName || "");
   const [savingName,    setSavingName]    = useState(false);
   const [showAddSheet,  setShowAddSheet]  = useState(false);
+  const [alertConfig,   setAlertConfig]   = useState({
+    visible: false,
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
+  const hideAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false }));
 
   // ── Load current user ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -289,30 +307,30 @@ export default function GroupInfoScreen({ route, navigation }) {
   useEffect(() => { loadParticipants(); }, [loadParticipants]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  // NOTE: participantId is a number from DB; currentUser.id is a string from auth API.
-  // Use String() coercion so the comparison works regardless of type.
   const myParticipant = participants.find(
     (p) => String(p.participantId) === String(currentUser?.id)
   );
   const isMeAdmin = myParticipant?.role === "admin";
 
+  const { pickAndCrop } = useCrop();
+
   // ── Avatar upload ──────────────────────────────────────────────────────────
   const handleAvatarPress = async () => {
     if (!isMeAdmin) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Permission needed", "Allow photo access to set a group photo."); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
     setUploadingAvatar(true);
     try {
-      const url = await uploadToCloudinary(result.assets[0].uri);
+      const result = await pickAndCrop("avatar");
+      if (!result?.uri) return;
+      const url = await uploadToCloudinary(result.uri);
       await updateGroupConversation(conversationId, { groupAvatarUrl: url });
       setGroupAvatar(url);
     } catch (err) {
-      Alert.alert("Error", "Could not update group photo.");
+      showAlert({
+        title: "Error",
+        message: "Could not update group photo.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
     } finally {
       setUploadingAvatar(false);
     }
@@ -326,7 +344,12 @@ export default function GroupInfoScreen({ route, navigation }) {
       await updateGroupConversation(conversationId, { groupName: nameText.trim() });
       setEditingName(false);
     } catch (err) {
-      Alert.alert("Error", err?.message || "Could not update group name.");
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not update group name.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
     } finally {
       setSavingName(false);
     }
@@ -334,46 +357,57 @@ export default function GroupInfoScreen({ route, navigation }) {
 
   // ── Kick member ────────────────────────────────────────────────────────────
   const handleKick = useCallback((participant) => {
-    Alert.alert(
-      "Remove Member",
-      `Remove ${participant.name || "this member"} from the group?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove", style: "destructive",
-          onPress: async () => {
-            try {
-              await removeGroupParticipant(conversationId, participant.participantId, participant.participantType || "member");
-              setParticipants((prev) => prev.filter((p) => p.participantId !== participant.participantId));
-            } catch (err) {
-              Alert.alert("Error", err?.message || "Could not remove member.");
-            }
-          },
+    showAlert({
+      title: "Remove Member",
+      message: `Remove ${participant.name || "this member"} from the group?`,
+      icon: UserMinus,
+      iconColor: DANGER,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await removeGroupParticipant(conversationId, participant.participantId, participant.participantType || "member");
+            setParticipants((prev) => prev.filter((p) => p.participantId !== participant.participantId));
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not remove member.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: AlertTriangle,
+            });
+          }
         },
-      ]
-    );
+      },
+    });
   }, [conversationId]);
 
   // ── Transfer admin ─────────────────────────────────────────────────────────
   const handleTransfer = useCallback((participant) => {
-    Alert.alert(
-      "Transfer Admin",
-      `Make ${participant.name || "this member"} the new admin? You will become a regular member.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Transfer", style: "destructive",
-          onPress: async () => {
-            try {
-              await transferAdmin(conversationId, participant.participantId, participant.participantType || "member");
-              await loadParticipants();
-            } catch (err) {
-              Alert.alert("Error", err?.message || "Could not transfer admin.");
-            }
-          },
+    showAlert({
+      title: "Transfer Admin",
+      message: `Make ${participant.name || "this member"} the new admin? You will become a regular member.`,
+      icon: Shield,
+      iconColor: GOLD,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Transfer",
+        onPress: async () => {
+          try {
+            await transferAdmin(conversationId, participant.participantId, participant.participantType || "member");
+            await loadParticipants();
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not transfer admin.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: AlertTriangle,
+            });
+          }
         },
-      ]
-    );
+      },
+    });
   }, [conversationId, loadParticipants]);
 
   // ── Leave group ────────────────────────────────────────────────────────────
@@ -382,20 +416,30 @@ export default function GroupInfoScreen({ route, navigation }) {
     const message = isMeAdmin
       ? "As admin, leaving will delete the group for everyone. Are you sure?"
       : "Are you sure you want to leave this group?";
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: isMeAdmin ? "Delete" : "Leave", style: "destructive",
+    showAlert({
+      title,
+      message,
+      icon: isMeAdmin ? X : LogOut,
+      iconColor: DANGER,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: isMeAdmin ? "Delete" : "Leave",
+        style: "destructive",
         onPress: async () => {
           try {
             await removeGroupParticipant(conversationId, currentUser.id, currentUser.type || "member");
             navigation.popToTop();
           } catch (err) {
-            Alert.alert("Error", err?.message || "Could not leave group.");
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not leave group.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: AlertTriangle,
+            });
           }
         },
       },
-    ]);
+    });
   }, [conversationId, currentUser, isMeAdmin, navigation]);
 
   // ── Navigate to profile ────────────────────────────────────────────────────
@@ -558,6 +602,17 @@ export default function GroupInfoScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </SafeAreaView>
   );
 }

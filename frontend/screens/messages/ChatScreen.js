@@ -10,7 +10,8 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, CornerUpLeft, Info, TriangleAlert, Trash2 } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, CornerUpLeft, Info, TriangleAlert, Trash2, AlertTriangle, PartyPopper } from "lucide-react-native";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations } from "../../api/messages";
@@ -226,7 +227,7 @@ const quoteStyles = StyleSheet.create({
   },
 });
 
-// ── MessageOptionsModal ────────────────────────────────────────────────────────
+// MessageOptionsModal remains custom but gets a facelift
 const MessageOptionsModal = ({ visible, isMyMessage, onReply, onUnsend, onCancel }) => {
   if (!visible) return null;
   return (
@@ -234,12 +235,21 @@ const MessageOptionsModal = ({ visible, isMyMessage, onReply, onUnsend, onCancel
       <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
       <View style={optionsStyles.menu}>
         <TouchableOpacity style={optionsStyles.option} onPress={onReply}>
-          <Reply size={20} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={[optionsStyles.iconBox, { backgroundColor: "rgba(53, 101, 242, 0.15)" }]}>
+            <Reply size={20} color="#3565F2" strokeWidth={2.5} />
+          </View>
           <Text style={optionsStyles.optionText}>Reply</Text>
         </TouchableOpacity>
+        
+        {isMyMessage && (
+          <View style={optionsStyles.divider} />
+        )}
+
         {isMyMessage && (
           <TouchableOpacity style={optionsStyles.option} onPress={onUnsend}>
-            <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+            <View style={[optionsStyles.iconBox, { backgroundColor: "rgba(229, 57, 53, 0.15)" }]}>
+              <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+            </View>
             <Text style={[optionsStyles.optionText, { color: "#E53935" }]}>Unsend</Text>
           </TouchableOpacity>
         )}
@@ -248,53 +258,17 @@ const MessageOptionsModal = ({ visible, isMyMessage, onReply, onUnsend, onCancel
   );
 };
 const optionsStyles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor:"rgba(0,0,0,0.5)",
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor:"rgba(0,0,0,0.4)",
     justifyContent:"center", alignItems: "center", zIndex:999 },
-  menu:    { backgroundColor:"#262626", borderRadius:16, width: 220, paddingVertical: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
-  option:  { flexDirection: "row", alignItems: "center", paddingVertical:14, paddingHorizontal:20 },
-  optionText: { fontFamily:"Manrope-Medium", fontSize:15, color:"#FFFFFF", marginLeft: 16 },
+  menu:    { backgroundColor:"#FFFFFF", borderRadius:24, width: 240, padding: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  option:  { flexDirection: "row", alignItems: "center", paddingVertical:12, paddingHorizontal:12 },
+  iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  optionText: { fontFamily:"Manrope-SemiBold", fontSize:16, color:"#1F3A5F", marginLeft: 16 },
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 12 },
 });
 
-// ── ReportModal ───────────────────────────────────────────────────────────────
-const ReportModal = ({ visible, onConfirm, onCancel }) => {
-  if (!visible) return null;
-  return (
-    <View style={reportStyles.overlay}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-      <View style={reportStyles.card}>
-        <View style={reportStyles.iconContainer}>
-          <TriangleAlert size={28} color="#E53935" strokeWidth={2} />
-        </View>
-        <Text style={reportStyles.title}>Report Chat</Text>
-        <Text style={reportStyles.subtitle}>Are you sure you want to report this chat? Our team will review the conversation history.</Text>
-        <View style={reportStyles.actions}>
-          <TouchableOpacity style={reportStyles.cancelBtn} onPress={onCancel}>
-            <Text style={reportStyles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={reportStyles.confirmBtn} onPress={onConfirm}>
-            <Text style={reportStyles.confirmText}>Report</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-};
-const reportStyles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 20, width: 300, padding: 24, alignItems: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
-  iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(229, 57, 53, 0.1)",
-    justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  title: { fontFamily: "BasicCommercial-Bold", fontSize: 20, color: "#1F3A5F", marginBottom: 8, textAlign: "center" },
-  subtitle: { fontFamily: "Manrope-Regular", fontSize: 14, color: "#666", textAlign: "center", marginBottom: 24, lineHeight: 20 },
-  actions: { flexDirection: "row", justifyContent: "space-between", width: "100%" },
-  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F0F4FF", marginRight: 8, alignItems: "center" },
-  cancelText: { fontFamily: "Manrope-SemiBold", fontSize: 15, color: "#3565F2" },
-  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#E53935", marginLeft: 8, alignItems: "center" },
-  confirmText: { fontFamily: "Manrope-SemiBold", fontSize: 15, color: "#FFFFFF" },
-});
+// ReportModal is removed in favor of CustomAlertModal logic in the main component
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
@@ -315,8 +289,19 @@ export default function ChatScreen({ route, navigation }) {
   const [sharedPosts,           setSharedPosts]          = useState({});
   const [selectedReply,         setSelectedReply]        = useState(null); // { id, messageText, senderName, isDeleted }
   const [optionsTarget,         setOptionsTarget]        = useState(null); // message object to show options for
-  const [reportModalVisible,    setReportModalVisible]   = useState(false);
+  const [alertConfig,           setAlertConfig]          = useState({
+    visible: false,
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
   const [hapticFired,           setHapticFired]          = useState({});   // { [msgId]: bool }
+
+  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
+  const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const flatListRef       = useRef(null);
   const inputRef          = useRef(null);
@@ -392,7 +377,12 @@ export default function ChatScreen({ route, navigation }) {
         }
       } catch (err) {
         console.error("Error initializing conversation:", err);
-        Alert.alert("Error", err?.message || "Failed to load conversation.", [{ text: "OK", onPress: () => navigation.goBack() }]);
+        showAlert({
+          title: "Error",
+          message: err?.message || "Failed to load conversation.",
+          primaryAction: { text: "OK", onPress: () => { hideAlert(); navigation.goBack(); } },
+          icon: AlertTriangle,
+        });
       } finally {
         setLoading(false);
       }
@@ -506,7 +496,12 @@ export default function ChatScreen({ route, navigation }) {
     } catch (err) {
       console.error("Error sending message:", err);
       setMessageText(text);
-      Alert.alert("Error", err?.message || "Failed to send message.", [{ text: "OK" }]);
+      showAlert({
+        title: "Error",
+        message: err?.message || "Failed to send message.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
     } finally {
       setSending(false);
     }
@@ -529,7 +524,12 @@ export default function ChatScreen({ route, navigation }) {
       await unsendMessage(id);
     } catch (err) {
       console.error("Unsend error:", err);
-      Alert.alert("Error", "Could not unsend message.");
+      showAlert({
+        title: "Error",
+        message: "Could not unsend message.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
       // Revert both the message and any reply previews pointing to it
       setMessages(prev => prev.map(m => {
         if (m.id === id) return { ...m, isDeleted: false };
@@ -635,15 +635,26 @@ export default function ChatScreen({ route, navigation }) {
     if (msg.messageType === "ticket" && msg.metadata) {
       const handleRSVP = async (response) => {
         const giftId = msg.metadata.giftId;
-        if (!giftId) { Alert.alert("Error", "Unable to process RSVP"); return; }
+        if (!giftId) { 
+          showAlert({ title: "Error", message: "Unable to process RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+          return; 
+        }
         setRsvpLoading(prev => ({ ...prev, [msg.id]: true }));
         try {
           const result = await confirmGiftRSVP(giftId, response);
           if (result.success) {
             setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, metadata: { ...m.metadata, status: result.status } } : m));
-            Alert.alert(response === "going" ? "You're In! 🎉" : "Maybe Next Time", result.message);
+            showAlert({
+              title: response === "going" ? "You're In! 🎉" : "Maybe Next Time",
+              message: result.message,
+              primaryAction: { text: "Sweet!", onPress: hideAlert },
+              icon: PartyPopper,
+              iconColor: COLORS.primary,
+            });
           }
-        } catch (err) { Alert.alert("Error", err?.message || "Failed to confirm RSVP"); }
+        } catch (err) { 
+          showAlert({ title: "Error", message: err?.message || "Failed to confirm RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+        }
         finally { setRsvpLoading(prev => ({ ...prev, [msg.id]: false })); }
       };
       return (
@@ -750,7 +761,33 @@ export default function ChatScreen({ route, navigation }) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ padding: 8 }}
-                  onPress={() => setReportModalVisible(true)}
+                  onPress={() => showAlert({
+                    title: "Report Chat",
+                    message: "Are you sure you want to report this chat? Our team will review the conversation history.",
+                    icon: TriangleAlert,
+                    iconColor: "#E53935",
+                    secondaryAction: { text: "Cancel", onPress: hideAlert },
+                    primaryAction: {
+                      text: "Report",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await apiPost("/conversations/report", { conversationId: currentConversationId });
+                          setTimeout(() => {
+                            showAlert({
+                              title: "Reported",
+                              message: "Chat reported successfully.",
+                              primaryAction: { text: "OK", onPress: hideAlert },
+                              icon: Check,
+                              iconColor: "#34C759",
+                            });
+                          }, 300);
+                        } catch (err) {
+                          showAlert({ title: "Error", message: "Failed to report chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+                        }
+                      }
+                    }
+                  })}
                 >
                   <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
                 </TouchableOpacity>
@@ -769,7 +806,33 @@ export default function ChatScreen({ route, navigation }) {
                 <View style={{ flex: 1 }} />
                 <TouchableOpacity
                   style={{ padding: 8 }}
-                  onPress={() => setReportModalVisible(true)}
+                  onPress={() => showAlert({
+                    title: "Report Chat",
+                    message: "Are you sure you want to report this chat? Our team will review the conversation history.",
+                    icon: TriangleAlert,
+                    iconColor: "#E53935",
+                    secondaryAction: { text: "Cancel", onPress: hideAlert },
+                    primaryAction: {
+                      text: "Report",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await apiPost("/conversations/report", { conversationId: currentConversationId });
+                          setTimeout(() => {
+                            showAlert({
+                              title: "Reported",
+                              message: "Chat reported successfully.",
+                              primaryAction: { text: "OK", onPress: hideAlert },
+                              icon: Check,
+                              iconColor: "#34C759",
+                            });
+                          }, 300);
+                        } catch (err) {
+                          showAlert({ title: "Error", message: "Failed to report chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+                        }
+                      }
+                    }
+                  })}
                 >
                   <TriangleAlert size={22} color="#E53935" strokeWidth={2} />
                 </TouchableOpacity>
@@ -855,15 +918,6 @@ export default function ChatScreen({ route, navigation }) {
             setOptionsTarget(null);
           }}
           onCancel={() => setOptionsTarget(null)} 
-        />
-
-        <ReportModal 
-          visible={reportModalVisible} 
-          onCancel={() => setReportModalVisible(false)} 
-          onConfirm={() => {
-            setReportModalVisible(false);
-            setTimeout(() => Alert.alert("Reported", "Chat reported successfully."), 300);
-          }} 
         />
 
         {sharedPostModalVisible && selectedSharedPost && (

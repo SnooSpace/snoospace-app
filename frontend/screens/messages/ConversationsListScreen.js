@@ -15,8 +15,9 @@ import Svg, { Circle, Path, Rect, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 
 import {
-  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft,
+  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, AlertTriangle,
 } from "lucide-react-native";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { getConversations, hideConversation, removeGroupParticipant } from "../../api/messages";
 import { globalSearch } from "../../api/search";
@@ -284,6 +285,18 @@ export default function ConversationsListScreen({ navigation }) {
   const [showAddAccount,   setShowAddAccount]   = useState(false);
   const [activeAccount,    setActiveAccount]    = useState(null);
   const [allAccounts,      setAllAccounts]      = useState([]);
+  const [alertConfig,       setAlertConfig]      = useState({
+    visible: false,
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
+  const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const searchTimeout = useRef(null);
   const isSearching   = searchText.trim().length > 0;
@@ -378,40 +391,42 @@ export default function ConversationsListScreen({ navigation }) {
 
   // ── Delete / Leave handlers ────────────────────────────────────────────────────
   const handleDeleteConversation = useCallback(async (conv) => {
-    Alert.alert(
-      "Delete Conversation",
-      "This will remove the conversation from your view. The other person won't be affected.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete", style: "destructive",
-          onPress: async () => {
-            setConversations((prev) => prev.filter((c) => c.id !== conv.id));
-            try { await hideConversation(conv.id); }
-            catch { setConversations((prev) => [...prev, conv]); }
-          },
+    showAlert({
+      title: "Delete Conversation",
+      message: "This will remove the conversation from your view. The other person won't be affected.",
+      icon: Trash2,
+      iconColor: DANGER,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+          try { await hideConversation(conv.id); }
+          catch { setConversations((prev) => [...prev, conv]); }
         },
-      ]
-    );
+      },
+    });
   }, []);
 
   const handleLeaveGroup = useCallback(async (conv) => {
-    Alert.alert(
-      "Leave Group",
-      `Leave "${conv.groupName || "this group"}"? You won't receive messages anymore.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave", style: "destructive",
-          onPress: async () => {
-            setConversations((prev) => prev.filter((c) => c.id !== conv.id));
-            try {
-              await removeGroupParticipant(conv.id, activeAccount?.id, activeAccount?.type || "member");
-            } catch { setConversations((prev) => [...prev, conv]); }
-          },
+    showAlert({
+      title: "Leave Group",
+      message: `Leave "${conv.groupName || "this group"}"? You won't receive messages anymore.`,
+      icon: LogOut,
+      iconColor: "#FF9500",
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Leave",
+        style: "destructive",
+        onPress: async () => {
+          setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+          try {
+            await removeGroupParticipant(conv.id, activeAccount?.id, activeAccount?.type || "member");
+          } catch { setConversations((prev) => [...prev, conv]); }
         },
-      ]
-    );
+      },
+    });
   }, [activeAccount]);
 
   // ── Navigate to chat ──────────────────────────────────────────────────────────
@@ -634,6 +649,17 @@ export default function ConversationsListScreen({ navigation }) {
             await loadAccountInfo();
             await loadConversations();
           }}
+        />
+
+        <CustomAlertModal
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={hideAlert}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
         />
       </SafeAreaView>
     </GestureHandlerRootView>
