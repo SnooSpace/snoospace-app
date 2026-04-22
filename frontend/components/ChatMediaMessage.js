@@ -11,7 +11,7 @@ import {
   PinchGestureHandler, PanGestureHandler, GestureHandlerRootView,
   State,
 } from "react-native-gesture-handler";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { Play, X, Film, Image as ImageIcon } from "lucide-react-native";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -166,9 +166,12 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
 }
 
 // ── FullScreenVideoViewer ─────────────────────────────────────────────────────
-// Clean fullscreen video player using expo-av.
+// Clean fullscreen video player using the modern expo-video.
 function FullScreenVideoViewer({ uri, visible, onClose }) {
-  const videoRef = React.useRef(null);
+  const player = useVideoPlayer(uri, player => {
+    player.loop = false;
+    player.play();
+  });
 
   if (!visible) return null;
 
@@ -184,14 +187,12 @@ function FullScreenVideoViewer({ uri, visible, onClose }) {
         <TouchableOpacity style={viewerStyles.closeBtn} onPress={onClose}>
           <X size={24} color="#FFFFFF" strokeWidth={2.5} />
         </TouchableOpacity>
-        <Video
-          ref={videoRef}
-          source={{ uri }}
+        <VideoView
+          player={player}
           style={{ width: SCREEN_W, height: SCREEN_H }}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay
-          useNativeControls
-          isLooping={false}
+          allowsFullscreen
+          allowsPictureInPicture
+          nativeControls
         />
       </View>
     </Modal>
