@@ -82,6 +82,26 @@ const sharePost = async (req, res) => {
 
     const post = postCheck.rows[0];
 
+    // Also fetch author info so we can embed it in the metadata as a permanent fallback
+    // (needed when the post is later deleted and we still want to show who posted it)
+    let authorUsername = null;
+    let authorName = null;
+    if (post.author_type === "member") {
+      const authorInfo = await pool.query(
+        "SELECT username, name FROM members WHERE id = $1",
+        [post.author_id],
+      );
+      authorUsername = authorInfo.rows[0]?.username || null;
+      authorName = authorInfo.rows[0]?.name || null;
+    } else if (post.author_type === "community") {
+      const authorInfo = await pool.query(
+        "SELECT username, name FROM communities WHERE id = $1",
+        [post.author_id],
+      );
+      authorUsername = authorInfo.rows[0]?.username || null;
+      authorName = authorInfo.rows[0]?.name || null;
+    }
+
     if (shareType === "copy_link") {
       // Record copy link share
       await pool.query(
@@ -128,6 +148,8 @@ const sharePost = async (req, res) => {
       postId: post.id,
       authorId: post.author_id,
       authorType: post.author_type,
+      authorUsername,
+      authorName,
       imageUrl: firstImageUrl,
       caption: truncatedCaption,
     };

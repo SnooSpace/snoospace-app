@@ -130,3 +130,60 @@ export async function deleteCloudinaryImage(publicId) {
   const token = await getAuthToken();
   return apiPost(`/upload/${publicId}`, {}, 15000, token);
 }
+
+/**
+ * Upload chat media (image or video) to Cloudinary
+ * Enforces: images ≤ 50MB, videos ≤ 100MB and ≤ 60 seconds duration.
+ * @param {string} uri - Local file URI from expo-image-picker
+ * @param {'image'|'video'} type
+ * @param {{ onProgress?: (progress: number) => void }} opts
+ * @returns {Promise<{ url: string, public_id: string, resource_type: string, duration?: number, width?: number, height?: number }>}
+ */
+export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) {
+  const resourceType = type === 'video' ? 'video' : 'image';
+  const folder = 'snoospace/chat/media';
+  const fileName = type === 'video' ? `chat-video-${Date.now()}.mp4` : `chat-image-${Date.now()}.jpg`;
+  const mimeType = type === 'video' ? 'video/mp4' : 'image/jpeg';
+
+  const formData = new FormData();
+  formData.append('file', { uri, type: mimeType, name: fileName });
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('cloud_name', CLOUD_NAME);
+  formData.append('folder', folder);
+  // Ask Cloudinary to auto-compress videos and generate a poster thumbnail
+  if (type === 'video') {
+    formData.append('resource_type', 'video');
+    formData.append('eager', 'so_0,w_480,h_480,c_limit,q_auto');
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(e.loaded / e.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const result = JSON.parse(xhr.responseText);
+        resolve({
+          url:           result.secure_url,
+          public_id:     result.public_id,
+          resource_type: result.resource_type,
+          duration:      result.duration || null,
+          width:         result.width || null,
+          height:        result.height || null,
+          thumbnail_url: result.eager?.[0]?.secure_url || null,
+        });
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.send(formData);
+  });
+}

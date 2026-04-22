@@ -496,11 +496,13 @@ export default function ConversationsListScreen({ navigation }) {
   const openConversation = useCallback((conv) => {
     if (conv.isGroup) {
       navigation.navigate("Chat", {
-        conversationId: conv.id,
-        isGroup: true,
-        groupName: conv.groupName,
-        isMuted: conv.isMuted || false,
-        mutedUntil: conv.mutedUntil || null,
+        conversationId:      conv.id,
+        isGroup:             true,
+        groupName:           conv.groupName,
+        isMuted:             conv.isMuted || false,
+        mutedUntil:          conv.mutedUntil || null,
+        myGroupRole:         conv.myRole || "member",         // pass role instantly
+        messagingRestricted: conv.messagingRestricted || false, // pass restriction instantly
       });
     } else {
       navigation.navigate("Chat", {

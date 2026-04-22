@@ -558,9 +558,12 @@ export default function ReportsPage() {
                   ) : (
                     chatMessages.map((msg) => (
                       <div key={msg.id} className="flex flex-col gap-0.5">
+                        {/* Sender + timestamp row */}
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="text-xs font-semibold">
-                            {msg.sender_name || msg.sender_username || `User #${msg.sender_id}`}
+                            {msg.sender_name
+                              ? `${msg.sender_name}${msg.sender_username ? ` (@${msg.sender_username})` : ""}`
+                              : msg.sender_username || `User #${msg.sender_id}`}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
                             {formatDate(msg.created_at)}
@@ -568,21 +571,77 @@ export default function ReportsPage() {
                           {msg.message_type === "system" && (
                             <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">system</span>
                           )}
+                          {msg.message_type === "post_share" && !msg.is_deleted && (
+                            <span className="text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full">shared post</span>
+                          )}
                           {msg.is_deleted && (
                             <span className="text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded-full font-medium">
                               ● Deleted
                             </span>
                           )}
                         </div>
-                        <p className={`text-sm ${
-                          msg.is_deleted
-                            ? "line-through text-muted-foreground"
-                            : msg.message_type === "system"
-                            ? "text-muted-foreground text-center text-xs"
-                            : ""
-                        }`}>
-                          {msg.message_text}
-                        </p>
+
+                        {/* Reply-to quote (if this message is a reply) */}
+                        {msg.replyPreview && !msg.is_deleted && (
+                          <div className="ml-2 pl-2 border-l-2 border-muted-foreground/30 text-[11px] text-muted-foreground mb-0.5">
+                            <span className="font-medium">
+                              ↩ {msg.replyPreview.senderName || "Unknown"}:{" "}
+                            </span>
+                            {msg.replyPreview.isDeleted ? (
+                              <span className="italic">This message was unsent</span>
+                            ) : msg.replyPreview.isPostShare ? (
+                              <span>
+                                🖼️ Shared a post
+                                {msg.replyPreview.postAuthorUsername && (
+                                  <> · <span className="font-medium">@{msg.replyPreview.postAuthorUsername}</span></>
+                                )}
+                                {msg.replyPreview.postCaption && (
+                                  <> · {msg.replyPreview.postCaption.slice(0, 60)}{msg.replyPreview.postCaption.length > 60 ? "…" : ""}</>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="italic">
+                                {(msg.replyPreview.messageText || "").slice(0, 80)}
+                                {(msg.replyPreview.messageText || "").length > 80 ? "…" : ""}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Message body */}
+                        {msg.message_type === "system" ? (
+                          <p className="text-muted-foreground text-center text-xs italic">
+                            {msg.message_text}
+                          </p>
+                        ) : msg.message_type === "post_share" && !msg.is_deleted && msg.metadata ? (
+                          <div className="rounded-md border bg-background p-2 text-xs max-w-[280px]">
+                            <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium mb-1">
+                              🖼️ Shared a post
+                            </div>
+                            {(msg.metadata.authorName || msg.metadata.authorUsername) && (
+                              <div className="text-muted-foreground">
+                                {msg.metadata.authorName && (
+                                  <span className="font-medium text-foreground">{msg.metadata.authorName} </span>
+                                )}
+                                {msg.metadata.authorUsername && (
+                                  <span>@{msg.metadata.authorUsername}</span>
+                                )}
+                              </div>
+                            )}
+                            {msg.metadata.caption && (
+                              <p className="text-muted-foreground mt-0.5 line-clamp-2">
+                                {msg.metadata.caption}
+                              </p>
+                            )}
+                            {!msg.metadata.authorName && !msg.metadata.authorUsername && !msg.metadata.caption && (
+                              <p className="text-muted-foreground italic">No post details available</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className={`text-sm ${msg.is_deleted ? "line-through text-muted-foreground" : ""}`}>
+                            {msg.is_deleted ? "This message was unsent" : (msg.message_text || "")}
+                          </p>
+                        )}
                       </div>
                     ))
                   )}

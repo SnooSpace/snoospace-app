@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
-  Image, StyleSheet, Alert, ScrollView, ActivityIndicator,
+  Image, StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
-import {
-  ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
-  MoreHorizontal, Camera, LogOut, AlertTriangle, Info,
+import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
+  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import {
@@ -17,6 +16,7 @@ import {
   removeGroupParticipant,
   transferAdmin,
   addGroupParticipant,
+  sendMessage,
 } from "../../api/messages";
 import { searchAccounts } from "../../api/search";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
@@ -253,17 +253,19 @@ const addStyles = StyleSheet.create({
 export default function GroupInfoScreen({ route, navigation }) {
   const { conversationId, groupName: initialName } = route.params || {};
 
-  const [participants,  setParticipants]  = useState([]);
-  const [groupAvatar,   setGroupAvatar]   = useState(null);
-  const [createdAt,     setCreatedAt]     = useState(null);
-  const [loading,       setLoading]       = useState(true);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [currentUser,   setCurrentUser]   = useState(null);
-  const [editingName,   setEditingName]   = useState(false);
-  const [nameText,      setNameText]      = useState(initialName || "");
-  const [savingName,    setSavingName]    = useState(false);
-  const [showAddSheet,  setShowAddSheet]  = useState(false);
-  const [alertConfig,   setAlertConfig]   = useState({
+  const [participants,        setParticipants]        = useState([]);
+  const [groupAvatar,         setGroupAvatar]         = useState(null);
+  const [createdAt,           setCreatedAt]           = useState(null);
+  const [loading,             setLoading]             = useState(true);
+  const [uploadingAvatar,     setUploadingAvatar]     = useState(false);
+  const [currentUser,         setCurrentUser]         = useState(null);
+  const [editingName,         setEditingName]         = useState(false);
+  const [nameText,            setNameText]            = useState(initialName || "");
+  const [savingName,          setSavingName]          = useState(false);
+  const [showAddSheet,        setShowAddSheet]        = useState(false);
+  const [messagingRestricted, setMessagingRestricted] = useState(false);
+  const [togglingRestrict,    setTogglingRestrict]    = useState(false);
+  const [alertConfig,         setAlertConfig]         = useState({
     visible: false,
     title: "",
     message: "",
@@ -297,6 +299,7 @@ export default function GroupInfoScreen({ route, navigation }) {
       setParticipants(res.participants || []);
       if (res.groupAvatarUrl) setGroupAvatar(res.groupAvatarUrl);
       if (res.createdAt) setCreatedAt(res.createdAt);
+      setMessagingRestricted(res.messagingRestricted || false);
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -442,6 +445,35 @@ export default function GroupInfoScreen({ route, navigation }) {
     });
   }, [conversationId, currentUser, isMeAdmin, navigation]);
 
+  // ── Toggle messaging restriction ────────────────────────────────────────────────────────────
+  const handleToggleRestrict = useCallback(async (value) => {
+    setTogglingRestrict(true);
+    try {
+      await updateGroupConversation(conversationId, { messagingRestricted: value });
+      setMessagingRestricted(value);
+      // Post a system message so participants know
+      const sysText = value
+        ? "Messaging has been restricted to admins only."
+        : "All participants can now send messages.";
+      try {
+        await sendMessage({
+          conversationId,
+          messageText: sysText,
+          messageType: "system",
+        });
+      } catch { /* non-fatal */ }
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not update restriction.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
+    } finally {
+      setTogglingRestrict(false);
+    }
+  }, [conversationId]);
+
   // ── Navigate to profile ────────────────────────────────────────────────────
   const navigateToProfile = useCallback((participant) => {
     if (String(participant.participantId) === String(currentUser?.id)) return;
@@ -575,6 +607,31 @@ export default function GroupInfoScreen({ route, navigation }) {
           />
         )}
 
+        {/* Restrict messaging (admin only) */}
+        {isMeAdmin && (
+          <View style={styles.restrictRow}>
+            <View style={styles.restrictRowLeft}>
+              <View style={styles.restrictIcon}>
+                <LockKeyhole size={16} color={ACCENT} strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.restrictTitle}>Restrict Messaging</Text>
+                <Text style={styles.restrictSub}>
+                  {messagingRestricted ? "Only admins can send messages" : "Everyone can send messages"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={messagingRestricted}
+              onValueChange={handleToggleRestrict}
+              disabled={togglingRestrict}
+              trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
+              thumbColor={messagingRestricted ? ACCENT : "#FFFFFF"}
+              ios_backgroundColor="#E5E5EA"
+            />
+          </View>
+        )}
+
         {/* Members list */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>{participants.length} MEMBERS</Text>
@@ -654,4 +711,15 @@ const styles = StyleSheet.create({
     marginHorizontal:16, marginTop:32, paddingVertical:14, borderRadius:14,
     backgroundColor:"rgba(229,57,53,0.08)", borderWidth:1, borderColor:"rgba(229,57,53,0.2)" },
   leaveBtnText:   { fontFamily:"Manrope-SemiBold", fontSize:15, color:DANGER },
+
+  // Restrict messaging toggle
+  restrictRow:    { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
+    marginHorizontal:16, marginTop:8, marginBottom:4, paddingVertical:14,
+    paddingHorizontal:16, backgroundColor:SURFACE, borderRadius:16,
+    borderWidth:1, borderColor:BORDER },
+  restrictRowLeft:{ flexDirection:"row", alignItems:"center", flex:1, marginRight:12 },
+  restrictIcon:   { width:36, height:36, borderRadius:18, backgroundColor:"rgba(53,101,242,0.1)",
+    alignItems:"center", justifyContent:"center", marginRight:12 },
+  restrictTitle:  { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
+  restrictSub:    { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC, marginTop:2 },
 });

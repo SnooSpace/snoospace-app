@@ -1032,13 +1032,36 @@ export interface ChatMessage {
   id: number;
   sender_id: number;
   sender_type: string;
-  message_text: string;
+  message_text: string | null;
   message_type: string;
   is_deleted: boolean;
   created_at: string;
   sender_name: string | null;
   sender_username: string | null;
   sender_photo_url: string | null;
+  // Post share metadata
+  metadata?: {
+    postId?: number;
+    authorId?: number;
+    authorType?: string;
+    authorName?: string | null;
+    authorUsername?: string | null;
+    imageUrl?: string | null;
+    caption?: string | null;
+    [key: string]: unknown;
+  } | null;
+  // Reply-to context
+  reply_to_message_id?: number | null;
+  replyPreview?: {
+    messageText: string | null;
+    messageType?: string;
+    senderName: string | null;
+    isDeleted: boolean;
+    isPostShare?: boolean;
+    postAuthorUsername?: string | null;
+    postAuthorName?: string | null;
+    postCaption?: string | null;
+  } | null;
 }
 
 export async function getChatReports(params?: {

@@ -70,6 +70,9 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_text FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_text,
+        (SELECT msg.message_type FROM messages msg
+         WHERE msg.conversation_id = c.id
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
         -- For muted convos: suppress unread count (Instagram behaviour)
         CASE WHEN cm.id IS NOT NULL THEN 0
           ELSE (SELECT COUNT(*) FROM messages msg
@@ -118,6 +121,10 @@ const getConversations = async (req, res) => {
         c.group_avatar_url,
         c.last_message_at,
         c.created_at,
+        c.messaging_restricted,
+        cp.role                       AS my_role,
+        (SELECT COUNT(*) FROM conversation_participants p2
+         WHERE p2.conversation_id = c.id)             AS participant_count,
         NULL                          AS other_participant_id,
         NULL                          AS other_participant_type,
         NULL                          AS other_participant_name,
@@ -126,6 +133,9 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_text FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_text,
+        (SELECT msg.message_type FROM messages msg
+         WHERE msg.conversation_id = c.id
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
         NULL                          AS muted_until,
         (SELECT COUNT(*) FROM messages msg
          WHERE msg.conversation_id = c.id
@@ -152,11 +162,20 @@ const getConversations = async (req, res) => {
       pool.query(groupQuery, [userId, userType]),
     ]);
 
+    const formatLastMessage = (text, type) => {
+      if (type === 'image') return '\ud83d\udcf7 Photo';
+      if (type === 'video') return '\ud83c\udfa5 Video';
+      return text || null;
+    };
+
     const mapConv = (conv) => ({
-      id:             conv.conversation_id,
-      isGroup:        conv.is_group,
-      groupName:      conv.group_name      || null,
-      groupAvatarUrl: conv.group_avatar_url || null,
+      id:                  conv.conversation_id,
+      isGroup:             conv.is_group,
+      groupName:           conv.group_name      || null,
+      groupAvatarUrl:      conv.group_avatar_url || null,
+      messagingRestricted: conv.messaging_restricted || false,
+      myRole:              conv.my_role           || null,   // 'admin' | 'member' | null for DMs
+      participantCount:    parseInt(conv.participant_count) || null,
       otherParticipant: conv.is_group ? null : {
         id:             conv.other_participant_id,
         type:           conv.other_participant_type,
@@ -164,7 +183,7 @@ const getConversations = async (req, res) => {
         username:       conv.other_participant_username,
         profilePhotoUrl: conv.other_participant_photo,
       },
-      lastMessage:    conv.last_message_text,
+      lastMessage:    formatLastMessage(conv.last_message_text, conv.last_message_type),
       lastMessageAt:  conv.last_message_at,
       unreadCount:    parseInt(conv.unread_count) || 0,
       isMuted:        conv.is_muted === true || conv.is_muted === 't',
@@ -249,6 +268,8 @@ const getMessages = async (req, res) => {
         COALESCE(mem.username, comm.username)    AS sender_username,
         COALESCE(mem.profile_photo_url, comm.logo_url) AS sender_photo_url,
         rm.message_text   AS reply_message_text,
+        rm.message_type   AS reply_message_type,
+        rm.metadata       AS reply_metadata,
         rm.sender_id      AS reply_sender_id,
         rm.sender_type    AS reply_sender_type,
         rm.is_deleted     AS reply_is_deleted,
@@ -266,29 +287,42 @@ const getMessages = async (req, res) => {
     `;
 
     const result = await pool.query(query, [conversationId, limit, offset, hiddenAt]);
-    const messages = result.rows.reverse().map((msg) => ({
-      id:                msg.id,
-      senderId:          msg.sender_id,
-      senderType:        msg.sender_type,
-      senderName:        msg.sender_name,
-      senderUsername:    msg.sender_username,
-      senderPhotoUrl:    msg.sender_photo_url,
-      messageText:       msg.is_deleted ? null : msg.message_text,
-      messageType:       msg.message_type || "text",
-      metadata:          msg.is_deleted ? null : msg.metadata,
-      isRead:            msg.is_read,
-      isDeleted:         msg.is_deleted,
-      deletedByType:     msg.deleted_by_type,
-      replyToMessageId:  msg.reply_to_message_id,
-      replyPreview:      msg.reply_to_message_id ? {
-        messageText:  msg.reply_is_deleted ? null : msg.reply_message_text,
-        senderId:     msg.reply_sender_id,
-        senderType:   msg.reply_sender_type,
-        senderName:   msg.reply_sender_name,
-        isDeleted:    msg.reply_is_deleted,
-      } : null,
-      createdAt:         msg.created_at,
-    }));
+    const messages = result.rows.reverse().map((msg) => {
+      let replyPreview = null;
+      if (msg.reply_to_message_id) {
+        const isPostShare = msg.reply_message_type === "post_share";
+        const replyMeta = msg.reply_metadata || {};
+        replyPreview = {
+          messageText:       msg.reply_is_deleted ? null : msg.reply_message_text,
+          messageType:       msg.reply_message_type,
+          senderId:          msg.reply_sender_id,
+          senderType:        msg.reply_sender_type,
+          senderName:        msg.reply_sender_name,
+          isDeleted:         msg.reply_is_deleted,
+          isPostShare:       isPostShare,
+          postAuthorUsername: isPostShare ? (replyMeta.authorUsername || null) : null,
+          postAuthorName:    isPostShare ? (replyMeta.authorName || null) : null,
+          postCaption:       isPostShare ? (replyMeta.caption || null) : null,
+        };
+      }
+      return {
+        id:                msg.id,
+        senderId:          msg.sender_id,
+        senderType:        msg.sender_type,
+        senderName:        msg.sender_name,
+        senderUsername:    msg.sender_username,
+        senderPhotoUrl:    msg.sender_photo_url,
+        messageText:       msg.is_deleted ? null : msg.message_text,
+        messageType:       msg.message_type || "text",
+        metadata:          msg.is_deleted ? null : msg.metadata,
+        isRead:            msg.is_read,
+        isDeleted:         msg.is_deleted,
+        deletedByType:     msg.deleted_by_type,
+        replyToMessageId:  msg.reply_to_message_id,
+        replyPreview,
+        createdAt:         msg.created_at,
+      };
+    });
 
     // Mark as read — also respects the hidden_at cutoff
     await pool.query(
@@ -314,9 +348,10 @@ const sendMessage = async (req, res) => {
       conversationId,         // group chat path
       recipientId,            // DM path
       recipientType = "member",
-      messageText,
+      messageText = "",
       messageType = "text",
       reply_to_message_id,
+      metadata = null,        // for image/video: { url, public_id, resource_type, duration? }
     } = req.body;
 
     const userId   = req.user?.id;
@@ -326,8 +361,13 @@ const sendMessage = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (!messageText || messageText.trim().length === 0) {
+    // Media messages (image/video) may have empty messageText; text messages must have content
+    const isMediaMessage = ["image", "video"].includes(messageType);
+    if (!isMediaMessage && (!messageText || messageText.trim().length === 0)) {
       return res.status(400).json({ error: "Message text is required" });
+    }
+    if (isMediaMessage && !metadata?.url) {
+      return res.status(400).json({ error: "metadata.url is required for media messages" });
     }
 
     let convId;
@@ -335,23 +375,27 @@ const sendMessage = async (req, res) => {
     if (conversationId) {
       // Look up the conversation to determine if it's a group or DM
       const convLookup = await pool.query(
-        `SELECT id, is_group FROM conversations WHERE id = $1`,
+        `SELECT id, is_group, messaging_restricted FROM conversations WHERE id = $1`,
         [conversationId],
       );
       if (convLookup.rows.length === 0) {
         return res.status(404).json({ error: "Conversation not found" });
       }
-      const isGroup = convLookup.rows[0].is_group;
+      const { is_group: isGroup, messaging_restricted: restricted } = convLookup.rows[0];
 
       if (isGroup) {
-        // Group chat: verify the user is in conversation_participants
+        // Group chat: verify the user is a participant and check messaging restriction
         const cpCheck = await pool.query(
-          `SELECT id FROM conversation_participants
+          `SELECT id, role FROM conversation_participants
            WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
           [conversationId, userId, userType],
         );
         if (cpCheck.rows.length === 0) {
           return res.status(403).json({ error: "Not a participant of this group" });
+        }
+        // Enforce announcement mode: only admins can send when messaging_restricted = true
+        if (restricted && cpCheck.rows[0].role !== "admin") {
+          return res.status(403).json({ error: "Messaging is restricted to admins only" });
         }
       } else {
         // DM: verify the user is one of the two participants
@@ -386,13 +430,16 @@ const sendMessage = async (req, res) => {
       convId = await getOrCreateConversation(userId, userType, recipientId, recipientType);
     }
 
+    const finalText = messageText?.trim() || "";
+    const metadataJson = metadata ? JSON.stringify(metadata) : null;
+
     // Insert message
     const msgResult = await pool.query(
       `INSERT INTO messages
-         (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, created_at`,
-      [convId, userId, userType, messageText.trim(), messageType, reply_to_message_id || null],
+      [convId, userId, userType, finalText, messageType, reply_to_message_id || null, metadataJson],
     );
     const message = msgResult.rows[0];
 
@@ -417,8 +464,9 @@ const sendMessage = async (req, res) => {
         senderName:     senderInfo.rows[0]?.name,
         senderUsername: senderInfo.rows[0]?.username,
         senderPhotoUrl: senderInfo.rows[0]?.profile_photo_url,
-        messageText:    messageText.trim(),
+        messageText:    finalText,
         messageType,
+        metadata:       metadata || null,
         replyToMessageId: reply_to_message_id || null,
         isRead:         false,
         isDeleted:      false,
@@ -612,9 +660,9 @@ const getGroupParticipants = async (req, res) => {
     );
     if (check.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
 
-    // Fetch conversation metadata (created_at, avatar)
+    // Fetch conversation metadata (created_at, avatar, messaging_restricted)
     const convInfo = await pool.query(
-      `SELECT created_at, group_avatar_url FROM conversations WHERE id = $1`,
+      `SELECT created_at, group_avatar_url, messaging_restricted FROM conversations WHERE id = $1`,
       [conversationId],
     );
     const conversationMeta = convInfo.rows[0] || {};
@@ -645,10 +693,17 @@ const getGroupParticipants = async (req, res) => {
       joinedAt:        p.joined_at,
     }));
 
+    // Derive the calling user's own role from the result
+    const myParticipant = result.rows.find(
+      (p) => String(p.participant_id) === String(userId) && p.participant_type === userType,
+    );
+
     res.json({
       participants,
-      createdAt:      conversationMeta.created_at,
-      groupAvatarUrl: conversationMeta.group_avatar_url,
+      createdAt:           conversationMeta.created_at,
+      groupAvatarUrl:      conversationMeta.group_avatar_url,
+      messagingRestricted: conversationMeta.messaging_restricted || false,
+      _myRole:             myParticipant?.role || "member",
     });
   } catch (error) {
     console.error("Error getting group participants:", error);
@@ -674,6 +729,7 @@ const updateGroupConversation = async (req, res) => {
     );
     if (adminCheck.rows.length === 0) return res.status(403).json({ error: "Admin access required" });
 
+    const { messagingRestricted } = req.body;
     const setClauses = [];
     const values = [];
     let i = 1;
@@ -682,6 +738,10 @@ const updateGroupConversation = async (req, res) => {
     if (communityAutoJoin !== undefined && userType === "community") {
       setClauses.push(`community_auto_join = $${i++}`);
       values.push(communityAutoJoin);
+    }
+    if (messagingRestricted !== undefined) {
+      setClauses.push(`messaging_restricted = $${i++}`);
+      values.push(Boolean(messagingRestricted));
     }
     if (setClauses.length === 0) return res.status(400).json({ error: "Nothing to update" });
     values.push(conversationId);

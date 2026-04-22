@@ -12,11 +12,14 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { BlurView } from "expo-blur";
-import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation } from "../../api/messages";
+import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
+import { uploadChatMedia } from "../../api/upload";
+import ChatMediaMessage from "../../components/ChatMediaMessage";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
 import { confirmGiftRSVP } from "../../api/events";
@@ -115,10 +118,26 @@ const ReplyBar = ({ reply, onClose }) => {
     opacity:   opacity.value,
   }));
   if (!reply) return null;
-  const preview = reply.isDeleted ? "This message was unsent" :
-    (reply.messageText || "").slice(0, 60) + ((reply.messageText || "").length > 60 ? "…" : "");
+
+  const isPostShare = reply.isPostShare;
+  let preview;
+  if (reply.isDeleted) {
+    preview = "This message was unsent";
+  } else if (isPostShare) {
+    const authorLine = reply.postAuthorUsername ? `@${reply.postAuthorUsername}` : "Shared post";
+    const captionLine = reply.postCaption ? ` · ${reply.postCaption.slice(0, 40)}${reply.postCaption.length > 40 ? "…" : ""}` : "";
+    preview = authorLine + captionLine;
+  } else {
+    preview = (reply.messageText || "").slice(0, 60) + ((reply.messageText || "").length > 60 ? "…" : "");
+  }
+
   return (
     <Animated.View style={[replyBarStyles.container, animStyle]}>
+      {isPostShare && (
+        <View style={replyBarStyles.postIcon}>
+          <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
+        </View>
+      )}
       <View style={replyBarStyles.body}>
         <Text style={replyBarStyles.name}>Replying to {reply.senderName || "Message"}</Text>
         <Text style={replyBarStyles.preview} numberOfLines={1}>{preview}</Text>
@@ -132,32 +151,54 @@ const ReplyBar = ({ reply, onClose }) => {
 const replyBarStyles = StyleSheet.create({
   container: { flexDirection:"row", alignItems:"center", backgroundColor: CHAT_CANVAS_BG,
     paddingHorizontal:16, paddingVertical:10, borderTopWidth: 1, borderTopColor: INCOMING_BORDER },
+  postIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(53,101,242,0.10)",
+    alignItems: "center", justifyContent: "center", marginRight: 10 },
   body:    { flex:1 },
   name:    { fontFamily:"Manrope-SemiBold", fontSize:12, color: LIGHT_TEXT, marginBottom:2 },
+  preview: { fontFamily:"Manrope-Regular", fontSize:12, color: LIGHT_TEXT },
 });
 
 // ── ReplyQuote ────────────────────────────────────────────────────────────────
-const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => (
-  <View style={quoteStyles.wrapper}>
-    <Text style={[quoteStyles.replyLabel, isMyMessage ? quoteStyles.myReplyLabel : quoteStyles.otherReplyLabel]}>
-      {isMyMessage ? "You replied" : "Replied to you"}
-    </Text>
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
-      <View style={[quoteStyles.verticalBar, isMyMessage ? quoteStyles.myVerticalBar : quoteStyles.otherVerticalBar]} />
-      <View style={quoteStyles.content}>
-        {replyPreview.isDeleted ? (
-          <Text style={[quoteStyles.text, quoteStyles.deletedText]} numberOfLines={1}>
-            This message was unsent
-          </Text>
-        ) : (
-          <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
-            {replyPreview.messageText || "Message"}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  </View>
-);
+const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
+  const isPostShare = replyPreview.isPostShare ||
+    (!replyPreview.isDeleted && replyPreview.messageText === "Shared a post");
+
+  return (
+    <View style={quoteStyles.wrapper}>
+      <Text style={[quoteStyles.replyLabel, isMyMessage ? quoteStyles.myReplyLabel : quoteStyles.otherReplyLabel]}>
+        {isMyMessage ? "You replied" : "Replied to you"}
+      </Text>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[quoteStyles.container, isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer]}>
+        <View style={[quoteStyles.verticalBar, isMyMessage ? quoteStyles.myVerticalBar : quoteStyles.otherVerticalBar]} />
+        <View style={quoteStyles.content}>
+          {replyPreview.isDeleted ? (
+            <Text style={[quoteStyles.text, quoteStyles.deletedText]} numberOfLines={1}>
+              This message was unsent
+            </Text>
+          ) : isPostShare ? (
+            <>
+              <View style={quoteStyles.postShareRow}>
+                <ImageIcon size={12} color="#3565F2" strokeWidth={2} style={{ marginRight: 4 }} />
+                <Text style={quoteStyles.postShareLabel}>Shared a post</Text>
+              </View>
+              {(replyPreview.postAuthorUsername || replyPreview.postCaption) && (
+                <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText, { opacity: 0.75 }]} numberOfLines={1}>
+                  {replyPreview.postAuthorUsername ? `@${replyPreview.postAuthorUsername}` : ""}
+                  {replyPreview.postAuthorUsername && replyPreview.postCaption ? " · " : ""}
+                  {replyPreview.postCaption ? replyPreview.postCaption.slice(0, 50) : ""}
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
+              {replyPreview.messageText || "Message"}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+};
 const quoteStyles = StyleSheet.create({
   wrapper: {
     marginBottom: 2,
@@ -226,6 +267,16 @@ const quoteStyles = StyleSheet.create({
     color: "#A0A0A0",
     fontStyle: "italic",
     fontFamily: "Manrope-Regular",
+  },
+  postShareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  postShareLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
+    color: "#3565F2",
   },
 });
 
@@ -588,8 +639,14 @@ const SwipeableMessage = React.memo(({ messageId, highlightedIdSV, onReply, onLo
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
-  const { conversationId, recipientId, recipientType = "member", isGroup = false, groupName,
-    isMuted: initialIsMuted = false, mutedUntil: initialMutedUntil = null } = route.params || {};
+  const {
+    conversationId, recipientId, recipientType = "member",
+    isGroup = false, groupName,
+    isMuted: initialIsMuted = false, mutedUntil: initialMutedUntil = null,
+    // Passed from ConversationsListScreen for instant render — no async needed
+    myGroupRole: initialMyGroupRole = null,
+    messagingRestricted: initialMessagingRestricted = false,
+  } = route.params || {};
 
 
   const [messages,              setMessages]             = useState([]);
@@ -620,17 +677,25 @@ export default function ChatScreen({ route, navigation }) {
   const [isMuted,               setIsMuted]               = useState(initialIsMuted);
   const [mutedUntil,            setMutedUntil]            = useState(initialMutedUntil);
 
+  // Group restriction + media state
+  const [messagingRestricted,   setMessagingRestricted]   = useState(initialMessagingRestricted);
+  const [myGroupRole,           setMyGroupRole]           = useState(initialMyGroupRole);
+  const [mediaAttachment,       setMediaAttachment]       = useState(null); // { uri, type, caption }
+  const [uploadProgress,        setUploadProgress]        = useState(0);
+  const [uploadingMedia,        setUploadingMedia]        = useState(false);
+
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
   const showAlert = (config) => setAlertConfig({ ...config, visible: true });
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const flatListRef        = useRef(null);
-  const scrollOffsetRef    = useRef(0);   // tracks live y-offset for nudge trick
+  const scrollOffsetRef    = useRef(0);
   const inputRef           = useRef(null);
   const subscriptionRef    = useRef(null);
   const supabaseRef        = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const groupParticipantsRef = useRef([]); // stores group participant list for role resolution
   const insets             = useSafeAreaInsets();
 
   // Reanimated keyboard tracking
@@ -717,6 +782,16 @@ export default function ChatScreen({ route, navigation }) {
         if (conversationId) {
           setCurrentConversationId(conversationId);
           await loadMessages(conversationId);
+          // For group chats: fetch restriction flag + current user role
+          if (isGroup) {
+            try {
+              const gpRes = await getGroupParticipants(conversationId);
+              setMessagingRestricted(gpRes.messagingRestricted || false);
+              // find current user's role by matching token user — we get it from auth via getConversations
+              // We store it after we also load current user identity below
+              if (gpRes._myRole) setMyGroupRole(gpRes._myRole); // populated below
+            } catch { /* non-fatal */ }
+          }
         } else if (recipientId) {
           const res = await getConversations();
           const existing = res.conversations?.find(c => c.otherParticipant?.id === recipientId);
@@ -766,6 +841,22 @@ export default function ChatScreen({ route, navigation }) {
       } catch (err) { console.error("Error loading recipient:", err); }
     })();
   }, [conversationId, recipient]);
+
+  // ── Background-refresh group restriction + role (stale-while-revalidate) ────────────
+  // Initial values already seeded from route.params (zero-latency, set at render time).
+  // This effect silently validates them against the server in case the admin
+  // toggled restriction between when the conversations list loaded and now.
+  useEffect(() => {
+    if (!isGroup || !currentConversationId) return;
+    (async () => {
+      try {
+        const gpRes = await getGroupParticipants(currentConversationId);
+        setMessagingRestricted(gpRes.messagingRestricted || false);
+        if (gpRes._myRole)    setMyGroupRole(gpRes._myRole);
+        if (gpRes.participants) groupParticipantsRef.current = gpRes.participants;
+      } catch { /* non-fatal — initial values from params still correct */ }
+    })();
+  }, [isGroup, currentConversationId]);
 
   // ── Supabase init ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -823,32 +914,65 @@ export default function ChatScreen({ route, navigation }) {
   }, [currentConversationId]);
 
   const handleSend = async () => {
-    if (!messageText.trim() || sending) return;
-    const text = messageText.trim();
-    const replyId = selectedReply?.id || null;
+    const hasText  = messageText.trim().length > 0;
+    const hasMedia = !!mediaAttachment;
+    if ((!hasText && !hasMedia) || sending || uploadingMedia) return;
+
+    const text          = messageText.trim();
+    const replyId       = selectedReply?.id || null;
     const replyPreviewObj = selectedReply ? { ...selectedReply } : null;
+    const attachmentSnap = mediaAttachment;
+
     setMessageText("");
     setSelectedReply(null);
+    setMediaAttachment(null);
     setSending(true);
+
     try {
       const finalRecipientId   = currentRecipientId || recipientId || recipient?.id;
       const finalRecipientType = currentRecipientType || recipientType || recipient?.type || "member";
-      if (!finalRecipientId) throw new Error("Recipient information is missing.");
+      if (!finalRecipientId && !currentConversationId) throw new Error("Recipient information is missing.");
+
+      let msgType  = "text";
+      let metadata = null;
+
+      if (attachmentSnap) {
+        // Upload media first
+        setUploadingMedia(true);
+        setUploadProgress(0);
+        const uploaded = await uploadChatMedia(
+          attachmentSnap.uri,
+          attachmentSnap.type,
+          { onProgress: (p) => setUploadProgress(p) },
+        );
+        setUploadingMedia(false);
+        msgType  = attachmentSnap.type; // 'image' | 'video'
+        metadata = {
+          url:           uploaded.url,
+          public_id:     uploaded.public_id,
+          resource_type: uploaded.resource_type,
+          duration:      uploaded.duration,
+          thumbnail_url: uploaded.thumbnail_url,
+          width:         uploaded.width,
+          height:        uploaded.height,
+        };
+      }
+
       const response = await sendMessage({
-        conversationId: currentConversationId || undefined,
-        recipientId: currentConversationId ? undefined : finalRecipientId,
-        recipientType: finalRecipientType,
-        messageText: text,
+        conversationId:      currentConversationId || undefined,
+        recipientId:         currentConversationId ? undefined : finalRecipientId,
+        recipientType:       finalRecipientType,
+        messageText:         text,
+        messageType:         msgType,
         reply_to_message_id: replyId,
+        metadata,
       });
       const msg = { ...response.message, replyPreview: replyPreviewObj };
-      if (!currentConversationId) {
-        setCurrentConversationId(msg.conversationId);
-      }
+      if (!currentConversationId) setCurrentConversationId(msg.conversationId);
       setMessages(prev => [...prev, msg]);
       EventBus.emit("conversation-updated", {
         conversationId: msg.conversationId,
-        lastMessage: msg.messageText,
+        lastMessage: msgType === "image" ? "📷 Photo" : msgType === "video" ? "🎥 Video" : msg.messageText,
         lastMessageAt: msg.createdAt,
         otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
       });
@@ -857,6 +981,7 @@ export default function ChatScreen({ route, navigation }) {
     } catch (err) {
       console.error("Error sending message:", err);
       setMessageText(text);
+      setUploadingMedia(false);
       showAlert({
         title: "Error",
         message: err?.message || "Failed to send message.",
@@ -865,6 +990,44 @@ export default function ChatScreen({ route, navigation }) {
       });
     } finally {
       setSending(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // ── handlePickMedia ───────────────────────────────────────────────────────────────
+  const handlePickMedia = async (type) => {
+    try {
+      const mediaTypes = type === "video"
+        ? ImagePicker.MediaTypeOptions.Videos
+        : ImagePicker.MediaTypeOptions.Images;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes,
+        allowsEditing: false,
+        quality: 0.85,
+        videoMaxDuration: 60, // 60s Instagram-style limit
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+
+      // Enforce size limits
+      const maxBytes = type === "video" ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (asset.fileSize && asset.fileSize > maxBytes) {
+        showAlert({
+          title: type === "video" ? "Video Too Large" : "Image Too Large",
+          message: type === "video"
+            ? "Videos must be under 100 MB and 60 seconds."
+            : "Images must be under 50 MB.",
+          primaryAction: { text: "OK", onPress: hideAlert },
+          icon: AlertTriangle,
+        });
+        return;
+      }
+
+      setMediaAttachment({ uri: asset.uri, type, duration: asset.duration });
+    } catch (err) {
+      console.error("Media pick error:", err);
     }
   };
 
@@ -1127,6 +1290,48 @@ export default function ChatScreen({ route, navigation }) {
       );
     }
 
+    // ── Image / Video messages ────────────────────────────────────────────────────────────
+    if (msg.messageType === "image" || msg.messageType === "video") {
+      return (
+        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+          {!isMyMessage && (showAvatar ? <Image source={{ uri: avatarUri }} style={styles.messageAvatar} /> : <View style={{ width: 30, marginRight: 8 }} />)}
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => setSelectedReply({
+              id: msg.id,
+              messageText: msg.messageType === "image" ? "📷 Photo" : "🎥 Video",
+              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+              isDeleted: msg.isDeleted,
+            })}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setOptionsTarget(msg);
+            }}
+          >
+            <View collapsable={false}>
+              {msg.replyPreview && (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
+                  isMyMessage={isMyMessage}
+                  onPress={() => scrollToMessage(msg.replyToMessageId)}
+                />
+              )}
+              <ChatMediaMessage
+                message={msg}
+                isMyMessage={isMyMessage}
+                uploadProgress={null}
+              />
+              <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime, { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 }]}>
+                {formatTime(msg.createdAt)}
+              </Text>
+            </View>
+          </SwipeableMessage>
+        </View>
+      );
+    }
+
     if (msg.messageType === "post_share" && msg.metadata) {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
@@ -1140,6 +1345,9 @@ export default function ChatScreen({ route, navigation }) {
               messageText: "Shared a post",
               senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
               isDeleted: msg.isDeleted,
+              isPostShare: true,
+              postAuthorUsername: msg.metadata?.authorUsername || msg.metadata?.author_username,
+              postCaption: msg.metadata?.caption,
             })}
             onLongPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1147,6 +1355,13 @@ export default function ChatScreen({ route, navigation }) {
             }}
           >
             <View collapsable={false}>
+              {msg.replyPreview && (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
+                  isMyMessage={isMyMessage}
+                  onPress={() => scrollToMessage(msg.replyToMessageId)}
+                />
+              )}
               <SharedPostCard 
                 metadata={msg.metadata} 
                 onPress={(postId, postData) => {
@@ -1317,34 +1532,110 @@ export default function ChatScreen({ route, navigation }) {
         <KeyboardAwareToolbar>
           <View style={{ flexDirection: "column" }}>
             <ReplyBar reply={selectedReply} onClose={() => setSelectedReply(null)} />
-            <View style={styles.inputContent}>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  ref={inputRef}
-                  style={styles.input}
-                  placeholder="Message..."
-                  placeholderTextColor="#8FA1B8"
-                  selectionColor="#8FA1B8"
-                  cursorColor="#8FA1B8"
-                  underlineColorAndroid="transparent"
-                  value={messageText}
-                  onChangeText={setMessageText}
-                  multiline
-                  maxLength={1000}
-                />
+
+            {/* ── Locked bar: shown to non-admins when messaging is restricted ── */}
+            {isGroup && messagingRestricted && myGroupRole !== "admin" ? (
+              <View style={styles.lockedBar}>
+                <View style={styles.lockedBarIcon}>
+                  <LockKeyhole size={16} color={ACCENT} strokeWidth={2} />
+                </View>
+                <Text style={styles.lockedBarText}>Only admins can send messages</Text>
+                <View style={styles.lockedBarBadge}>
+                  <Megaphone size={12} color="#8FA1B8" strokeWidth={2} style={{ marginRight: 4 }} />
+                  <Text style={styles.lockedBarBadgeText}>Announcement</Text>
+                </View>
               </View>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.sendButton,
-                  (!messageText.trim() || sending) && styles.sendButtonDisabled,
-                  pressed && !(!messageText.trim() || sending) && { backgroundColor: SEND_BUTTON_PRESSED },
-                ]}
-                onPress={handleSend}
-                disabled={!messageText.trim() || sending}
-              >
-                {sending ? <SnooLoader size="small" color="#FFFFFF" /> : <Send size={20} color="#FFFFFF" strokeWidth={2.6} />}
-              </Pressable>
-            </View>
+            ) : (
+              <>
+                {/* ── Media preview strip ── */}
+                {mediaAttachment && (
+                  <View style={styles.mediaPreviewStrip}>
+                    <Image
+                      source={{ uri: mediaAttachment.uri }}
+                      style={styles.mediaPreviewThumb}
+                      resizeMode="cover"
+                    />
+                    {mediaAttachment.type === "video" && (
+                      <View style={styles.mediaPreviewVideoIcon}>
+                        <Text style={{ fontSize: 10 }}>🎥</Text>
+                      </View>
+                    )}
+                    <TextInput
+                      style={styles.mediaCaption}
+                      placeholder="Add a caption…"
+                      placeholderTextColor="#B0BEC5"
+                      value={messageText}
+                      onChangeText={setMessageText}
+                      multiline
+                      maxLength={500}
+                    />
+                    <TouchableOpacity
+                      onPress={() => { setMediaAttachment(null); setMessageText(""); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <X size={18} color="#8FA1B8" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* ── Regular input row ── */}
+                <View style={styles.inputContent}>
+                  {/* Attachment button */}
+                  <TouchableOpacity
+                    style={styles.attachBtn}
+                    onPress={() => showAlert({
+                      title: "Share Media",
+                      message: "What would you like to share?",
+                      icon: ImagePlus,
+                      iconColor: ACCENT,
+                      primaryAction: {
+                        text: "📷  Photo",
+                        onPress: () => { hideAlert(); setTimeout(() => handlePickMedia("image"), 200); },
+                      },
+                      secondaryAction: {
+                        text: "🎥  Video",
+                        onPress: () => { hideAlert(); setTimeout(() => handlePickMedia("video"), 200); },
+                      },
+                    })}
+                  >
+                    <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
+                  </TouchableOpacity>
+
+                  {!mediaAttachment && (
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        ref={inputRef}
+                        style={styles.input}
+                        placeholder="Message..."
+                        placeholderTextColor="#8FA1B8"
+                        selectionColor="#8FA1B8"
+                        cursorColor="#8FA1B8"
+                        underlineColorAndroid="transparent"
+                        value={messageText}
+                        onChangeText={setMessageText}
+                        multiline
+                        maxLength={1000}
+                      />
+                    </View>
+                  )}
+                  {mediaAttachment && <View style={{ flex: 1 }} />}
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.sendButton,
+                      (!messageText.trim() && !mediaAttachment || sending || uploadingMedia) && styles.sendButtonDisabled,
+                      pressed && (messageText.trim() || mediaAttachment) && !sending && { backgroundColor: SEND_BUTTON_PRESSED },
+                    ]}
+                    onPress={handleSend}
+                    disabled={(!messageText.trim() && !mediaAttachment) || sending || uploadingMedia}
+                  >
+                    {(sending || uploadingMedia)
+                      ? <SnooLoader size="small" color="#FFFFFF" />
+                      : <Send size={20} color="#FFFFFF" strokeWidth={2.6} />}
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
         </KeyboardAwareToolbar>
 
@@ -1450,5 +1741,62 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", shadowColor: PRIMARY_COLOR,
     shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 5 },
   sendButtonDisabled: { backgroundColor: LIGHT_TEXT, shadowOpacity: 0, elevation: 0 },
+
+  // ── Locked announcement bar ──
+  lockedBar: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: CHAT_CANVAS_BG,
+    borderTopWidth: 1, borderTopColor: INCOMING_BORDER,
+  },
+  lockedBarIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(53,101,242,0.1)",
+    alignItems: "center", justifyContent: "center",
+    marginRight: 10,
+  },
+  lockedBarText: {
+    flex: 1,
+    fontFamily: "Manrope-Medium", fontSize: 13,
+    color: LIGHT_TEXT,
+  },
+  lockedBarBadge: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "rgba(143,161,184,0.12)",
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  lockedBarBadgeText: {
+    fontFamily: "Manrope-Medium", fontSize: 10, color: "#8FA1B8",
+  },
+
+  // ── Media preview strip ──
+  mediaPreviewStrip: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: INCOMING_BORDER,
+    backgroundColor: CHAT_CANVAS_BG,
+  },
+  mediaPreviewThumb: {
+    width: 56, height: 56, borderRadius: 10,
+    backgroundColor: "#E0E0E0", marginRight: 10,
+  },
+  mediaPreviewVideoIcon: {
+    position: "absolute", left: 22, top: 20,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center",
+  },
+  mediaCaption: {
+    flex: 1, marginRight: 10,
+    fontFamily: "Manrope-Regular", fontSize: 14, color: "#1F3A5F",
+    maxHeight: 80,
+  },
+
+  // ── Attachment button ──
+  attachBtn: {
+    width: 40, height: 44,
+    alignItems: "center", justifyContent: "center",
+    marginRight: 4,
+  },
 });
 

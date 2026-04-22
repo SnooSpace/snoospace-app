@@ -25,7 +25,9 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Extract metadata from message
-  const { postId, authorId, authorType, imageUrl, caption } = metadata || {};
+  const { postId, authorId, authorType, imageUrl, caption, authorUsername, author_username, authorName, author_name } = metadata || {};
+  const metaUsername = authorUsername || author_username;
+  const metaName = authorName || author_name;
 
   useEffect(() => {
     const fetchPostDetails = async () => {
@@ -71,14 +73,27 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
 
   // Error state (deleted post or failed to load)
   if (error || !postData) {
+    const hasMetaInfo = metaUsername || metaName || caption;
     return (
       <View style={[styles.container, style]}>
         <View style={[styles.card, styles.errorCard]}>
           <Text style={styles.errorIcon}>📭</Text>
-          <Text style={styles.errorText}>Post unavailable</Text>
-          <Text style={styles.errorSubtext}>
-            This post may have been deleted
+          <Text style={styles.errorText}>
+            {hasMetaInfo ? "Post no longer available" : "Post unavailable"}
           </Text>
+          {hasMetaInfo && (
+            <Text style={styles.errorSubtext} numberOfLines={2}>
+              {metaName || (metaUsername ? `@${metaUsername}` : "")}
+              {metaName && metaUsername ? ` (@${metaUsername})` : ""}
+              {(metaName || metaUsername) && caption ? "\n" : ""}
+              {caption ? caption.slice(0, 80) : ""}
+            </Text>
+          )}
+          {!hasMetaInfo && (
+            <Text style={styles.errorSubtext}>
+              This post may have been deleted
+            </Text>
+          )}
         </View>
       </View>
     );

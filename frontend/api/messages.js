@@ -25,10 +25,10 @@ export async function getMessages(conversationId, { page = 1, limit = 50 } = {})
  * Send a message — DM or group
  * @param {{ conversationId?, recipientId?, recipientType?, messageText, messageType?, reply_to_message_id? }} opts
  */
-export async function sendMessage({ conversationId, recipientId, recipientType = 'member', messageText, messageType = 'text', reply_to_message_id }) {
+export async function sendMessage({ conversationId, recipientId, recipientType = 'member', messageText = '', messageType = 'text', reply_to_message_id, metadata = null }) {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
-  return apiPost('/messages', { conversationId, recipientId, recipientType, messageText, messageType, reply_to_message_id }, 15000, token);
+  return apiPost('/messages', { conversationId, recipientId, recipientType, messageText, messageType, reply_to_message_id, metadata }, 15000, token);
 }
 
 /** Mark a single message as read */
