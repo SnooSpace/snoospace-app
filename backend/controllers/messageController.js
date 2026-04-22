@@ -70,10 +70,15 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_text FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_text,
-        (SELECT COUNT(*) FROM messages msg
-         WHERE msg.conversation_id = c.id
-           AND (msg.sender_id != $1 OR msg.sender_type != $2)
-           AND msg.is_read = false)                   AS unread_count
+        -- For muted convos: suppress unread count (Instagram behaviour)
+        CASE WHEN cm.id IS NOT NULL THEN 0
+          ELSE (SELECT COUNT(*) FROM messages msg
+            WHERE msg.conversation_id = c.id
+              AND (msg.sender_id != $1 OR msg.sender_type != $2)
+              AND msg.is_read = false)
+        END                                          AS unread_count,
+        (cm.id IS NOT NULL)                          AS is_muted,
+        cm.muted_until                               AS muted_until
       FROM conversations c
       LEFT JOIN members m ON (
         (c.participant1_id = $1 AND c.participant1_type = $2
@@ -92,12 +97,16 @@ const getConversations = async (req, res) => {
       LEFT JOIN conversation_hidden ch
         ON ch.conversation_id = c.id
         AND ch.hidden_by_id = $1 AND ch.hidden_by_type = $2
+      LEFT JOIN conversation_muted cm
+        ON cm.conversation_id = c.id
+        AND cm.muted_by_id = $1 AND cm.muted_by_type = $2
+        AND (cm.muted_until IS NULL OR cm.muted_until > NOW())
       WHERE (
         (c.participant1_id = $1 AND c.participant1_type = $2)
         OR (c.participant2_id = $1 AND c.participant2_type = $2)
       )
       AND c.is_group = false
-      AND ch.id IS NULL
+      AND (ch.id IS NULL OR c.last_message_at > ch.hidden_at)
     `;
 
     // Group chats (via conversation_participants)
@@ -117,10 +126,12 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_text FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_text,
+        NULL                          AS muted_until,
         (SELECT COUNT(*) FROM messages msg
          WHERE msg.conversation_id = c.id
            AND (msg.sender_id != $1 OR msg.sender_type != $2)
-           AND msg.is_read = false)                   AS unread_count
+           AND msg.is_read = false)                   AS unread_count,
+        (cm.id IS NOT NULL)                           AS is_muted
       FROM conversations c
       JOIN conversation_participants cp
         ON cp.conversation_id = c.id
@@ -128,8 +139,12 @@ const getConversations = async (req, res) => {
       LEFT JOIN conversation_hidden ch
         ON ch.conversation_id = c.id
         AND ch.hidden_by_id = $1 AND ch.hidden_by_type = $2
+      LEFT JOIN conversation_muted cm
+        ON cm.conversation_id = c.id
+        AND cm.muted_by_id = $1 AND cm.muted_by_type = $2
+        AND (cm.muted_until IS NULL OR cm.muted_until > NOW())
       WHERE c.is_group = true
-        AND ch.id IS NULL
+        AND (ch.id IS NULL OR c.last_message_at > ch.hidden_at)
     `;
 
     const [dmResult, groupResult] = await Promise.all([
@@ -152,6 +167,8 @@ const getConversations = async (req, res) => {
       lastMessage:    conv.last_message_text,
       lastMessageAt:  conv.last_message_at,
       unreadCount:    parseInt(conv.unread_count) || 0,
+      isMuted:        conv.is_muted === true || conv.is_muted === 't',
+      mutedUntil:     conv.muted_until || null,
       createdAt:      conv.created_at,
     });
 
@@ -204,6 +221,17 @@ const getMessages = async (req, res) => {
       return res.status(404).json({ error: "Conversation not found" });
     }
 
+    // ── Instagram-style: find if this user previously deleted the chat ─────────
+    // If a conversation_hidden record exists AND the conversation re-appeared
+    // (because a new message arrived after hidden_at), we only show messages
+    // sent after the deletion timestamp — old history stays invisible.
+    const hiddenCheck = await pool.query(
+      `SELECT hidden_at FROM conversation_hidden
+       WHERE conversation_id = $1 AND hidden_by_id = $2 AND hidden_by_type = $3`,
+      [conversationId, userId, userType],
+    );
+    const hiddenAt = hiddenCheck.rows[0]?.hidden_at || null;
+
     const query = `
       SELECT
         m.id,
@@ -220,7 +248,6 @@ const getMessages = async (req, res) => {
         COALESCE(mem.name,  comm.name)           AS sender_name,
         COALESCE(mem.username, comm.username)    AS sender_username,
         COALESCE(mem.profile_photo_url, comm.logo_url) AS sender_photo_url,
-        -- replied-to message preview
         rm.message_text   AS reply_message_text,
         rm.sender_id      AS reply_sender_id,
         rm.sender_type    AS reply_sender_type,
@@ -233,11 +260,12 @@ const getMessages = async (req, res) => {
       LEFT JOIN members  rmem  ON (rm.sender_id = rmem.id  AND rm.sender_type = 'member')
       LEFT JOIN communities rcomm ON (rm.sender_id = rcomm.id AND rm.sender_type = 'community')
       WHERE m.conversation_id = $1
+        AND ($4::timestamptz IS NULL OR m.created_at > $4::timestamptz)
       ORDER BY m.created_at DESC
       LIMIT $2 OFFSET $3
     `;
 
-    const result = await pool.query(query, [conversationId, limit, offset]);
+    const result = await pool.query(query, [conversationId, limit, offset, hiddenAt]);
     const messages = result.rows.reverse().map((msg) => ({
       id:                msg.id,
       senderId:          msg.sender_id,
@@ -262,13 +290,14 @@ const getMessages = async (req, res) => {
       createdAt:         msg.created_at,
     }));
 
-    // Mark as read
+    // Mark as read — also respects the hidden_at cutoff
     await pool.query(
       `UPDATE messages SET is_read = true
        WHERE conversation_id = $1
          AND (sender_id != $2 OR sender_type != $3)
-         AND is_read = false`,
-      [conversationId, userId, userType],
+         AND is_read = false
+         AND ($4::timestamptz IS NULL OR created_at > $4::timestamptz)`,
+      [conversationId, userId, userType, hiddenAt],
     );
 
     res.json({ messages });
@@ -444,12 +473,20 @@ const getUnreadCount = async (req, res) => {
     if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
+    // Mirror the Instagram-style logic:
+    // 1. Exclude hidden conversations unless a new message arrived after hidden_at
+    // 2. Exclude muted conversations from the badge count entirely
     const result = await pool.query(
       `SELECT COUNT(DISTINCT m.conversation_id) AS unread_count
        FROM messages m
        JOIN conversations c ON m.conversation_id = c.id
        LEFT JOIN conversation_participants cp
          ON cp.conversation_id = c.id AND cp.participant_id = $1 AND cp.participant_type = $2
+       LEFT JOIN conversation_hidden ch
+         ON ch.conversation_id = c.id AND ch.hidden_by_id = $1 AND ch.hidden_by_type = $2
+       LEFT JOIN conversation_muted cm
+         ON cm.conversation_id = c.id AND cm.muted_by_id = $1 AND cm.muted_by_type = $2
+         AND (cm.muted_until IS NULL OR cm.muted_until > NOW())
        WHERE (
          (c.is_group = false AND (
            (c.participant1_id = $1 AND c.participant1_type = $2)
@@ -458,7 +495,9 @@ const getUnreadCount = async (req, res) => {
          OR (c.is_group = true AND cp.id IS NOT NULL)
        )
        AND (m.sender_id != $1 OR m.sender_type != $2)
-       AND m.is_read = false`,
+       AND m.is_read = false
+       AND (ch.id IS NULL OR c.last_message_at > ch.hidden_at)
+       AND cm.id IS NULL`,
       [userId, userType],
     );
     res.json({ unreadCount: parseInt(result.rows[0]?.unread_count) || 0 });
@@ -964,6 +1003,69 @@ const dismissGroupInvite = async (req, res) => {
   }
 };
 
+// ─── muteConversation ────────────────────────────────────────────────────────
+const muteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    const { mutedUntil } = req.body; // ISO string or null (forever)
+
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    // Verify user is part of this conversation
+    const check = await pool.query(
+      `SELECT c.id FROM conversations c
+       LEFT JOIN conversation_participants cp
+         ON cp.conversation_id = c.id AND cp.participant_id = $2 AND cp.participant_type = $3
+       WHERE c.id = $1 AND (
+         (c.is_group = false AND (
+           (c.participant1_id = $2 AND c.participant1_type = $3)
+           OR (c.participant2_id = $2 AND c.participant2_type = $3)
+         ))
+         OR (c.is_group = true AND cp.id IS NOT NULL)
+       )`,
+      [conversationId, userId, userType],
+    );
+    if (check.rows.length === 0) return res.status(404).json({ error: "Conversation not found" });
+
+    await pool.query(
+      `INSERT INTO conversation_muted (conversation_id, muted_by_id, muted_by_type, muted_until)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (conversation_id, muted_by_id, muted_by_type)
+       DO UPDATE SET muted_until = $4, created_at = NOW()`,
+      [conversationId, userId, userType, mutedUntil || null],
+    );
+    res.json({ success: true, mutedUntil: mutedUntil || null });
+  } catch (error) {
+    console.error("Error muting conversation:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ─── unmuteConversation ───────────────────────────────────────────────────────
+const unmuteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    await pool.query(
+      `DELETE FROM conversation_muted
+       WHERE conversation_id = $1 AND muted_by_id = $2 AND muted_by_type = $3`,
+      [conversationId, userId, userType],
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error unmuting conversation:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // ─── reportConversation ───────────────────────────────────────────────────────
 const reportConversation = async (req, res) => {
   try {
@@ -1081,6 +1183,8 @@ module.exports = {
   removeGroupParticipant,
   transferAdmin,
   hideConversation,
+  muteConversation,
+  unmuteConversation,
   unsendMessage,
   getGroupJoinInvite,
   getGroupJoinInviteByCommunity,

@@ -21,8 +21,11 @@ const CustomAlertModal = ({
   onClose,
   primaryAction,
   secondaryAction,
-  icon: Icon, // Optional Lucide icon component
+  icon: Icon,
   iconColor = "#FF3B30",
+  // Optional: mute duration picker
+  durationOptions,
+  onDurationSelect,
 }) => {
   return (
     <Modal
@@ -52,42 +55,77 @@ const CustomAlertModal = ({
               </View>
 
               <View style={styles.buttonContainer}>
-                {secondaryAction && (
+                {/* Duration options (mute picker) */}
+                {durationOptions && onDurationSelect && (
+                  <View style={styles.durationList}>
+                    {durationOptions.map((dur, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.durationBtn}
+                        onPress={() => onDurationSelect(dur)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.durationBtnText}>{dur.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {/* Standard Cancel + Confirm row */}
+                {!durationOptions && (
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    {secondaryAction && (
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton]}
+                        onPress={() => {
+                          secondaryAction.onPress?.();
+                          onClose();
+                        }}
+                        activeOpacity={0.6}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          {secondaryAction.text}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {primaryAction && (
+                      <TouchableOpacity
+                        style={[
+                          styles.button,
+                          styles.primaryButton,
+                          primaryAction.style === "destructive" && styles.destructiveButton,
+                        ]}
+                        onPress={() => {
+                          primaryAction.onPress?.();
+                          onClose();
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.primaryButtonText,
+                            primaryAction.style === "destructive" && styles.destructiveButtonText,
+                          ]}
+                        >
+                          {primaryAction.text}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Cancel button always shown for duration picker */}
+                {durationOptions && secondaryAction && (
                   <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton]}
+                    style={[styles.button, styles.secondaryButton, { marginTop: 4 }]}
                     onPress={() => {
                       secondaryAction.onPress?.();
                       onClose();
                     }}
                     activeOpacity={0.6}
                   >
-                    <Text style={styles.secondaryButtonText}>
-                      {secondaryAction.text}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {primaryAction && (
-                  <TouchableOpacity
-                    style={[
-                      styles.button,
-                      styles.primaryButton,
-                      primaryAction.style === "destructive" && styles.destructiveButton,
-                    ]}
-                    onPress={() => {
-                      primaryAction.onPress?.();
-                      onClose();
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.primaryButtonText,
-                        primaryAction.style === "destructive" && styles.destructiveButtonText,
-                      ]}
-                    >
-                      {primaryAction.text}
-                    </Text>
+                    <Text style={styles.secondaryButtonText}>{secondaryAction.text}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -144,11 +182,27 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   buttonContainer: {
-    flexDirection: "row",
     padding: 16,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
+  },
+  durationList: {
+    width: "100%",
+    gap: 8,
+    marginBottom: 4,
+  },
+  durationBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  durationBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#111827",
   },
   button: {
     flex: 1,

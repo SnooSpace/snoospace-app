@@ -162,6 +162,29 @@ export async function dismissGroupInvite(conversationId) {
   return apiPost(`/messages/groups/${conversationId}/dismiss-invite`, {}, 10000, token);
 }
 
+// ─── Conversation Mute ────────────────────────────────────────────────────────
+
+/**
+ * Mute a conversation (DM or group)
+ * @param {number} conversationId
+ * @param {string|null} mutedUntil - ISO date string, or null for indefinite
+ */
+export async function muteConversation(conversationId, mutedUntil = null) {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiPost(`/messages/conversations/${conversationId}/mute`, { mutedUntil }, 10000, token);
+}
+
+/**
+ * Unmute a conversation
+ * @param {number} conversationId
+ */
+export async function unmuteConversation(conversationId) {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiDelete(`/messages/conversations/${conversationId}/mute`, 10000, token);
+}
+
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
@@ -193,3 +216,4 @@ export async function resolveChatReport(reportId, status, resolutionNote = '') {
   if (!token) throw new Error("Authentication token not found.");
   return apiPatch(`/admin/chat-reports/${reportId}/resolve`, { status, resolutionNote }, 15000, token);
 }
+

@@ -12,11 +12,11 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { BlurView } from "expo-blur";
-import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation } from "../../api/messages";
+import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation } from "../../api/messages";
 import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
 import { confirmGiftRSVP } from "../../api/events";
@@ -283,11 +283,28 @@ const REPORT_REASONS = [
 ];
 
 // ── ChatActionsSheet ─────────────────────────────────────────────────────────
-const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport }) => (
+const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
       <Pressable style={actionSheetStyles.sheet} onPress={(e) => e.stopPropagation()}>
         <View style={actionSheetStyles.handle} />
+
+        {/* Mute / Unmute */}
+        <TouchableOpacity style={actionSheetStyles.row} onPress={onMute} activeOpacity={0.7}>
+          <View style={[actionSheetStyles.iconBox, { backgroundColor: isMuted ? "rgba(52,199,89,0.1)" : "rgba(255,159,10,0.1)" }]}>
+            {isMuted
+              ? <Bell    size={20} color="#34C759" strokeWidth={2.5} />
+              : <BellOff size={20} color="#FF9F0A" strokeWidth={2.5} />}
+          </View>
+          <View style={actionSheetStyles.rowText}>
+            <Text style={actionSheetStyles.rowLabel}>{isMuted ? "Unmute Chat" : "Mute Chat"}</Text>
+            <Text style={actionSheetStyles.rowSub}>
+              {isMuted ? "Turn notifications back on" : "Silence notifications for this chat"}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={actionSheetStyles.divider} />
 
         <TouchableOpacity style={actionSheetStyles.row} onPress={onDeleteChat} activeOpacity={0.7}>
           <View style={[actionSheetStyles.iconBox, { backgroundColor: "rgba(229, 57, 53, 0.1)" }]}>
@@ -571,7 +588,8 @@ const SwipeableMessage = React.memo(({ messageId, highlightedIdSV, onReply, onLo
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
-  const { conversationId, recipientId, recipientType = "member", isGroup = false, groupName } = route.params || {};
+  const { conversationId, recipientId, recipientType = "member", isGroup = false, groupName,
+    isMuted: initialIsMuted = false, mutedUntil: initialMutedUntil = null } = route.params || {};
 
 
   const [messages,              setMessages]             = useState([]);
@@ -599,6 +617,8 @@ export default function ChatScreen({ route, navigation }) {
   });
   const [chatActionsVisible,    setChatActionsVisible]    = useState(false);
   const [reportSheetVisible,    setReportSheetVisible]    = useState(false);
+  const [isMuted,               setIsMuted]               = useState(initialIsMuted);
+  const [mutedUntil,            setMutedUntil]            = useState(initialMutedUntil);
 
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
@@ -913,6 +933,69 @@ export default function ChatScreen({ route, navigation }) {
         },
       });
     }, 300);
+  };
+
+  // ── handleMuteChat ───────────────────────────────────────────────────────
+  const handleMuteChat = () => {
+    setChatActionsVisible(false);
+    if (isMuted) {
+      // Unmute immediately
+      setTimeout(async () => {
+        try {
+          await unmuteConversation(currentConversationId);
+          setIsMuted(false);
+          setMutedUntil(null);
+          showAlert({
+            title: "Unmuted",
+            message: "You'll now receive notifications for this conversation.",
+            icon: Bell,
+            iconColor: "#34C759",
+            primaryAction: { text: "OK", onPress: hideAlert },
+          });
+        } catch {
+          showAlert({
+            title: "Error",
+            message: "Failed to unmute. Please try again.",
+            primaryAction: { text: "OK", onPress: hideAlert },
+            icon: AlertTriangle,
+          });
+        }
+      }, 300);
+    } else {
+      // Show duration picker
+      const MUTE_DURATIONS = [
+        { label: "1 hour",   ms: 60 * 60 * 1000 },
+        { label: "8 hours",  ms: 8 * 60 * 60 * 1000 },
+        { label: "24 hours", ms: 24 * 60 * 60 * 1000 },
+        { label: "Forever",  ms: null },
+      ];
+      setTimeout(() => {
+        showAlert({
+          title: "Mute Notifications",
+          message: "How long would you like to mute this conversation?",
+          icon: BellOff,
+          iconColor: "#FF9F0A",
+          secondaryAction: { text: "Cancel", onPress: hideAlert },
+          durationOptions: MUTE_DURATIONS,
+          onDurationSelect: async (dur) => {
+            hideAlert();
+            const until = dur.ms ? new Date(Date.now() + dur.ms).toISOString() : null;
+            try {
+              await muteConversation(currentConversationId, until);
+              setIsMuted(true);
+              setMutedUntil(until);
+            } catch {
+              showAlert({
+                title: "Error",
+                message: "Failed to mute. Please try again.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: AlertTriangle,
+              });
+            }
+          },
+        });
+      }, 300);
+    }
   };
 
   // ── handleStartReport ─────────────────────────────────────────────────
@@ -1291,6 +1374,8 @@ export default function ChatScreen({ route, navigation }) {
           onClose={() => setChatActionsVisible(false)}
           onDeleteChat={handleDeleteChat}
           onReport={handleStartReport}
+          onMute={handleMuteChat}
+          isMuted={isMuted}
         />
 
         <ReportReasonSheet

@@ -16,10 +16,11 @@ import * as Haptics from "expo-haptics";
 
 import {
   ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, AlertTriangle,
+  Bell, BellOff,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
-import { getConversations, hideConversation, removeGroupParticipant } from "../../api/messages";
+import { getConversations, hideConversation, removeGroupParticipant, muteConversation, unmuteConversation } from "../../api/messages";
 import { globalSearch } from "../../api/search";
 import { getAllAccounts, getActiveAccount } from "../../api/auth";
 
@@ -107,20 +108,22 @@ const srStyles = StyleSheet.create({
 
 // ── Swipeable conversation row ────────────────────────────────────────────────
 const SWIPE_THRESHOLD = 80;
+const SWIPE_FULL = SWIPE_THRESHOLD * 2; // two action buttons
 
-function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType }) {
+function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUserType }) {
   const translateX = useSharedValue(0);
   const isGroup    = conv.isGroup;
+  const isMuted    = conv.isMuted;
 
   const pan = Gesture.Pan()
     .activeOffsetX([-8, 8])
     .onUpdate((e) => {
       if (e.translationX > 0) { translateX.value = 0; return; }
-      translateX.value = Math.max(e.translationX, -SWIPE_THRESHOLD - 20);
+      translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
     })
     .onEnd((e) => {
       if (e.translationX < -SWIPE_THRESHOLD) {
-        translateX.value = withSpring(-SWIPE_THRESHOLD, { damping: 18, stiffness: 200 });
+        translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
         runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
       } else {
         translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
@@ -128,7 +131,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
     });
 
   const rowStyle    = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-  const actionWidth = SWIPE_THRESHOLD;
+  const actionWidth = SWIPE_FULL;
 
   const name = isGroup
     ? (conv.groupName || "Group")
@@ -145,8 +148,23 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
     <View style={{ overflow: "hidden" }}>
       {/* Action buttons revealed on swipe */}
       <View style={[swipeStyles.actions, { width: actionWidth }]}>
+        {/* Mute / Unmute action */}
         <TouchableOpacity
-          style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF9500" : DANGER }]}
+          style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
+          onPress={() => {
+            translateX.value = withSpring(0);
+            onMute?.();
+          }}
+        >
+          {isMuted
+            ? <Bell    size={18} color="#FFF" strokeWidth={2} />
+            : <BellOff size={18} color="#FFF" strokeWidth={2} />}
+          <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
+        </TouchableOpacity>
+
+        {/* Delete / Leave action */}
+        <TouchableOpacity
+          style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
           onPress={() => {
             translateX.value = withSpring(0);
             if (isGroup) onLeave?.();
@@ -154,8 +172,9 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
           }}
         >
           {isGroup
-            ? <LogOut size={20} color="#FFF" strokeWidth={2} />
-            : <Trash2  size={20} color="#FFF" strokeWidth={2} />}
+            ? <LogOut size={18} color="#FFF" strokeWidth={2} />
+            : <Trash2  size={18} color="#FFF" strokeWidth={2} />}
+          <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -168,13 +187,16 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
                 <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
                   {name}
                 </Text>
-                <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+                  <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+                </View>
               </View>
               <View style={swipeStyles.bottomRow}>
-                <Text style={[swipeStyles.preview, hasUnread && swipeStyles.previewUnread]} numberOfLines={1}>
+                <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
                   {conv.lastMessage || username || "No messages yet"}
                 </Text>
-                {hasUnread && (
+                {hasUnread && !isMuted && (
                   <View style={swipeStyles.badge}>
                     <Text style={swipeStyles.badgeText}>
                       {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
@@ -190,10 +212,11 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, currentUserType })
   );
 }
 const swipeStyles = StyleSheet.create({
-  actions:      { position: "absolute", right: 0, top: 0, bottom: 0, justifyContent: "center",
-    alignItems: "flex-end", paddingRight: 4 },
+  actions:      { position: "absolute", right: 0, top: 0, bottom: 0, flexDirection: "row",
+    justifyContent: "flex-end", alignItems: "center", paddingRight: 4 },
   actionBtn:    { width: 68, alignSelf: "stretch", justifyContent: "center", alignItems: "center",
-    borderRadius: 12, margin: 4 },
+    borderRadius: 12, margin: 4, gap: 3 },
+  actionLabel:  { fontFamily: "Manrope-Medium", fontSize: 10, color: "#FFF" },
   row:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12,
     backgroundColor: BG, alignItems: "center" },
   content:      { flex: 1 },
@@ -409,6 +432,60 @@ export default function ConversationsListScreen({ navigation }) {
     });
   }, []);
 
+  const handleMuteConversation = useCallback(async (conv) => {
+    if (conv.isMuted) {
+      // Unmute immediately, no picker needed
+      setConversations((prev) => prev.map((c) =>
+        c.id === conv.id ? { ...c, isMuted: false, mutedUntil: null } : c
+      ));
+      try { await unmuteConversation(conv.id); }
+      catch { setConversations((prev) => prev.map((c) =>
+        c.id === conv.id ? { ...c, isMuted: true, mutedUntil: conv.mutedUntil } : c
+      )); }
+    } else {
+      // Show duration picker
+      const durations = [
+        { label: "1 hour",    ms: 60 * 60 * 1000 },
+        { label: "8 hours",   ms: 8 * 60 * 60 * 1000 },
+        { label: "24 hours",  ms: 24 * 60 * 60 * 1000 },
+        { label: "Forever",   ms: null },
+      ];
+      showAlert({
+        title: "Mute Notifications",
+        message: "How long would you like to mute this conversation?",
+        icon: BellOff,
+        iconColor: "#FF9F0A",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "1 hour",
+          onPress: async () => {
+            const mutedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            setConversations((prev) => prev.map((c) =>
+              c.id === conv.id ? { ...c, isMuted: true, mutedUntil } : c
+            ));
+            try { await muteConversation(conv.id, mutedUntil); }
+            catch { setConversations((prev) => prev.map((c) =>
+              c.id === conv.id ? { ...c, isMuted: false, mutedUntil: null } : c
+            )); }
+          },
+        },
+        // Duration options rendered via extra action buttons in the alert config
+        durationOptions: durations,
+        onDurationSelect: async (dur) => {
+          hideAlert();
+          const mutedUntil = dur.ms ? new Date(Date.now() + dur.ms).toISOString() : null;
+          setConversations((prev) => prev.map((c) =>
+            c.id === conv.id ? { ...c, isMuted: true, mutedUntil } : c
+          ));
+          try { await muteConversation(conv.id, mutedUntil); }
+          catch { setConversations((prev) => prev.map((c) =>
+            c.id === conv.id ? { ...c, isMuted: false, mutedUntil: null } : c
+          )); }
+        },
+      });
+    }
+  }, []);
+
   const handleLeaveGroup = useCallback(async (conv) => {
     showAlert({
       title: "Leave Group",
@@ -432,12 +509,20 @@ export default function ConversationsListScreen({ navigation }) {
   // ── Navigate to chat ──────────────────────────────────────────────────────────
   const openConversation = useCallback((conv) => {
     if (conv.isGroup) {
-      navigation.navigate("Chat", { conversationId: conv.id, isGroup: true, groupName: conv.groupName });
+      navigation.navigate("Chat", {
+        conversationId: conv.id,
+        isGroup: true,
+        groupName: conv.groupName,
+        isMuted: conv.isMuted || false,
+        mutedUntil: conv.mutedUntil || null,
+      });
     } else {
       navigation.navigate("Chat", {
         conversationId: conv.id,
         recipientId:   conv.otherParticipant?.id,
         recipientType: conv.otherParticipant?.type || "member",
+        isMuted: conv.isMuted || false,
+        mutedUntil: conv.mutedUntil || null,
       });
     }
   }, [navigation]);
@@ -458,6 +543,7 @@ export default function ConversationsListScreen({ navigation }) {
       onPress={() => openConversation(item)}
       onDelete={() => handleDeleteConversation(item)}
       onLeave={() => handleLeaveGroup(item)}
+      onMute={() => handleMuteConversation(item)}
       currentUserType={activeAccount?.type}
     />
   );
@@ -470,6 +556,7 @@ export default function ConversationsListScreen({ navigation }) {
           onPress={() => openConversation(item.conv)}
           onDelete={() => handleDeleteConversation(item.conv)}
           onLeave={() => handleLeaveGroup(item.conv)}
+          onMute={() => handleMuteConversation(item.conv)}
           currentUserType={activeAccount?.type}
         />
       );

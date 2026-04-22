@@ -1417,6 +1417,10 @@ router.get("/messages/communities/:communityId/join-invite", authMiddleware, Mes
 // Message actions
 router.patch("/messages/:messageId/unsend", authMiddleware, MessageController.unsendMessage);
 
+// Conversation mute / unmute
+router.post("/messages/conversations/:conversationId/mute", authMiddleware, MessageController.muteConversation);
+router.delete("/messages/conversations/:conversationId/mute", authMiddleware, MessageController.unmuteConversation);
+
 // Admin: Chat reports
 router.get("/admin/chat-reports", adminAuthMiddleware, MessageController.getChatReports);
 router.get("/admin/chat-reports/:reportId", adminAuthMiddleware, MessageController.getChatReportById);
